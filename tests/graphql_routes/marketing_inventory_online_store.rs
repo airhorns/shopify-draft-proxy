@@ -1603,15 +1603,15 @@ fn marketing_live_hybrid_effective_catalog_overlays_staged_lifecycle_on_upstream
     assert_eq!(
         read.body["data"]["allEvents"]["nodes"],
         json!([
-            {"id": upstream_event_id, "type": "AD", "remoteId": "upstream-acquisition"},
-            {"id": local_event_id, "type": "NEWSLETTER", "remoteId": "local-staged"}
+            {"id": local_event_id, "type": "NEWSLETTER", "remoteId": "local-staged"},
+            {"id": upstream_event_id, "type": "AD", "remoteId": "upstream-acquisition"}
         ])
     );
     assert_eq!(
         read.body["data"]["allEvents"]["edges"],
         json!([
-            {"cursor": "opaque-upstream-event-cursor", "node": {"id": upstream_event_id, "type": "AD"}},
-            {"cursor": local_event_cursor, "node": {"id": local_event_id, "type": "NEWSLETTER"}}
+            {"cursor": local_event_cursor, "node": {"id": local_event_id, "type": "NEWSLETTER"}},
+            {"cursor": "opaque-upstream-event-cursor", "node": {"id": upstream_event_id, "type": "AD"}}
         ])
     );
     assert_eq!(
@@ -1789,6 +1789,13 @@ fn marketing_activity_connections_honor_sort_window_and_query_for_staged_records
         .as_str()
         .unwrap()
         .to_string();
+    let alpha_numeric_id = alpha_id
+        .rsplit('/')
+        .next()
+        .unwrap()
+        .split('?')
+        .next()
+        .unwrap();
 
     let read = proxy.process_request(json_graphql_request(
         r#"
@@ -1854,7 +1861,7 @@ fn marketing_activity_connections_honor_sort_window_and_query_for_staged_records
             "eventQuery": "tactic:newsletter",
             "titleQuery": "title:\"Zulu launch\"",
             "createdAtQuery": "created_at:>=2024-01-01T00:00:02.000Z",
-            "idRangeQuery": "id:>1",
+            "idRangeQuery": format!("id:>{alpha_numeric_id}"),
             "scheduledEndQuery": "scheduled_to_end_at:2024-01-04",
             "appIdQuery": "app_id:42",
             "appNameQuery": "app_name:shopify-draft-proxy",
@@ -2503,12 +2510,9 @@ fn marketing_external_activity_uses_request_app_identity_channel_and_tracking_va
     let create = proxy.process_request(create);
     let created = &create.body["data"]["createExternal"]["marketingActivity"];
     let activity_id = created["id"].as_str().expect("activity id");
-    let activity_tail = activity_id
-        .rsplit('/')
-        .next()
-        .and_then(|tail| tail.parse::<u64>().ok())
-        .expect("numeric marketing activity id");
-    let assumed_event_id = format!("gid://shopify/MarketingEvent/{}", activity_tail + 1);
+    let event_id = created["marketingEvent"]["id"]
+        .as_str()
+        .expect("marketing event id");
 
     assert_eq!(
         create.body["data"]["createExternal"]["userErrors"],
@@ -2530,11 +2534,8 @@ fn marketing_external_activity_uses_request_app_identity_channel_and_tracking_va
             }
         })
     );
-    assert_ne!(
-        created["marketingEvent"]["id"],
-        json!(assumed_event_id),
-        "marketing event ids must be allocated independently from activity ids"
-    );
+    assert!(activity_id.contains("shopify-draft-proxy=synthetic"));
+    assert!(event_id.contains("shopify-draft-proxy=synthetic"));
 }
 
 #[test]
@@ -2631,19 +2632,45 @@ fn marketing_external_activity_app_title_uses_installed_app_model() {
 #[test]
 fn marketing_engagement_currency_validation_matches_shopify_error_codes() {
     let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingEngagementCurrencyValidationSeed($activityInput: MarketingActivityCreateExternalInput!) {
+          createActivity: marketingActivityCreateExternal(input: $activityInput) {
+            marketingActivity { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "activityInput": {"title": "HAR-684 Currency Validation Campaign", "remoteId": "har-684-currency-validation", "status": "ACTIVE", "remoteUrl": "https://example.com/har-684-currency-validation", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "budget": {"budgetType": "DAILY", "total": {"amount": "100.00", "currencyCode": "USD"}}, "utm": {"campaign": "har-684-currency-validation", "source": "newsletter", "medium": "email"}}
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["createActivity"]["userErrors"],
+        json!([])
+    );
+    let activity_id = create.body["data"]["createActivity"]["marketingActivity"]["id"]
+        .as_str()
+        .expect("currency-validation activity ID")
+        .to_string();
+    assert!(activity_id.contains("shopify-draft-proxy=synthetic"));
+    let canonical_activity_id = activity_id
+        .split('?')
+        .next()
+        .expect("canonical marketing activity ID")
+        .to_string();
+
     let response = proxy.process_request(json_graphql_request(
         r#"
-        mutation MarketingEngagementCurrencyValidation($activityInput: MarketingActivityCreateExternalInput!, $remoteId: String!, $activityId: ID!, $mismatchedInputEngagement: MarketingEngagementInput!, $activityCurrencyMismatchEngagement: MarketingEngagementInput!, $remoteActivityCurrencyMismatchEngagement: MarketingEngagementInput!) {
-          createActivity: marketingActivityCreateExternal(input: $activityInput) { marketingActivity { id } userErrors { field message code } }
+        mutation MarketingEngagementCurrencyValidation($remoteId: String!, $activityId: ID!, $mismatchedInputEngagement: MarketingEngagementInput!, $activityCurrencyMismatchEngagement: MarketingEngagementInput!, $remoteActivityCurrencyMismatchEngagement: MarketingEngagementInput!) {
           inputMismatchByRemoteId: marketingEngagementCreate(remoteId: $remoteId, marketingEngagement: $mismatchedInputEngagement) { marketingEngagement { occurredOn } userErrors { field message code } }
           activityMismatchById: marketingEngagementCreate(marketingActivityId: $activityId, marketingEngagement: $activityCurrencyMismatchEngagement) { marketingEngagement { occurredOn } userErrors { field message code } }
           activityMismatchByRemoteId: marketingEngagementCreate(remoteId: $remoteId, marketingEngagement: $remoteActivityCurrencyMismatchEngagement) { marketingEngagement { occurredOn } userErrors { field message code } }
         }
         "#,
         json!({
-            "activityInput": {"title": "HAR-684 Currency Validation Campaign", "remoteId": "har-684-currency-validation", "status": "ACTIVE", "remoteUrl": "https://example.com/har-684-currency-validation", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "budget": {"budgetType": "DAILY", "total": {"amount": "100.00", "currencyCode": "USD"}}, "utm": {"campaign": "har-684-currency-validation", "source": "newsletter", "medium": "email"}},
             "remoteId": "har-684-currency-validation",
-            "activityId": "gid://shopify/MarketingActivity/1",
+            "activityId": canonical_activity_id,
             "mismatchedInputEngagement": {"occurredOn": "2026-04-01", "isCumulative": false, "utcOffset": "+00:00", "adSpend": {"amount": "10.00", "currencyCode": "USD"}, "sales": {"amount": "30.00", "currencyCode": "EUR"}},
             "activityCurrencyMismatchEngagement": {"occurredOn": "2026-04-02", "isCumulative": false, "utcOffset": "+00:00", "adSpend": {"amount": "10.00", "currencyCode": "EUR"}},
             "remoteActivityCurrencyMismatchEngagement": {"occurredOn": "2026-04-03", "isCumulative": false, "utcOffset": "+00:00", "sales": {"amount": "30.00", "currencyCode": "EUR"}}
@@ -8587,6 +8614,10 @@ fn order_create_decrements_inventory_when_inventory_behaviour_is_not_bypass() {
         }),
     ));
     assert_eq!(order.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let order_id = order.body["data"]["orderCreate"]["order"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
 
     let read = proxy.process_request(json_graphql_request(
         r#"
@@ -8634,10 +8665,7 @@ fn order_create_decrements_inventory_when_inventory_behaviour_is_not_bypass() {
         order_log["notes"],
         json!("Locally staged orderCreate in shopify-draft-proxy.")
     );
-    assert_eq!(
-        order_log["stagedResourceIds"],
-        json!(["gid://shopify/Order/1"])
-    );
+    assert_eq!(order_log["stagedResourceIds"], json!([order_id]));
 
     let bypass_seed = proxy.process_request(json_graphql_request(
         r#"
@@ -22129,4 +22157,150 @@ fn metaobject_bulk_delete_stages_tombstones_counts_logs_and_node_reads() {
         restored_read.body["data"]["surviving"],
         json!({"id": second_id, "handle": "second-entry"})
     );
+}
+
+#[test]
+fn marketing_synthetic_ids_skip_hydrated_aliases_and_log_nested_event() {
+    let activities = (1..=8)
+        .map(|numeric_id| {
+            let event_numeric_id = ((numeric_id - 1) % 4) + 1;
+            json!({
+                "id": format!("gid://shopify/MarketingActivity/{numeric_id}"),
+                "title": format!("Hydrated activity {numeric_id}"),
+                "marketingEvent": {
+                    "id": format!("gid://shopify/MarketingEvent/{event_numeric_id}")
+                }
+            })
+        })
+        .collect::<Vec<_>>();
+    let events = (1..=4)
+        .map(|numeric_id| {
+            json!({
+                "id": format!("gid://shopify/MarketingEvent/{numeric_id}"),
+                "type": "AD"
+            })
+        })
+        .collect::<Vec<_>>();
+    let upstream_calls = Arc::new(Mutex::new(0usize));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_request| {
+            *captured_calls.lock().unwrap() += 1;
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "marketingActivities": {
+                            "nodes": activities,
+                            "edges": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        },
+                        "marketingEvents": {
+                            "nodes": events,
+                            "edges": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let hydrated = proxy.process_request(json_graphql_request(
+        r#"
+        query HydrateMarketingIdentities {
+          marketingActivities(first: 10) {
+            nodes { id title marketingEvent { id } }
+          }
+          marketingEvents(first: 10) {
+            nodes { id type }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(hydrated.status, 200);
+    assert_eq!(*upstream_calls.lock().unwrap(), 1);
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMarketingActivityWithCollisionSafeIdentities(
+          $input: MarketingActivityCreateExternalInput!
+        ) {
+          marketingActivityCreateExternal(input: $input) {
+            marketingActivity {
+              id
+              title
+              marketingEvent { id remoteId }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Allocated activity",
+                "remoteId": "allocated-activity",
+                "status": "ACTIVE",
+                "remoteUrl": "https://example.com/allocated-activity",
+                "tactic": "AD",
+                "marketingChannelType": "SEARCH",
+                "utm": {
+                    "campaign": "allocated-activity",
+                    "source": "search",
+                    "medium": "paid"
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["marketingActivityCreateExternal"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        *upstream_calls.lock().unwrap(),
+        1,
+        "supported marketing create must remain local"
+    );
+    let activity = &create.body["data"]["marketingActivityCreateExternal"]["marketingActivity"];
+    let activity_id = activity["id"].as_str().unwrap().to_string();
+    let event_id = activity["marketingEvent"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let numeric_tail = |id: &str| {
+        id.rsplit('/')
+            .next()
+            .unwrap()
+            .split('?')
+            .next()
+            .unwrap()
+            .parse::<u64>()
+            .unwrap()
+    };
+    assert!(activity_id.contains("shopify-draft-proxy=synthetic"));
+    assert!(event_id.contains("shopify-draft-proxy=synthetic"));
+    assert_eq!(numeric_tail(&activity_id), 9);
+    assert_eq!(numeric_tail(&event_id), 10);
+    assert_eq!(
+        activity["marketingEvent"]["remoteId"],
+        json!("allocated-activity")
+    );
+
+    let log = log_snapshot(&proxy);
+    let staged_ids = log["entries"].as_array().unwrap().last().unwrap()["stagedResourceIds"]
+        .as_array()
+        .unwrap();
+    assert!(staged_ids.contains(&json!(activity_id)));
+    assert!(staged_ids.contains(&json!(event_id)));
 }

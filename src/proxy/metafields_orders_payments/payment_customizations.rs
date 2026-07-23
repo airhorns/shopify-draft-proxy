@@ -17,6 +17,7 @@ pub(in crate::proxy) fn payment_customization_record(
     api_client_id: Option<&str>,
     resolved_function: Option<&Value>,
     timestamp: &str,
+    allocate_metafield_id: &mut impl FnMut() -> String,
 ) -> Value {
     let function_id = resolved_string_field(input, "functionId");
     let function_handle = resolved_string_field(input, "functionHandle");
@@ -37,7 +38,13 @@ pub(in crate::proxy) fn payment_customization_record(
     });
     payment_customization_set_metafields(
         &mut record,
-        payment_customization_metafields(input, api_client_id, timestamp, None),
+        payment_customization_metafields(
+            input,
+            api_client_id,
+            timestamp,
+            None,
+            allocate_metafield_id,
+        ),
     );
     record
 }
@@ -88,11 +95,11 @@ pub(in crate::proxy) fn payment_customization_metafields(
     api_client_id: Option<&str>,
     timestamp: &str,
     existing_record: Option<&Value>,
+    allocate_metafield_id: &mut impl FnMut() -> String,
 ) -> Vec<Value> {
     resolved_object_list_field(input, "metafields")
         .into_iter()
-        .enumerate()
-        .map(|(index, metafield)| {
+        .map(|metafield| {
             let namespace = resolved_string_field(&metafield, "namespace")
                 .map(|namespace| canonical_app_metafield_namespace(Some(&namespace), api_client_id))
                 .unwrap_or_default();
@@ -102,12 +109,7 @@ pub(in crate::proxy) fn payment_customization_metafields(
             let id = existing_metafield
                 .and_then(|metafield| metafield["id"].as_str())
                 .map(str::to_string)
-                .unwrap_or_else(|| {
-                    shopify_gid(
-                        "Metafield",
-                        format_args!("payment-customization-{}", index + 1),
-                    )
-                });
+                .unwrap_or_else(&mut *allocate_metafield_id);
             let created_at = existing_metafield
                 .and_then(|metafield| metafield["createdAt"].as_str())
                 .unwrap_or(timestamp);

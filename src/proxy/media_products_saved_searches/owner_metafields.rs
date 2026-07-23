@@ -420,9 +420,15 @@ impl DraftProxy {
                 .metafields_set_effective_type(&input, api_client_id.as_deref())
                 .unwrap_or_else(|| "single_line_text_field".to_string());
             let value = resolved_string_field(&input, "value").unwrap_or_default();
-            let index = self.next_owner_metafield_index(metafields.len());
+            let index = self.owner_metafield_timestamp_index(metafields.len());
             let existing = self.owner_metafield(&owner_id, &namespace, &key);
+            let id = existing
+                .as_ref()
+                .and_then(|metafield| metafield["id"].as_str())
+                .map(str::to_string)
+                .unwrap_or_else(|| self.next_synthetic_gid("Metafield"));
             let metafield = owner_metafield_record(OwnerMetafieldRecordArgs {
+                id,
                 owner_id: &owner_id,
                 namespace: &namespace,
                 key: &key,
@@ -1230,8 +1236,10 @@ impl DraftProxy {
             let metafield_type = resolved_string_field(&metafield, "type")
                 .unwrap_or_else(|| "single_line_text_field".to_string());
             let definition = self.owner_metafield_definition_value(owner_id, &namespace, &key);
-            let index = self.next_owner_metafield_index(0);
+            let index = self.owner_metafield_timestamp_index(0);
+            let id = self.next_synthetic_gid("Metafield");
             let record = owner_metafield_record(OwnerMetafieldRecordArgs {
+                id,
                 owner_id,
                 namespace: &namespace,
                 key: &key,
@@ -1728,8 +1736,10 @@ impl DraftProxy {
                 .unwrap_or_else(|| "single_line_text_field".to_string());
             let value = resolved_string_field(&metafield_input, "value").unwrap_or_default();
             let definition = self.owner_metafield_definition_value(owner_id, &namespace, &key);
-            let index = self.next_owner_metafield_index(0);
+            let index = self.owner_metafield_timestamp_index(0);
+            let id = self.next_synthetic_gid("Metafield");
             let metafield = owner_metafield_record(OwnerMetafieldRecordArgs {
+                id,
                 owner_id,
                 namespace: &namespace,
                 key: &key,
@@ -1764,8 +1774,14 @@ impl DraftProxy {
     ) -> Value {
         let definition = self.owner_metafield_definition_value(owner_id, namespace, key);
         let existing = self.owner_metafield(owner_id, namespace, key);
-        let index = self.next_owner_metafield_index(0);
+        let index = self.owner_metafield_timestamp_index(0);
+        let id = existing
+            .as_ref()
+            .and_then(|metafield| metafield["id"].as_str())
+            .map(str::to_string)
+            .unwrap_or_else(|| self.next_synthetic_gid("Metafield"));
         let metafield = owner_metafield_record(OwnerMetafieldRecordArgs {
+            id,
             owner_id,
             namespace,
             key,
@@ -1800,7 +1816,7 @@ impl DraftProxy {
 }
 
 impl DraftProxy {
-    fn next_owner_metafield_index(&self, pending_offset: usize) -> usize {
+    fn owner_metafield_timestamp_index(&self, pending_offset: usize) -> usize {
         self.store
             .staged
             .owner_metafields
@@ -1813,6 +1829,7 @@ impl DraftProxy {
 }
 
 struct OwnerMetafieldRecordArgs<'a> {
+    id: String,
     owner_id: &'a str,
     namespace: &'a str,
     key: &'a str,
@@ -1826,6 +1843,7 @@ struct OwnerMetafieldRecordArgs<'a> {
 
 fn owner_metafield_record(
     OwnerMetafieldRecordArgs {
+        id,
         owner_id,
         namespace,
         key,
@@ -1851,11 +1869,7 @@ fn owner_metafield_record(
         .and_then(Value::as_str)
         .unwrap_or(&timestamp);
     let mut record = json!({
-        "id": existing
-            .and_then(|metafield| metafield.get("id"))
-            .and_then(Value::as_str)
-            .map(str::to_string)
-            .unwrap_or_else(|| shopify_gid("Metafield", index)),
+        "id": id,
         "namespace": namespace,
         "key": key,
         "type": metafield_type,

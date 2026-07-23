@@ -124,7 +124,7 @@ replaced by local non-null execution errors.
 - Storefront's `@inContext` directive is interpreted from the original operation by the Storefront domain. Because the dynamic engine cannot register executable custom directives, only the engine-facing copy removes `@inContext` and variables used exclusively by it; all other directives and variable uses remain under normal schema validation.
 - `node(id:)` and `nodes(ids:)` use one type-to-loader inventory in `src/node_resolver_inventory.rs`; each entry carries its executable loader rather than a second loader enum/switch. Loaders return explicit `Found`, `KnownMissing`, `NeedsHydration`, or `UnsupportedType` states. Live-hybrid sends one upstream request for a mixed cold batch, merges staged values and tombstones over the response before caching it, and preserves input ordering/null placeholders. Snapshot mode never hydrates upstream.
 
-`DraftProxy` is instance-owned state, not a singleton. A proxy owns its normalized `Store`, mutation log, registry, synthetic ID counters, injectable runtime clock, and injectable upstream/commit transports. Runtime base/staged resource data belongs under the Store rather than as loose `DraftProxy` fields. Do not introduce global mutable proxy state.
+`DraftProxy` is instance-owned state, not a singleton. A proxy owns its normalized `Store`, mutation log, registry, injectable runtime clock, and injectable upstream/commit transports. The Store owns the single monotonic synthetic-ID sequence and brokers collision-safe marked/plain allocations for every domain; runtime base/staged resource data and identity allocation must not become loose `DraftProxy` fields or resource-local counters. Do not introduce global mutable proxy state.
 
 ## Primary Rust modules
 
@@ -281,7 +281,7 @@ Core state categories:
 - base state learned from snapshots, fixtures, or upstream reads
 - staged Store state for local inserts/updates/deletes and other local domain effects not yet committed
 - ordered mutation log entries containing original request path, raw query, variables, capability metadata, resource IDs, and status
-- synthetic identity counters scoped to a `DraftProxy` instance
+- one store-owned synthetic identity sequence scoped to a `DraftProxy` instance, with allocation checking canonical aliases across persisted state and mutation logs
 
 Effective reads merge base state and staged state through shared Store helpers, respecting staged deletes and Shopify-like null/empty behavior. Commit drains staged log entries only after successful upstream replay.
 

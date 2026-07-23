@@ -2068,7 +2068,7 @@ impl DraftProxy {
     }
 
     fn next_shipping_fulfillment_timestamp(&mut self) -> String {
-        self.next_synthetic_id += 1;
+        self.store.reserve_synthetic_id();
         self.next_mutation_timestamp()
     }
 }

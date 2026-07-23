@@ -61,6 +61,7 @@ When a task asks for **parity**, **conformance**, **captured evidence**, or a sc
 ## Development rules
 
 - Keep runtime state instance-owned. `DraftProxy` owns its store, registry, synthetic identity, mutation log, and injectable transports; do not introduce global mutable proxy state.
+- Allocate every sequential Shopify GID through the store-owned broker exposed by `DraftProxy::next_proxy_synthetic_gid(...)` (or `next_synthetic_gid(...)` only for a modeled legacy plain-GID contract). Do not read or increment the store sequence directly, derive IDs from collection/log lengths, or add resource-local ID counters. The broker owns monotonicity, canonical/marked-alias collision checks across persisted state and mutation logs, and dump/restore continuity. Use raw GID formatters only for deterministic identities derived from authoritative parent/resource context, never as an allocator substitute.
 - Preserve Shopify-like versioned routes.
 - Forward auth headers unchanged to upstream Shopify.
 - Expose and test the meta API.

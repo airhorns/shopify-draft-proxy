@@ -107,11 +107,14 @@ Check these helpers before adding GID tail extraction, resource-type parsing, or
 - `resource_id_tail(...)` returns the final path segment without a query suffix for legacy-resource-id/token comparisons.
 - `shopify_gid_tail_for_type(...)` and `is_shopify_gid_of_type(...)` parse typed Shopify GID tails without open-coding `strip_prefix(...)` or `starts_with(...)`.
 - `shopify_gid_resource_type(...)` parses the resource type from complete `gid://shopify/...` IDs.
-- `next_proxy_synthetic_gid(...)` allocates stable per-instance synthetic IDs and delegates formatting to the shared resource-ID helpers.
+- `next_proxy_synthetic_gid(...)` is the required allocator for sequential local Shopify identities. Its store-owned broker advances one instance sequence, emits a marked synthetic GID, and skips canonical or marked aliases already present anywhere in persisted base/staged/tombstoned state or the mutation log.
+- `next_synthetic_gid(...)` uses the same broker and collision checks for the few modeled legacy contracts that require an unmarked local GID. New commit-replayed resources should use the marked allocator.
+- The broker sequence is part of the normalized `Store`; reset, state-version, dump, and restore paths preserve its lifecycle. Domain code must not access the sequence directly or introduce counters based on resource collection size, log length, or a domain-local `next_*_id` field.
+- `shopify_gid(...)` and `synthetic_shopify_gid(...)` are formatters, not allocators. Call them directly only when an identity is deterministically derived from authoritative parent/resource context and therefore does not consume the monotonic sequence.
 
 Handle and slug behavior remains separate because Shopify semantics vary by domain: `src/proxy/app_shipping_helpers.rs` owns `slugify_handle(...)` and `fulfillment_service_handle(...)`; product and saved-search handle lookup helpers live in `src/proxy/product_helpers.rs`.
 
-When a new domain needs ID behavior, extend `src/proxy/resource_ids.rs` instead of creating another resource-local parser. When a new domain needs handle behavior, first inspect the existing domain-specific handle helpers and extract only when semantics are genuinely shared.
+When a new domain needs ID behavior, extend `src/proxy/resource_ids.rs` instead of creating another resource-local parser or allocator. When a new domain needs handle behavior, first inspect the existing domain-specific handle helpers and extract only when semantics are genuinely shared.
 
 ## `src/proxy/resolved_values.rs` Resolved Argument Serialization
 

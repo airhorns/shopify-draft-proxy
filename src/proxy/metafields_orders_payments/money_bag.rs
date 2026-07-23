@@ -257,8 +257,7 @@ impl DraftProxy {
         shop_currency_code: &str,
     ) -> Value {
         let order_input = resolved_object_field(arguments, "order").unwrap_or_default();
-        let id = shopify_gid("Order", self.store.staged.next_order_id);
-        self.store.staged.next_order_id += 1;
+        let id = self.next_synthetic_gid("Order");
         let first_line = resolved_object_list_field(&order_input, "lineItems")
             .first()
             .cloned()

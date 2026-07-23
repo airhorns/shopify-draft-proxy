@@ -252,10 +252,8 @@ impl DraftProxy {
             );
         }
         if input.contains_key("productOptions") {
-            product.extra_fields.insert(
-                "options".to_string(),
-                product_set_options_json(&mut self.next_synthetic_id, &input),
-            );
+            let options = product_set_options_json(self, &input);
+            product.extra_fields.insert("options".to_string(), options);
         }
         if input.contains_key("variants") {
             for location_id in product_set_inventory_location_ids(&input) {
@@ -1123,7 +1121,7 @@ fn product_set_variant_input_errors(input: &BTreeMap<String, ResolvedValue>) -> 
 }
 
 fn product_set_options_json(
-    next_synthetic_id: &mut u64,
+    proxy: &mut DraftProxy,
     input: &BTreeMap<String, ResolvedValue>,
 ) -> Value {
     Value::Array(
@@ -1134,13 +1132,11 @@ fn product_set_options_json(
                 let name = resolved_string_field(&option, "name")
                     .unwrap_or_else(|| format!("Option{}", index + 1));
                 let values = product_set_option_value_names(&option);
-                let option_id = synthetic_shopify_gid("ProductOption", *next_synthetic_id);
-                *next_synthetic_id += 1;
+                let option_id = proxy.next_proxy_synthetic_gid("ProductOption");
                 let option_values = values
                     .iter()
                     .map(|value| {
-                        let id = synthetic_shopify_gid("ProductOptionValue", *next_synthetic_id);
-                        *next_synthetic_id += 1;
+                        let id = proxy.next_proxy_synthetic_gid("ProductOptionValue");
                         json!({
                             "id": id,
                             "name": value,

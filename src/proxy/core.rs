@@ -73,7 +73,6 @@ impl DraftProxy {
             log_entries: Vec::new(),
             registry: ResolverRegistry::new(default_registry()),
             store: Store::with_default_baseline(),
-            next_synthetic_id: 1,
             shop_sells_subscriptions: None,
             clock: Arc::new(default_runtime_clock),
             last_mutation_timestamp: None,
@@ -149,6 +148,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn upstream_post(&self, request: &Request, body: Value) -> Response {
+        self.store.invalidate_synthetic_identity_cache();
         (self.upstream_transport)(Request {
             method: "POST".to_string(),
             path: request.path.clone(),
@@ -158,7 +158,19 @@ impl DraftProxy {
     }
 
     pub fn process_request(&mut self, request: Request) -> Response {
+        let log_start = self.log_entries.len();
         let mut response = self.dispatch_route(request);
+        // Successful local mutations can introduce authoritative relationship
+        // IDs through variables or inline GraphQL literals. Their log entries
+        // retain the raw request, so fold only the new entries into the
+        // broker's reservation set without rescanning the complete Store at
+        // the start of every request. Missing IDs used only by reads are not
+        // identities and therefore do not reserve allocator slots. Upstream
+        // hydration invalidates the cache in `upstream_post`, so the next
+        // allocation still refreshes from all newly observed state.
+        if let Some(new_entries) = self.log_entries.get(log_start..) {
+            self.store.observe_shopify_gid_identities(new_entries);
+        }
         // Stamp a cheap "has persistable state changed?" signal on every
         // response so embedders (e.g. the Ruby storage adapter) can decide
         // whether to persist without diffing or re-dumping the whole state on
@@ -183,7 +195,7 @@ impl DraftProxy {
             "{}:{}:{}",
             self.log_entries.len(),
             settled,
-            self.next_synthetic_id
+            self.store.synthetic_id_sequence()
         )
     }
 
@@ -199,7 +211,7 @@ impl DraftProxy {
             Route::MetaReset => {
                 self.log_entries.clear();
                 self.store.clear_staged();
-                self.next_synthetic_id = 1;
+                self.store.reset_synthetic_id_sequence();
                 self.shop_sells_subscriptions = None;
                 self.last_mutation_timestamp = None;
                 self.execution_session = ExecutionSession::default();
@@ -579,14 +591,11 @@ impl DraftProxy {
                 "storeCreditAccountOrder": self.store.staged.store_credit_accounts.order.clone(),
                 "storeCreditTransactions": self.store.staged.store_credit_transactions.clone(),
                 "storeCreditTransactionOrder": self.store.staged.store_credit_transaction_order.clone(),
-                "nextStoreCreditAccountId": self.store.staged.next_store_credit_account_id,
-                "nextStoreCreditTransactionId": self.store.staged.next_store_credit_transaction_id,
                 "giftCards": self.store.staged.gift_cards.clone(),
                 "taggableResources": self.store.staged.taggable_resources.clone(),
                 "abandonments": self.store.staged.abandonments.clone(),
                 "orders": self.store.staged.orders.records.clone(),
                 "deletedOrderIds": self.store.staged.orders.tombstones.iter().cloned().collect::<Vec<_>>(),
-                "nextDraftOrderId": self.store.staged.next_draft_order_id,
                 "draftOrderTags": self.store.staged.draft_order_tags.clone(),
                 "returns": self.store.staged.returns.clone(),
                 "returnsByOrder": self.store.staged.returns_by_order.clone(),
@@ -918,10 +927,6 @@ impl DraftProxy {
         if self.store.staged.payment_customization_catalog_hydrated {
             snapshot["stagedState"]["paymentCustomizationCatalogHydrated"] = json!(true);
         }
-        if self.store.staged.next_customer_payment_method_id != 1 {
-            snapshot["stagedState"]["nextCustomerPaymentMethodId"] =
-                json!(self.store.staged.next_customer_payment_method_id);
-        }
         if !self.store.staged.order_customer_orders.is_empty() {
             snapshot["stagedState"]["orderCustomerOrders"] =
                 json!(self.store.staged.order_customer_orders.clone());
@@ -958,16 +963,8 @@ impl DraftProxy {
                 .cloned()
                 .collect::<Vec<_>>());
         }
-        if self.store.staged.next_order_customer_order_id != 1 {
-            snapshot["stagedState"]["nextOrderCustomerOrderId"] =
-                json!(self.store.staged.next_order_customer_order_id);
-        }
         if self.store.staged.next_order_number != 1 {
             snapshot["stagedState"]["nextOrderNumber"] = json!(self.store.staged.next_order_number);
-        }
-        if self.store.staged.next_draft_order_bulk_tag_job_id != 1 {
-            snapshot["stagedState"]["nextDraftOrderBulkTagJobId"] =
-                json!(self.store.staged.next_draft_order_bulk_tag_job_id);
         }
         if self.has_staged_b2b_state() {
             snapshot["stagedState"]["b2bCompanies"] =
@@ -1019,16 +1016,6 @@ impl DraftProxy {
                 .iter()
                 .cloned()
                 .collect::<Vec<_>>());
-            // These synthetic id counters MUST round-trip through dump/restore.
-            // The parity runner restores mainState before every target, so if a
-            // counter resets to 1 here a later companyCreate reuses an existing
-            // id and silently overwrites a previously-staged company/contact.
-            snapshot["stagedState"]["nextB2bCompanyId"] =
-                json!(self.store.staged.next_b2b_company_id);
-            snapshot["stagedState"]["nextB2bContactId"] =
-                json!(self.store.staged.next_b2b_contact_id);
-            snapshot["stagedState"]["nextB2bContactRoleAssignmentId"] =
-                json!(self.store.staged.next_b2b_contact_role_assignment_id);
         }
         if !self.store.staged.inventory_levels.is_empty() {
             snapshot["stagedState"]["inventoryLevels"] =
@@ -1449,7 +1436,7 @@ impl DraftProxy {
             "createdAt": created_at,
             "state": self.state_snapshot(),
             "log": { "entries": self.log_entries },
-            "nextSyntheticId": self.next_synthetic_id
+            "nextSyntheticId": self.store.synthetic_id_sequence()
         }))
     }
 
@@ -2299,10 +2286,6 @@ impl DraftProxy {
                     .cloned()
                     .collect()
             });
-        self.store.staged.next_store_credit_account_id =
-            counter_from_json_with_floor(&state["stagedState"], "nextStoreCreditAccountId", 1);
-        self.store.staged.next_store_credit_transaction_id =
-            counter_from_json_with_floor(&state["stagedState"], "nextStoreCreditTransactionId", 1);
         self.store.staged.gift_cards = value_map_from_json(state["stagedState"].get("giftCards"));
         self.store.staged.taggable_resources =
             value_map_from_json(state["stagedState"].get("taggableResources"));
@@ -2334,8 +2317,6 @@ impl DraftProxy {
             .get("paymentCustomizationCatalogHydrated")
             .and_then(Value::as_bool)
             .unwrap_or(false);
-        self.store.staged.next_customer_payment_method_id =
-            counter_from_json_with_floor(&state["stagedState"], "nextCustomerPaymentMethodId", 1);
         self.store.staged.abandonments =
             value_map_from_json(state["stagedState"].get("abandonments"));
         self.store.staged.order_customer_orders =
@@ -2358,8 +2339,6 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .collect();
-        self.store.staged.next_order_customer_order_id =
-            counter_from_json_with_floor(&state["stagedState"], "nextOrderCustomerOrderId", 1);
         replace_staged_value_records(
             &mut self.store.staged.orders,
             &state["stagedState"],
@@ -2367,17 +2346,9 @@ impl DraftProxy {
             None,
             Some("deletedOrderIds"),
         );
-        self.store.staged.next_order_id =
-            counter_from_json_with_floor(&state["stagedState"], "nextOrderId", 1);
         self.store.staged.next_order_number =
             counter_from_json_with_floor(&state["stagedState"], "nextOrderNumber", 1);
-        self.store.staged.next_refund_id =
-            counter_from_json_with_floor(&state["stagedState"], "nextRefundId", 1);
-        self.store.staged.next_refund_line_item_id =
-            counter_from_json_with_floor(&state["stagedState"], "nextRefundLineItemId", 1);
-        self.store.staged.order_payment_next_transaction_id =
-            counter_from_json_with_floor(&state["stagedState"], "orderPaymentNextTransactionId", 3);
-        self.advance_order_counters_from_staged_orders();
+        self.advance_order_number_from_staged_orders();
         // Draft orders are dumped in the cursor-wrapped overlay format
         // ({ "id", "cursor", "data" }); unwrap `data` back to the staged record.
         // These MUST round-trip because the parity runner restores mainState
@@ -2414,11 +2385,6 @@ impl DraftProxy {
                     .into_iter()
                     .collect(),
             );
-        self.store.staged.next_draft_order_id =
-            counter_from_json_with_floor(&state["stagedState"], "nextDraftOrderId", 1);
-        self.advance_draft_order_counter_from_staged_draft_orders();
-        self.store.staged.next_draft_order_bulk_tag_job_id =
-            counter_from_json_with_floor(&state["stagedState"], "nextDraftOrderBulkTagJobId", 1);
         self.store.staged.draft_order_tags = state["stagedState"]["draftOrderTags"]
             .as_object()
             .map(|tags| {
@@ -2763,15 +2729,6 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .collect();
-        self.store.staged.next_b2b_company_id =
-            counter_from_json_with_floor(&state["stagedState"], "nextB2bCompanyId", 1);
-        self.store.staged.next_b2b_contact_id =
-            counter_from_json_with_floor(&state["stagedState"], "nextB2bContactId", 1);
-        self.store.staged.next_b2b_contact_role_assignment_id = counter_from_json_with_floor(
-            &state["stagedState"],
-            "nextB2bContactRoleAssignmentId",
-            1,
-        );
         // Markets-domain staged maps — symmetric with the conditional emit in
         // state_snapshot. Missing keys restore to empty (the default).
         self.store.staged.markets = value_map_from_json(state["stagedState"].get("markets"));
@@ -2908,64 +2865,23 @@ impl DraftProxy {
             .as_array()
             .cloned()
             .unwrap_or_default();
-        self.next_synthetic_id = next_synthetic_id;
+        self.store.restore_synthetic_id_sequence(next_synthetic_id);
 
         ok_json(json!({ "ok": true, "message": "state restored" }))
     }
 
-    fn advance_order_counters_from_staged_orders(&mut self) {
-        let mut next_order_id = self.store.staged.next_order_id.max(1);
-        let mut next_refund_id = self.store.staged.next_refund_id.max(1);
-        let mut next_refund_line_item_id = self.store.staged.next_refund_line_item_id.max(1);
-        let mut next_transaction_id = self.store.staged.order_payment_next_transaction_id.max(3);
+    fn advance_order_number_from_staged_orders(&mut self) {
         let mut next_order_number = self.store.staged.next_order_number.max(1);
 
-        for (order_id, order) in &self.store.staged.orders {
-            advance_counter_past_gid_tail(&mut next_order_id, order_id);
-            if let Some(record_id) = order.get("id").and_then(Value::as_str) {
-                advance_counter_past_gid_tail(&mut next_order_id, record_id);
-            }
+        for order in self.store.staged.orders.values() {
             if let Some(number) = order.get("orderNumber").and_then(Value::as_u64) {
                 next_order_number = next_order_number.max(number.saturating_add(1));
             } else if let Some(name) = order.get("name").and_then(Value::as_str) {
                 advance_order_number_past_order_name(&mut next_order_number, name);
             }
-            for transaction in json_records(&order["transactions"]) {
-                advance_counter_past_value_id(&mut next_transaction_id, transaction);
-            }
-            for refund in json_records(&order["refunds"]) {
-                advance_counter_past_value_id(&mut next_refund_id, refund);
-                for refund_line_item in json_records(&refund["refundLineItems"]) {
-                    advance_counter_past_value_id(&mut next_refund_line_item_id, refund_line_item);
-                }
-                for transaction in json_records(&refund["transactions"]) {
-                    advance_counter_past_value_id(&mut next_transaction_id, transaction);
-                }
-            }
         }
 
-        self.store.staged.next_order_id = next_order_id;
         self.store.staged.next_order_number = next_order_number;
-        self.store.staged.next_refund_id = next_refund_id;
-        self.store.staged.next_refund_line_item_id = next_refund_line_item_id;
-        self.store.staged.order_payment_next_transaction_id = next_transaction_id;
-    }
-
-    fn advance_draft_order_counter_from_staged_draft_orders(&mut self) {
-        let mut next_draft_order_id = self.store.staged.next_draft_order_id.max(1);
-        for (draft_order_id, draft_order) in &self.store.base.draft_orders.records {
-            advance_counter_past_gid_tail(&mut next_draft_order_id, draft_order_id);
-            if let Some(record_id) = draft_order.get("id").and_then(Value::as_str) {
-                advance_counter_past_gid_tail(&mut next_draft_order_id, record_id);
-            }
-        }
-        for (draft_order_id, draft_order) in &self.store.staged.draft_orders {
-            advance_counter_past_gid_tail(&mut next_draft_order_id, draft_order_id);
-            if let Some(record_id) = draft_order.get("id").and_then(Value::as_str) {
-                advance_counter_past_gid_tail(&mut next_draft_order_id, record_id);
-            }
-        }
-        self.store.staged.next_draft_order_id = next_draft_order_id;
     }
 }
 
@@ -3151,18 +3067,6 @@ fn customer_payment_method_index_from_records(
     index
 }
 
-fn advance_counter_past_value_id(counter: &mut u64, value: &Value) {
-    if let Some(id) = value.get("id").and_then(Value::as_str) {
-        advance_counter_past_gid_tail(counter, id);
-    }
-}
-
-fn advance_counter_past_gid_tail(counter: &mut u64, id: &str) {
-    if let Ok(numeric) = resource_id_tail(id).parse::<u64>() {
-        *counter = (*counter).max(numeric.saturating_add(1));
-    }
-}
-
 fn advance_order_number_past_order_name(counter: &mut u64, name: &str) {
     let Some(number) = name
         .strip_prefix('#')
@@ -3171,23 +3075,6 @@ fn advance_order_number_past_order_name(counter: &mut u64, name: &str) {
         return;
     };
     *counter = (*counter).max(number.saturating_add(1));
-}
-
-fn json_records(value: &Value) -> Vec<&Value> {
-    let mut records = Vec::new();
-    if let Some(array) = value.as_array() {
-        records.extend(array.iter());
-    }
-    if let Some(nodes) = value.get("nodes").and_then(Value::as_array) {
-        records.extend(nodes.iter());
-    }
-    if let Some(edges) = value.get("edges").and_then(Value::as_array) {
-        records.extend(edges.iter().filter_map(|edge| edge.get("node")));
-    }
-    if records.is_empty() && value.get("id").and_then(Value::as_str).is_some() {
-        records.push(value);
-    }
-    records
 }
 
 fn inventory_levels_json(levels: &BTreeMap<(String, String), BTreeMap<String, i64>>) -> Value {

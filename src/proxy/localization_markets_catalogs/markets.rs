@@ -1028,7 +1028,7 @@ impl DraftProxy {
             }
         }
 
-        let id = shopify_gid("Market", self.store.staged.markets.len() + 1);
+        let id = self.next_proxy_synthetic_gid("Market");
         let shop_currency_code = self.store.shop_currency_code();
         let market = market_record_from_input(
             &id,

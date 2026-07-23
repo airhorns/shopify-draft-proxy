@@ -10824,9 +10824,9 @@ fn product_tag_mutations_keep_product_search_filters_in_sync_with_effective_tags
 }
 
 #[test]
-fn commit_replay_rewrites_canonical_alias_from_later_staged_mutation() {
+fn commit_replay_does_not_rewrite_authoritative_id_after_synthetic_collision_skip() {
     const CANONICAL_PRODUCT_ID: &str = "gid://shopify/Product/1";
-    const SYNTHETIC_PRODUCT_ID: &str = "gid://shopify/Product/1?shopify-draft-proxy=synthetic";
+    const SYNTHETIC_PRODUCT_ID: &str = "gid://shopify/Product/2?shopify-draft-proxy=synthetic";
     const AUTHORITATIVE_PRODUCT_ID: &str = "gid://shopify/Product/9000000001";
 
     let replayed = Arc::new(Mutex::new(Vec::new()));
@@ -10921,11 +10921,11 @@ fn commit_replay_rewrites_canonical_alias_from_later_staged_mutation() {
         serde_json::from_str::<Value>(&replayed[1]).expect("second replay body should parse");
     assert_eq!(
         second_replay["variables"]["id"],
-        json!(AUTHORITATIVE_PRODUCT_ID)
+        json!(CANONICAL_PRODUCT_ID)
     );
     assert!(
-        !replayed[1].contains(&format!("\"{CANONICAL_PRODUCT_ID}\"")),
-        "canonical alias should not be sent upstream in second replay: {}",
+        !replayed[1].contains(&format!("\"{AUTHORITATIVE_PRODUCT_ID}\"")),
+        "authoritative base identity must not be rewritten to the created product: {}",
         replayed[1]
     );
 
@@ -11676,7 +11676,7 @@ fn product_mutations_preserve_root_alias_response_keys() {
             "data": {
                 "createResult": {
                     "product": {
-                        "id": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                        "id": "gid://shopify/Product/2?shopify-draft-proxy=synthetic",
                         "title": "Alias product"
                     },
                     "userErrors": []

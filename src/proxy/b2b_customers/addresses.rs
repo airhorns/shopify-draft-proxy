@@ -636,7 +636,7 @@ fn customer_mailing_address(
 
     (
         customer_address_node_json(CustomerAddressNodeFields {
-            id: synthetic_shopify_gid("MailingAddress", index + 1),
+            id: String::new(),
             first_name,
             last_name,
             address1,

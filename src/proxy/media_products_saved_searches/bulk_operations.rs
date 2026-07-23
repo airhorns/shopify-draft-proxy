@@ -111,12 +111,7 @@ impl DraftProxy {
     }
 
     fn next_bulk_operation_gid(&mut self) -> String {
-        let id = shopify_gid(
-            "BulkOperation",
-            7_000_000_000_000_u64 + self.next_synthetic_id,
-        );
-        self.next_synthetic_id += 1;
-        id
+        self.next_synthetic_gid("BulkOperation")
     }
 
     fn bulk_operation_run_query_result(

@@ -1985,16 +1985,7 @@ impl DraftProxy {
     }
 
     pub(super) fn next_draft_order_id(&mut self) -> String {
-        let mut id = shopify_gid("DraftOrder", self.store.staged.next_draft_order_id);
-        while self.store.base.draft_orders.records.contains_key(&id)
-            || self.store.staged.draft_orders.contains_staged(&id)
-            || self.store.staged.draft_orders.is_tombstoned(&id)
-        {
-            self.store.staged.next_draft_order_id += 1;
-            id = shopify_gid("DraftOrder", self.store.staged.next_draft_order_id);
-        }
-        self.store.staged.next_draft_order_id += 1;
-        id
+        self.next_synthetic_gid("DraftOrder")
     }
 
     pub(super) fn draft_order_name_for_id(&self, id: &str) -> String {
@@ -2488,8 +2479,7 @@ impl DraftProxy {
                 )],
             );
         }
-        let order_id = shopify_gid("Order", self.store.staged.next_order_id);
-        self.store.staged.next_order_id += 1;
+        let order_id = self.next_synthetic_gid("Order");
         let shop_currency_code = self.store.shop_currency_code();
         let currency_code =
             money_set_shop_currency(&draft_order["totalPriceSet"]).unwrap_or(shop_currency_code);
@@ -2782,9 +2772,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn next_draft_order_bulk_tag_job(&mut self) -> Value {
-        let id = self.store.staged.next_draft_order_bulk_tag_job_id;
-        self.store.staged.next_draft_order_bulk_tag_job_id += 1;
-        json!({ "id": shopify_gid("Job", id), "done": false })
+        json!({ "id": self.next_synthetic_gid("Job"), "done": false })
     }
 
     pub(in crate::proxy) fn draft_order_bulk_add_tags(

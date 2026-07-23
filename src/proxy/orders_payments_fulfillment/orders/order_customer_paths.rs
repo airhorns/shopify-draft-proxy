@@ -62,8 +62,7 @@ impl DraftProxy {
         let name = resolved_string_field(&company_input, "name")
             .or_else(|| resolved_string_field(&input, "name"))
             .unwrap_or_else(|| "B2B Draft".to_string());
-        let id = synthetic_shopify_gid("Company", self.store.staged.next_b2b_company_id);
-        self.store.staged.next_b2b_company_id += 5;
+        let id = self.next_proxy_synthetic_gid("Company");
         let company = json!({
             "__typename": "Company",
             "id": id,
@@ -276,7 +275,7 @@ impl DraftProxy {
                     "NOT_FOUND",
                 ));
             }
-            let job_id = synthetic_shopify_gid("Job", self.log_entries.len() + 1);
+            let job_id = self.next_proxy_synthetic_gid("Job");
             self.record_orders_local_log_entry(OrdersLocalLogEntry {
                 request,
                 query,
@@ -315,7 +314,7 @@ impl DraftProxy {
             let reason =
                 resolved_string_field(arguments, "reason").unwrap_or_else(|| "OTHER".into());
             let timestamp = self.order_cancel_timestamp();
-            let job_id = synthetic_shopify_gid("Job", self.log_entries.len() + 1);
+            let job_id = self.next_proxy_synthetic_gid("Job");
             let order = self
                 .store
                 .staged
