@@ -11866,35 +11866,43 @@ fn saved_search_roots_live_hybrid_hydrate_base_rows_before_defaults() {
 
 #[test]
 fn saved_search_live_hybrid_preserves_an_unmodified_opaque_page() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
     let mut proxy =
-        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|_| Response {
-            status: 200,
-            headers: Default::default(),
-            body: json!({
-                "data": {
-                    "productSavedSearches": {
-                        "nodes": [{
-                            "id": "gid://shopify/SavedSearch/1001",
-                            "name": "Upstream first",
-                            "query": "vendor:Acme",
-                            "resourceType": "PRODUCT"
-                        }],
-                        "edges": [{
-                            "cursor": "opaque-saved-search-one",
-                            "node": {
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured_requests
+                .lock()
+                .unwrap()
+                .push(serde_json::from_str(&request.body).expect("upstream request body parses"));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "productSavedSearches": {
+                            "nodes": [{
                                 "id": "gid://shopify/SavedSearch/1001",
-                                "name": "Upstream first"
+                                "name": "Upstream first",
+                                "query": "vendor:Acme",
+                                "resourceType": "PRODUCT"
+                            }],
+                            "edges": [{
+                                "cursor": "opaque-saved-search-one",
+                                "node": {
+                                    "id": "gid://shopify/SavedSearch/1001",
+                                    "name": "Upstream first"
+                                }
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": true,
+                                "hasPreviousPage": false,
+                                "startCursor": "opaque-saved-search-one",
+                                "endCursor": "opaque-saved-search-one"
                             }
-                        }],
-                        "pageInfo": {
-                            "hasNextPage": true,
-                            "hasPreviousPage": false,
-                            "startCursor": "opaque-saved-search-one",
-                            "endCursor": "opaque-saved-search-one"
                         }
                     }
-                }
-            }),
+                }),
+            }
         });
 
     let response = proxy.process_request(json_graphql_request(
@@ -11932,6 +11940,334 @@ fn saved_search_live_hybrid_preserves_an_unmodified_opaque_page() {
             }
         })
     );
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(requests.len(), 1);
+    assert!(requests[0]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("query SavedSearchOpaquePage")));
+}
+
+#[test]
+fn saved_search_live_hybrid_overlay_keeps_partial_page_work_bounded() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_requests.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().expect("upstream query");
+            let window_query = query.contains("SavedSearchConnectionWindow");
+            let continuation = body["variables"]["after"] == json!("opaque-saved-search-two");
+            let (root, edges, has_next_page) = if window_query {
+                assert_eq!(body["variables"]["first"], json!(2));
+                (
+                    "savedSearchWindow",
+                    vec![
+                        json!({
+                            "cursor": "opaque-saved-search-one",
+                            "node": {
+                                "id": "gid://shopify/SavedSearch/3001",
+                                "name": "Upstream first",
+                                "query": "vendor:Alpha",
+                                "resourceType": "PRODUCT"
+                            }
+                        }),
+                        json!({
+                            "cursor": "opaque-saved-search-two",
+                            "node": {
+                                "id": "gid://shopify/SavedSearch/3002",
+                                "name": "Upstream second",
+                                "query": "vendor:Beta",
+                                "resourceType": "PRODUCT"
+                            }
+                        }),
+                    ],
+                    true,
+                )
+            } else if query.contains("SavedSearchConnectionBaseline") && continuation {
+                (
+                    "savedSearchBaseline",
+                    vec![json!({
+                        "cursor": "opaque-saved-search-three",
+                        "node": {
+                            "id": "gid://shopify/SavedSearch/3003",
+                            "name": "Upstream third",
+                            "query": "vendor:Gamma",
+                            "resourceType": "PRODUCT"
+                        }
+                    })],
+                    false,
+                )
+            } else if query.contains("SavedSearchConnectionBaseline") {
+                (
+                    "savedSearchBaseline",
+                    vec![
+                        json!({
+                            "cursor": "opaque-saved-search-one",
+                            "node": {
+                                "id": "gid://shopify/SavedSearch/3001",
+                                "name": "Upstream first",
+                                "query": "vendor:Alpha",
+                                "resourceType": "PRODUCT"
+                            }
+                        }),
+                        json!({
+                            "cursor": "opaque-saved-search-two",
+                            "node": {
+                                "id": "gid://shopify/SavedSearch/3002",
+                                "name": "Upstream second",
+                                "query": "vendor:Beta",
+                                "resourceType": "PRODUCT"
+                            }
+                        }),
+                    ],
+                    true,
+                )
+            } else {
+                (
+                    "productSavedSearches",
+                    vec![json!({
+                        "cursor": "opaque-saved-search-one",
+                        "node": {
+                            "id": "gid://shopify/SavedSearch/3001",
+                            "name": "Upstream first"
+                        }
+                    })],
+                    true,
+                )
+            };
+            let start_cursor = edges
+                .first()
+                .and_then(|edge| edge["cursor"].as_str())
+                .map(str::to_string);
+            let end_cursor = edges
+                .last()
+                .and_then(|edge| edge["cursor"].as_str())
+                .map(str::to_string);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        root: {
+                            "edges": edges,
+                            "pageInfo": {
+                                "hasNextPage": has_next_page,
+                                "hasPreviousPage": false,
+                                "startCursor": start_cursor,
+                                "endCursor": end_cursor
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateBoundedOverlaySavedSearch($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {
+            "resourceType": "PRODUCT",
+            "name": "Local tail",
+            "query": "vendor:Local"
+        }}),
+    ));
+    assert_eq!(
+        create.body["data"]["savedSearchCreate"]["userErrors"],
+        json!([])
+    );
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query BoundedSavedSearchOverlay {
+          productSavedSearches(first: 1) {
+            edges { cursor node { id name } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        response.body["data"]["productSavedSearches"],
+        json!({
+            "edges": [{
+                "cursor": "opaque-saved-search-one",
+                "node": {
+                    "id": "gid://shopify/SavedSearch/3001",
+                    "name": "Upstream first"
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "opaque-saved-search-one",
+                "endCursor": "opaque-saved-search-one"
+            }
+        })
+    );
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(
+        requests.len(),
+        2,
+        "the caller document plus one requested-window overlay read must be sufficient"
+    );
+    assert_eq!(
+        requests
+            .iter()
+            .filter(|body| body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("query BoundedSavedSearchOverlay")))
+            .count(),
+        1,
+        "the complete caller document must be forwarded exactly once"
+    );
+}
+
+#[test]
+fn saved_search_live_hybrid_filtered_or_sorted_overlay_preserves_authoritative_scope() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let filtered_connection = json!({
+        "edges": [{
+            "cursor": "opaque-filtered-discount-search",
+            "node": {
+                "id": "gid://shopify/SavedSearch/3101",
+                "name": "Authoritative filtered search"
+            }
+        }],
+        "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "opaque-filtered-discount-search",
+            "endCursor": "opaque-filtered-discount-search"
+        }
+    });
+    let sorted_connection = json!({
+        "edges": [{
+            "cursor": "opaque-code-sorted-discount-search",
+            "node": {
+                "id": "gid://shopify/SavedSearch/3201",
+                "name": "Authoritative code-sorted search"
+            }
+        }],
+        "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": "opaque-code-sorted-discount-search",
+            "endCursor": "opaque-code-sorted-discount-search"
+        }
+    });
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let filtered_connection = filtered_connection.clone();
+        let sorted_connection = sorted_connection.clone();
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_requests.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().expect("upstream query");
+            let data = if query.contains("FilteredDiscountSavedSearchScope") {
+                json!({"discountRedeemCodeSavedSearches": filtered_connection})
+            } else if query.contains("SortedDiscountSavedSearchScope") {
+                json!({"discountRedeemCodeSavedSearches": sorted_connection})
+            } else if query.contains("SavedSearchConnectionWindow") {
+                json!({
+                    "savedSearchWindow": {
+                        "edges": [{
+                            "cursor": "opaque-unscoped-window",
+                            "node": {
+                                "id": "gid://shopify/SavedSearch/3301",
+                                "name": "Unscoped authoritative search",
+                                "query": "times_used:0",
+                                "resourceType": "DISCOUNT_REDEEM_CODE"
+                            }
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": true,
+                            "hasPreviousPage": false,
+                            "startCursor": "opaque-unscoped-window",
+                            "endCursor": "opaque-unscoped-window"
+                        }
+                    }
+                })
+            } else {
+                panic!("unexpected upstream saved-search document: {query}")
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({"data": data}),
+            }
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDiscountSavedSearchOverlay($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {
+            "resourceType": "DISCOUNT_REDEEM_CODE",
+            "name": "Local discount search",
+            "query": ""
+        }}),
+    ));
+    assert_eq!(
+        create.body["data"]["savedSearchCreate"]["userErrors"],
+        json!([])
+    );
+
+    let filtered = proxy.process_request(json_graphql_request(
+        r#"
+        query FilteredDiscountSavedSearchScope {
+          discountRedeemCodeSavedSearches(first: 1, query: "Authoritative") {
+            edges { cursor node { id name } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        filtered.body["data"]["discountRedeemCodeSavedSearches"],
+        filtered_connection
+    );
+
+    let sorted = proxy.process_request(json_graphql_request(
+        r#"
+        query SortedDiscountSavedSearchScope {
+          discountRedeemCodeSavedSearches(first: 1, sortKey: CODE) {
+            edges { cursor node { id name } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        sorted.body["data"]["discountRedeemCodeSavedSearches"],
+        sorted_connection
+    );
+
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(
+        requests.len(),
+        2,
+        "filtered and non-ID sorted reads each forward only their caller document"
+    );
+    assert!(requests.iter().all(|body| !body["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("SavedSearchConnectionWindow"))));
 }
 
 #[test]
@@ -11956,40 +12292,74 @@ fn saved_search_live_hybrid_overlay_windows_a_complete_opaque_baseline() {
         move |request| {
             let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
             captured_requests.lock().unwrap().push(body.clone());
-            let complete_baseline = body
+            let overlay_window = body
                 .get("query")
                 .and_then(Value::as_str)
-                .is_some_and(|query| query.contains("SavedSearchConnectionBaseline"));
-            let connection = if complete_baseline {
-                json!({
-                    "nodes": [upstream_first.clone(), upstream_second.clone()],
-                    "edges": [
-                        {"cursor": "opaque-saved-search-one", "node": upstream_first.clone()},
-                        {"cursor": "opaque-saved-search-two", "node": upstream_second.clone()}
-                    ],
-                    "pageInfo": {
-                        "hasNextPage": false,
-                        "hasPreviousPage": false,
-                        "startCursor": "opaque-saved-search-one",
-                        "endCursor": "opaque-saved-search-two"
+                .is_some_and(|query| query.contains("SavedSearchConnectionWindow"));
+            let (root, connection) = if overlay_window {
+                let mut rows = [
+                    ("opaque-saved-search-one", upstream_first.clone()),
+                    ("opaque-saved-search-two", upstream_second.clone()),
+                ];
+                if body["variables"]["reverse"].as_bool() == Some(true) {
+                    rows.reverse();
+                }
+                let cursors = rows.iter().map(|(cursor, _)| *cursor).collect::<Vec<_>>();
+                let mut start = 0;
+                let mut end = rows.len();
+                if let Some(after) = body["variables"]["after"].as_str() {
+                    if let Some(position) = cursors.iter().position(|cursor| *cursor == after) {
+                        start = position + 1;
                     }
-                })
+                }
+                if let Some(before) = body["variables"]["before"].as_str() {
+                    if let Some(position) = cursors.iter().position(|cursor| *cursor == before) {
+                        end = end.min(position);
+                    }
+                }
+                if let Some(first) = body["variables"]["first"].as_u64() {
+                    end = end.min(start + first as usize);
+                }
+                if let Some(last) = body["variables"]["last"].as_u64() {
+                    start = start.max(end.saturating_sub(last as usize));
+                }
+                let selected = &rows[start..end];
+                let edges = selected
+                    .iter()
+                    .map(|(cursor, node)| json!({"cursor": cursor, "node": node}))
+                    .collect::<Vec<_>>();
+                (
+                    "savedSearchWindow",
+                    json!({
+                        "nodes": selected.iter().map(|(_, node)| node).collect::<Vec<_>>(),
+                        "edges": edges,
+                        "pageInfo": {
+                            "hasNextPage": end < rows.len(),
+                            "hasPreviousPage": start > 0,
+                            "startCursor": selected.first().map(|(cursor, _)| cursor),
+                            "endCursor": selected.last().map(|(cursor, _)| cursor)
+                        }
+                    }),
+                )
             } else {
-                json!({
-                    "nodes": [upstream_first.clone()],
-                    "edges": [{"cursor": "opaque-saved-search-one", "node": upstream_first.clone()}],
-                    "pageInfo": {
-                        "hasNextPage": true,
-                        "hasPreviousPage": false,
-                        "startCursor": "opaque-saved-search-one",
-                        "endCursor": "opaque-saved-search-one"
-                    }
-                })
+                (
+                    "productSavedSearches",
+                    json!({
+                        "nodes": [upstream_first.clone()],
+                        "edges": [{"cursor": "opaque-saved-search-one", "node": upstream_first.clone()}],
+                        "pageInfo": {
+                            "hasNextPage": true,
+                            "hasPreviousPage": false,
+                            "startCursor": "opaque-saved-search-one",
+                            "endCursor": "opaque-saved-search-one"
+                        }
+                    }),
+                )
             };
             Response {
                 status: 200,
                 headers: Default::default(),
-                body: json!({"data": {"savedSearchBaseline": connection, "productSavedSearches": connection}}),
+                body: json!({"data": {root: connection}}),
             }
         }
     });
@@ -12102,8 +12472,245 @@ fn saved_search_live_hybrid_overlay_windows_a_complete_opaque_baseline() {
             .iter()
             .any(|body| body["query"]
                 .as_str()
-                .is_some_and(|query| query.contains("SavedSearchConnectionBaseline"))),
-        "staged overlay should fetch a proven-complete baseline"
+                .is_some_and(|query| query.contains("SavedSearchConnectionWindow"))),
+        "staged overlay should fetch only a bounded authoritative window"
+    );
+}
+
+#[test]
+fn saved_search_live_hybrid_partial_page_refills_after_update_and_delete() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let upstream_first = json!({
+        "id": "gid://shopify/SavedSearch/4001",
+        "name": "Upstream first",
+        "query": "vendor:Alpha",
+        "resourceType": "PRODUCT"
+    });
+    let upstream_second = json!({
+        "id": "gid://shopify/SavedSearch/4002",
+        "name": "Upstream second",
+        "query": "vendor:Beta",
+        "resourceType": "PRODUCT"
+    });
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_first = upstream_first.clone();
+        let upstream_second = upstream_second.clone();
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_requests.lock().unwrap().push(body.clone());
+            let window = body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("SavedSearchConnectionWindow"));
+            let (root, edges) = if window {
+                assert_eq!(body["variables"]["first"], json!(2));
+                (
+                    "savedSearchWindow",
+                    vec![
+                        json!({"cursor": "opaque-update-one", "node": upstream_first.clone()}),
+                        json!({"cursor": "opaque-update-two", "node": upstream_second.clone()}),
+                    ],
+                )
+            } else {
+                (
+                    "productSavedSearches",
+                    vec![json!({"cursor": "opaque-update-one", "node": upstream_first.clone()})],
+                )
+            };
+            let start_cursor = edges
+                .first()
+                .and_then(|edge| edge["cursor"].as_str())
+                .map(str::to_string);
+            let end_cursor = edges
+                .last()
+                .and_then(|edge| edge["cursor"].as_str())
+                .map(str::to_string);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        root: {
+                            "edges": edges,
+                            "pageInfo": {
+                                "hasNextPage": true,
+                                "hasPreviousPage": false,
+                                "startCursor": start_cursor,
+                                "endCursor": end_cursor
+                            }
+                        }
+                    }
+                }),
+            }
+        }
+    });
+
+    let cold = proxy.process_request(json_graphql_request(
+        r#"
+        query ObservePartialSavedSearchPage {
+          productSavedSearches(first: 1) {
+            edges { cursor node { id name query resourceType } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        cold.body["data"]["productSavedSearches"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateObservedSavedSearch($input: SavedSearchUpdateInput!) {
+          savedSearchUpdate(input: $input) {
+            savedSearch { id name query }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {
+            "id": "gid://shopify/SavedSearch/4001",
+            "name": "Locally updated first"
+        }}),
+    ));
+    assert_eq!(
+        update.body["data"]["savedSearchUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(upstream_requests.lock().unwrap().len(), 1);
+
+    let after_update = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadPartialSavedSearchAfterUpdate {
+          productSavedSearches(first: 1) {
+            edges { cursor node { id name query } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        after_update.body["data"]["productSavedSearches"],
+        json!({
+            "edges": [{
+                "cursor": "opaque-update-one",
+                "node": {
+                    "id": "gid://shopify/SavedSearch/4001",
+                    "name": "Locally updated first",
+                    "query": "vendor:Alpha"
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "opaque-update-one",
+                "endCursor": "opaque-update-one"
+            }
+        })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteObservedSavedSearch($input: SavedSearchDeleteInput!) {
+          savedSearchDelete(input: $input) {
+            deletedSavedSearchId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {"id": "gid://shopify/SavedSearch/4001"}}),
+    ));
+    assert_eq!(
+        delete.body["data"]["savedSearchDelete"]["deletedSavedSearchId"],
+        json!("gid://shopify/SavedSearch/4001")
+    );
+    assert_eq!(upstream_requests.lock().unwrap().len(), 3);
+
+    let after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query RefillPartialSavedSearchAfterDelete {
+          productSavedSearches(first: 1) {
+            edges { cursor node { id name } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        after_delete.body["data"]["productSavedSearches"],
+        json!({
+            "edges": [{
+                "cursor": "opaque-update-two",
+                "node": {
+                    "id": "gid://shopify/SavedSearch/4002",
+                    "name": "Upstream second"
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "opaque-update-two",
+                "endCursor": "opaque-update-two"
+            }
+        })
+    );
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(requests.len(), 5);
+    assert_eq!(
+        requests
+            .iter()
+            .filter(|body| body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("SavedSearchConnectionWindow")))
+            .count(),
+        2,
+        "update and delete overlays each use one bounded window request"
+    );
+}
+
+#[test]
+fn saved_search_snapshot_overlay_never_calls_upstream() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, None)
+        .with_upstream_transport(|_| panic!("snapshot saved-search reads must remain local"));
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateSnapshotSavedSearch($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {
+            "resourceType": "PRODUCT",
+            "name": "Snapshot local",
+            "query": "vendor:Snapshot"
+        }}),
+    ));
+    let local_id = create.body["data"]["savedSearchCreate"]["savedSearch"]["id"].clone();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query SnapshotSavedSearchOverlay {
+          productSavedSearches(first: 1, reverse: true) {
+            nodes { id name }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["productSavedSearches"]["nodes"],
+        json!([{ "id": local_id, "name": "Snapshot local" }])
+    );
+    assert_eq!(
+        read.body["data"]["productSavedSearches"]["pageInfo"]["hasNextPage"],
+        json!(false)
     );
 }
 
@@ -12133,9 +12740,9 @@ fn saved_search_update_live_hybrid_hydrates_a_mutation_first_target_by_id() {
                         ]
                     }
                 })
-            } else if query.contains("SavedSearchConnectionBaseline") {
+            } else if query.contains("SavedSearchConnectionWindow") {
                 json!({
-                    "savedSearchBaseline": {
+                    "savedSearchWindow": {
                         "edges": [
                             {
                                 "cursor": "authoritative-products",
@@ -12332,7 +12939,7 @@ fn saved_search_update_live_hybrid_hydrates_a_mutation_first_target_by_id() {
     assert_eq!(
         bodies.len(),
         3,
-        "cold mutation hydrates once, singular readback stays local, and list overlay fetches a complete baseline"
+        "cold mutation hydrates once, singular readback stays local, and list overlay fetches one bounded window"
     );
     assert_eq!(bodies[0]["variables"], json!({ "id": saved_search_id }));
     assert!(bodies.iter().all(|body| body["query"]
@@ -12363,9 +12970,9 @@ fn saved_search_delete_live_hybrid_hydrates_then_tombstones_singular_and_list_re
                         "filters": [{ "key": "tag", "value": "delete-me" }]
                     }
                 })
-            } else if query.contains("SavedSearchConnectionBaseline") {
+            } else if query.contains("SavedSearchConnectionWindow") {
                 json!({
-                    "savedSearchBaseline": {
+                    "savedSearchWindow": {
                         "edges": [
                             {
                                 "cursor": "delete-target",
@@ -12472,7 +13079,7 @@ fn saved_search_delete_live_hybrid_hydrates_then_tombstones_singular_and_list_re
     assert_eq!(
         bodies.len(),
         3,
-        "delete hydration and complete list baseline are reads; tombstoned singular read stays local"
+        "delete hydration and one bounded list window are reads; tombstoned singular read stays local"
     );
     assert!(bodies.iter().all(|body| body["query"]
         .as_str()

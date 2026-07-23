@@ -1,0 +1,6 @@
+query SavedSearchPartialPageReverse {
+  productSavedSearches(first: 1, reverse: true) {
+    edges { cursor node { id name query resourceType } }
+    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+  }
+}

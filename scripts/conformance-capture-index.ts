@@ -3680,6 +3680,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'saved-searches',
+    captureId: 'saved-search-partial-page-overlay',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-saved-search-partial-page-overlay-conformance.ts',
+    purpose:
+      'SavedSearch authoritative partial-page pagination plus bounded staged create, update, and delete overlays.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}saved-search-partial-page-overlay.json`,
+      'config/parity-specs/saved-searches/saved-search-partial-page-overlay.json',
+      'config/parity-requests/saved-searches/saved-search-partial-page-read.graphql',
+      'config/parity-requests/saved-searches/saved-search-partial-page-update.graphql',
+      'config/parity-requests/saved-searches/saved-search-partial-page-delete.graphql',
+      'config/parity-requests/saved-searches/saved-search-partial-page-create.graphql',
+      'config/parity-requests/saved-searches/saved-search-partial-page-reverse.graphql',
+      'config/parity-requests/saved-searches/saved-search-partial-page-after.graphql',
+      'config/parity-requests/saved-searches/saved-search-partial-page-before.graphql',
+    ],
+    cleanupBehavior:
+      'Clears disposable product saved searches, creates three authoritative rows, mutates/deletes/creates lifecycle rows, then deletes survivors.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'saved-searches',
     captureId: 'saved-search-resource-roots',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-saved-search-resource-roots-conformance.ts',

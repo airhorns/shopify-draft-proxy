@@ -1,0 +1,171 @@
+{
+  "scenarioId": "saved-search-partial-page-overlay",
+  "operationNames": ["productSavedSearches", "savedSearchCreate", "savedSearchUpdate", "savedSearchDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["pagination-shape", "downstream-read-parity", "mutation-lifecycle"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/saved-searches/saved-search-partial-page-overlay.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-partial-page-read.graphql",
+    "variablesCapturePath": "$.partialPage.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify evidence for an authoritative first:1 partial page and saved-search update, delete refill, create/reverse, after, and last/before overlays. Authoritative row IDs and cursors compare exactly; only the locally created resource identity and cursor are volatile.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "authoritative-first-partial-page",
+        "preserveProxyState": true,
+        "capturePath": "$.partialPage.response.data.productSavedSearches",
+        "proxyPath": "$.data.productSavedSearches"
+      },
+      {
+        "name": "stage-authoritative-saved-search-update",
+        "preserveProxyState": true,
+        "capturePath": "$.update.response.data.savedSearchUpdate",
+        "proxyPath": "$.data.savedSearchUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-partial-page-update.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.productSavedSearches.edges[0].node.id"
+              },
+              "name": {
+                "fromCapturePath": "$.update.request.variables.input.name"
+              }
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "post-update-authoritative-partial-page",
+        "preserveProxyState": true,
+        "capturePath": "$.postUpdatePage.response.data.productSavedSearches",
+        "proxyPath": "$.data.productSavedSearches",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-partial-page-read.graphql",
+          "variablesCapturePath": "$.postUpdatePage.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "stage-authoritative-saved-search-delete",
+        "preserveProxyState": true,
+        "capturePath": "$.deleted.response.data.savedSearchDelete",
+        "proxyPath": "$.data.savedSearchDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-partial-page-delete.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.productSavedSearches.edges[0].node.id"
+              }
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "post-delete-partial-page-refill",
+        "preserveProxyState": true,
+        "capturePath": "$.postDeletePage.response.data.productSavedSearches",
+        "proxyPath": "$.data.productSavedSearches",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-partial-page-read.graphql",
+          "variablesCapturePath": "$.postDeletePage.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "stage-tail-saved-search-create",
+        "preserveProxyState": true,
+        "capturePath": "$.created.response.data.savedSearchCreate",
+        "proxyPath": "$.data.savedSearchCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-partial-page-create.graphql",
+          "variablesCapturePath": "$.created.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.savedSearch.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy stages a deterministic local SavedSearch while Shopify created the disposable live record."
+          }
+        ]
+      },
+      {
+        "name": "post-create-reverse-partial-page",
+        "preserveProxyState": true,
+        "capturePath": "$.reversePage.response.data.productSavedSearches",
+        "proxyPath": "$.data.productSavedSearches",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-partial-page-reverse.graphql",
+          "variablesCapturePath": "$.reversePage.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.edges[0].node.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The reverse page selects the proxy-local SavedSearch instead of the disposable live record."
+          },
+          {
+            "path": "$.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "The locally staged SavedSearch uses a stable proxy cursor while Shopify returned an opaque live cursor."
+          },
+          {
+            "path": "$.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "The selected locally staged SavedSearch has a stable proxy boundary cursor."
+          },
+          {
+            "path": "$.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "The selected locally staged SavedSearch has a stable proxy boundary cursor."
+          }
+        ]
+      },
+      {
+        "name": "post-create-after-authoritative-page",
+        "preserveProxyState": true,
+        "capturePath": "$.afterPage.response.data.productSavedSearches",
+        "proxyPath": "$.data.productSavedSearches",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-partial-page-after.graphql",
+          "variables": {
+            "after": {
+              "fromProxyResponse": "post-delete-partial-page-refill",
+              "path": "$.data.productSavedSearches.edges[0].cursor"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "post-create-last-before-authoritative-page",
+        "preserveProxyState": true,
+        "capturePath": "$.beforePage.response.data.productSavedSearches",
+        "proxyPath": "$.data.productSavedSearches",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-partial-page-before.graphql",
+          "variables": {
+            "before": {
+              "fromProxyResponse": "post-create-after-authoritative-page",
+              "path": "$.data.productSavedSearches.edges[0].cursor"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}
