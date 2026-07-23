@@ -3191,6 +3191,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'owner-metafield-mixed-owner-hydration',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-owner-metafield-mixed-owner-hydration-conformance.ts',
+    purpose:
+      'Authoritative Location, Page, Article, and Market owner-metafield hydration with valid/stale compareDigest atomicity, public-root reads, and delete behavior.',
+    requiredAuthScopes: ['read_content', 'write_content', 'read_locations', 'read_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}owner-metafield-mixed-owner-hydration.json`,
+      'config/parity-specs/metafields/owner-metafield-mixed-owner-hydration.json',
+      'config/parity-requests/metafields/owner-metafield-mixed-owner-set.graphql',
+      'config/parity-requests/metafields/owner-metafield-mixed-owner-read.graphql',
+      'config/parity-requests/metafields/owner-metafield-mixed-owner-delete.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable Page and Article owners plus four definition-backed owner metafields, records mixed-owner CAS/read/delete evidence, then removes the metafields, definitions, Article, Page, and setup Blog.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafield-definition-access-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metafield-definition-access-validation-conformance.ts',

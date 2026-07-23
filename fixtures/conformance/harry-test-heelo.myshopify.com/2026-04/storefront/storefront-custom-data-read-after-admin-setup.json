@@ -1115,5 +1115,132 @@
       }
     }
   ],
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "query MetafieldDefinitionsHydrateOwnerCatalog(\n  $ownerType: MetafieldOwnerType!\n  $first: Int!\n  $after: String\n) {\n  metafieldDefinitions(\n    ownerType: $ownerType\n    first: $first\n    after: $after\n    sortKey: PINNED_POSITION\n  ) {\n    nodes {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      description\n      validations {\n        name\n        value\n      }\n      access {\n        admin\n        storefront\n        customerAccount\n      }\n      capabilities {\n        adminFilterable {\n          enabled\n          eligible\n          status\n        }\n        smartCollectionCondition {\n          enabled\n          eligible\n        }\n        uniqueValues {\n          enabled\n          eligible\n        }\n      }\n      constraints {\n        key\n        values(first: 50) {\n          nodes {\n            value\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pinnedPosition\n      validationStatus\n      metafieldsCount\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
+      "operationName": "MetafieldDefinitionsHydrateOwnerCatalog",
+      "variables": {
+        "after": null,
+        "first": 250,
+        "ownerType": "SHOP"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "metafieldDefinitions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MetafieldDefinition/98376253746",
+                  "name": "Alpine sport types",
+                  "namespace": "test_data",
+                  "key": "alpine_sports",
+                  "ownerType": "SHOP",
+                  "type": {
+                    "name": "list.single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": "The set of alpine sports that this sport shop specializes in",
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": false,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": false
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": false
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 1,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 1
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "endCursor": "eyJsYXN0X2lkIjo5ODM3NjI1Mzc0NiwibGFzdF92YWx1ZSI6IjEifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 200,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "query OwnerMetafieldsHydrateNodes($ids: [ID!]!, $metafield0Namespace: String!, $metafield0Key: String!, $metafield1Namespace: String!, $metafield1Key: String!) { nodes(ids: $ids) { __typename id ... on HasMetafields { metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } metafield1: metafield(namespace: $metafield1Namespace, key: $metafield1Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } } ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt  } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } } ... on Collection { id title handle } ... on Customer { id displayName email } ... on Order { id name } ... on Company { id name } ... on Page { id title } ... on Article { id title } } }",
+      "operationName": "OwnerMetafieldsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Shop/92891250994"],
+        "metafield0Key": "visible",
+        "metafield0Namespace": "sfc_20260715224130",
+        "metafield1Key": "hidden",
+        "metafield1Namespace": "sfc_20260715224130"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Shop",
+                "id": "gid://shopify/Shop/92891250994",
+                "metafield0": null,
+                "metafield1": null
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

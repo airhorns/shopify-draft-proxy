@@ -253,6 +253,43 @@
           }
         }
       }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2025-01/graphql.json",
+      "apiSurface": "admin",
+      "query": "query OwnerMetafieldsHydrateNodes($ids: [ID!]!, $metafield0Namespace: String!, $metafield0Key: String!) { nodes(ids: $ids) { __typename id ... on HasMetafields { metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } } ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt  } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } } ... on Collection { id title handle } ... on Customer { id displayName email } ... on Order { id name } ... on Company { id name } ... on Page { id title } ... on Article { id title } } }",
+      "operationName": "OwnerMetafieldsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Shop/92891250994"],
+        "metafield0Key": "rw_mr7ggfzq",
+        "metafield0Namespace": "sdp_shop_owner"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Shop",
+                "id": "gid://shopify/Shop/92891250994",
+                "metafield0": null
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 8,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
     }
   ]
 }

@@ -2,9 +2,9 @@
 //
 // Boots the Rust DraftProxy HTTP runtime, plays the parity spec's primary +
 // target requests through it, and rewrites the capture file with an
-// `upstreamCalls` cassette. Rust-backed recording currently supports local-only
-// specs whose cassette remains empty; specs that need upstream cassette refresh
-// fail closed instead of sending unsupported proxy writes to Shopify.
+// `upstreamCalls` cassette. Existing calls replay from the checked-in cassette;
+// new read-only calls are forwarded to Shopify and recorded exactly. Any
+// attempted upstream mutation fails closed so supported proxy writes stay local.
 //
 // The existing OAuth flow (scripts/shopify-conformance-auth.mts) is still
 // probed before recording so live-recording requirements fail with the same
@@ -20,12 +20,19 @@
 import 'dotenv/config';
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
+import { Kind, parse } from 'graphql';
 
+import {
+  apiSurfaceFromGraphqlPath,
+  type OutgoingGraphqlRequest,
+  recordedCallMatchesRequest,
+} from './parity-cassette.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
-import { getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..');
@@ -37,7 +44,7 @@ type RecordedCall = {
   apiVersion?: string;
   path?: string;
   headers?: Record<string, string>;
-  operationName: string;
+  operationName?: string | null;
   variables: unknown;
   query: string;
   response: { status: number; body: unknown };
@@ -80,6 +87,12 @@ type RecordOptions = {
   accessToken: string;
 };
 
+type ReadOnlyRecorder = {
+  origin: string;
+  recordedCalls: RecordedCall[];
+  close: () => Promise<void>;
+};
+
 function log(message: string): void {
   // oxlint-disable-next-line no-console -- CLI tool intentionally writes status to stdout.
   console.log(message);
@@ -88,6 +101,122 @@ function log(message: string): void {
 function logError(message: string): void {
   // oxlint-disable-next-line no-console -- CLI tool intentionally writes errors to stderr.
   console.error(message);
+}
+
+function recordedResponseBody(call: RecordedCall): unknown {
+  const response = call.response as RecordedCall['response'] & Record<string, unknown>;
+  if (response.body !== undefined) return response.body;
+  return response.data === undefined ? {} : response;
+}
+
+function graphqlDocumentIsReadOnly(query: string): boolean {
+  const document = parse(query);
+  const operations = document.definitions.filter((definition) => definition.kind === Kind.OPERATION_DEFINITION);
+  return operations.length > 0 && operations.every((operation) => operation.operation === 'query');
+}
+
+async function startReadOnlyRecorder({
+  adminOrigin,
+  accessToken,
+  existingCalls,
+}: {
+  adminOrigin: string;
+  accessToken: string;
+  existingCalls: RecordedCall[];
+}): Promise<ReadOnlyRecorder> {
+  const recordedCalls: RecordedCall[] = [];
+  const consumedExistingCalls = new Set<number>();
+  const server = createServer((request: IncomingMessage, response: ServerResponse) => {
+    let body = '';
+    request.setEncoding('utf8');
+    request.on('data', (chunk) => (body += chunk));
+    request.on('end', () => {
+      void (async () => {
+        const requestPath = request.url ? new URL(request.url, 'http://127.0.0.1').pathname : '/';
+        const apiSurface = apiSurfaceFromGraphqlPath(requestPath);
+        const outgoingRequest: OutgoingGraphqlRequest = {
+          method: request.method ?? 'GET',
+          path: requestPath,
+          body,
+          ...(apiSurface === null ? {} : { apiSurface }),
+        };
+        const existingIndex = existingCalls.findIndex(
+          (call, index) => !consumedExistingCalls.has(index) && recordedCallMatchesRequest(call, outgoingRequest),
+        );
+        if (existingIndex >= 0) {
+          const call = existingCalls[existingIndex];
+          consumedExistingCalls.add(existingIndex);
+          response.statusCode = call.response.status ?? 200;
+          response.setHeader('content-type', 'application/json');
+          response.end(JSON.stringify(recordedResponseBody(call)));
+          return;
+        }
+
+        const parsedBody = JSON.parse(body) as {
+          query?: unknown;
+          operationName?: unknown;
+          variables?: unknown;
+        };
+        if (typeof parsedBody.query !== 'string' || !graphqlDocumentIsReadOnly(parsedBody.query)) {
+          response.statusCode = 500;
+          response.setHeader('content-type', 'application/json');
+          response.end(
+            JSON.stringify({
+              errors: [{ message: 'Parity recording rejected a non-query upstream request' }],
+            }),
+          );
+          return;
+        }
+
+        const upstreamResponse = await fetch(`${adminOrigin}${requestPath}`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            ...buildAdminAuthHeaders(accessToken),
+          },
+          body,
+        });
+        const responseBody = (await upstreamResponse.json()) as unknown;
+        const call: RecordedCall = {
+          method: 'POST',
+          path: requestPath,
+          ...(apiSurface === null ? {} : { apiSurface }),
+          query: parsedBody.query,
+          operationName:
+            typeof parsedBody.operationName === 'string' || parsedBody.operationName === null
+              ? parsedBody.operationName
+              : undefined,
+          variables:
+            typeof parsedBody.variables === 'object' && parsedBody.variables !== null ? parsedBody.variables : {},
+          response: {
+            status: upstreamResponse.status,
+            body: responseBody,
+          },
+        };
+        recordedCalls.push(call);
+        response.statusCode = upstreamResponse.status;
+        response.setHeader('content-type', 'application/json');
+        response.end(JSON.stringify(responseBody));
+      })().catch((error: unknown) => {
+        response.statusCode = 500;
+        response.setHeader('content-type', 'application/json');
+        response.end(JSON.stringify({ errors: [{ message: String(error) }] }));
+      });
+    });
+  });
+  await new Promise<void>((resolveListen) => server.listen(0, '127.0.0.1', resolveListen));
+  const address = server.address();
+  if (address === null || typeof address === 'string') {
+    throw new Error('Failed to start parity read-only recorder');
+  }
+  return {
+    origin: `http://127.0.0.1:${address.port}`,
+    recordedCalls,
+    close: async () =>
+      await new Promise<void>((resolveClose, reject) =>
+        server.close((error) => (error ? reject(error) : resolveClose())),
+      ),
+  };
 }
 
 function parseArgs(argv: string[]): { scenarioIds: string[]; specPaths: string[]; all: boolean } {
@@ -266,6 +395,26 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function applySpecialVariableTransforms(value: unknown, template: Record<string, unknown>): unknown {
+  let transformed = value;
+  if (template.resourceIdTail === true) {
+    if (typeof transformed !== 'string') {
+      throw new Error('resourceIdTail transform requires a string value');
+    }
+    const path = transformed.split('?')[0] ?? transformed;
+    transformed = path.split('/').pop() ?? transformed;
+  }
+  if (typeof template.prefix === 'string' || typeof template.suffix === 'string') {
+    if (!['string', 'number', 'boolean'].includes(typeof transformed)) {
+      throw new Error('prefix/suffix transform requires a scalar value');
+    }
+    const prefix = typeof template.prefix === 'string' ? template.prefix : '';
+    const suffix = typeof template.suffix === 'string' ? template.suffix : '';
+    transformed = `${prefix}${String(transformed)}${suffix}`;
+  }
+  return transformed;
+}
+
 function substituteVariables(
   template: unknown,
   context: {
@@ -282,20 +431,27 @@ function substituteVariables(
     return template;
   }
 
-  const entries = Object.entries(template);
-  if (entries.length === 1) {
-    const [[key, value]] = entries;
-    if (key === 'fromPrimaryProxyPath' && typeof value === 'string') {
-      if (!context.primaryResponse) throw new Error(`fromPrimaryProxyPath used before primary response: ${value}`);
-      return requireJsonPath(context.primaryResponse.body, value, 'primary response');
+  const primaryPath = template.fromPrimaryProxyPath;
+  if (typeof primaryPath === 'string') {
+    if (!context.primaryResponse) throw new Error(`fromPrimaryProxyPath used before primary response: ${primaryPath}`);
+    return applySpecialVariableTransforms(
+      requireJsonPath(context.primaryResponse.body, primaryPath, 'primary response'),
+      template,
+    );
+  }
+  const previousPath = template.fromPreviousProxyPath;
+  if (typeof previousPath === 'string') {
+    if (!context.previousResponse) {
+      throw new Error(`fromPreviousProxyPath used before previous response: ${previousPath}`);
     }
-    if (key === 'fromPreviousProxyPath' && typeof value === 'string') {
-      if (!context.previousResponse) throw new Error(`fromPreviousProxyPath used before previous response: ${value}`);
-      return requireJsonPath(context.previousResponse.body, value, 'previous response');
-    }
-    if (key === 'fromCapturePath' && typeof value === 'string') {
-      return requireJsonPath(context.capture, value, 'capture');
-    }
+    return applySpecialVariableTransforms(
+      requireJsonPath(context.previousResponse.body, previousPath, 'previous response'),
+      template,
+    );
+  }
+  const capturePath = template.fromCapturePath;
+  if (typeof capturePath === 'string') {
+    return applySpecialVariableTransforms(requireJsonPath(context.capture, capturePath, 'capture'), template);
   }
 
   const responseName = template.fromProxyResponse;
@@ -303,9 +459,13 @@ function substituteVariables(
   if (typeof responseName === 'string' && typeof responsePath === 'string') {
     const named = context.responsesByName.get(responseName);
     if (!named) throw new Error(`fromProxyResponse target not found: ${responseName}`);
-    return requireJsonPath(named.body, responsePath, `proxy response '${responseName}'`);
+    return applySpecialVariableTransforms(
+      requireJsonPath(named.body, responsePath, `proxy response '${responseName}'`),
+      template,
+    );
   }
 
+  const entries = Object.entries(template);
   return Object.fromEntries(entries.map(([key, value]) => [key, substituteVariables(value, context)]));
 }
 
@@ -406,13 +566,13 @@ async function recordSpec(opts: RecordOptions): Promise<void> {
   }
   const capture = JSON.parse(readFileSync(captureFile, 'utf8'));
   const defaultApiVersion = typeof capture.apiVersion === 'string' ? capture.apiVersion : opts.apiVersion;
-  if (existingUpstreamCalls(capture).length > 0) {
-    throw new Error(
-      `Rust parity recorder cannot refresh non-empty upstreamCalls yet for ${spec.scenarioId}; use the dedicated capture script for this scenario.`,
-    );
-  }
-
-  const calls: RecordedCall[] = [];
+  const preservedCalls = existingUpstreamCalls(capture);
+  const recorder = await startReadOnlyRecorder({
+    adminOrigin: opts.adminOrigin,
+    accessToken: opts.accessToken,
+    existingCalls: preservedCalls,
+  });
+  let calls: RecordedCall[] = preservedCalls;
   let rewriteCaptureNow: (() => void) | null = null;
   let proxy: { dispose?: () => void } | null = null;
   try {
@@ -420,7 +580,7 @@ async function recordSpec(opts: RecordOptions): Promise<void> {
     proxy = shim.createDraftProxy({
       readMode: spec.proxyConfig?.readMode ?? 'live-hybrid',
       port: 4000,
-      shopifyAdminOrigin: 'https://invalid.shopify-draft-proxy.local',
+      shopifyAdminOrigin: recorder.origin,
       unsupportedMutationMode: 'reject',
     });
     const runtimeProxy = proxy as {
@@ -502,9 +662,11 @@ async function recordSpec(opts: RecordOptions): Promise<void> {
       // diagnostic logging.
     }
 
+    calls = [...preservedCalls, ...recorder.recordedCalls];
     rewriteCaptureNow = () => rewriteCapture(captureFile, calls, []);
   } finally {
     proxy?.dispose?.();
+    await recorder.close();
   }
 
   if (rewriteCaptureNow) {

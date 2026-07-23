@@ -6031,7 +6031,7 @@ fn storefront_shop_metafields_use_staged_shop_owner_without_hydration() {
     );
     stage_metafields_set(
         &mut proxy,
-        "gid://shopify/Shop/storefront-metafields-no-hydrate",
+        "gid://shopify/Shop/storefront-metafields-no-hydrate?shopify-draft-proxy=synthetic",
         json!([
             {
                 "namespace": "custom",

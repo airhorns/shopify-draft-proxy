@@ -2,23 +2,23 @@
   "scenarioId": "metafields-set-owner-isolation",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
-  "capturedAt": "2026-06-14T01:53:35.435Z",
+  "capturedAt": "2026-07-19T14:52:52.376Z",
   "owners": {
     "ownerWithoutMetafields": {
-      "id": "gid://shopify/Product/10213077713202",
-      "title": "Owner metafield isolation empty mqd4rj69"
+      "id": "gid://shopify/Product/10243937993010",
+      "title": "Owner metafield isolation empty mrrx0ijy"
     },
     "ownerWithMetafields": {
-      "id": "gid://shopify/Product/10213077745970",
-      "title": "Owner metafield isolation populated mqd4rj69"
+      "id": "gid://shopify/Product/10243938025778",
+      "title": "Owner metafield isolation populated mrrx0ijy"
     }
   },
   "mutation": {
     "variables": {
       "metafields": [
         {
-          "ownerId": "gid://shopify/Product/10213077745970",
-          "namespace": "owner_isolation_mqd4rj69",
+          "ownerId": "gid://shopify/Product/10243938025778",
+          "namespace": "owner_isolation_mrrx0ijy",
           "key": "tier",
           "type": "single_line_text_field",
           "value": "gold"
@@ -30,7 +30,7 @@
         "metafieldsSet": {
           "metafields": [
             {
-              "namespace": "owner_isolation_mqd4rj69",
+              "namespace": "owner_isolation_mrrx0ijy",
               "key": "tier",
               "type": "single_line_text_field",
               "value": "gold"
@@ -53,14 +53,14 @@
     }
   },
   "isolatedOwnerReadVariables": {
-    "id": "gid://shopify/Product/10213077713202",
-    "namespace": "owner_isolation_mqd4rj69",
+    "id": "gid://shopify/Product/10243937993010",
+    "namespace": "owner_isolation_mrrx0ijy",
     "key": "tier"
   },
   "isolatedOwnerRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/10213077713202",
+        "id": "gid://shopify/Product/10243937993010",
         "metafield": null,
         "metafields": {
           "nodes": [],
@@ -86,5 +86,93 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "method": "POST",
+      "path": "/admin/api/2025-01/graphql.json",
+      "apiSurface": "admin",
+      "query": "query OwnerMetafieldsHydrateNodes($ids: [ID!]!, $metafield0Namespace: String!, $metafield0Key: String!) { nodes(ids: $ids) { __typename id ... on HasMetafields { metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } } ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt  } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } } ... on Collection { id title handle } ... on Customer { id displayName email } ... on Order { id name } ... on Company { id name } ... on Page { id title } ... on Article { id title } } }",
+      "operationName": "OwnerMetafieldsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/10243938025778"],
+        "metafield0Key": "tier",
+        "metafield0Namespace": "owner_isolation_mrrx0ijy"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10243938025778",
+                "metafield0": null,
+                "title": "Owner metafield isolation populated mrrx0ijy",
+                "handle": "owner-metafield-isolation-populated-mrrx0ijy",
+                "status": "DRAFT",
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "createdAt": "2026-07-19T14:52:51Z",
+                "updatedAt": "2026-07-19T14:53:03Z"
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 8,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2025-01/graphql.json",
+      "apiSurface": "admin",
+      "query": "query MetafieldDefinitionLifecycleReadProductMetafield($id: ID!, $namespace: String!, $key: String!) {\n  product(id: $id) {\n    id\n    metafield(namespace: $namespace, key: $key) {\n      namespace\n      key\n      type\n      value\n    }\n    metafields(first: 10, namespace: $namespace) {\n      nodes {\n        namespace\n        key\n        type\n        value\n      }\n      edges {\n        cursor\n        node {\n          namespace\n          key\n          type\n          value\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Product/10243937993010",
+        "namespace": "owner_isolation_mrrx0ijy",
+        "key": "tier"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/10243937993010",
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "edges": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 8,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1992,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

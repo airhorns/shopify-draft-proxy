@@ -1,0 +1,1689 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-07-19T11:58:05.506Z",
+  "namespace": "owner_hydration_mrrqrq4f",
+  "setup": {
+    "definitions": {
+      "query": "#graphql\nmutation OwnerMetafieldHydrationDefinitionsCreate(\n  $location: MetafieldDefinitionInput!\n  $page: MetafieldDefinitionInput!\n  $article: MetafieldDefinitionInput!\n  $market: MetafieldDefinitionInput!\n) {\n  location: metafieldDefinitionCreate(definition: $location) {\n    createdDefinition { id }\n    userErrors { field message code }\n  }\n  page: metafieldDefinitionCreate(definition: $page) {\n    createdDefinition { id }\n    userErrors { field message code }\n  }\n  article: metafieldDefinitionCreate(definition: $article) {\n    createdDefinition { id }\n    userErrors { field message code }\n  }\n  market: metafieldDefinitionCreate(definition: $market) {\n    createdDefinition { id }\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "location": {
+          "name": "Owner hydration location mrrqrq4f",
+          "namespace": "owner_hydration_mrrqrq4f",
+          "key": "owner_state",
+          "description": "Authoritative owner metafield hydration parity",
+          "ownerType": "LOCATION",
+          "type": "single_line_text_field"
+        },
+        "page": {
+          "name": "Owner hydration page mrrqrq4f",
+          "namespace": "owner_hydration_mrrqrq4f",
+          "key": "owner_state",
+          "description": "Authoritative owner metafield hydration parity",
+          "ownerType": "PAGE",
+          "type": "single_line_text_field"
+        },
+        "article": {
+          "name": "Owner hydration article mrrqrq4f",
+          "namespace": "owner_hydration_mrrqrq4f",
+          "key": "owner_state",
+          "description": "Authoritative owner metafield hydration parity",
+          "ownerType": "ARTICLE",
+          "type": "single_line_text_field"
+        },
+        "market": {
+          "name": "Owner hydration market mrrqrq4f",
+          "namespace": "owner_hydration_mrrqrq4f",
+          "key": "owner_state",
+          "description": "Authoritative owner metafield hydration parity",
+          "ownerType": "MARKET",
+          "type": "single_line_text_field"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "location": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/227252732210"
+            },
+            "userErrors": []
+          },
+          "page": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/227252764978"
+            },
+            "userErrors": []
+          },
+          "article": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/227252797746"
+            },
+            "userErrors": []
+          },
+          "market": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/227252830514"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 40,
+            "actualQueryCost": 40,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1960,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "contentCreate": {
+      "query": "mutation OnlineStoreContentCreate($blog: BlogCreateInput!, $page: PageCreateInput!) {\n  blogCreate(blog: $blog) {\n    blog {\n      id\n      title\n      handle\n      commentPolicy\n      templateSuffix\n      tags\n      articlesCount {\n        count\n        precision\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  pageCreate(page: $page) {\n    page {\n      id\n      title\n      handle\n      body\n      bodySummary\n      isPublished\n      templateSuffix\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "blog": {
+          "title": "Owner hydration blog mrrqrq4f",
+          "commentPolicy": "MODERATED"
+        },
+        "page": {
+          "title": "Owner hydration page mrrqrq4f",
+          "body": "<p>Owner metafield hydration capture</p>",
+          "isPublished": false
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blogCreate": {
+            "blog": {
+              "id": "gid://shopify/Blog/121894961458",
+              "title": "Owner hydration blog mrrqrq4f",
+              "handle": "owner-hydration-blog-mrrqrq4f",
+              "commentPolicy": "MODERATED",
+              "templateSuffix": null,
+              "tags": [],
+              "articlesCount": {
+                "count": 0,
+                "precision": "EXACT"
+              }
+            },
+            "userErrors": []
+          },
+          "pageCreate": {
+            "page": {
+              "id": "gid://shopify/Page/161531265330",
+              "title": "Owner hydration page mrrqrq4f",
+              "handle": "owner-hydration-page-mrrqrq4f",
+              "body": "<p>Owner metafield hydration capture</p>",
+              "bodySummary": "Owner metafield hydration capture",
+              "isPublished": false,
+              "templateSuffix": null
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 30,
+            "actualQueryCost": 30,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1954,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "articleCreate": {
+      "query": "mutation OnlineStoreContentArticleCreate($article: ArticleCreateInput!) {\n  articleCreate(article: $article) {\n    article {\n      id\n      title\n      handle\n      body\n      summary\n      tags\n      isPublished\n      templateSuffix\n      author {\n        name\n      }\n      blog {\n        id\n        title\n        handle\n        commentPolicy\n        createdAt\n        updatedAt\n      }\n      commentsCount {\n        count\n        precision\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "article": {
+          "blogId": "gid://shopify/Blog/121894961458",
+          "title": "Owner hydration article mrrqrq4f",
+          "body": "<p>Owner metafield hydration capture</p>",
+          "summary": "<p>Mixed owner CAS capture</p>",
+          "isPublished": false,
+          "author": {
+            "name": "Owner Metafield Capture"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleCreate": {
+            "article": {
+              "id": "gid://shopify/Article/685149225266",
+              "title": "Owner hydration article mrrqrq4f",
+              "handle": "owner-hydration-article-mrrqrq4f",
+              "body": "<p>Owner metafield hydration capture</p>",
+              "summary": "<p>Mixed owner CAS capture</p>",
+              "tags": [],
+              "isPublished": false,
+              "templateSuffix": null,
+              "author": {
+                "name": "Owner Metafield Capture"
+              },
+              "blog": {
+                "id": "gid://shopify/Blog/121894961458",
+                "title": "Owner hydration blog mrrqrq4f",
+                "handle": "owner-hydration-blog-mrrqrq4f",
+                "commentPolicy": "MODERATED",
+                "createdAt": "2026-07-19T11:58:03Z",
+                "updatedAt": "2026-07-19T11:58:04Z"
+              },
+              "commentsCount": {
+                "count": 0,
+                "precision": "EXACT"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 22,
+            "actualQueryCost": 22,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1952,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "locationRead": {
+      "query": "#graphql\nquery OwnerMetafieldHydrationLocationsRead {\n  locations(first: 1) {\n    nodes { id name }\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "data": {
+          "locations": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Location/113884102962",
+                "name": "HAR-2332 Probe Destination 1783701294047"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 3,
+            "actualQueryCost": 3,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1964,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "marketRead": {
+      "query": "#graphql\nquery OwnerMetafieldHydrationMarketsRead {\n  markets(first: 1) {\n    nodes { id name }\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "data": {
+          "markets": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Market/97997685042",
+                "name": "Draft Proxy Currency Settings 20260507164352 Manual Rate"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 3,
+            "actualQueryCost": 3,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1970,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "baselineSet": {
+      "query": "mutation OwnerMetafieldMixedOwnerSet($metafields: [MetafieldsSetInput!]!) {\n  metafieldsSet(metafields: $metafields) {\n    metafields {\n      id\n      namespace\n      key\n      type\n      value\n      jsonValue\n      compareDigest\n      createdAt\n      updatedAt\n      ownerType\n      definition {\n        id\n        name\n        namespace\n        key\n        ownerType\n        type {\n          name\n          category\n        }\n        description\n        validations {\n          name\n          value\n        }\n        pinnedPosition\n        validationStatus\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "metafields": [
+          {
+            "ownerId": "gid://shopify/Location/113884102962",
+            "namespace": "owner_hydration_mrrqrq4f",
+            "key": "owner_state",
+            "type": "single_line_text_field",
+            "value": "Location mrrqrq4f"
+          },
+          {
+            "ownerId": "gid://shopify/Page/161531265330",
+            "namespace": "owner_hydration_mrrqrq4f",
+            "key": "owner_state",
+            "type": "single_line_text_field",
+            "value": "Page mrrqrq4f"
+          },
+          {
+            "ownerId": "gid://shopify/Article/685149225266",
+            "namespace": "owner_hydration_mrrqrq4f",
+            "key": "owner_state",
+            "type": "single_line_text_field",
+            "value": "Article mrrqrq4f"
+          },
+          {
+            "ownerId": "gid://shopify/Market/97997685042",
+            "namespace": "owner_hydration_mrrqrq4f",
+            "key": "owner_state",
+            "type": "single_line_text_field",
+            "value": "Market mrrqrq4f"
+          }
+        ]
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [
+              {
+                "id": "gid://shopify/Metafield/45212268757298",
+                "namespace": "owner_hydration_mrrqrq4f",
+                "key": "owner_state",
+                "type": "single_line_text_field",
+                "value": "Location mrrqrq4f",
+                "jsonValue": "Location mrrqrq4f",
+                "compareDigest": "ab72b9bc8b7b2635d33ad25c88085851f1fd7ac03051b64264c213ae9f5c4828",
+                "createdAt": "2026-07-19T11:58:04Z",
+                "updatedAt": "2026-07-19T11:58:04Z",
+                "ownerType": "LOCATION",
+                "definition": {
+                  "id": "gid://shopify/MetafieldDefinition/227252732210",
+                  "name": "Owner hydration location mrrqrq4f",
+                  "namespace": "owner_hydration_mrrqrq4f",
+                  "key": "owner_state",
+                  "ownerType": "LOCATION",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": "Authoritative owner metafield hydration parity",
+                  "validations": [],
+                  "pinnedPosition": null,
+                  "validationStatus": "ALL_VALID"
+                }
+              },
+              {
+                "id": "gid://shopify/Metafield/45212268790066",
+                "namespace": "owner_hydration_mrrqrq4f",
+                "key": "owner_state",
+                "type": "single_line_text_field",
+                "value": "Page mrrqrq4f",
+                "jsonValue": "Page mrrqrq4f",
+                "compareDigest": "77454a5fb0c547007bb6aad08e51982a428ee7bc769685051d731a8ed08baa12",
+                "createdAt": "2026-07-19T11:58:04Z",
+                "updatedAt": "2026-07-19T11:58:04Z",
+                "ownerType": "PAGE",
+                "definition": {
+                  "id": "gid://shopify/MetafieldDefinition/227252764978",
+                  "name": "Owner hydration page mrrqrq4f",
+                  "namespace": "owner_hydration_mrrqrq4f",
+                  "key": "owner_state",
+                  "ownerType": "PAGE",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": "Authoritative owner metafield hydration parity",
+                  "validations": [],
+                  "pinnedPosition": null,
+                  "validationStatus": "ALL_VALID"
+                }
+              },
+              {
+                "id": "gid://shopify/Metafield/45212268822834",
+                "namespace": "owner_hydration_mrrqrq4f",
+                "key": "owner_state",
+                "type": "single_line_text_field",
+                "value": "Article mrrqrq4f",
+                "jsonValue": "Article mrrqrq4f",
+                "compareDigest": "effc0c66e60a27299d4186a035b90ca99ef8e357243cdf4a396f4d1fc4920052",
+                "createdAt": "2026-07-19T11:58:04Z",
+                "updatedAt": "2026-07-19T11:58:04Z",
+                "ownerType": "ARTICLE",
+                "definition": {
+                  "id": "gid://shopify/MetafieldDefinition/227252797746",
+                  "name": "Owner hydration article mrrqrq4f",
+                  "namespace": "owner_hydration_mrrqrq4f",
+                  "key": "owner_state",
+                  "ownerType": "ARTICLE",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": "Authoritative owner metafield hydration parity",
+                  "validations": [],
+                  "pinnedPosition": null,
+                  "validationStatus": "ALL_VALID"
+                }
+              },
+              {
+                "id": "gid://shopify/Metafield/45212268855602",
+                "namespace": "owner_hydration_mrrqrq4f",
+                "key": "owner_state",
+                "type": "single_line_text_field",
+                "value": "Market mrrqrq4f",
+                "jsonValue": "Market mrrqrq4f",
+                "compareDigest": "36dd8cafd3859f07d417e17e9b8900a78ebfbacd27040d69632014aaa053ce51",
+                "createdAt": "2026-07-19T11:58:04Z",
+                "updatedAt": "2026-07-19T11:58:04Z",
+                "ownerType": "MARKET",
+                "definition": {
+                  "id": "gid://shopify/MetafieldDefinition/227252830514",
+                  "name": "Owner hydration market mrrqrq4f",
+                  "namespace": "owner_hydration_mrrqrq4f",
+                  "key": "owner_state",
+                  "ownerType": "MARKET",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": "Authoritative owner metafield hydration parity",
+                  "validations": [],
+                  "pinnedPosition": null,
+                  "validationStatus": "ALL_VALID"
+                }
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1966,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "owners": [
+    {
+      "id": "gid://shopify/Location/113884102962",
+      "resourceType": "Location",
+      "ownerType": "LOCATION",
+      "value": "Location mrrqrq4f"
+    },
+    {
+      "id": "gid://shopify/Page/161531265330",
+      "resourceType": "Page",
+      "ownerType": "PAGE",
+      "value": "Page mrrqrq4f"
+    },
+    {
+      "id": "gid://shopify/Article/685149225266",
+      "resourceType": "Article",
+      "ownerType": "ARTICLE",
+      "value": "Article mrrqrq4f"
+    },
+    {
+      "id": "gid://shopify/Market/97997685042",
+      "resourceType": "Market",
+      "ownerType": "MARKET",
+      "value": "Market mrrqrq4f"
+    }
+  ],
+  "validSet": {
+    "query": "mutation OwnerMetafieldMixedOwnerSet($metafields: [MetafieldsSetInput!]!) {\n  metafieldsSet(metafields: $metafields) {\n    metafields {\n      id\n      namespace\n      key\n      type\n      value\n      jsonValue\n      compareDigest\n      createdAt\n      updatedAt\n      ownerType\n      definition {\n        id\n        name\n        namespace\n        key\n        ownerType\n        type {\n          name\n          category\n        }\n        description\n        validations {\n          name\n          value\n        }\n        pinnedPosition\n        validationStatus\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementIndex\n    }\n  }\n}\n",
+    "variables": {
+      "metafields": [
+        {
+          "ownerId": "gid://shopify/Location/113884102962",
+          "namespace": "owner_hydration_mrrqrq4f",
+          "key": "owner_state",
+          "type": "single_line_text_field",
+          "value": "Location mrrqrq4f",
+          "compareDigest": "ab72b9bc8b7b2635d33ad25c88085851f1fd7ac03051b64264c213ae9f5c4828"
+        },
+        {
+          "ownerId": "gid://shopify/Page/161531265330",
+          "namespace": "owner_hydration_mrrqrq4f",
+          "key": "owner_state",
+          "type": "single_line_text_field",
+          "value": "Page mrrqrq4f",
+          "compareDigest": "77454a5fb0c547007bb6aad08e51982a428ee7bc769685051d731a8ed08baa12"
+        },
+        {
+          "ownerId": "gid://shopify/Article/685149225266",
+          "namespace": "owner_hydration_mrrqrq4f",
+          "key": "owner_state",
+          "type": "single_line_text_field",
+          "value": "Article mrrqrq4f",
+          "compareDigest": "effc0c66e60a27299d4186a035b90ca99ef8e357243cdf4a396f4d1fc4920052"
+        },
+        {
+          "ownerId": "gid://shopify/Market/97997685042",
+          "namespace": "owner_hydration_mrrqrq4f",
+          "key": "owner_state",
+          "type": "single_line_text_field",
+          "value": "Market mrrqrq4f",
+          "compareDigest": "36dd8cafd3859f07d417e17e9b8900a78ebfbacd27040d69632014aaa053ce51"
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldsSet": {
+          "metafields": [
+            {
+              "id": "gid://shopify/Metafield/45212268757298",
+              "namespace": "owner_hydration_mrrqrq4f",
+              "key": "owner_state",
+              "type": "single_line_text_field",
+              "value": "Location mrrqrq4f",
+              "jsonValue": "Location mrrqrq4f",
+              "compareDigest": "ab72b9bc8b7b2635d33ad25c88085851f1fd7ac03051b64264c213ae9f5c4828",
+              "createdAt": "2026-07-19T11:58:04Z",
+              "updatedAt": "2026-07-19T11:58:04Z",
+              "ownerType": "LOCATION",
+              "definition": {
+                "id": "gid://shopify/MetafieldDefinition/227252732210",
+                "name": "Owner hydration location mrrqrq4f",
+                "namespace": "owner_hydration_mrrqrq4f",
+                "key": "owner_state",
+                "ownerType": "LOCATION",
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "description": "Authoritative owner metafield hydration parity",
+                "validations": [],
+                "pinnedPosition": null,
+                "validationStatus": "ALL_VALID"
+              }
+            },
+            {
+              "id": "gid://shopify/Metafield/45212268790066",
+              "namespace": "owner_hydration_mrrqrq4f",
+              "key": "owner_state",
+              "type": "single_line_text_field",
+              "value": "Page mrrqrq4f",
+              "jsonValue": "Page mrrqrq4f",
+              "compareDigest": "77454a5fb0c547007bb6aad08e51982a428ee7bc769685051d731a8ed08baa12",
+              "createdAt": "2026-07-19T11:58:04Z",
+              "updatedAt": "2026-07-19T11:58:04Z",
+              "ownerType": "PAGE",
+              "definition": {
+                "id": "gid://shopify/MetafieldDefinition/227252764978",
+                "name": "Owner hydration page mrrqrq4f",
+                "namespace": "owner_hydration_mrrqrq4f",
+                "key": "owner_state",
+                "ownerType": "PAGE",
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "description": "Authoritative owner metafield hydration parity",
+                "validations": [],
+                "pinnedPosition": null,
+                "validationStatus": "ALL_VALID"
+              }
+            },
+            {
+              "id": "gid://shopify/Metafield/45212268822834",
+              "namespace": "owner_hydration_mrrqrq4f",
+              "key": "owner_state",
+              "type": "single_line_text_field",
+              "value": "Article mrrqrq4f",
+              "jsonValue": "Article mrrqrq4f",
+              "compareDigest": "effc0c66e60a27299d4186a035b90ca99ef8e357243cdf4a396f4d1fc4920052",
+              "createdAt": "2026-07-19T11:58:04Z",
+              "updatedAt": "2026-07-19T11:58:04Z",
+              "ownerType": "ARTICLE",
+              "definition": {
+                "id": "gid://shopify/MetafieldDefinition/227252797746",
+                "name": "Owner hydration article mrrqrq4f",
+                "namespace": "owner_hydration_mrrqrq4f",
+                "key": "owner_state",
+                "ownerType": "ARTICLE",
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "description": "Authoritative owner metafield hydration parity",
+                "validations": [],
+                "pinnedPosition": null,
+                "validationStatus": "ALL_VALID"
+              }
+            },
+            {
+              "id": "gid://shopify/Metafield/45212268855602",
+              "namespace": "owner_hydration_mrrqrq4f",
+              "key": "owner_state",
+              "type": "single_line_text_field",
+              "value": "Market mrrqrq4f",
+              "jsonValue": "Market mrrqrq4f",
+              "compareDigest": "36dd8cafd3859f07d417e17e9b8900a78ebfbacd27040d69632014aaa053ce51",
+              "createdAt": "2026-07-19T11:58:04Z",
+              "updatedAt": "2026-07-19T11:58:04Z",
+              "ownerType": "MARKET",
+              "definition": {
+                "id": "gid://shopify/MetafieldDefinition/227252830514",
+                "name": "Owner hydration market mrrqrq4f",
+                "namespace": "owner_hydration_mrrqrq4f",
+                "key": "owner_state",
+                "ownerType": "MARKET",
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "description": "Authoritative owner metafield hydration parity",
+                "validations": [],
+                "pinnedPosition": null,
+                "validationStatus": "ALL_VALID"
+              }
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1974,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterValid": {
+    "query": "query OwnerMetafieldMixedOwnerRead(\n  $locationId: ID!\n  $pageId: ID!\n  $articleId: ID!\n  $marketId: ID!\n  $namespace: String!\n  $key: String!\n) {\n  location(id: $locationId) {\n    id\n    metafield(namespace: $namespace, key: $key) {\n      ...OwnerMetafieldMixedOwnerFields\n    }\n  }\n  page(id: $pageId) {\n    id\n    metafield(namespace: $namespace, key: $key) {\n      ...OwnerMetafieldMixedOwnerFields\n    }\n  }\n  article(id: $articleId) {\n    id\n    metafield(namespace: $namespace, key: $key) {\n      ...OwnerMetafieldMixedOwnerFields\n    }\n  }\n  market(id: $marketId) {\n    id\n    metafield(namespace: $namespace, key: $key) {\n      ...OwnerMetafieldMixedOwnerFields\n    }\n  }\n}\n\nfragment OwnerMetafieldMixedOwnerFields on Metafield {\n  id\n  namespace\n  key\n  type\n  value\n  jsonValue\n  compareDigest\n  createdAt\n  updatedAt\n  ownerType\n  definition {\n    id\n    name\n    namespace\n    key\n    ownerType\n    type {\n      name\n      category\n    }\n    description\n    validations {\n      name\n      value\n    }\n    pinnedPosition\n    validationStatus\n  }\n}\n",
+    "variables": {
+      "locationId": "gid://shopify/Location/113884102962",
+      "pageId": "gid://shopify/Page/161531265330",
+      "articleId": "gid://shopify/Article/685149225266",
+      "marketId": "gid://shopify/Market/97997685042",
+      "namespace": "owner_hydration_mrrqrq4f",
+      "key": "owner_state"
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "location": {
+          "id": "gid://shopify/Location/113884102962",
+          "metafield": {
+            "id": "gid://shopify/Metafield/45212268757298",
+            "namespace": "owner_hydration_mrrqrq4f",
+            "key": "owner_state",
+            "type": "single_line_text_field",
+            "value": "Location mrrqrq4f",
+            "jsonValue": "Location mrrqrq4f",
+            "compareDigest": "ab72b9bc8b7b2635d33ad25c88085851f1fd7ac03051b64264c213ae9f5c4828",
+            "createdAt": "2026-07-19T11:58:04Z",
+            "updatedAt": "2026-07-19T11:58:04Z",
+            "ownerType": "LOCATION",
+            "definition": {
+              "id": "gid://shopify/MetafieldDefinition/227252732210",
+              "name": "Owner hydration location mrrqrq4f",
+              "namespace": "owner_hydration_mrrqrq4f",
+              "key": "owner_state",
+              "ownerType": "LOCATION",
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "description": "Authoritative owner metafield hydration parity",
+              "validations": [],
+              "pinnedPosition": null,
+              "validationStatus": "ALL_VALID"
+            }
+          }
+        },
+        "page": {
+          "id": "gid://shopify/Page/161531265330",
+          "metafield": {
+            "id": "gid://shopify/Metafield/45212268790066",
+            "namespace": "owner_hydration_mrrqrq4f",
+            "key": "owner_state",
+            "type": "single_line_text_field",
+            "value": "Page mrrqrq4f",
+            "jsonValue": "Page mrrqrq4f",
+            "compareDigest": "77454a5fb0c547007bb6aad08e51982a428ee7bc769685051d731a8ed08baa12",
+            "createdAt": "2026-07-19T11:58:04Z",
+            "updatedAt": "2026-07-19T11:58:04Z",
+            "ownerType": "PAGE",
+            "definition": {
+              "id": "gid://shopify/MetafieldDefinition/227252764978",
+              "name": "Owner hydration page mrrqrq4f",
+              "namespace": "owner_hydration_mrrqrq4f",
+              "key": "owner_state",
+              "ownerType": "PAGE",
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "description": "Authoritative owner metafield hydration parity",
+              "validations": [],
+              "pinnedPosition": null,
+              "validationStatus": "ALL_VALID"
+            }
+          }
+        },
+        "article": {
+          "id": "gid://shopify/Article/685149225266",
+          "metafield": {
+            "id": "gid://shopify/Metafield/45212268822834",
+            "namespace": "owner_hydration_mrrqrq4f",
+            "key": "owner_state",
+            "type": "single_line_text_field",
+            "value": "Article mrrqrq4f",
+            "jsonValue": "Article mrrqrq4f",
+            "compareDigest": "effc0c66e60a27299d4186a035b90ca99ef8e357243cdf4a396f4d1fc4920052",
+            "createdAt": "2026-07-19T11:58:04Z",
+            "updatedAt": "2026-07-19T11:58:04Z",
+            "ownerType": "ARTICLE",
+            "definition": {
+              "id": "gid://shopify/MetafieldDefinition/227252797746",
+              "name": "Owner hydration article mrrqrq4f",
+              "namespace": "owner_hydration_mrrqrq4f",
+              "key": "owner_state",
+              "ownerType": "ARTICLE",
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "description": "Authoritative owner metafield hydration parity",
+              "validations": [],
+              "pinnedPosition": null,
+              "validationStatus": "ALL_VALID"
+            }
+          }
+        },
+        "market": {
+          "id": "gid://shopify/Market/97997685042",
+          "metafield": {
+            "id": "gid://shopify/Metafield/45212268855602",
+            "namespace": "owner_hydration_mrrqrq4f",
+            "key": "owner_state",
+            "type": "single_line_text_field",
+            "value": "Market mrrqrq4f",
+            "jsonValue": "Market mrrqrq4f",
+            "compareDigest": "36dd8cafd3859f07d417e17e9b8900a78ebfbacd27040d69632014aaa053ce51",
+            "createdAt": "2026-07-19T11:58:04Z",
+            "updatedAt": "2026-07-19T11:58:04Z",
+            "ownerType": "MARKET",
+            "definition": {
+              "id": "gid://shopify/MetafieldDefinition/227252830514",
+              "name": "Owner hydration market mrrqrq4f",
+              "namespace": "owner_hydration_mrrqrq4f",
+              "key": "owner_state",
+              "ownerType": "MARKET",
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "description": "Authoritative owner metafield hydration parity",
+              "validations": [],
+              "pinnedPosition": null,
+              "validationStatus": "ALL_VALID"
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1965,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "marketAdvanceSet": {
+    "query": "mutation OwnerMetafieldMixedOwnerSet($metafields: [MetafieldsSetInput!]!) {\n  metafieldsSet(metafields: $metafields) {\n    metafields {\n      id\n      namespace\n      key\n      type\n      value\n      jsonValue\n      compareDigest\n      createdAt\n      updatedAt\n      ownerType\n      definition {\n        id\n        name\n        namespace\n        key\n        ownerType\n        type {\n          name\n          category\n        }\n        description\n        validations {\n          name\n          value\n        }\n        pinnedPosition\n        validationStatus\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementIndex\n    }\n  }\n}\n",
+    "variables": {
+      "metafields": [
+        {
+          "ownerId": "gid://shopify/Market/97997685042",
+          "namespace": "owner_hydration_mrrqrq4f",
+          "key": "owner_state",
+          "type": "single_line_text_field",
+          "value": "Market advanced mrrqrq4f",
+          "compareDigest": "36dd8cafd3859f07d417e17e9b8900a78ebfbacd27040d69632014aaa053ce51"
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldsSet": {
+          "metafields": [
+            {
+              "id": "gid://shopify/Metafield/45212268855602",
+              "namespace": "owner_hydration_mrrqrq4f",
+              "key": "owner_state",
+              "type": "single_line_text_field",
+              "value": "Market advanced mrrqrq4f",
+              "jsonValue": "Market advanced mrrqrq4f",
+              "compareDigest": "03f9e1e13960c7d22282dfd92cda4d364f448c47cdacc195e51434351774d24f",
+              "createdAt": "2026-07-19T11:58:04Z",
+              "updatedAt": "2026-07-19T11:58:04Z",
+              "ownerType": "MARKET",
+              "definition": {
+                "id": "gid://shopify/MetafieldDefinition/227252830514",
+                "name": "Owner hydration market mrrqrq4f",
+                "namespace": "owner_hydration_mrrqrq4f",
+                "key": "owner_state",
+                "ownerType": "MARKET",
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "description": "Authoritative owner metafield hydration parity",
+                "validations": [],
+                "pinnedPosition": null,
+                "validationStatus": "ALL_VALID"
+              }
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1963,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterMarketAdvance": {
+    "query": "query OwnerMetafieldMixedOwnerRead(\n  $locationId: ID!\n  $pageId: ID!\n  $articleId: ID!\n  $marketId: ID!\n  $namespace: String!\n  $key: String!\n) {\n  location(id: $locationId) {\n    id\n    metafield(namespace: $namespace, key: $key) {\n      ...OwnerMetafieldMixedOwnerFields\n    }\n  }\n  page(id: $pageId) {\n    id\n    metafield(namespace: $namespace, key: $key) {\n      ...OwnerMetafieldMixedOwnerFields\n    }\n  }\n  article(id: $articleId) {\n    id\n    metafield(namespace: $namespace, key: $key) {\n      ...OwnerMetafieldMixedOwnerFields\n    }\n  }\n  market(id: $marketId) {\n    id\n    metafield(namespace: $namespace, key: $key) {\n      ...OwnerMetafieldMixedOwnerFields\n    }\n  }\n}\n\nfragment OwnerMetafieldMixedOwnerFields on Metafield {\n  id\n  namespace\n  key\n  type\n  value\n  jsonValue\n  compareDigest\n  createdAt\n  updatedAt\n  ownerType\n  definition {\n    id\n    name\n    namespace\n    key\n    ownerType\n    type {\n      name\n      category\n    }\n    description\n    validations {\n      name\n      value\n    }\n    pinnedPosition\n    validationStatus\n  }\n}\n",
+    "variables": {
+      "locationId": "gid://shopify/Location/113884102962",
+      "pageId": "gid://shopify/Page/161531265330",
+      "articleId": "gid://shopify/Article/685149225266",
+      "marketId": "gid://shopify/Market/97997685042",
+      "namespace": "owner_hydration_mrrqrq4f",
+      "key": "owner_state"
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "location": {
+          "id": "gid://shopify/Location/113884102962",
+          "metafield": {
+            "id": "gid://shopify/Metafield/45212268757298",
+            "namespace": "owner_hydration_mrrqrq4f",
+            "key": "owner_state",
+            "type": "single_line_text_field",
+            "value": "Location mrrqrq4f",
+            "jsonValue": "Location mrrqrq4f",
+            "compareDigest": "ab72b9bc8b7b2635d33ad25c88085851f1fd7ac03051b64264c213ae9f5c4828",
+            "createdAt": "2026-07-19T11:58:04Z",
+            "updatedAt": "2026-07-19T11:58:04Z",
+            "ownerType": "LOCATION",
+            "definition": {
+              "id": "gid://shopify/MetafieldDefinition/227252732210",
+              "name": "Owner hydration location mrrqrq4f",
+              "namespace": "owner_hydration_mrrqrq4f",
+              "key": "owner_state",
+              "ownerType": "LOCATION",
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "description": "Authoritative owner metafield hydration parity",
+              "validations": [],
+              "pinnedPosition": null,
+              "validationStatus": "ALL_VALID"
+            }
+          }
+        },
+        "page": {
+          "id": "gid://shopify/Page/161531265330",
+          "metafield": {
+            "id": "gid://shopify/Metafield/45212268790066",
+            "namespace": "owner_hydration_mrrqrq4f",
+            "key": "owner_state",
+            "type": "single_line_text_field",
+            "value": "Page mrrqrq4f",
+            "jsonValue": "Page mrrqrq4f",
+            "compareDigest": "77454a5fb0c547007bb6aad08e51982a428ee7bc769685051d731a8ed08baa12",
+            "createdAt": "2026-07-19T11:58:04Z",
+            "updatedAt": "2026-07-19T11:58:04Z",
+            "ownerType": "PAGE",
+            "definition": {
+              "id": "gid://shopify/MetafieldDefinition/227252764978",
+              "name": "Owner hydration page mrrqrq4f",
+              "namespace": "owner_hydration_mrrqrq4f",
+              "key": "owner_state",
+              "ownerType": "PAGE",
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "description": "Authoritative owner metafield hydration parity",
+              "validations": [],
+              "pinnedPosition": null,
+              "validationStatus": "ALL_VALID"
+            }
+          }
+        },
+        "article": {
+          "id": "gid://shopify/Article/685149225266",
+          "metafield": {
+            "id": "gid://shopify/Metafield/45212268822834",
+            "namespace": "owner_hydration_mrrqrq4f",
+            "key": "owner_state",
+            "type": "single_line_text_field",
+            "value": "Article mrrqrq4f",
+            "jsonValue": "Article mrrqrq4f",
+            "compareDigest": "effc0c66e60a27299d4186a035b90ca99ef8e357243cdf4a396f4d1fc4920052",
+            "createdAt": "2026-07-19T11:58:04Z",
+            "updatedAt": "2026-07-19T11:58:04Z",
+            "ownerType": "ARTICLE",
+            "definition": {
+              "id": "gid://shopify/MetafieldDefinition/227252797746",
+              "name": "Owner hydration article mrrqrq4f",
+              "namespace": "owner_hydration_mrrqrq4f",
+              "key": "owner_state",
+              "ownerType": "ARTICLE",
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "description": "Authoritative owner metafield hydration parity",
+              "validations": [],
+              "pinnedPosition": null,
+              "validationStatus": "ALL_VALID"
+            }
+          }
+        },
+        "market": {
+          "id": "gid://shopify/Market/97997685042",
+          "metafield": {
+            "id": "gid://shopify/Metafield/45212268855602",
+            "namespace": "owner_hydration_mrrqrq4f",
+            "key": "owner_state",
+            "type": "single_line_text_field",
+            "value": "Market advanced mrrqrq4f",
+            "jsonValue": "Market advanced mrrqrq4f",
+            "compareDigest": "03f9e1e13960c7d22282dfd92cda4d364f448c47cdacc195e51434351774d24f",
+            "createdAt": "2026-07-19T11:58:04Z",
+            "updatedAt": "2026-07-19T11:58:04Z",
+            "ownerType": "MARKET",
+            "definition": {
+              "id": "gid://shopify/MetafieldDefinition/227252830514",
+              "name": "Owner hydration market mrrqrq4f",
+              "namespace": "owner_hydration_mrrqrq4f",
+              "key": "owner_state",
+              "ownerType": "MARKET",
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "description": "Authoritative owner metafield hydration parity",
+              "validations": [],
+              "pinnedPosition": null,
+              "validationStatus": "ALL_VALID"
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1958,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "staleSet": {
+    "query": "mutation OwnerMetafieldMixedOwnerSet($metafields: [MetafieldsSetInput!]!) {\n  metafieldsSet(metafields: $metafields) {\n    metafields {\n      id\n      namespace\n      key\n      type\n      value\n      jsonValue\n      compareDigest\n      createdAt\n      updatedAt\n      ownerType\n      definition {\n        id\n        name\n        namespace\n        key\n        ownerType\n        type {\n          name\n          category\n        }\n        description\n        validations {\n          name\n          value\n        }\n        pinnedPosition\n        validationStatus\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementIndex\n    }\n  }\n}\n",
+    "variables": {
+      "metafields": [
+        {
+          "ownerId": "gid://shopify/Location/113884102962",
+          "namespace": "owner_hydration_mrrqrq4f",
+          "key": "owner_state",
+          "type": "single_line_text_field",
+          "value": "Location mrrqrq4f",
+          "compareDigest": "ab72b9bc8b7b2635d33ad25c88085851f1fd7ac03051b64264c213ae9f5c4828"
+        },
+        {
+          "ownerId": "gid://shopify/Page/161531265330",
+          "namespace": "owner_hydration_mrrqrq4f",
+          "key": "owner_state",
+          "type": "single_line_text_field",
+          "value": "Page mrrqrq4f",
+          "compareDigest": "77454a5fb0c547007bb6aad08e51982a428ee7bc769685051d731a8ed08baa12"
+        },
+        {
+          "ownerId": "gid://shopify/Article/685149225266",
+          "namespace": "owner_hydration_mrrqrq4f",
+          "key": "owner_state",
+          "type": "single_line_text_field",
+          "value": "Article mrrqrq4f",
+          "compareDigest": "effc0c66e60a27299d4186a035b90ca99ef8e357243cdf4a396f4d1fc4920052"
+        },
+        {
+          "ownerId": "gid://shopify/Market/97997685042",
+          "namespace": "owner_hydration_mrrqrq4f",
+          "key": "owner_state",
+          "type": "single_line_text_field",
+          "value": "Market mrrqrq4f",
+          "compareDigest": "36dd8cafd3859f07d417e17e9b8900a78ebfbacd27040d69632014aaa053ce51"
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldsSet": {
+          "metafields": [],
+          "userErrors": [
+            {
+              "field": ["metafields", "3"],
+              "message": "The resource has been updated since it was loaded. Try again with an updated `compareDigest` value.",
+              "code": "STALE_OBJECT",
+              "elementIndex": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1959,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterStale": {
+    "query": "query OwnerMetafieldMixedOwnerRead(\n  $locationId: ID!\n  $pageId: ID!\n  $articleId: ID!\n  $marketId: ID!\n  $namespace: String!\n  $key: String!\n) {\n  location(id: $locationId) {\n    id\n    metafield(namespace: $namespace, key: $key) {\n      ...OwnerMetafieldMixedOwnerFields\n    }\n  }\n  page(id: $pageId) {\n    id\n    metafield(namespace: $namespace, key: $key) {\n      ...OwnerMetafieldMixedOwnerFields\n    }\n  }\n  article(id: $articleId) {\n    id\n    metafield(namespace: $namespace, key: $key) {\n      ...OwnerMetafieldMixedOwnerFields\n    }\n  }\n  market(id: $marketId) {\n    id\n    metafield(namespace: $namespace, key: $key) {\n      ...OwnerMetafieldMixedOwnerFields\n    }\n  }\n}\n\nfragment OwnerMetafieldMixedOwnerFields on Metafield {\n  id\n  namespace\n  key\n  type\n  value\n  jsonValue\n  compareDigest\n  createdAt\n  updatedAt\n  ownerType\n  definition {\n    id\n    name\n    namespace\n    key\n    ownerType\n    type {\n      name\n      category\n    }\n    description\n    validations {\n      name\n      value\n    }\n    pinnedPosition\n    validationStatus\n  }\n}\n",
+    "variables": {
+      "locationId": "gid://shopify/Location/113884102962",
+      "pageId": "gid://shopify/Page/161531265330",
+      "articleId": "gid://shopify/Article/685149225266",
+      "marketId": "gid://shopify/Market/97997685042",
+      "namespace": "owner_hydration_mrrqrq4f",
+      "key": "owner_state"
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "location": {
+          "id": "gid://shopify/Location/113884102962",
+          "metafield": {
+            "id": "gid://shopify/Metafield/45212268757298",
+            "namespace": "owner_hydration_mrrqrq4f",
+            "key": "owner_state",
+            "type": "single_line_text_field",
+            "value": "Location mrrqrq4f",
+            "jsonValue": "Location mrrqrq4f",
+            "compareDigest": "ab72b9bc8b7b2635d33ad25c88085851f1fd7ac03051b64264c213ae9f5c4828",
+            "createdAt": "2026-07-19T11:58:04Z",
+            "updatedAt": "2026-07-19T11:58:04Z",
+            "ownerType": "LOCATION",
+            "definition": {
+              "id": "gid://shopify/MetafieldDefinition/227252732210",
+              "name": "Owner hydration location mrrqrq4f",
+              "namespace": "owner_hydration_mrrqrq4f",
+              "key": "owner_state",
+              "ownerType": "LOCATION",
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "description": "Authoritative owner metafield hydration parity",
+              "validations": [],
+              "pinnedPosition": null,
+              "validationStatus": "ALL_VALID"
+            }
+          }
+        },
+        "page": {
+          "id": "gid://shopify/Page/161531265330",
+          "metafield": {
+            "id": "gid://shopify/Metafield/45212268790066",
+            "namespace": "owner_hydration_mrrqrq4f",
+            "key": "owner_state",
+            "type": "single_line_text_field",
+            "value": "Page mrrqrq4f",
+            "jsonValue": "Page mrrqrq4f",
+            "compareDigest": "77454a5fb0c547007bb6aad08e51982a428ee7bc769685051d731a8ed08baa12",
+            "createdAt": "2026-07-19T11:58:04Z",
+            "updatedAt": "2026-07-19T11:58:04Z",
+            "ownerType": "PAGE",
+            "definition": {
+              "id": "gid://shopify/MetafieldDefinition/227252764978",
+              "name": "Owner hydration page mrrqrq4f",
+              "namespace": "owner_hydration_mrrqrq4f",
+              "key": "owner_state",
+              "ownerType": "PAGE",
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "description": "Authoritative owner metafield hydration parity",
+              "validations": [],
+              "pinnedPosition": null,
+              "validationStatus": "ALL_VALID"
+            }
+          }
+        },
+        "article": {
+          "id": "gid://shopify/Article/685149225266",
+          "metafield": {
+            "id": "gid://shopify/Metafield/45212268822834",
+            "namespace": "owner_hydration_mrrqrq4f",
+            "key": "owner_state",
+            "type": "single_line_text_field",
+            "value": "Article mrrqrq4f",
+            "jsonValue": "Article mrrqrq4f",
+            "compareDigest": "effc0c66e60a27299d4186a035b90ca99ef8e357243cdf4a396f4d1fc4920052",
+            "createdAt": "2026-07-19T11:58:04Z",
+            "updatedAt": "2026-07-19T11:58:04Z",
+            "ownerType": "ARTICLE",
+            "definition": {
+              "id": "gid://shopify/MetafieldDefinition/227252797746",
+              "name": "Owner hydration article mrrqrq4f",
+              "namespace": "owner_hydration_mrrqrq4f",
+              "key": "owner_state",
+              "ownerType": "ARTICLE",
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "description": "Authoritative owner metafield hydration parity",
+              "validations": [],
+              "pinnedPosition": null,
+              "validationStatus": "ALL_VALID"
+            }
+          }
+        },
+        "market": {
+          "id": "gid://shopify/Market/97997685042",
+          "metafield": {
+            "id": "gid://shopify/Metafield/45212268855602",
+            "namespace": "owner_hydration_mrrqrq4f",
+            "key": "owner_state",
+            "type": "single_line_text_field",
+            "value": "Market advanced mrrqrq4f",
+            "jsonValue": "Market advanced mrrqrq4f",
+            "compareDigest": "03f9e1e13960c7d22282dfd92cda4d364f448c47cdacc195e51434351774d24f",
+            "createdAt": "2026-07-19T11:58:04Z",
+            "updatedAt": "2026-07-19T11:58:04Z",
+            "ownerType": "MARKET",
+            "definition": {
+              "id": "gid://shopify/MetafieldDefinition/227252830514",
+              "name": "Owner hydration market mrrqrq4f",
+              "namespace": "owner_hydration_mrrqrq4f",
+              "key": "owner_state",
+              "ownerType": "MARKET",
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "description": "Authoritative owner metafield hydration parity",
+              "validations": [],
+              "pinnedPosition": null,
+              "validationStatus": "ALL_VALID"
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1951,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "delete": {
+    "query": "mutation OwnerMetafieldMixedOwnerDelete($metafields: [MetafieldIdentifierInput!]!) {\n  metafieldsDelete(metafields: $metafields) {\n    deletedMetafields {\n      ownerId\n      namespace\n      key\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "metafields": [
+        {
+          "ownerId": "gid://shopify/Location/113884102962",
+          "namespace": "owner_hydration_mrrqrq4f",
+          "key": "owner_state"
+        },
+        {
+          "ownerId": "gid://shopify/Page/161531265330",
+          "namespace": "owner_hydration_mrrqrq4f",
+          "key": "owner_state"
+        },
+        {
+          "ownerId": "gid://shopify/Article/685149225266",
+          "namespace": "owner_hydration_mrrqrq4f",
+          "key": "owner_state"
+        },
+        {
+          "ownerId": "gid://shopify/Market/97997685042",
+          "namespace": "owner_hydration_mrrqrq4f",
+          "key": "owner_state"
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldsDelete": {
+          "deletedMetafields": [
+            {
+              "ownerId": "gid://shopify/Location/113884102962",
+              "namespace": "owner_hydration_mrrqrq4f",
+              "key": "owner_state"
+            },
+            {
+              "ownerId": "gid://shopify/Page/161531265330",
+              "namespace": "owner_hydration_mrrqrq4f",
+              "key": "owner_state"
+            },
+            {
+              "ownerId": "gid://shopify/Article/685149225266",
+              "namespace": "owner_hydration_mrrqrq4f",
+              "key": "owner_state"
+            },
+            {
+              "ownerId": "gid://shopify/Market/97997685042",
+              "namespace": "owner_hydration_mrrqrq4f",
+              "key": "owner_state"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1951,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterDelete": {
+    "query": "query OwnerMetafieldMixedOwnerRead(\n  $locationId: ID!\n  $pageId: ID!\n  $articleId: ID!\n  $marketId: ID!\n  $namespace: String!\n  $key: String!\n) {\n  location(id: $locationId) {\n    id\n    metafield(namespace: $namespace, key: $key) {\n      ...OwnerMetafieldMixedOwnerFields\n    }\n  }\n  page(id: $pageId) {\n    id\n    metafield(namespace: $namespace, key: $key) {\n      ...OwnerMetafieldMixedOwnerFields\n    }\n  }\n  article(id: $articleId) {\n    id\n    metafield(namespace: $namespace, key: $key) {\n      ...OwnerMetafieldMixedOwnerFields\n    }\n  }\n  market(id: $marketId) {\n    id\n    metafield(namespace: $namespace, key: $key) {\n      ...OwnerMetafieldMixedOwnerFields\n    }\n  }\n}\n\nfragment OwnerMetafieldMixedOwnerFields on Metafield {\n  id\n  namespace\n  key\n  type\n  value\n  jsonValue\n  compareDigest\n  createdAt\n  updatedAt\n  ownerType\n  definition {\n    id\n    name\n    namespace\n    key\n    ownerType\n    type {\n      name\n      category\n    }\n    description\n    validations {\n      name\n      value\n    }\n    pinnedPosition\n    validationStatus\n  }\n}\n",
+    "variables": {
+      "locationId": "gid://shopify/Location/113884102962",
+      "pageId": "gid://shopify/Page/161531265330",
+      "articleId": "gid://shopify/Article/685149225266",
+      "marketId": "gid://shopify/Market/97997685042",
+      "namespace": "owner_hydration_mrrqrq4f",
+      "key": "owner_state"
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "location": {
+          "id": "gid://shopify/Location/113884102962",
+          "metafield": null
+        },
+        "page": {
+          "id": "gid://shopify/Page/161531265330",
+          "metafield": null
+        },
+        "article": {
+          "id": "gid://shopify/Article/685149225266",
+          "metafield": null
+        },
+        "market": {
+          "id": "gid://shopify/Market/97997685042",
+          "metafield": null
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 8,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1958,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OwnerMetafieldsHydrateNodes",
+      "variables": {
+        "ids": [
+          "gid://shopify/Article/685149225266",
+          "gid://shopify/Location/113884102962",
+          "gid://shopify/Market/97997685042",
+          "gid://shopify/Page/161531265330"
+        ],
+        "metafield0Namespace": "owner_hydration_mrrqrq4f",
+        "metafield0Key": "owner_state"
+      },
+      "query": "query OwnerMetafieldsHydrateNodes($ids: [ID!]!, $metafield0Namespace: String!, $metafield0Key: String!) { nodes(ids: $ids) { __typename id ... on HasMetafields { metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } } ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt  } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } } ... on Collection { id title handle } ... on Customer { id displayName email } ... on Order { id name } ... on Company { id name } ... on Page { id title } ... on Article { id title } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Article",
+                "id": "gid://shopify/Article/685149225266",
+                "metafield0": {
+                  "id": "gid://shopify/Metafield/45212268822834",
+                  "namespace": "owner_hydration_mrrqrq4f",
+                  "key": "owner_state",
+                  "type": "single_line_text_field",
+                  "value": "Article mrrqrq4f",
+                  "jsonValue": "Article mrrqrq4f",
+                  "compareDigest": "effc0c66e60a27299d4186a035b90ca99ef8e357243cdf4a396f4d1fc4920052",
+                  "createdAt": "2026-07-19T11:58:04Z",
+                  "updatedAt": "2026-07-19T11:58:04Z",
+                  "ownerType": "ARTICLE",
+                  "definition": {
+                    "id": "gid://shopify/MetafieldDefinition/227252797746",
+                    "name": "Owner hydration article mrrqrq4f",
+                    "namespace": "owner_hydration_mrrqrq4f",
+                    "key": "owner_state",
+                    "ownerType": "ARTICLE",
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    },
+                    "description": "Authoritative owner metafield hydration parity",
+                    "validations": [],
+                    "pinnedPosition": null,
+                    "validationStatus": "ALL_VALID"
+                  }
+                },
+                "title": "Owner hydration article mrrqrq4f"
+              },
+              {
+                "__typename": "Location",
+                "id": "gid://shopify/Location/113884102962",
+                "metafield0": {
+                  "id": "gid://shopify/Metafield/45212268757298",
+                  "namespace": "owner_hydration_mrrqrq4f",
+                  "key": "owner_state",
+                  "type": "single_line_text_field",
+                  "value": "Location mrrqrq4f",
+                  "jsonValue": "Location mrrqrq4f",
+                  "compareDigest": "ab72b9bc8b7b2635d33ad25c88085851f1fd7ac03051b64264c213ae9f5c4828",
+                  "createdAt": "2026-07-19T11:58:04Z",
+                  "updatedAt": "2026-07-19T11:58:04Z",
+                  "ownerType": "LOCATION",
+                  "definition": {
+                    "id": "gid://shopify/MetafieldDefinition/227252732210",
+                    "name": "Owner hydration location mrrqrq4f",
+                    "namespace": "owner_hydration_mrrqrq4f",
+                    "key": "owner_state",
+                    "ownerType": "LOCATION",
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    },
+                    "description": "Authoritative owner metafield hydration parity",
+                    "validations": [],
+                    "pinnedPosition": null,
+                    "validationStatus": "ALL_VALID"
+                  }
+                }
+              },
+              {
+                "__typename": "Market",
+                "id": "gid://shopify/Market/97997685042",
+                "metafield0": {
+                  "id": "gid://shopify/Metafield/45212268855602",
+                  "namespace": "owner_hydration_mrrqrq4f",
+                  "key": "owner_state",
+                  "type": "single_line_text_field",
+                  "value": "Market mrrqrq4f",
+                  "jsonValue": "Market mrrqrq4f",
+                  "compareDigest": "36dd8cafd3859f07d417e17e9b8900a78ebfbacd27040d69632014aaa053ce51",
+                  "createdAt": "2026-07-19T11:58:04Z",
+                  "updatedAt": "2026-07-19T11:58:04Z",
+                  "ownerType": "MARKET",
+                  "definition": {
+                    "id": "gid://shopify/MetafieldDefinition/227252830514",
+                    "name": "Owner hydration market mrrqrq4f",
+                    "namespace": "owner_hydration_mrrqrq4f",
+                    "key": "owner_state",
+                    "ownerType": "MARKET",
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    },
+                    "description": "Authoritative owner metafield hydration parity",
+                    "validations": [],
+                    "pinnedPosition": null,
+                    "validationStatus": "ALL_VALID"
+                  }
+                }
+              },
+              {
+                "__typename": "Page",
+                "id": "gid://shopify/Page/161531265330",
+                "metafield0": {
+                  "id": "gid://shopify/Metafield/45212268790066",
+                  "namespace": "owner_hydration_mrrqrq4f",
+                  "key": "owner_state",
+                  "type": "single_line_text_field",
+                  "value": "Page mrrqrq4f",
+                  "jsonValue": "Page mrrqrq4f",
+                  "compareDigest": "77454a5fb0c547007bb6aad08e51982a428ee7bc769685051d731a8ed08baa12",
+                  "createdAt": "2026-07-19T11:58:04Z",
+                  "updatedAt": "2026-07-19T11:58:04Z",
+                  "ownerType": "PAGE",
+                  "definition": {
+                    "id": "gid://shopify/MetafieldDefinition/227252764978",
+                    "name": "Owner hydration page mrrqrq4f",
+                    "namespace": "owner_hydration_mrrqrq4f",
+                    "key": "owner_state",
+                    "ownerType": "PAGE",
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    },
+                    "description": "Authoritative owner metafield hydration parity",
+                    "validations": [],
+                    "pinnedPosition": null,
+                    "validationStatus": "ALL_VALID"
+                  }
+                },
+                "title": "Owner hydration page mrrqrq4f"
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 8,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1975,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "query": "mutation OwnerMetafieldMixedOwnerDelete($metafields: [MetafieldIdentifierInput!]!) {\n  metafieldsDelete(metafields: $metafields) {\n    deletedMetafields {\n      ownerId\n      namespace\n      key\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "metafields": [
+          {
+            "ownerId": "gid://shopify/Location/113884102962",
+            "namespace": "owner_hydration_mrrqrq4f",
+            "key": "owner_state"
+          },
+          {
+            "ownerId": "gid://shopify/Page/161531265330",
+            "namespace": "owner_hydration_mrrqrq4f",
+            "key": "owner_state"
+          },
+          {
+            "ownerId": "gid://shopify/Article/685149225266",
+            "namespace": "owner_hydration_mrrqrq4f",
+            "key": "owner_state"
+          },
+          {
+            "ownerId": "gid://shopify/Market/97997685042",
+            "namespace": "owner_hydration_mrrqrq4f",
+            "key": "owner_state"
+          }
+        ]
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldsDelete": {
+            "deletedMetafields": [null, null, null, null],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1958,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "#graphql\nmutation OwnerMetafieldHydrationDefinitionDelete($id: ID!) {\n  metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n    deletedDefinitionId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/MetafieldDefinition/227252732210"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227252732210",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1957,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "#graphql\nmutation OwnerMetafieldHydrationDefinitionDelete($id: ID!) {\n  metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n    deletedDefinitionId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/MetafieldDefinition/227252764978"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227252764978",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1960,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "#graphql\nmutation OwnerMetafieldHydrationDefinitionDelete($id: ID!) {\n  metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n    deletedDefinitionId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/MetafieldDefinition/227252797746"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227252797746",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1965,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "#graphql\nmutation OwnerMetafieldHydrationDefinitionDelete($id: ID!) {\n  metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n    deletedDefinitionId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/MetafieldDefinition/227252830514"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227252830514",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1967,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "#graphql\nmutation OwnerMetafieldHydrationArticleDelete($id: ID!) {\n  articleDelete(id: $id) {\n    deletedArticleId\n    userErrors { field message }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Article/685149225266"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleDelete": {
+            "deletedArticleId": "gid://shopify/Article/685149225266",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1973,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "#graphql\nmutation OwnerMetafieldHydrationPageDelete($id: ID!) {\n  pageDelete(id: $id) {\n    deletedPageId\n    userErrors { field message }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Page/161531265330"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "pageDelete": {
+            "deletedPageId": "gid://shopify/Page/161531265330",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "#graphql\nmutation OwnerMetafieldHydrationBlogDelete($id: ID!) {\n  blogDelete(id: $id) {\n    deletedBlogId\n    userErrors { field message }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Blog/121894961458"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blogDelete": {
+            "deletedBlogId": "gid://shopify/Blog/121894961458",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1985,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ]
+}
