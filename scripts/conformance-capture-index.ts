@@ -3553,6 +3553,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-online-store-preview-url-contract',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-product-online-store-preview-url-conformance.ts',
+    purpose:
+      'Product.onlineStorePreviewUrl availability, null, and malformed-id boundaries across extant DRAFT/ARCHIVED products, deletion, and two Admin API versions.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-online-store-preview-url-contract.json`,
+      'config/parity-specs/products/product-online-store-preview-url-contract.json',
+      'config/parity-requests/products/product-online-store-preview-url-contract.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable DRAFT product, archives it, records preview reads on Admin API 2025-01 and 2026-07, deletes it, and records post-delete reads; failures use best-effort product deletion.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-graph-mutations',
     scriptPath: 'scripts/capture-product-graph-mutation-conformance.mts',
     purpose: 'Product graph mutation branches that span product/options/variants/media.',

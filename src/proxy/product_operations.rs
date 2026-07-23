@@ -288,17 +288,6 @@ impl DraftProxy {
                     .insert("metafield".to_string(), first.clone());
             }
         }
-        // Shopify returns a store-specific signed preview URL for staged products; the
-        // parity spec matches it via `non-empty-string`, so a stable local URL suffices.
-        product
-            .extra_fields
-            .entry("onlineStorePreviewUrl".to_string())
-            .or_insert_with(|| {
-                json!(format!(
-                    "https://shopify-draft-proxy.preview/products/{}",
-                    resource_id_tail(&product_id)
-                ))
-            });
         // Shopify reports `null` (not an empty string) for unset SEO fields and template
         // suffix. Render the effective value (input or carried-over base) as null when empty.
         product.extra_fields.insert(
@@ -783,6 +772,10 @@ impl DraftProxy {
         duplicate.created_at = timestamp.clone();
         duplicate.updated_at = timestamp;
         duplicate.variants = Vec::new();
+        // A hydrated preview URL is signed for the source product. The locally staged
+        // duplicate has a different identity, so carrying that URL over would make an
+        // authoritative value point at the wrong resource.
+        duplicate.extra_fields.remove("onlineStorePreviewUrl");
         // Shopify copies media asynchronously: the duplicate's immediate payload (and the
         // downstream read right after) expose an empty media connection.
         duplicate.media = Vec::new();

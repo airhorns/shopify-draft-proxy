@@ -1,0 +1,8 @@
+query ProductOnlineStorePreviewUrlContract($id: ID!) {
+  product(id: $id) {
+    id
+    status
+    publishedAt
+    onlineStorePreviewUrl
+  }
+}
