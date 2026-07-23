@@ -185,6 +185,7 @@ impl DraftProxy {
     }
 
     fn fulfillment_constraint_rules_read_value(&self) -> Value {
+        let mut seen = BTreeSet::new();
         Value::Array(
             self.store
                 .base
@@ -197,6 +198,9 @@ impl DraftProxy {
                         .iter(),
                 )
                 .filter_map(|id| {
+                    if !seen.insert(id.clone()) {
+                        return None;
+                    }
                     if self
                         .store
                         .staged
@@ -279,6 +283,27 @@ impl DraftProxy {
                     .function_cart_transform
                     .as_ref()
                     .filter(|record| record.get("id").and_then(Value::as_str) == Some(id))
+            })
+    }
+
+    fn function_fulfillment_constraint_rule_by_id(&self, id: &str) -> Option<&Value> {
+        if self
+            .store
+            .staged
+            .deleted_function_fulfillment_constraint_rule_ids
+            .contains(id)
+        {
+            return None;
+        }
+        self.store
+            .staged
+            .function_fulfillment_constraint_rules
+            .get(id)
+            .or_else(|| {
+                self.store
+                    .base
+                    .function_fulfillment_constraint_rules
+                    .get(id)
             })
     }
 
@@ -919,6 +944,29 @@ impl DraftProxy {
         }
     }
 
+    fn hydrate_function_fulfillment_constraint_rule_by_id(
+        &mut self,
+        request: &Request,
+        id: &str,
+    ) -> Option<Value> {
+        if self
+            .store
+            .staged
+            .deleted_function_fulfillment_constraint_rule_ids
+            .contains(id)
+        {
+            return None;
+        }
+        if !self
+            .store
+            .base
+            .function_fulfillment_constraint_rules_catalog_hydrated
+        {
+            self.hydrate_function_fulfillment_constraint_rule_catalog(request);
+        }
+        self.function_fulfillment_constraint_rule_by_id(id).cloned()
+    }
+
     fn hydrate_function_cart_transform_by_id(
         &mut self,
         request: &Request,
@@ -1212,6 +1260,7 @@ fn canonical_function_api_type(api_type: &str) -> String {
         | "cart.transform.run" => "CART_TRANSFORM".to_string(),
         "FULFILLMENT_CONSTRAINT_RULE"
         | "fulfillment_constraint_rule"
+        | "fulfillment_constraints"
         | "purchase.fulfillment-constraint-rule.run"
         | "cart.fulfillment-constraints.generate.run" => "FULFILLMENT_CONSTRAINT_RULE".to_string(),
         "DISCOUNT" | "discount" | "product_discounts" | "order_discounts"
@@ -2525,13 +2574,13 @@ impl DraftProxy {
         {
             return payload;
         }
-        let Some(mut rule) = self
-            .store
-            .staged
-            .function_fulfillment_constraint_rules
-            .get(&id)
-            .cloned()
-        else {
+        let mut rule = self
+            .function_fulfillment_constraint_rule_by_id(&id)
+            .cloned();
+        if rule.is_none() && self.config.read_mode != ReadMode::Snapshot {
+            rule = self.hydrate_function_fulfillment_constraint_rule_by_id(request, &id);
+        }
+        let Some(mut rule) = rule else {
             return payload_user_error(
                 FULFILLMENT_CONSTRAINT_RULE_FUNCTION_PAYLOAD.payload_key,
                 user_error(
