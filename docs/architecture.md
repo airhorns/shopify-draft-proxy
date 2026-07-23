@@ -267,14 +267,16 @@ The Python package is not a second proxy implementation and does not spawn the R
 
 The runtime should use normalized state rather than raw GraphQL blobs.
 
-`DraftProxy` owns a typed Rust `Store` for runtime resource state. Products, saved searches, and Storefront carts/lines use normalized records with shared effective-read helpers or deterministic order indexes, while other staged domain data also lives under `Store::staged` so reset, dump/restore plumbing, and future normalization work have one ownership boundary. Order and gift-card LiveHybrid hydration also stores known base records and related baseline/configuration data in `BaseState` so supported local mutations can overlay real upstream reads without runtime Shopify writes.
+`DraftProxy` owns a typed Rust `Store` for runtime resource state. Products, saved searches, inventory transfers/shipments, and Storefront carts/lines use normalized records with shared effective-read helpers or deterministic order indexes, while other staged domain data also lives under `Store::staged` so reset, dump/restore plumbing, and future normalization work have one ownership boundary. Order, gift-card, and inventory lifecycle LiveHybrid hydration stores known base records and related context in `BaseState` so supported local mutations can overlay real upstream reads without runtime Shopify writes.
 
-The normalized product and saved-search portions currently include:
+The normalized product, saved-search, and inventory-lifecycle portions currently include:
 
 - `BaseState` for snapshot, fixture, or restored upstream state
 - `StagedState` for local inserts and updates
 - ordered ID arrays for deterministic effective lists and dump/restore round trips
 - tombstone sets for staged deletes
+
+Inventory lifecycle preflights use the caller's Admin API path and headers for query-only upstream hydration. Transfer and shipment details, endpoint locations, line-item quantities, tracking, and transfer/shipment linkage are normalized into base records before local validation; the supported mutation itself remains locally staged and is retained only for ordered commit replay.
 
 Core state categories:
 

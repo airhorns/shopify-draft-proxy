@@ -1,0 +1,43 @@
+{
+  "scenarioId": "inventory-transfer-mutation-first-hydration",
+  "operationNames": ["inventoryTransfer", "inventoryTransferEdit"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "downstream-read-parity",
+    "runtime-staging",
+    "base-state-hydration",
+    "no-upstream-passthrough"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventory-transfer-edit.graphql",
+    "variablesCapturePath": "$.operation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "cold-transfer-edit-payload",
+        "capturePath": "$.operation.response.data.inventoryTransferEdit",
+        "proxyPath": "$.data.inventoryTransferEdit"
+      },
+      {
+        "name": "cold-transfer-read-after-edit",
+        "capturePath": "$.reads.afterEdit.response.data.inventoryTransfer",
+        "proxyPath": "$.data.inventoryTransfer",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-transfer-mutation-first-read.graphql",
+          "variablesCapturePath": "$.reads.afterEdit.variables"
+        }
+      }
+    ]
+  },
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/inventory-transfer-mutation-first-hydration.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "notes": "Creates a disposable real draft transfer, records the exact InventoryTransferMutationHydrate and ProductsHydrateNodes reads used by a cold LiveHybrid proxy, then compares inventoryTransferEdit and the downstream transfer read without forwarding the supported mutation."
+}

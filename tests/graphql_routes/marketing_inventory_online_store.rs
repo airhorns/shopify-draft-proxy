@@ -8910,6 +8910,120 @@ fn inventory_transfer_create_keeps_empty_hydrated_origin_quantities_zero() {
 }
 
 #[test]
+fn inventory_transfer_reference_hydration_preserves_request_context_on_legacy_retry() {
+    let origin_id = "gid://shopify/Location/111111111111";
+    let destination_id = "gid://shopify/Location/222222222222";
+    let inventory_item_id = "gid://shopify/InventoryItem/333333333333";
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured = Arc::clone(&forwarded);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body)
+                .expect("inventory transfer reference hydrate body should parse");
+            let query = body["query"].as_str().unwrap_or_default();
+            let attempt = {
+                let mut requests = captured.lock().unwrap();
+                requests.push(request);
+                requests.len()
+            };
+            assert!(
+                !query.trim_start().starts_with("mutation"),
+                "transfer reference hydration must remain query-only"
+            );
+            if attempt == 1 {
+                assert_eq!(
+                    query.trim_end(),
+                    include_str!(
+                        "../../config/parity-requests/products/inventory-transfer-reference-hydrate.graphql"
+                    )
+                    .trim_end()
+                );
+                return Response {
+                    status: 503,
+                    headers: Default::default(),
+                    body: json!({"errors": [{"message": "formatted hydrate unavailable"}]}),
+                };
+            }
+            assert_eq!(attempt, 2, "reference hydration should retry at most once");
+            assert!(query.contains("measurement { weight { unit value } }"));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({"data": {"nodes": [
+                    {
+                        "__typename": "Location",
+                        "id": origin_id,
+                        "name": "Retry origin",
+                        "isActive": true
+                    },
+                    {
+                        "__typename": "Location",
+                        "id": destination_id,
+                        "name": "Retry destination",
+                        "isActive": true
+                    },
+                    {
+                        "__typename": "InventoryItem",
+                        "id": inventory_item_id,
+                        "tracked": true,
+                        "requiresShipping": true,
+                        "variant": {
+                            "id": "gid://shopify/ProductVariant/333333333333",
+                            "title": "Retry Transfer Variant",
+                            "inventoryQuantity": 2,
+                            "product": {
+                                "id": "gid://shopify/Product/333333333333",
+                                "title": "Retry Transfer Product",
+                                "handle": "retry-transfer-product",
+                                "status": "ACTIVE",
+                                "totalInventory": 2,
+                                "tracksInventory": true
+                            }
+                        },
+                        "inventoryLevels": {"nodes": [{
+                            "id": "gid://shopify/InventoryLevel/333333333333-111111111111?inventory_item_id=333333333333",
+                            "location": {"id": origin_id, "name": "Retry origin"},
+                            "quantities": [
+                                {"name": "available", "quantity": 2},
+                                {"name": "on_hand", "quantity": 2},
+                                {"name": "reserved", "quantity": 0}
+                            ]
+                        }]}
+                    }
+                ]}}),
+            }
+        },
+    );
+
+    let mut request = json_graphql_request(
+        include_str!("../../config/parity-requests/products/inventory-transfer-create.graphql"),
+        json!({"input": {
+            "originLocationId": origin_id,
+            "destinationLocationId": destination_id,
+            "lineItems": [{"inventoryItemId": inventory_item_id, "quantity": 2}]
+        }}),
+    );
+    request.path = "/admin/api/2026-04/graphql.json".to_string();
+    request.headers.insert(
+        "x-shopify-access-token".to_string(),
+        "request-aware-transfer-reference-token".to_string(),
+    );
+    let response = proxy.process_request(request);
+
+    assert_eq!(
+        response.body["data"]["inventoryTransferCreate"]["userErrors"],
+        json!([])
+    );
+    let requests = forwarded.lock().unwrap();
+    assert_eq!(requests.len(), 2);
+    assert!(requests.iter().all(|request| {
+        request.path == "/admin/api/2026-04/graphql.json"
+            && request.headers.get("x-shopify-access-token")
+                == Some(&"request-aware-transfer-reference-token".to_string())
+    }));
+}
+
+#[test]
 fn inventory_transfer_lifecycle_stages_and_updates_inventory_levels_from_store() {
     let mut proxy = inventory_seed_proxy();
 
@@ -10109,6 +10223,1054 @@ fn inventory_transfer_create_and_set_items_validate_before_staging() {
         transfer_log_roots(&proxy),
         vec![json!("inventoryTransferCreate")]
     );
+}
+
+const COLD_LIFECYCLE_TRANSFER_ID: &str = "gid://shopify/InventoryTransfer/720000000001";
+const COLD_LIFECYCLE_TRANSFER_LINE_ID: &str =
+    "gid://shopify/InventoryTransferLineItem/720000000002";
+const COLD_LIFECYCLE_SHIPMENT_ID: &str = "gid://shopify/InventoryShipment/720000000003";
+const COLD_LIFECYCLE_SHIPMENT_LINE_ID: &str =
+    "gid://shopify/InventoryShipmentLineItem/720000000004";
+const COLD_LIFECYCLE_ITEM_ID: &str = "gid://shopify/InventoryItem/720000000005";
+const COLD_LIFECYCLE_ORIGIN_ID: &str = "gid://shopify/Location/720000000006";
+const COLD_LIFECYCLE_DESTINATION_ID: &str = "gid://shopify/Location/720000000007";
+
+fn cold_lifecycle_shipment_value(status: &str) -> Value {
+    json!({
+        "id": COLD_LIFECYCLE_SHIPMENT_ID,
+        "name": "#S7201",
+        "status": status,
+        "tracking": {
+            "trackingNumber": "BEFORE-HYDRATION",
+            "company": "UPS",
+            "trackingUrl": "https://example.test/before-hydration",
+            "arrivesAt": "2026-07-25T12:00:00Z"
+        },
+        "lineItems": {"nodes": [{
+            "id": COLD_LIFECYCLE_SHIPMENT_LINE_ID,
+            "quantity": 1,
+            "acceptedQuantity": 0,
+            "rejectedQuantity": 0,
+            "unreceivedQuantity": 1,
+            "inventoryItem": {
+                "id": COLD_LIFECYCLE_ITEM_ID,
+                "sku": "COLD-LIFECYCLE",
+                "tracked": true,
+                "requiresShipping": true
+            }
+        }]}
+    })
+}
+
+fn cold_lifecycle_transfer_value(status: &str, shipments: Vec<Value>) -> Value {
+    let (available, reserved) = if status == "READY_TO_SHIP" {
+        (6, 4)
+    } else {
+        (10, 0)
+    };
+    json!({
+        "id": COLD_LIFECYCLE_TRANSFER_ID,
+        "name": "#T7201",
+        "dateCreated": "2026-07-19T12:00:00Z",
+        "status": status,
+        "origin": {
+            "name": "Cold lifecycle origin",
+            "location": {
+                "id": COLD_LIFECYCLE_ORIGIN_ID,
+                "name": "Cold lifecycle origin",
+                "isActive": true
+            }
+        },
+        "destination": {
+            "name": "Cold lifecycle destination",
+            "location": {
+                "id": COLD_LIFECYCLE_DESTINATION_ID,
+                "name": "Cold lifecycle destination",
+                "isActive": true
+            }
+        },
+        "tags": ["cold-lifecycle"],
+        "lineItems": {"nodes": [{
+            "id": COLD_LIFECYCLE_TRANSFER_LINE_ID,
+            "inventoryItem": {
+                "id": COLD_LIFECYCLE_ITEM_ID,
+                "sku": "COLD-LIFECYCLE",
+                "tracked": true,
+                "requiresShipping": true,
+                "inventoryLevels": {"nodes": [
+                    {
+                        "id": "gid://shopify/InventoryLevel/720000000008?inventory_item_id=720000000005",
+                        "isActive": true,
+                        "location": {
+                            "id": COLD_LIFECYCLE_ORIGIN_ID,
+                            "name": "Cold lifecycle origin"
+                        },
+                        "quantities": [
+                            {"name": "available", "quantity": available, "updatedAt": null},
+                            {"name": "reserved", "quantity": reserved, "updatedAt": null},
+                            {"name": "on_hand", "quantity": 10, "updatedAt": null}
+                        ]
+                    },
+                    {
+                        "id": "gid://shopify/InventoryLevel/720000000009?inventory_item_id=720000000005",
+                        "isActive": true,
+                        "location": {
+                            "id": COLD_LIFECYCLE_DESTINATION_ID,
+                            "name": "Cold lifecycle destination"
+                        },
+                        "quantities": [
+                            {"name": "available", "quantity": 0, "updatedAt": null},
+                            {"name": "incoming", "quantity": 0, "updatedAt": null},
+                            {"name": "on_hand", "quantity": 0, "updatedAt": null}
+                        ]
+                    }
+                ]}
+            },
+            "totalQuantity": 4,
+            "shippableQuantity": 4,
+            "shippedQuantity": 0,
+            "processableQuantity": 4,
+            "pickedForShipmentQuantity": 0
+        }]},
+        "shipments": {"nodes": shipments}
+    })
+}
+
+fn cold_transfer_hydration_body(status: &str) -> Value {
+    json!({
+        "data": {
+            "inventoryTransfer": cold_lifecycle_transfer_value(status, Vec::new())
+        }
+    })
+}
+
+fn cold_shipment_hydration_body(status: &str) -> Value {
+    let shipment = cold_lifecycle_shipment_value(status);
+    json!({
+        "data": {
+            "inventoryShipment": shipment.clone(),
+            "inventoryTransfers": {
+                "nodes": [cold_lifecycle_transfer_value(
+                    "READY_TO_SHIP",
+                    vec![shipment]
+                )],
+                "pageInfo": {"hasNextPage": false, "endCursor": null}
+            }
+        }
+    })
+}
+
+fn cold_inventory_hydration_proxy(hydration_body: Value) -> (DraftProxy, Arc<Mutex<Vec<Request>>>) {
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured = Arc::clone(&forwarded);
+    let proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured.lock().unwrap().push(request);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: hydration_body.clone(),
+            }
+        });
+    (proxy, forwarded)
+}
+
+#[test]
+fn inventory_transfer_mutation_first_hydrates_existing_transfer_with_request_context() {
+    let transfer_id = "gid://shopify/InventoryTransfer/700000000001";
+    let transfer_line_item_id = "gid://shopify/InventoryTransferLineItem/700000000002";
+    let inventory_item_id = "gid://shopify/InventoryItem/700000000003";
+    let origin_id = "gid://shopify/Location/700000000004";
+    let destination_id = "gid://shopify/Location/700000000005";
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured = Arc::clone(&forwarded);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(
+        move |request| {
+            captured.lock().unwrap().push(request);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "inventoryTransfer": {
+                            "id": transfer_id,
+                            "name": "#T7001",
+                            "dateCreated": "2026-07-01T12:00:00Z",
+                            "status": "DRAFT",
+                            "origin": {
+                                "name": "Hydrated origin",
+                                "location": {
+                                    "id": origin_id,
+                                    "name": "Hydrated origin",
+                                    "isActive": true
+                                }
+                            },
+                            "destination": {
+                                "name": "Hydrated destination",
+                                "location": {
+                                    "id": destination_id,
+                                    "name": "Hydrated destination",
+                                    "isActive": true
+                                }
+                            },
+                            "tags": ["cold-transfer"],
+                            "lineItems": {
+                                "nodes": [{
+                                    "id": transfer_line_item_id,
+                                    "inventoryItem": {
+                                        "id": inventory_item_id,
+                                        "sku": "COLD-TRANSFER",
+                                        "tracked": true,
+                                        "inventoryLevels": {
+                                            "nodes": [{
+                                                "id": "gid://shopify/InventoryLevel/700000000006?inventory_item_id=700000000003",
+                                                "isActive": true,
+                                                "location": {
+                                                    "id": origin_id,
+                                                    "name": "Hydrated origin"
+                                                },
+                                                "quantities": [
+                                                    {"name": "available", "quantity": 4, "updatedAt": "2026-07-01T12:00:00Z"},
+                                                    {"name": "reserved", "quantity": 0, "updatedAt": null},
+                                                    {"name": "on_hand", "quantity": 4, "updatedAt": null}
+                                                ]
+                                            }]
+                                        }
+                                    },
+                                    "totalQuantity": 2,
+                                    "shippableQuantity": 0,
+                                    "shippedQuantity": 0,
+                                    "processableQuantity": 2,
+                                    "pickedForShipmentQuantity": 0
+                                }]
+                            },
+                            "shipments": {"nodes": []}
+                        }
+                    }
+                }),
+            }
+        },
+    );
+
+    let mut request = json_graphql_request(
+        include_str!("../../config/parity-requests/products/inventory-transfer-edit.graphql"),
+        json!({
+            "id": transfer_id,
+            "input": {
+                "note": "edited from a cold proxy session",
+                "tags": ["cold-transfer", "edited"]
+            }
+        }),
+    );
+    request.path = "/admin/api/2026-04/graphql.json".to_string();
+    request.headers.insert(
+        "x-shopify-access-token".to_string(),
+        "request-aware-transfer-token".to_string(),
+    );
+    let response = proxy.process_request(request);
+
+    assert_eq!(
+        response.body["data"]["inventoryTransferEdit"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["inventoryTransferEdit"]["inventoryTransfer"]["id"],
+        json!(transfer_id)
+    );
+    assert_eq!(
+        response.body["data"]["inventoryTransferEdit"]["inventoryTransfer"]["totalQuantity"],
+        json!(2)
+    );
+
+    let forwarded_requests = forwarded.lock().unwrap();
+    assert_eq!(forwarded_requests.len(), 1);
+    assert_eq!(
+        forwarded_requests[0].path,
+        "/admin/api/2026-04/graphql.json"
+    );
+    assert_eq!(
+        forwarded_requests[0].headers.get("x-shopify-access-token"),
+        Some(&"request-aware-transfer-token".to_string())
+    );
+    assert!(forwarded_requests[0]
+        .body
+        .contains("InventoryTransferMutationHydrate"));
+    assert!(!forwarded_requests[0].body.contains("inventoryTransferEdit"));
+    drop(forwarded_requests);
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query HydratedTransferAfterMutation($id: ID!) {
+          inventoryTransfer(id: $id) {
+            id
+            status
+            tags
+            origin { name location { id name } }
+            destination { name location { id name } }
+            lineItems(first: 10) { nodes { id totalQuantity inventoryItem { id } } }
+          }
+        }
+        "#,
+        json!({"id": transfer_id}),
+    ));
+    assert_eq!(
+        read.body["data"]["inventoryTransfer"]["tags"],
+        json!(["cold-transfer", "edited"])
+    );
+    assert_eq!(forwarded.lock().unwrap().len(), 1);
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        log["entries"][0]["interpreted"]["operationName"],
+        json!("inventoryTransferEdit")
+    );
+    assert!(log["entries"][0]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("InventoryTransferEditParity"));
+}
+
+#[test]
+fn inventory_shipment_mutation_first_hydrates_existing_shipment_with_request_context() {
+    let transfer_id = "gid://shopify/InventoryTransfer/710000000001";
+    let transfer_line_item_id = "gid://shopify/InventoryTransferLineItem/710000000002";
+    let shipment_id = "gid://shopify/InventoryShipment/710000000003";
+    let shipment_line_item_id = "gid://shopify/InventoryShipmentLineItem/710000000004";
+    let inventory_item_id = "gid://shopify/InventoryItem/710000000005";
+    let origin_id = "gid://shopify/Location/710000000006";
+    let destination_id = "gid://shopify/Location/710000000007";
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured = Arc::clone(&forwarded);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(
+        move |request| {
+            captured.lock().unwrap().push(request);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "inventoryShipment": {
+                            "id": shipment_id,
+                            "name": "#S7101",
+                            "status": "DRAFT",
+                            "tracking": null,
+                            "lineItems": {
+                                "nodes": [{
+                                    "id": shipment_line_item_id,
+                                    "quantity": 1,
+                                    "acceptedQuantity": 0,
+                                    "rejectedQuantity": 0,
+                                    "unreceivedQuantity": 1,
+                                    "inventoryItem": {
+                                        "id": inventory_item_id,
+                                        "sku": "COLD-SHIPMENT",
+                                        "tracked": true
+                                    }
+                                }]
+                            }
+                        },
+                        "inventoryTransfers": {
+                            "nodes": [{
+                                "id": transfer_id,
+                                "name": "#T7101",
+                                "dateCreated": "2026-07-01T12:00:00Z",
+                                "status": "READY_TO_SHIP",
+                                "origin": {
+                                    "name": "Shipment origin",
+                                    "location": {
+                                        "id": origin_id,
+                                        "name": "Shipment origin",
+                                        "isActive": true
+                                    }
+                                },
+                                "destination": {
+                                    "name": "Shipment destination",
+                                    "location": {
+                                        "id": destination_id,
+                                        "name": "Shipment destination",
+                                        "isActive": true
+                                    }
+                                },
+                                "tags": [],
+                                "lineItems": {
+                                    "nodes": [{
+                                        "id": transfer_line_item_id,
+                                        "inventoryItem": {
+                                            "id": inventory_item_id,
+                                            "sku": "COLD-SHIPMENT",
+                                            "tracked": true,
+                                            "inventoryLevels": {
+                                                "nodes": [{
+                                                    "id": "gid://shopify/InventoryLevel/710000000008?inventory_item_id=710000000005",
+                                                    "isActive": true,
+                                                    "location": {
+                                                        "id": destination_id,
+                                                        "name": "Shipment destination"
+                                                    },
+                                                    "quantities": [
+                                                        {"name": "available", "quantity": 0, "updatedAt": null},
+                                                        {"name": "incoming", "quantity": 0, "updatedAt": null},
+                                                        {"name": "on_hand", "quantity": 0, "updatedAt": null}
+                                                    ]
+                                                }]
+                                            }
+                                        },
+                                        "totalQuantity": 2,
+                                        "shippableQuantity": 1,
+                                        "shippedQuantity": 0,
+                                        "processableQuantity": 1,
+                                        "pickedForShipmentQuantity": 1
+                                    }]
+                                },
+                                "shipments": {"nodes": [{"id": shipment_id}]}
+                            }],
+                            "pageInfo": {"hasNextPage": false, "endCursor": null}
+                        }
+                    }
+                }),
+            }
+        },
+    );
+
+    let mut request = json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-node-shipment-set-tracking.graphql"
+        ),
+        json!({
+            "id": shipment_id,
+            "tracking": {
+                "trackingNumber": "COLD-SHIPMENT-TRACKING",
+                "company": "UPS",
+                "trackingUrl": "https://example.test/cold-shipment"
+            }
+        }),
+    );
+    request.path = "/admin/api/2026-04/graphql.json".to_string();
+    request.headers.insert(
+        "x-shopify-access-token".to_string(),
+        "request-aware-shipment-token".to_string(),
+    );
+    let response = proxy.process_request(request);
+
+    assert_eq!(
+        response.body["data"]["inventoryShipmentSetTracking"]["userErrors"],
+        json!([]),
+        "response: {}",
+        response.body
+    );
+    assert_eq!(
+        response.body["data"]["inventoryShipmentSetTracking"]["inventoryShipment"]["id"],
+        json!(shipment_id)
+    );
+    assert_eq!(
+        response.body["data"]["inventoryShipmentSetTracking"]["inventoryShipment"]["tracking"]
+            ["trackingNumber"],
+        json!("COLD-SHIPMENT-TRACKING")
+    );
+
+    let forwarded_requests = forwarded.lock().unwrap();
+    assert_eq!(forwarded_requests.len(), 1);
+    assert_eq!(
+        forwarded_requests[0].path,
+        "/admin/api/2026-04/graphql.json"
+    );
+    assert_eq!(
+        forwarded_requests[0].headers.get("x-shopify-access-token"),
+        Some(&"request-aware-shipment-token".to_string())
+    );
+    assert!(forwarded_requests[0]
+        .body
+        .contains("InventoryShipmentMutationHydrate"));
+    assert!(!forwarded_requests[0]
+        .body
+        .contains("inventoryShipmentSetTracking"));
+    drop(forwarded_requests);
+
+    let read = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/products/inventory-shipment-detail.graphql"),
+        json!({"id": shipment_id}),
+    ));
+    assert_eq!(
+        read.body["data"]["inventoryShipment"]["tracking"]["trackingNumber"],
+        json!("COLD-SHIPMENT-TRACKING")
+    );
+    assert_eq!(forwarded.lock().unwrap().len(), 1);
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        log["entries"][0]["interpreted"]["operationName"],
+        json!("inventoryShipmentSetTracking")
+    );
+    assert!(log["entries"][0]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("InventoryNodeShipmentSetTracking"));
+}
+
+fn assert_cold_transfer_lifecycle_mutation(
+    initial_status: &str,
+    query: &str,
+    variables: Value,
+    root: &str,
+    expected_pointer: &str,
+    expected_value: Value,
+) {
+    let (mut proxy, forwarded) =
+        cold_inventory_hydration_proxy(cold_transfer_hydration_body(initial_status));
+    let response = proxy.process_request(json_graphql_request(query, variables));
+    assert_eq!(
+        response.body.pointer(&format!("/data/{root}/userErrors")),
+        Some(&json!([])),
+        "{root} response: {}",
+        response.body
+    );
+    assert_eq!(
+        response.body.pointer(expected_pointer),
+        Some(&expected_value),
+        "{root} response: {}",
+        response.body
+    );
+
+    let read_id = response
+        .body
+        .pointer(&format!("/data/{root}/inventoryTransfer/id"))
+        .and_then(Value::as_str)
+        .unwrap_or(COLD_LIFECYCLE_TRANSFER_ID);
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ColdTransferLifecycleRead($id: ID!) {
+          inventoryTransfer(id: $id) { id status totalQuantity tags }
+        }
+        "#,
+        json!({"id": read_id}),
+    ));
+    if root == "inventoryTransferDelete" {
+        assert_eq!(read.body["data"]["inventoryTransfer"], Value::Null);
+    } else {
+        assert_eq!(
+            read.body["data"]["inventoryTransfer"]["id"],
+            json!(read_id),
+            "{root} downstream read: {}",
+            read.body
+        );
+    }
+
+    let forwarded = forwarded.lock().unwrap();
+    assert_eq!(forwarded.len(), 1, "{root} must perform one cold hydrate");
+    assert!(forwarded[0]
+        .body
+        .contains("InventoryTransferMutationHydrate"));
+    let upstream_body: Value = serde_json::from_str(&forwarded[0].body).unwrap();
+    assert!(!upstream_body["query"]
+        .as_str()
+        .unwrap_or_default()
+        .to_ascii_lowercase()
+        .contains("mutation "));
+    drop(forwarded);
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        log["entries"][0]["interpreted"]["operationName"],
+        json!(root)
+    );
+}
+
+#[test]
+fn inventory_transfer_lifecycle_mutation_first_hydrates_every_existing_target() {
+    assert_cold_transfer_lifecycle_mutation(
+        "DRAFT",
+        include_str!("../../config/parity-requests/products/inventory-transfer-edit.graphql"),
+        json!({"id": COLD_LIFECYCLE_TRANSFER_ID, "input": {
+            "tags": ["cold-lifecycle", "edited"]
+        }}),
+        "inventoryTransferEdit",
+        "/data/inventoryTransferEdit/inventoryTransfer/totalQuantity",
+        json!(4),
+    );
+    assert_cold_transfer_lifecycle_mutation(
+        "DRAFT",
+        include_str!("../../config/parity-requests/products/inventory-transfer-set-items.graphql"),
+        json!({"input": {
+            "id": COLD_LIFECYCLE_TRANSFER_ID,
+            "lineItems": [{"inventoryItemId": COLD_LIFECYCLE_ITEM_ID, "quantity": 3}]
+        }}),
+        "inventoryTransferSetItems",
+        "/data/inventoryTransferSetItems/inventoryTransfer/totalQuantity",
+        json!(3),
+    );
+    assert_cold_transfer_lifecycle_mutation(
+        "DRAFT",
+        include_str!(
+            "../../config/parity-requests/products/inventory-transfer-remove-items.graphql"
+        ),
+        json!({"input": {
+            "id": COLD_LIFECYCLE_TRANSFER_ID,
+            "transferLineItemIds": [COLD_LIFECYCLE_TRANSFER_LINE_ID]
+        }}),
+        "inventoryTransferRemoveItems",
+        "/data/inventoryTransferRemoveItems/inventoryTransfer/totalQuantity",
+        json!(0),
+    );
+    assert_cold_transfer_lifecycle_mutation(
+        "DRAFT",
+        r#"
+        mutation ColdTransferMarkReady($id: ID!) {
+          inventoryTransferMarkAsReadyToShip(id: $id) {
+            inventoryTransfer { id status totalQuantity }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"id": COLD_LIFECYCLE_TRANSFER_ID}),
+        "inventoryTransferMarkAsReadyToShip",
+        "/data/inventoryTransferMarkAsReadyToShip/inventoryTransfer/status",
+        json!("READY_TO_SHIP"),
+    );
+    assert_cold_transfer_lifecycle_mutation(
+        "DRAFT",
+        include_str!("../../config/parity-requests/products/inventory-transfer-duplicate.graphql"),
+        json!({"id": COLD_LIFECYCLE_TRANSFER_ID}),
+        "inventoryTransferDuplicate",
+        "/data/inventoryTransferDuplicate/inventoryTransfer/status",
+        json!("DRAFT"),
+    );
+    assert_cold_transfer_lifecycle_mutation(
+        "READY_TO_SHIP",
+        r#"
+        mutation ColdTransferCancel($id: ID!) {
+          inventoryTransferCancel(id: $id) {
+            inventoryTransfer { id status totalQuantity }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"id": COLD_LIFECYCLE_TRANSFER_ID}),
+        "inventoryTransferCancel",
+        "/data/inventoryTransferCancel/inventoryTransfer/status",
+        json!("CANCELED"),
+    );
+    assert_cold_transfer_lifecycle_mutation(
+        "DRAFT",
+        include_str!("../../config/parity-requests/products/inventory-transfer-delete.graphql"),
+        json!({"id": COLD_LIFECYCLE_TRANSFER_ID}),
+        "inventoryTransferDelete",
+        "/data/inventoryTransferDelete/deletedId",
+        json!(COLD_LIFECYCLE_TRANSFER_ID),
+    );
+}
+
+fn assert_cold_shipment_lifecycle_mutation(
+    hydration_body: Value,
+    hydrate_operation: &str,
+    query: &str,
+    variables: Value,
+    root: &str,
+    record_field: Option<&str>,
+    expected: (&str, Value),
+) {
+    let (mut proxy, forwarded) = cold_inventory_hydration_proxy(hydration_body);
+    let response = proxy.process_request(json_graphql_request(query, variables));
+    assert_eq!(
+        response.body.pointer(&format!("/data/{root}/userErrors")),
+        Some(&json!([])),
+        "{root} response: {}",
+        response.body
+    );
+    assert_eq!(
+        response.body.pointer(expected.0),
+        Some(&expected.1),
+        "{root} response: {}",
+        response.body
+    );
+
+    let read_id = record_field
+        .and_then(|field| response.body.pointer(&format!("/data/{root}/{field}/id")))
+        .and_then(Value::as_str)
+        .unwrap_or(COLD_LIFECYCLE_SHIPMENT_ID);
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ColdShipmentLifecycleRead($id: ID!) {
+          inventoryShipment(id: $id) {
+            id
+            status
+            lineItemTotalQuantity
+            tracking { trackingNumber }
+          }
+        }
+        "#,
+        json!({"id": read_id}),
+    ));
+    if root == "inventoryShipmentDelete" {
+        assert_eq!(read.body["data"]["inventoryShipment"], Value::Null);
+    } else {
+        assert_eq!(
+            read.body["data"]["inventoryShipment"]["id"],
+            json!(read_id),
+            "{root} downstream read: {}",
+            read.body
+        );
+    }
+
+    let forwarded = forwarded.lock().unwrap();
+    assert_eq!(forwarded.len(), 1, "{root} must perform one cold hydrate");
+    assert!(forwarded[0].body.contains(hydrate_operation));
+    let upstream_body: Value = serde_json::from_str(&forwarded[0].body).unwrap();
+    assert!(!upstream_body["query"]
+        .as_str()
+        .unwrap_or_default()
+        .to_ascii_lowercase()
+        .contains("mutation "));
+    drop(forwarded);
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        log["entries"][0]["interpreted"]["operationName"],
+        json!(root)
+    );
+}
+
+#[test]
+fn inventory_shipment_lifecycle_mutation_first_hydrates_every_existing_target() {
+    assert_cold_shipment_lifecycle_mutation(
+        cold_transfer_hydration_body("READY_TO_SHIP"),
+        "InventoryTransferMutationHydrate",
+        r#"
+        mutation ColdShipmentCreate($input: InventoryShipmentCreateInput!) {
+          inventoryShipmentCreate(input: $input) {
+            inventoryShipment { id status lineItemTotalQuantity }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "movementId": COLD_LIFECYCLE_TRANSFER_ID,
+            "lineItems": [{"inventoryItemId": COLD_LIFECYCLE_ITEM_ID, "quantity": 1}]
+        }}),
+        "inventoryShipmentCreate",
+        Some("inventoryShipment"),
+        (
+            "/data/inventoryShipmentCreate/inventoryShipment/status",
+            json!("DRAFT"),
+        ),
+    );
+    assert_cold_shipment_lifecycle_mutation(
+        cold_shipment_hydration_body("DRAFT"),
+        "InventoryShipmentMutationHydrate",
+        r#"
+        mutation ColdShipmentAdd($id: ID!, $lineItems: [InventoryShipmentLineItemInput!]!) {
+          inventoryShipmentAddItems(id: $id, lineItems: $lineItems) {
+            inventoryShipment { id status lineItemTotalQuantity }
+            addedItems { id quantity unreceivedQuantity }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": COLD_LIFECYCLE_SHIPMENT_ID,
+            "lineItems": [{"inventoryItemId": COLD_LIFECYCLE_ITEM_ID, "quantity": 1}]
+        }),
+        "inventoryShipmentAddItems",
+        Some("inventoryShipment"),
+        (
+            "/data/inventoryShipmentAddItems/inventoryShipment/lineItemTotalQuantity",
+            json!(2),
+        ),
+    );
+    assert_cold_shipment_lifecycle_mutation(
+        cold_shipment_hydration_body("DRAFT"),
+        "InventoryShipmentMutationHydrate",
+        r#"
+        mutation ColdShipmentRemove($id: ID!, $lineItems: [ID!]!) {
+          inventoryShipmentRemoveItems(id: $id, lineItems: $lineItems) {
+            inventoryShipment { id status lineItemTotalQuantity }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": COLD_LIFECYCLE_SHIPMENT_ID,
+            "lineItems": [COLD_LIFECYCLE_SHIPMENT_LINE_ID]
+        }),
+        "inventoryShipmentRemoveItems",
+        Some("inventoryShipment"),
+        (
+            "/data/inventoryShipmentRemoveItems/inventoryShipment/lineItemTotalQuantity",
+            json!(0),
+        ),
+    );
+    assert_cold_shipment_lifecycle_mutation(
+        cold_shipment_hydration_body("DRAFT"),
+        "InventoryShipmentMutationHydrate",
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-update-quantities.graphql"
+        ),
+        json!({
+            "id": COLD_LIFECYCLE_SHIPMENT_ID,
+            "items": [{"shipmentLineItemId": COLD_LIFECYCLE_SHIPMENT_LINE_ID, "quantity": 2}]
+        }),
+        "inventoryShipmentUpdateItemQuantities",
+        Some("shipment"),
+        (
+            "/data/inventoryShipmentUpdateItemQuantities/shipment/lineItemTotalQuantity",
+            json!(2),
+        ),
+    );
+    assert_cold_shipment_lifecycle_mutation(
+        cold_shipment_hydration_body("DRAFT"),
+        "InventoryShipmentMutationHydrate",
+        include_str!(
+            "../../config/parity-requests/products/inventory-node-shipment-set-tracking.graphql"
+        ),
+        json!({
+            "id": COLD_LIFECYCLE_SHIPMENT_ID,
+            "tracking": {"trackingNumber": "COLD-MATRIX-TRACKING", "company": "UPS"}
+        }),
+        "inventoryShipmentSetTracking",
+        Some("inventoryShipment"),
+        (
+            "/data/inventoryShipmentSetTracking/inventoryShipment/tracking/trackingNumber",
+            json!("COLD-MATRIX-TRACKING"),
+        ),
+    );
+    assert_cold_shipment_lifecycle_mutation(
+        cold_shipment_hydration_body("DRAFT"),
+        "InventoryShipmentMutationHydrate",
+        r#"
+        mutation ColdShipmentMarkInTransit($id: ID!) {
+          inventoryShipmentMarkInTransit(id: $id) {
+            inventoryShipment { id status lineItemTotalQuantity }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": COLD_LIFECYCLE_SHIPMENT_ID}),
+        "inventoryShipmentMarkInTransit",
+        Some("inventoryShipment"),
+        (
+            "/data/inventoryShipmentMarkInTransit/inventoryShipment/status",
+            json!("IN_TRANSIT"),
+        ),
+    );
+    assert_cold_shipment_lifecycle_mutation(
+        cold_shipment_hydration_body("IN_TRANSIT"),
+        "InventoryShipmentMutationHydrate",
+        include_str!("../../config/parity-requests/products/inventory-shipment-receive.graphql"),
+        json!({
+            "id": COLD_LIFECYCLE_SHIPMENT_ID,
+            "lineItems": [{
+                "shipmentLineItemId": COLD_LIFECYCLE_SHIPMENT_LINE_ID,
+                "quantity": 1,
+                "reason": "ACCEPTED"
+            }]
+        }),
+        "inventoryShipmentReceive",
+        Some("inventoryShipment"),
+        (
+            "/data/inventoryShipmentReceive/inventoryShipment/status",
+            json!("RECEIVED"),
+        ),
+    );
+    assert_cold_shipment_lifecycle_mutation(
+        cold_shipment_hydration_body("DRAFT"),
+        "InventoryShipmentMutationHydrate",
+        include_str!("../../config/parity-requests/products/inventory-shipment-delete.graphql"),
+        json!({"id": COLD_LIFECYCLE_SHIPMENT_ID}),
+        "inventoryShipmentDelete",
+        None,
+        (
+            "/data/inventoryShipmentDelete/id",
+            json!(COLD_LIFECYCLE_SHIPMENT_ID),
+        ),
+    );
+}
+
+#[test]
+fn inventory_lifecycle_mutation_first_hydrates_absence_and_upstream_failures_distinctly() {
+    let transfer_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured_transfer_requests = Arc::clone(&transfer_requests);
+    let mut missing_transfer_proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_upstream_transport(move |request| {
+            captured_transfer_requests.lock().unwrap().push(request);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({"data": {"inventoryTransfer": null}}),
+            }
+        });
+    let missing_transfer = missing_transfer_proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/products/inventory-transfer-edit.graphql"),
+        json!({"id": COLD_LIFECYCLE_TRANSFER_ID, "input": {"tags": ["missing"]}}),
+    ));
+    assert_eq!(
+        missing_transfer.body["data"]["inventoryTransferEdit"]["inventoryTransfer"],
+        Value::Null
+    );
+    assert_eq!(
+        missing_transfer.body["data"]["inventoryTransferEdit"]["userErrors"][0]["code"],
+        json!("TRANSFER_NOT_FOUND")
+    );
+    assert_eq!(transfer_requests.lock().unwrap().len(), 1);
+    assert_eq!(log_snapshot(&missing_transfer_proxy)["entries"], json!([]));
+
+    let mut failed_transfer_proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_upstream_transport(|_| Response {
+            status: 503,
+            headers: Default::default(),
+            body: json!({"errors": [{"message": "upstream unavailable"}]}),
+        });
+    let failed_transfer = failed_transfer_proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/products/inventory-transfer-edit.graphql"),
+        json!({"id": COLD_LIFECYCLE_TRANSFER_ID, "input": {"tags": ["not-staged"]}}),
+    ));
+    assert_eq!(
+        failed_transfer.body["data"]["inventoryTransferEdit"],
+        Value::Null
+    );
+    assert!(failed_transfer.body["errors"][0]["message"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("Shopify failed to hydrate inventory transfer mutation target"));
+    assert_eq!(log_snapshot(&failed_transfer_proxy)["entries"], json!([]));
+
+    let shipment_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured_shipment_requests = Arc::clone(&shipment_requests);
+    let mut missing_shipment_proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_upstream_transport(move |request| {
+            captured_shipment_requests.lock().unwrap().push(request);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "inventoryShipment": null,
+                        "inventoryTransfers": {
+                            "nodes": [],
+                            "pageInfo": {"hasNextPage": false, "endCursor": null}
+                        }
+                    }
+                }),
+            }
+        });
+    let missing_shipment = missing_shipment_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-node-shipment-set-tracking.graphql"
+        ),
+        json!({
+            "id": COLD_LIFECYCLE_SHIPMENT_ID,
+            "tracking": {"trackingNumber": "missing"}
+        }),
+    ));
+    assert_eq!(
+        missing_shipment.body["data"]["inventoryShipmentSetTracking"]["inventoryShipment"],
+        Value::Null
+    );
+    assert_eq!(
+        missing_shipment.body["data"]["inventoryShipmentSetTracking"]["userErrors"][0]["code"],
+        json!("SHIPMENT_NOT_FOUND")
+    );
+    assert_eq!(shipment_requests.lock().unwrap().len(), 1);
+    assert_eq!(log_snapshot(&missing_shipment_proxy)["entries"], json!([]));
+
+    let mut failed_shipment_proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_upstream_transport(|_| Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({"errors": [{"message": "shipment hydration denied"}]}),
+        });
+    let failed_shipment = failed_shipment_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-node-shipment-set-tracking.graphql"
+        ),
+        json!({
+            "id": COLD_LIFECYCLE_SHIPMENT_ID,
+            "tracking": {"trackingNumber": "not-staged"}
+        }),
+    ));
+    assert_eq!(
+        failed_shipment.body["data"]["inventoryShipmentSetTracking"],
+        Value::Null
+    );
+    assert_eq!(
+        failed_shipment.body["errors"][0]["message"],
+        json!("shipment hydration denied")
+    );
+    assert_eq!(log_snapshot(&failed_shipment_proxy)["entries"], json!([]));
+}
+
+#[test]
+fn inventory_lifecycle_mutation_first_hydration_preserves_ordered_commit_replay() {
+    let hydrated = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured_hydrated = Arc::clone(&hydrated);
+    let replayed = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured_replayed = Arc::clone(&replayed);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_upstream_transport(move |request| {
+            let body = if request.body.contains("InventoryShipmentMutationHydrate") {
+                cold_shipment_hydration_body("DRAFT")
+            } else {
+                cold_transfer_hydration_body("DRAFT")
+            };
+            captured_hydrated.lock().unwrap().push(request);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body,
+            }
+        })
+        .with_commit_transport(move |request| {
+            captured_replayed.lock().unwrap().push(request);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({"data": {}}),
+            }
+        });
+
+    let mut transfer_request = json_graphql_request(
+        include_str!("../../config/parity-requests/products/inventory-transfer-edit.graphql"),
+        json!({"id": COLD_LIFECYCLE_TRANSFER_ID, "input": {
+            "tags": ["cold-lifecycle", "commit-first"]
+        }}),
+    );
+    transfer_request.path = "/admin/api/2025-10/graphql.json".to_string();
+    let transfer_raw_body = transfer_request.body.clone();
+    let transfer_response = proxy.process_request(transfer_request);
+    assert_eq!(
+        transfer_response.body["data"]["inventoryTransferEdit"]["userErrors"],
+        json!([])
+    );
+
+    let mut shipment_request = json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-node-shipment-set-tracking.graphql"
+        ),
+        json!({
+            "id": COLD_LIFECYCLE_SHIPMENT_ID,
+            "tracking": {"trackingNumber": "COMMIT-SECOND", "company": "UPS"}
+        }),
+    );
+    shipment_request.path = "/admin/api/2026-04/graphql.json".to_string();
+    let shipment_raw_body = shipment_request.body.clone();
+    let shipment_response = proxy.process_request(shipment_request);
+    assert_eq!(
+        shipment_response.body["data"]["inventoryShipmentSetTracking"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(hydrated.lock().unwrap().len(), 2);
+
+    let commit = proxy.process_request(request_with_body("POST", "/__meta/commit", ""));
+    assert_eq!(commit.status, 200);
+    assert_eq!(commit.body["committed"], json!(2));
+    let replayed = replayed.lock().unwrap();
+    assert_eq!(replayed.len(), 2);
+    assert_eq!(replayed[0].path, "/admin/api/2025-10/graphql.json");
+    assert_eq!(replayed[0].body, transfer_raw_body);
+    assert_eq!(replayed[1].path, "/admin/api/2026-04/graphql.json");
+    assert_eq!(replayed[1].body, shipment_raw_body);
 }
 
 #[test]

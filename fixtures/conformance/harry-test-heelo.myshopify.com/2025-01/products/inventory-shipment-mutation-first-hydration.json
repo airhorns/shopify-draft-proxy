@@ -1,0 +1,612 @@
+{
+  "scenario": "inventory-shipment-mutation-first-hydration",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-07-19T18:29:28.354Z",
+  "setup": {
+    "inventoryItemId": "gid://shopify/InventoryItem/53594169934130",
+    "transferId": "gid://shopify/InventoryTransfer/5904728370",
+    "shipmentCreate": {
+      "query": "mutation InventoryNodeShipmentCreate($input: InventoryShipmentCreateInput!) {\n  inventoryShipmentCreate(input: $input) {\n    inventoryShipment {\n      id\n      name\n      status\n      lineItemTotalQuantity\n      totalAcceptedQuantity\n      totalReceivedQuantity\n      totalRejectedQuantity\n      tracking {\n        trackingNumber\n        company\n        trackingUrl\n        arrivesAt\n      }\n      lineItems(first: 10) {\n        nodes {\n          id\n          quantity\n          acceptedQuantity\n          rejectedQuantity\n          unreceivedQuantity\n          inventoryItem {\n            id\n            sku\n            tracked\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "movementId": "gid://shopify/InventoryTransfer/5904728370",
+          "trackingInput": {
+            "trackingNumber": "COLD-SHIP-BEFORE-1784485762391",
+            "company": "Japan Post",
+            "trackingUrl": "https://www.post.japanpost.jp/",
+            "arrivesAt": "2026-07-03T12:00:00Z"
+          },
+          "lineItems": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53594169934130",
+              "quantity": 1
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "inventoryShipmentCreate": {
+            "inventoryShipment": {
+              "id": "gid://shopify/InventoryShipment/2928279858",
+              "name": "#T0087-2",
+              "status": "DRAFT",
+              "lineItemTotalQuantity": 1,
+              "totalAcceptedQuantity": 0,
+              "totalReceivedQuantity": 0,
+              "totalRejectedQuantity": 0,
+              "tracking": {
+                "trackingNumber": "COLD-SHIP-BEFORE-1784485762391",
+                "company": "Japan Post",
+                "trackingUrl": "https://www.post.japanpost.jp/",
+                "arrivesAt": "2026-07-03T12:00:00Z"
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/InventoryShipmentLineItem/31360024882",
+                    "quantity": 1,
+                    "acceptedQuantity": 0,
+                    "rejectedQuantity": 0,
+                    "unreceivedQuantity": 1,
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53594169934130",
+                      "sku": "INV-NODE-1784485762391",
+                      "tracked": true
+                    }
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 21,
+            "actualQueryCost": 15,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1985,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "operation": {
+    "query": "mutation InventoryNodeShipmentSetTracking($id: ID!, $tracking: InventoryShipmentTrackingInput!) {\n  inventoryShipmentSetTracking(id: $id, tracking: $tracking) {\n    inventoryShipment {\n      id\n      name\n      status\n      tracking {\n        trackingNumber\n        company\n        trackingUrl\n        arrivesAt\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/InventoryShipment/2928279858",
+      "tracking": {
+        "trackingNumber": "COLD-SHIP-AFTER-1784485762391",
+        "company": "Japan Post",
+        "trackingUrl": "https://www.post.japanpost.jp/",
+        "arrivesAt": "2026-07-04T12:00:00Z"
+      }
+    },
+    "response": {
+      "data": {
+        "inventoryShipmentSetTracking": {
+          "inventoryShipment": {
+            "id": "gid://shopify/InventoryShipment/2928279858",
+            "name": "#T0087-2",
+            "status": "DRAFT",
+            "tracking": {
+              "trackingNumber": "COLD-SHIP-AFTER-1784485762391",
+              "company": "Japan Post",
+              "trackingUrl": "https://www.post.japanpost.jp/",
+              "arrivesAt": "2026-07-04T12:00:00Z"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "reads": {
+    "afterTracking": {
+      "query": "query InventoryShipmentDetailParity($id: ID!) {\n  inventoryShipment(id: $id) {\n    id\n    name\n    status\n    lineItemTotalQuantity\n    totalAcceptedQuantity\n    totalReceivedQuantity\n    totalRejectedQuantity\n    tracking {\n      trackingNumber\n      company\n      trackingUrl\n      arrivesAt\n    }\n    lineItems(first: 10) {\n      nodes {\n        id\n        quantity\n        acceptedQuantity\n        rejectedQuantity\n        unreceivedQuantity\n        inventoryItem {\n          id\n          sku\n          tracked\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/InventoryShipment/2928279858"
+      },
+      "response": {
+        "data": {
+          "inventoryShipment": {
+            "id": "gid://shopify/InventoryShipment/2928279858",
+            "name": "#T0087-2",
+            "status": "DRAFT",
+            "lineItemTotalQuantity": 1,
+            "totalAcceptedQuantity": 0,
+            "totalReceivedQuantity": 0,
+            "totalRejectedQuantity": 0,
+            "tracking": {
+              "trackingNumber": "COLD-SHIP-AFTER-1784485762391",
+              "company": "Japan Post",
+              "trackingUrl": "https://www.post.japanpost.jp/",
+              "arrivesAt": "2026-07-04T12:00:00Z"
+            },
+            "lineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/InventoryShipmentLineItem/31360024882",
+                  "quantity": 1,
+                  "acceptedQuantity": 0,
+                  "rejectedQuantity": 0,
+                  "unreceivedQuantity": 1,
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53594169934130",
+                    "sku": "INV-NODE-1784485762391",
+                    "tracked": true
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 6,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1994,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "shipmentDelete": {
+      "query": "mutation InventoryNodeShipmentDelete($id: ID!) {\n  inventoryShipmentDelete(id: $id) {\n    id\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/InventoryShipment/2928279858"
+      },
+      "response": {
+        "data": {
+          "inventoryShipmentDelete": {
+            "id": "gid://shopify/InventoryShipment/2928279858",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "shipmentDeleted": true
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "InventoryShipmentMutationHydrate",
+      "variables": {
+        "id": "gid://shopify/InventoryShipment/2928279858",
+        "after": null
+      },
+      "query": "#graphql\nquery InventoryShipmentMutationHydrate($id: ID!, $after: String) {\n  inventoryShipment(id: $id) {\n    ...InventoryLifecycleShipment\n  }\n  inventoryTransfers(first: 5, after: $after, reverse: true) {\n    nodes {\n      id\n      shipments(first: 25) {\n        nodes {\n          id\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n\nfragment InventoryLifecycleShipment on InventoryShipment {\n  id\n  name\n  status\n  tracking {\n    trackingNumber\n    company\n    trackingUrl\n    arrivesAt\n  }\n  lineItems(first: 100) {\n    nodes {\n      id\n      quantity\n      acceptedQuantity\n      rejectedQuantity\n      unreceivedQuantity\n      inventoryItem {\n        id\n        sku\n        tracked\n        requiresShipping\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "inventoryShipment": {
+              "id": "gid://shopify/InventoryShipment/2928279858",
+              "name": "#T0087-2",
+              "status": "DRAFT",
+              "tracking": {
+                "trackingNumber": "COLD-SHIP-BEFORE-1784485762391",
+                "company": "Japan Post",
+                "trackingUrl": "https://www.post.japanpost.jp/",
+                "arrivesAt": "2026-07-03T12:00:00Z"
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/InventoryShipmentLineItem/31360024882",
+                    "quantity": 1,
+                    "acceptedQuantity": 0,
+                    "rejectedQuantity": 0,
+                    "unreceivedQuantity": 1,
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53594169934130",
+                      "sku": "INV-NODE-1784485762391",
+                      "tracked": true,
+                      "requiresShipping": true
+                    }
+                  }
+                ]
+              }
+            },
+            "inventoryTransfers": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/InventoryTransfer/5904728370",
+                  "shipments": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/InventoryShipment/2928279858"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/InventoryTransfer/5904630066",
+                  "shipments": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/InventoryTransfer/5904597298",
+                  "shipments": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/InventoryTransfer/5904498994",
+                  "shipments": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/InventoryShipment/2928148786"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/InventoryTransfer/5904466226",
+                  "shipments": {
+                    "nodes": []
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "endCursor": "eyJsYXN0X2lkIjo1OTA0NDY2MjI2LCJsYXN0X3ZhbHVlIjoiNTkwNDQ2NjIyNiJ9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 51,
+              "actualQueryCost": 18,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1982,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "InventoryTransferMutationHydrate",
+      "variables": {
+        "id": "gid://shopify/InventoryTransfer/5904728370"
+      },
+      "query": "#graphql\nquery InventoryTransferMutationHydrate($id: ID!) {\n  inventoryTransfer(id: $id) {\n    ...InventoryLifecycleTransfer\n  }\n}\n\nfragment InventoryLifecycleTransfer on InventoryTransfer {\n  id\n  name\n  dateCreated\n  status\n  tags\n  origin {\n    name\n    location {\n      id\n      name\n      isActive\n    }\n  }\n  destination {\n    name\n    location {\n      id\n      name\n      isActive\n    }\n  }\n  lineItems(first: 100) {\n    nodes {\n      id\n      totalQuantity\n      shippableQuantity\n      shippedQuantity\n      processableQuantity\n      pickedForShipmentQuantity\n      inventoryItem {\n        ...InventoryLifecycleItem\n      }\n    }\n  }\n  shipments(first: 25) {\n    nodes {\n      ...InventoryLifecycleShipment\n    }\n  }\n}\n\nfragment InventoryLifecycleShipment on InventoryShipment {\n  id\n  name\n  status\n  tracking {\n    trackingNumber\n    company\n    trackingUrl\n    arrivesAt\n  }\n  lineItems(first: 25) {\n    nodes {\n      id\n      quantity\n      acceptedQuantity\n      rejectedQuantity\n      unreceivedQuantity\n      inventoryItem {\n        id\n        sku\n        tracked\n        requiresShipping\n      }\n    }\n  }\n}\n\nfragment InventoryLifecycleItem on InventoryItem {\n  id\n  sku\n  tracked\n  requiresShipping\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "inventoryTransfer": {
+              "id": "gid://shopify/InventoryTransfer/5904728370",
+              "name": "#T0087",
+              "dateCreated": "2026-07-19T18:29:25Z",
+              "status": "READY_TO_SHIP",
+              "tags": ["inventory-node-conformance"],
+              "origin": {
+                "name": "Inventory Node origin 1784485762391",
+                "location": {
+                  "id": "gid://shopify/Location/114041880882",
+                  "name": "Inventory Node origin 1784485762391",
+                  "isActive": true
+                }
+              },
+              "destination": {
+                "name": "Inventory Node destination 1784485762391",
+                "location": {
+                  "id": "gid://shopify/Location/114041913650",
+                  "name": "Inventory Node destination 1784485762391",
+                  "isActive": true
+                }
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/InventoryTransferLineItem/31648186674",
+                    "totalQuantity": 2,
+                    "shippableQuantity": 1,
+                    "shippedQuantity": 0,
+                    "processableQuantity": 1,
+                    "pickedForShipmentQuantity": 1,
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53594169934130",
+                      "sku": "INV-NODE-1784485762391",
+                      "tracked": true,
+                      "requiresShipping": true
+                    }
+                  }
+                ]
+              },
+              "shipments": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/InventoryShipment/2928279858",
+                    "name": "#T0087-2",
+                    "status": "DRAFT",
+                    "tracking": {
+                      "trackingNumber": "COLD-SHIP-BEFORE-1784485762391",
+                      "company": "Japan Post",
+                      "trackingUrl": "https://www.post.japanpost.jp/",
+                      "arrivesAt": "2026-07-03T12:00:00Z"
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/InventoryShipmentLineItem/31360024882",
+                          "quantity": 1,
+                          "acceptedQuantity": 0,
+                          "rejectedQuantity": 0,
+                          "unreceivedQuantity": 1,
+                          "inventoryItem": {
+                            "id": "gid://shopify/InventoryItem/53594169934130",
+                            "sku": "INV-NODE-1784485762391",
+                            "tracked": true,
+                            "requiresShipping": true
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 123,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/InventoryItem/53594169934130"]
+      },
+      "query": "#graphql\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on InventoryItem {\n      tracked\n      requiresShipping\n      measurement {\n        weight {\n          unit\n          value\n        }\n      }\n      variant {\n        id\n        title\n        inventoryQuantity\n        selectedOptions {\n          name\n          value\n        }\n        product {\n          id\n          title\n          handle\n          status\n          totalInventory\n          tracksInventory\n        }\n      }\n      inventoryLevels(first: 50) {\n        nodes {\n          id\n          location {\n            id\n            name\n          }\n          quantities(\n            names: [\n              \"available\"\n              \"on_hand\"\n              \"committed\"\n              \"incoming\"\n              \"reserved\"\n              \"damaged\"\n              \"quality_control\"\n              \"safety_stock\"\n            ]\n          ) {\n            name\n            quantity\n            updatedAt\n          }\n        }\n      }\n    }\n    ... on Location {\n      id\n      name\n      isActive\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "InventoryItem",
+                "id": "gid://shopify/InventoryItem/53594169934130",
+                "tracked": true,
+                "requiresShipping": true,
+                "measurement": {
+                  "weight": {
+                    "unit": "KILOGRAMS",
+                    "value": 0
+                  }
+                },
+                "variant": {
+                  "id": "gid://shopify/ProductVariant/51488571326770",
+                  "title": "Default Title",
+                  "inventoryQuantity": 3,
+                  "selectedOptions": [
+                    {
+                      "name": "Title",
+                      "value": "Default Title"
+                    }
+                  ],
+                  "product": {
+                    "id": "gid://shopify/Product/10243973087538",
+                    "title": "Inventory Node Conformance 1784485762391",
+                    "handle": "inventory-node-conformance-1784485762391",
+                    "status": "ACTIVE",
+                    "totalInventory": 0,
+                    "tracksInventory": true
+                  }
+                },
+                "inventoryLevels": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53594169934130",
+                      "location": {
+                        "id": "gid://shopify/Location/106318430514",
+                        "name": "Shop location"
+                      },
+                      "quantities": [
+                        {
+                          "name": "available",
+                          "quantity": 0,
+                          "updatedAt": "2026-07-19T18:29:23Z"
+                        },
+                        {
+                          "name": "on_hand",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "committed",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "incoming",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "reserved",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "damaged",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "quality_control",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "safety_stock",
+                          "quantity": 0,
+                          "updatedAt": null
+                        }
+                      ]
+                    },
+                    {
+                      "id": "gid://shopify/InventoryLevel/152415830322?inventory_item_id=53594169934130",
+                      "location": {
+                        "id": "gid://shopify/Location/114041880882",
+                        "name": "Inventory Node origin 1784485762391"
+                      },
+                      "quantities": [
+                        {
+                          "name": "available",
+                          "quantity": 3,
+                          "updatedAt": "2026-07-19T18:29:25Z"
+                        },
+                        {
+                          "name": "on_hand",
+                          "quantity": 5,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "committed",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "incoming",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "reserved",
+                          "quantity": 2,
+                          "updatedAt": "2026-07-19T18:29:27Z"
+                        },
+                        {
+                          "name": "damaged",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "quality_control",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "safety_stock",
+                          "quantity": 0,
+                          "updatedAt": null
+                        }
+                      ]
+                    },
+                    {
+                      "id": "gid://shopify/InventoryLevel/152415863090?inventory_item_id=53594169934130",
+                      "location": {
+                        "id": "gid://shopify/Location/114041913650",
+                        "name": "Inventory Node destination 1784485762391"
+                      },
+                      "quantities": [
+                        {
+                          "name": "available",
+                          "quantity": 0,
+                          "updatedAt": "2026-07-19T18:29:24Z"
+                        },
+                        {
+                          "name": "on_hand",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "committed",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "incoming",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "reserved",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "damaged",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "quality_control",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "safety_stock",
+                          "quantity": 0,
+                          "updatedAt": null
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 27,
+              "actualQueryCost": 9,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1991,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": "Creates a disposable real draft shipment, records the exact query-only shipment, owning-transfer, and inventory-node hydration calls used by the proxy, then runs inventoryShipmentSetTracking as the primary mutation from a cold proxy session and verifies downstream readback."
+}

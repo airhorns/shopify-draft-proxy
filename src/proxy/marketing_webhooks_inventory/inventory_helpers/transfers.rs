@@ -14,6 +14,7 @@ impl DraftProxy {
             resolved_string_field(&input, "destinationLocationId").unwrap_or_default();
         let line_item_inputs = resolved_object_list_field(&input, "lineItems");
         self.hydrate_inventory_transfer_references(
+            invocation.request,
             [&origin_location_id, &destination_location_id],
             &line_item_inputs,
         );
@@ -81,6 +82,11 @@ impl DraftProxy {
     ) -> ResolverOutcome<Value> {
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
+        if let Err(outcome) =
+            self.hydrate_inventory_transfer_mutation_target(invocation.request, &id)
+        {
+            return outcome;
+        }
         let Some(existing) = self.store.inventory_transfer_by_id(&id).cloned() else {
             return ResolverOutcome::value(
                 self.inventory_transfer_missing_payload("inventoryTransfer"),
@@ -110,6 +116,11 @@ impl DraftProxy {
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         let input = resolved_object_field(&arguments, "input").unwrap_or_default();
         let id = resolved_string_field(&input, "id").unwrap_or_default();
+        if let Err(outcome) =
+            self.hydrate_inventory_transfer_mutation_target(invocation.request, &id)
+        {
+            return outcome;
+        }
         let Some(existing) = self.store.inventory_transfer_by_id(&id).cloned() else {
             return ResolverOutcome::value(
                 self.inventory_transfer_missing_payload("inventoryTransfer"),
@@ -118,6 +129,7 @@ impl DraftProxy {
         let mut record = existing;
         let line_item_inputs = resolved_object_list_field(&input, "lineItems");
         self.hydrate_inventory_transfer_references(
+            invocation.request,
             [&record.origin_location_id, &record.destination_location_id],
             &line_item_inputs,
         );
@@ -184,6 +196,11 @@ impl DraftProxy {
     ) -> ResolverOutcome<Value> {
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
+        if let Err(outcome) =
+            self.hydrate_inventory_transfer_mutation_target(invocation.request, &id)
+        {
+            return outcome;
+        }
         let Some(existing) = self.store.inventory_transfer_by_id(&id).cloned() else {
             return ResolverOutcome::value(
                 self.inventory_transfer_missing_payload("inventoryTransfer"),
@@ -210,6 +227,11 @@ impl DraftProxy {
                 ])
             })
             .collect::<Vec<_>>();
+        self.hydrate_inventory_transfer_references(
+            invocation.request,
+            [&origin_location_id, &destination_location_id],
+            &line_item_inputs,
+        );
         let user_errors = self.inventory_transfer_validate(
             &origin_location_id,
             &destination_location_id,
@@ -259,6 +281,11 @@ impl DraftProxy {
     ) -> ResolverOutcome<Value> {
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
+        if let Err(outcome) =
+            self.hydrate_inventory_transfer_mutation_target(invocation.request, &id)
+        {
+            return outcome;
+        }
         let Some(existing) = self.store.inventory_transfer_by_id(&id).cloned() else {
             return ResolverOutcome::value(
                 self.inventory_transfer_missing_payload("inventoryTransfer"),
@@ -338,6 +365,11 @@ impl DraftProxy {
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         let input = resolved_object_field(&arguments, "input").unwrap_or_default();
         let id = resolved_string_field(&input, "id").unwrap_or_default();
+        if let Err(outcome) =
+            self.hydrate_inventory_transfer_mutation_target(invocation.request, &id)
+        {
+            return outcome;
+        }
         let Some(existing) = self.store.inventory_transfer_by_id(&id).cloned() else {
             return ResolverOutcome::value(
                 self.inventory_transfer_missing_payload("inventoryTransfer"),
@@ -388,6 +420,11 @@ impl DraftProxy {
     ) -> ResolverOutcome<Value> {
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
+        if let Err(outcome) =
+            self.hydrate_inventory_transfer_mutation_target(invocation.request, &id)
+        {
+            return outcome;
+        }
         let Some(existing) = self.store.inventory_transfer_by_id(&id).cloned() else {
             return ResolverOutcome::value(
                 self.inventory_transfer_missing_payload("inventoryTransfer"),
@@ -416,6 +453,11 @@ impl DraftProxy {
     ) -> ResolverOutcome<Value> {
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
+        if let Err(outcome) =
+            self.hydrate_inventory_transfer_mutation_target(invocation.request, &id)
+        {
+            return outcome;
+        }
         let Some(record) = self.store.inventory_transfer_by_id(&id).cloned() else {
             return ResolverOutcome::value(self.inventory_transfer_missing_payload("deletedId"));
         };
@@ -461,7 +503,11 @@ impl DraftProxy {
     fn inventory_transfer_missing_payload(&self, transfer_field: &str) -> Value {
         json!({
             transfer_field: Value::Null,
-            "userErrors": [user_error_omit_code(["id"], "Inventory transfer not found.", None)]
+            "userErrors": [user_error(
+                ["id"],
+                "Inventory transfer not found.",
+                Some("TRANSFER_NOT_FOUND")
+            )]
         })
     }
 
@@ -504,8 +550,9 @@ impl DraftProxy {
         self.observe_inventory_transfer_value(body);
     }
 
-    fn observe_inventory_transfer_value(&mut self, value: &Value) {
+    pub(super) fn observe_inventory_transfer_value(&mut self, value: &Value) {
         if let Some(record) = inventory_transfer_record_from_json(value) {
+            let transfer_id = record.id.clone();
             self.store.observe_base_inventory_transfer(record);
             if let Some(location) = value.get("origin") {
                 let location = location.get("location").unwrap_or(location);
@@ -521,6 +568,12 @@ impl DraftProxy {
                     &[("__typename", json!("Location")), ("isActive", json!(true))],
                 );
             }
+            for line_item in connection_node_values(value.get("lineItems")) {
+                if let Some(inventory_item) = line_item.get("inventoryItem") {
+                    self.observe_inventory_item_node(inventory_item);
+                }
+            }
+            self.observe_inventory_shipments_for_transfer(value, &transfer_id);
         }
         match value {
             Value::Array(items) => {
@@ -538,10 +591,45 @@ impl DraftProxy {
     }
     fn inventory_transfer_full_json(&self, record: &InventoryTransferRecord) -> Value {
         let status = self.inventory_transfer_effective_status(record);
+        let origin_location = self
+            .location_for_read(&record.origin_location_id)
+            .unwrap_or_else(|| {
+                json!({
+                    "__typename": "Location",
+                    "id": record.origin_location_id,
+                    "name": self.inventory_location_display_name(&record.origin_location_id),
+                    "isActive": true
+                })
+            });
+        let destination_location = self
+            .location_for_read(&record.destination_location_id)
+            .unwrap_or_else(|| {
+                json!({
+                    "__typename": "Location",
+                    "id": record.destination_location_id,
+                    "name": self.inventory_location_display_name(&record.destination_location_id),
+                    "isActive": true
+                })
+            });
+        let origin_name = origin_location
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or(&record.origin_location_id);
+        let destination_name = destination_location
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or(&record.destination_location_id);
         let nodes = record
             .line_items
             .iter()
             .map(|line_item| self.inventory_transfer_line_item_full_json(record, line_item))
+            .collect::<Vec<_>>();
+        let shipments = self
+            .store
+            .inventory_shipments()
+            .into_iter()
+            .filter(|shipment| shipment.transfer_id.as_deref() == Some(record.id.as_str()))
+            .map(|shipment| self.inventory_shipment_full_json(&shipment))
             .collect::<Vec<_>>();
         json!({
             "__typename": "InventoryTransfer",
@@ -550,17 +638,18 @@ impl DraftProxy {
             "dateCreated": record.created_at,
             "status": status,
             "origin": {
-                "id": record.origin_location_id,
-                "name": self.inventory_location_display_name(&record.origin_location_id)
+                "name": origin_name,
+                "location": origin_location
             },
             "destination": {
-                "id": record.destination_location_id,
-                "name": self.inventory_location_display_name(&record.destination_location_id)
+                "name": destination_name,
+                "location": destination_location
             },
             "tags": record.tags,
             "totalQuantity": record.line_items.iter().map(|line_item| line_item.quantity).sum::<i64>(),
             "lineItemsCount": count_object(record.line_items.len()),
-            "lineItems": connection_json(nodes)
+            "lineItems": connection_json(nodes),
+            "shipments": connection_json(shipments)
         })
     }
 
@@ -603,6 +692,9 @@ impl DraftProxy {
         let tracked = variant
             .map(|variant| variant.inventory_item.tracked)
             .unwrap_or(true);
+        let requires_shipping = variant
+            .map(|variant| variant.inventory_item.requires_shipping)
+            .unwrap_or(true);
         json!({
             "__typename": "InventoryTransferLineItem",
             "id": line_item.id,
@@ -610,7 +702,8 @@ impl DraftProxy {
             "inventoryItem": {
                 "id": line_item.inventory_item_id,
                 "sku": sku,
-                "tracked": tracked
+                "tracked": tracked,
+                "requiresShipping": requires_shipping
             },
             "totalQuantity": line_item.quantity,
             "shippableQuantity": shippable,
@@ -923,6 +1016,7 @@ impl DraftProxy {
 
     fn hydrate_inventory_transfer_references<'a>(
         &mut self,
+        request: &Request,
         location_ids: impl IntoIterator<Item = &'a String>,
         line_item_inputs: &[BTreeMap<String, ResolvedValue>],
     ) {
@@ -931,30 +1025,44 @@ impl DraftProxy {
         }
         let mut ids = Vec::new();
         for location_id in location_ids {
-            if !location_id.is_empty() && !ids.iter().any(|id| id == location_id) {
+            if !location_id.is_empty()
+                && !self.inventory_location_exists(location_id)
+                && !ids.iter().any(|id| id == location_id)
+            {
                 ids.push(location_id.clone());
             }
         }
         for item_input in line_item_inputs {
             let item_id = resolved_string_field(item_input, "inventoryItemId").unwrap_or_default();
-            if !item_id.is_empty() && !ids.iter().any(|id| id == &item_id) {
+            if !item_id.is_empty()
+                && !self.inventory_item_exists(&item_id)
+                && !ids.iter().any(|id| id == &item_id)
+            {
                 ids.push(item_id);
             }
         }
         if ids.is_empty() {
             return;
         }
-        let request = Request {
-            method: "POST".to_string(),
-            path: "/admin/api/2025-01/graphql.json".to_string(),
-            headers: BTreeMap::new(),
-            body: json!({
-                "query": INVENTORY_TRANSFER_HYDRATE_NODES_QUERY,
+        let mut response = self.upstream_post(
+            request,
+            json!({
+                "query": INVENTORY_LIFECYCLE_REFERENCE_HYDRATE_NODES_QUERY,
                 "variables": { "ids": ids }
-            })
-            .to_string(),
-        };
-        let response = (self.upstream_transport)(request);
+            }),
+        );
+        // Older captures contain the same read with legacy formatting. Retry that
+        // exact query only after a server failure; confirmed 4xx responses remain
+        // authoritative and supported mutations are never forwarded.
+        if response.status >= 500 {
+            response = self.upstream_post(
+                request,
+                json!({
+                    "query": INVENTORY_TRANSFER_HYDRATE_NODES_QUERY,
+                    "variables": { "ids": ids }
+                }),
+            );
+        }
         if response.status >= 400 {
             return;
         }
@@ -1105,20 +1213,4 @@ fn inventory_transfer_line_item_record_from_json(
             .and_then(Value::as_i64)
             .unwrap_or_default(),
     })
-}
-
-fn connection_node_values(connection: Option<&Value>) -> Vec<&Value> {
-    let Some(connection) = connection else {
-        return Vec::new();
-    };
-    if let Some(nodes) = connection.get("nodes").and_then(Value::as_array) {
-        return nodes.iter().collect();
-    }
-    connection
-        .get("edges")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(|edge| edge.get("node"))
-        .collect()
 }

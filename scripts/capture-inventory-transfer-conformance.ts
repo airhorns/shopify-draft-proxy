@@ -1,7 +1,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write status and error output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
@@ -40,7 +40,7 @@ type CaseCapture = {
 
 type UpstreamCall = {
   operationName: string;
-  variables: { ids: string[] };
+  variables: GraphqlVariables;
   query: string;
   response: {
     status: number;
@@ -57,6 +57,7 @@ const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 
 const validationOutputPath = path.join(outputDir, 'inventory-transfer-create-validation.json');
 const lifecycleOutputPath = path.join(outputDir, 'inventory-transfer-lifecycle-local-staging.json');
 const zeroOriginOutputPath = path.join(outputDir, 'inventory-transfer-zero-origin-read.json');
+const mutationFirstOutputPath = path.join(outputDir, 'inventory-transfer-mutation-first-hydration.json');
 
 const { runGraphql, runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
@@ -233,49 +234,18 @@ const inventoryItemReadQuery = `#graphql
   }
 `;
 
-const productHydrateNodesQuery = `#graphql
-  query ProductsHydrateNodes($ids: [ID!]!) {
-    nodes(ids: $ids) {
-      __typename
-      id
-      ... on InventoryItem {
-        tracked
-        requiresShipping
-        measurement { weight { unit value } }
-        variant {
-          id
-          title
-          inventoryQuantity
-          selectedOptions { name value }
-          product {
-            id
-            title
-            handle
-            status
-            totalInventory
-            tracksInventory
-          }
-        }
-        inventoryLevels(first: 50) {
-          nodes {
-            id
-            location { id name }
-            quantities(names: ["available", "on_hand", "committed", "incoming", "reserved", "damaged", "quality_control", "safety_stock"]) {
-              name
-              quantity
-              updatedAt
-            }
-          }
-        }
-      }
-      ... on Location {
-        id
-        name
-        isActive
-      }
-    }
-  }
-`;
+const productHydrateNodesQuery = await readFile(
+  'config/parity-requests/products/inventory-transfer-reference-hydrate.graphql',
+  'utf8',
+);
+const inventoryTransferMutationHydrateQuery = await readFile(
+  'config/parity-requests/products/inventory-transfer-mutation-hydrate.graphql',
+  'utf8',
+);
+const inventoryTransferMutationFirstReadQuery = await readFile(
+  'config/parity-requests/products/inventory-transfer-mutation-first-read.graphql',
+  'utf8',
+);
 
 const inventoryTransferCreateValidationMutation = `#graphql
   mutation InventoryTransferCreateValidationParity($input: InventoryTransferCreateInput!) {
@@ -937,6 +907,94 @@ async function captureZeroOriginRead(setup: ProductSetup): Promise<{
   };
 }
 
+async function captureMutationFirstHydration(setup: ProductSetup): Promise<JsonRecord> {
+  let transferId: string | null = null;
+  let deleted = false;
+  let cleanup: GraphqlPayload | null = null;
+  try {
+    const createVariables = { input: transferInput(setup, 2) };
+    const create = await runGraphqlAllowGraphqlErrors(inventoryTransferCreateMutation, createVariables);
+    expectNoUserErrors(create, ['data', 'inventoryTransferCreate', 'userErrors'], 'mutation-first transfer create');
+    transferId = readTransferId(create, ['data', 'inventoryTransferCreate', 'inventoryTransfer', 'id']);
+
+    const transferHydrate = await captureUpstreamCall(
+      'InventoryTransferMutationHydrate',
+      inventoryTransferMutationHydrateQuery,
+      { id: transferId },
+    );
+    readRecord(
+      readPath(transferHydrate.response.body, ['data', 'inventoryTransfer'], 'transfer hydrate'),
+      'transfer hydrate target',
+    );
+    const referenceHydrate = await captureUpstreamCall('ProductsHydrateNodes', productHydrateNodesQuery, {
+      ids: [setup.inventoryItemId],
+    });
+
+    const editVariables = {
+      id: transferId,
+      input: {
+        note: 'inventory transfer mutation-first edited',
+        tags: ['cold-hydration', 'inventory-transfer-conformance'],
+        referenceName: `inventory-transfer-mutation-first-${Date.now()}`,
+      },
+    };
+    const edit = await runGraphqlAllowGraphqlErrors(inventoryTransferEditMutation, editVariables);
+    expectNoUserErrors(edit, ['data', 'inventoryTransferEdit', 'userErrors'], 'mutation-first transfer edit');
+    const afterEdit = await runGraphqlAllowGraphqlErrors(inventoryTransferMutationFirstReadQuery, {
+      id: transferId,
+    });
+
+    cleanup = await runGraphqlAllowGraphqlErrors(inventoryTransferDeleteMutation, { id: transferId });
+    deleted = readUserErrors(cleanup, ['data', 'inventoryTransferDelete', 'userErrors']).length === 0;
+
+    return {
+      scenario: 'inventory-transfer-mutation-first-hydration',
+      storeDomain,
+      apiVersion,
+      capturedAt: new Date().toISOString(),
+      setup: {
+        inventoryItemId: setup.inventoryItemId,
+        originLocation: setup.originLocation,
+        destinationLocation: setup.destinationLocation,
+        transferCreate: {
+          query: inventoryTransferCreateMutation,
+          variables: createVariables,
+          response: create,
+        },
+      },
+      operation: {
+        query: inventoryTransferEditMutation,
+        variables: editVariables,
+        response: edit,
+      },
+      reads: {
+        afterEdit: {
+          query: inventoryTransferMutationFirstReadQuery,
+          variables: { id: transferId },
+          response: afterEdit,
+        },
+      },
+      cleanup: {
+        transferDelete: cleanup,
+        transferDeleted: deleted,
+      },
+      upstreamCalls: [transferHydrate, referenceHydrate],
+      notes:
+        'Creates a disposable real draft transfer, records the exact query-only transfer and inventory-node hydration calls used by the proxy, then runs inventoryTransferEdit as the primary mutation from a cold proxy session and verifies downstream readback.',
+    };
+  } finally {
+    if (transferId && !deleted) {
+      try {
+        await runGraphqlAllowGraphqlErrors(inventoryTransferDeleteMutation, { id: transferId });
+      } catch (error) {
+        console.warn(
+          `Mutation-first transfer cleanup failed for ${transferId}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+  }
+}
+
 function uniqueIdLists(lists: string[][]): string[][] {
   const seen = new Set<string>();
   const unique: string[][] = [];
@@ -950,21 +1008,33 @@ function uniqueIdLists(lists: string[][]): string[][] {
   return unique;
 }
 
-async function hydrateCall(ids: string[]): Promise<UpstreamCall> {
-  const response = await runGraphqlRequest(productHydrateNodesQuery, { ids });
+async function captureUpstreamCall(
+  operationName: string,
+  query: string,
+  variables: GraphqlVariables,
+): Promise<UpstreamCall> {
+  const response = await runGraphqlRequest(query, variables);
   if (response.status < 200 || response.status >= 300) {
     throw new Error(`Hydration call failed: ${JSON.stringify(response, null, 2)}`);
   }
+  const responsePayload = readRecord(response.payload, `${operationName} hydration payload`);
+  if (Array.isArray(responsePayload['errors']) && responsePayload['errors'].length > 0) {
+    throw new Error(`${operationName} hydration returned errors: ${JSON.stringify(response.payload, null, 2)}`);
+  }
 
   return {
-    operationName: 'ProductsHydrateNodes',
-    variables: { ids },
-    query: productHydrateNodesQuery,
+    operationName,
+    variables,
+    query,
     response: {
       status: response.status,
       body: response.payload,
     },
   };
+}
+
+async function hydrateCall(ids: string[]): Promise<UpstreamCall> {
+  return captureUpstreamCall('ProductsHydrateNodes', productHydrateNodesQuery, { ids });
 }
 
 async function buildValidationUpstreamCalls(setup: ProductSetup): Promise<UpstreamCall[]> {
@@ -1045,6 +1115,8 @@ try {
     upstreamCalls: await buildLifecycleUpstreamCalls(setup),
   };
 
+  const mutationFirstFixture = await captureMutationFirstHydration(setup);
+
   const cleanup = await deleteProduct(setup.productId);
   productIdForCleanup = null;
   const locationCleanup = {
@@ -1105,6 +1177,7 @@ try {
   await writeFile(validationOutputPath, `${JSON.stringify(validationFixture, null, 2)}\n`, 'utf8');
   await writeFile(lifecycleOutputPath, `${JSON.stringify(lifecycleFixture, null, 2)}\n`, 'utf8');
   await writeFile(zeroOriginOutputPath, `${JSON.stringify(zeroOriginFixture, null, 2)}\n`, 'utf8');
+  await writeFile(mutationFirstOutputPath, `${JSON.stringify(mutationFirstFixture, null, 2)}\n`, 'utf8');
 
   console.log(
     JSON.stringify(
@@ -1112,7 +1185,7 @@ try {
         ok: true,
         storeDomain,
         apiVersion,
-        outputs: [validationOutputPath, lifecycleOutputPath, zeroOriginOutputPath],
+        outputs: [validationOutputPath, lifecycleOutputPath, zeroOriginOutputPath, mutationFirstOutputPath],
       },
       null,
       2,

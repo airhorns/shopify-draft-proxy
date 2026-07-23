@@ -516,6 +516,7 @@ struct BaseState {
     metafield_definition_owner_catalogs: BTreeSet<String>,
     metafield_definition_namespaces: BTreeSet<(String, String)>,
     inventory_transfers: OrderedRecords<InventoryTransferRecord>,
+    inventory_shipments: OrderedRecords<InventoryShipmentRecord>,
     b2b_companies: OrderedRecords<Value>,
     b2b_company_count_baselines: BTreeMap<String, Value>,
     b2b_locations: OrderedRecords<Value>,
@@ -670,7 +671,7 @@ struct StagedState {
     next_inventory_quantity_timestamp: u64,
     inventory_adjustment_groups: BTreeMap<String, Value>,
     inventory_transfers: StagedRecords<InventoryTransferRecord>,
-    inventory_shipments: BTreeMap<String, InventoryShipmentRecord>,
+    inventory_shipments: StagedRecords<InventoryShipmentRecord>,
     metaobject_definitions: StagedRecords<Value>,
     metaobjects: StagedRecords<Value>,
     deleted_metaobject_types: BTreeSet<String>,
@@ -1826,6 +1827,46 @@ impl Store {
         self.base
             .inventory_transfers
             .insert(transfer.id.clone(), transfer);
+    }
+
+    fn inventory_shipment_by_id(&self, id: &str) -> Option<&InventoryShipmentRecord> {
+        effective_get(
+            &self.base.inventory_shipments,
+            &self.staged.inventory_shipments,
+            id,
+        )
+    }
+
+    fn inventory_shipments(&self) -> Vec<InventoryShipmentRecord> {
+        effective_records(
+            &self.base.inventory_shipments,
+            &self.staged.inventory_shipments,
+        )
+    }
+
+    fn inventory_shipment_count(&self) -> usize {
+        effective_count(
+            &self.base.inventory_shipments,
+            &self.staged.inventory_shipments,
+        )
+    }
+
+    fn observe_base_inventory_shipment(&mut self, shipment: InventoryShipmentRecord) {
+        if self.staged.inventory_shipments.is_tombstoned(&shipment.id)
+            || self
+                .staged
+                .inventory_shipments
+                .contains_staged(&shipment.id)
+        {
+            return;
+        }
+        self.store_base_inventory_shipment(shipment);
+    }
+
+    fn store_base_inventory_shipment(&mut self, shipment: InventoryShipmentRecord) {
+        self.base
+            .inventory_shipments
+            .insert(shipment.id.clone(), shipment);
     }
 
     fn domain_by_id(&self, id: &str) -> Option<Value> {
