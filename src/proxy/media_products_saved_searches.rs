@@ -2321,6 +2321,11 @@ impl DraftProxy {
         let root_fields = parse_operation(query)
             .map(|operation| operation.root_fields)
             .unwrap_or_else(|| vec![root_field.to_string()]);
+        // Whether the staging request carried the app-client-id header. Its consumer
+        // (agent-server) only sends that header for a service-app caller, so this flag
+        // records "staged by a service-app caller" — the signal `commit_staged_mutations`
+        // replays under to pick the app's own credential rather than the staff user's.
+        let service_app = request_app_namespace_api_client_id(request).is_some();
         self.log_entries.push(json!({
             "id": id,
             "operationName": null,
@@ -2330,6 +2335,7 @@ impl DraftProxy {
             "rawBody": request.body,
             "stagedResourceIds": staged_resource_ids,
             "status": "staged",
+            "serviceApp": service_app,
             "interpreted": {
                 "operationType": "mutation",
                 "rootFields": root_fields,
