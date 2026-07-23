@@ -4764,3 +4764,33 @@ Practical rule:
 - let product tombstones resolve through the ordinary `product: null` boundary
 - never generate a preview hostname, copy a source product's signed URL, or
   hardcode captured host, ID, preview key, or bypass material
+
+## 114. Standard linked metafield validation IDs are graph edges
+
+Admin GraphQL 2026-04 material and color-pattern lifecycle capture showed that
+the `metaobject_definition_id` returned by
+`standardMetafieldDefinitionEnable` is the shop-local definition identity, not
+an opaque validation hint. For each template, the same ID was returned by
+`metaobjectDefinition(id:)`, `metaobjectDefinitionByType(type:)`, generic
+`node(id:)`, created linked metaobjects, product metafield references, and the
+linked product-option workflow. The two templates had distinct definition IDs,
+and every downstream value retained its matching definition.
+
+This also makes an invented validation-only ID unsafe. A plausible GID that has
+no definition record breaks generic Node reads, field validation, and linked
+option semantics even when the initial metafield-definition payload looks
+correct.
+
+Practical rule:
+
+- in LiveHybrid, attempt to hydrate the shop-local standard definition by type
+  before staging; an explicit `null` proves absence, while a failed or
+  incomplete lookup may fall back only to the captured shop/version template
+- in snapshot mode, allocate an identity only when a captured standard template
+  can materialize the complete local definition record
+- run capability, pinning, and other enable validations before definition
+  lookup or staging so rejected writes preserve Shopify's error precedence
+- use that one effective definition for validation, direct/by-type/Node reads,
+  linked values, metafield references, and product options
+- return the captured `TEMPLATE_NOT_FOUND` null/error shape when no backed
+  definition is available; never emit a sentinel graph edge

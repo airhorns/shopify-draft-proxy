@@ -1,6 +1,19 @@
 use super::*;
 use std::sync::OnceLock;
 
+pub(in crate::proxy) enum PreparedLinkedStandardMetaobjectDefinition {
+    Existing(String),
+    Hydrated { id: String, definition: Value },
+    SnapshotTemplate(Value),
+}
+
+enum MetaobjectDefinitionByTypeFetch {
+    Found(Value),
+    NotFound,
+    NoAuthoritativeResult,
+    Failed,
+}
+
 pub(in crate::proxy) fn metaobject_field_resolver_registrations() -> Vec<FieldResolverRegistration>
 {
     [
@@ -5142,13 +5155,13 @@ impl DraftProxy {
         )
     }
 
-    fn hydrate_metaobject_definition_by_type(
+    fn fetch_metaobject_definition_by_type(
         &mut self,
         request: &Request,
         meta_type: &str,
-    ) -> Option<Value> {
-        if self.config.read_mode == ReadMode::Snapshot || meta_type.trim().is_empty() {
-            return None;
+    ) -> MetaobjectDefinitionByTypeFetch {
+        if meta_type.trim().is_empty() {
+            return MetaobjectDefinitionByTypeFetch::Failed;
         }
         let query = "query MetaobjectDefinitionHydrateByType($type: String!) { metaobjectDefinitionByType(type: $type) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } capabilities { adminFilterable { enabled } } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } }";
         let body = json!({
@@ -5157,14 +5170,45 @@ impl DraftProxy {
         });
         let response = self.upstream_post(request, body);
         if response.status < 200 || response.status >= 300 {
-            return None;
+            return MetaobjectDefinitionByTypeFetch::Failed;
         }
-        let definition = response
+        if response
+            .body
+            .get("errors")
+            .and_then(Value::as_array)
+            .is_some_and(|errors| !errors.is_empty())
+        {
+            return MetaobjectDefinitionByTypeFetch::Failed;
+        }
+        let Some(definition) = response
             .body
             .get("data")
             .and_then(|data| data.get("metaobjectDefinitionByType"))
-            .filter(|definition| definition.is_object())?
-            .clone();
+        else {
+            return MetaobjectDefinitionByTypeFetch::NoAuthoritativeResult;
+        };
+        if definition.is_null() {
+            return MetaobjectDefinitionByTypeFetch::NotFound;
+        }
+        if !definition.is_object() {
+            return MetaobjectDefinitionByTypeFetch::Failed;
+        }
+        MetaobjectDefinitionByTypeFetch::Found(definition.clone())
+    }
+
+    fn hydrate_metaobject_definition_by_type(
+        &mut self,
+        request: &Request,
+        meta_type: &str,
+    ) -> Option<Value> {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return None;
+        }
+        let MetaobjectDefinitionByTypeFetch::Found(definition) =
+            self.fetch_metaobject_definition_by_type(request, meta_type)
+        else {
+            return None;
+        };
         let id = definition
             .get("id")
             .and_then(Value::as_str)
@@ -5183,6 +5227,80 @@ impl DraftProxy {
             .metaobject_definitions
             .insert(id, definition.clone());
         Some(definition)
+    }
+
+    pub(in crate::proxy) fn prepare_linked_standard_metaobject_definition(
+        &mut self,
+        request: &Request,
+        meta_type: &str,
+    ) -> Option<PreparedLinkedStandardMetaobjectDefinition> {
+        if let Some(id) = self
+            .metaobject_definition_by_type(meta_type)
+            .and_then(|definition| {
+                definition
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .filter(|id| !id.is_empty())
+                    .map(str::to_string)
+            })
+        {
+            return Some(PreparedLinkedStandardMetaobjectDefinition::Existing(id));
+        }
+
+        if self.config.read_mode == ReadMode::Snapshot {
+            return standard_metaobject_definition_template(meta_type)
+                .cloned()
+                .map(PreparedLinkedStandardMetaobjectDefinition::SnapshotTemplate);
+        }
+
+        let definition = match self.fetch_metaobject_definition_by_type(request, meta_type) {
+            MetaobjectDefinitionByTypeFetch::Found(definition) => definition,
+            // An explicit null is authoritative absence. A failed lookup or a
+            // response without the requested field is not, so a captured
+            // shop/version template may still back a resolvable local identity.
+            MetaobjectDefinitionByTypeFetch::NoAuthoritativeResult
+            | MetaobjectDefinitionByTypeFetch::Failed => {
+                return standard_metaobject_definition_template(meta_type)
+                    .cloned()
+                    .map(PreparedLinkedStandardMetaobjectDefinition::SnapshotTemplate);
+            }
+            MetaobjectDefinitionByTypeFetch::NotFound => return None,
+        };
+        let id = definition
+            .get("id")
+            .and_then(Value::as_str)
+            .filter(|id| !id.is_empty())?
+            .to_string();
+        Some(PreparedLinkedStandardMetaobjectDefinition::Hydrated { id, definition })
+    }
+
+    pub(in crate::proxy) fn stage_linked_standard_metaobject_definition(
+        &mut self,
+        prepared: PreparedLinkedStandardMetaobjectDefinition,
+    ) -> String {
+        let (id, definition) = match prepared {
+            PreparedLinkedStandardMetaobjectDefinition::Existing(id) => return id,
+            PreparedLinkedStandardMetaobjectDefinition::Hydrated { id, definition } => {
+                (id, definition)
+            }
+            PreparedLinkedStandardMetaobjectDefinition::SnapshotTemplate(template) => {
+                let id = self.next_proxy_synthetic_gid("MetaobjectDefinition");
+                let timestamp = self.next_mutation_timestamp();
+                let definition =
+                    standard_metaobject_definition_from_template(&id, &template, &timestamp);
+                (id, definition)
+            }
+        };
+        self.store
+            .staged
+            .metaobject_definitions
+            .tombstones
+            .remove(&id);
+        self.store
+            .staged
+            .metaobject_definitions
+            .insert(id.clone(), definition);
+        id
     }
 
     fn metaobject_definition_connection(&self, field: &MetaobjectRootInput) -> Value {
