@@ -324,7 +324,14 @@ selectable on the captured Admin GraphQL 2026-04 `UserError` type. Location IDs
 supplied in delivery-profile location groups must resolve from staged, observed,
 or LiveHybrid-hydrated location state; unknown IDs return the public
 `The Location could not be found for this shop.` userError instead of creating a
-synthetic location. Delivery-profile `variantsToAssociate` inputs add
+synthetic location. LiveHybrid validation resolves submitted IDs through one
+deduplicated `nodes(ids:)` query. If that authoritative lookup is unavailable,
+the eligibility catalog fallback follows 250-row `pageInfo` cursors until all
+requested IDs resolve or the catalog is proven complete; interrupted lookups
+remain explicitly incomplete and fail closed without staging or reporting a
+false missing-location userError. Eligibility-catalog baselines use the same
+resumable pagination, including catalogs larger than 250 rows. Delivery-profile
+`variantsToAssociate` inputs add
 associations only for `ProductVariant` IDs resolved from staged/base product
 state or LiveHybrid `nodes(ids:)` hydration. Nonexistent, inaccessible, or
 wrong-shop variant lookups that hydrate as missing nodes are left unassociated;

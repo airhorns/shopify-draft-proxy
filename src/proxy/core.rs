@@ -632,6 +632,12 @@ impl DraftProxy {
             "baseState": base_state,
             "stagedState": staged_state
         });
+        if self.store.staged.observed_shipping_locations_complete {
+            snapshot["stagedState"]["observedShippingLocationsComplete"] = json!(true);
+        }
+        if let Some(cursor) = &self.store.staged.observed_shipping_locations_next_cursor {
+            snapshot["stagedState"]["observedShippingLocationsNextCursor"] = json!(cursor);
+        }
         snapshot["baseState"]["draftOrders"] = json!(self.store.base.draft_orders.records.clone());
         snapshot["baseState"]["draftOrderOrder"] = json!(self.store.base.draft_orders.order);
         snapshot["baseState"]["draftOrderCountBaselines"] =
@@ -2473,6 +2479,19 @@ impl DraftProxy {
                     .cloned()
                     .collect()
             });
+        self.store.staged.observed_shipping_locations_complete = state["stagedState"]
+            .get("observedShippingLocationsComplete")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        self.store.staged.observed_shipping_locations_next_cursor =
+            if self.store.staged.observed_shipping_locations_complete {
+                None
+            } else {
+                state["stagedState"]
+                    .get("observedShippingLocationsNextCursor")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            };
         replace_staged_value_records(
             &mut self.store.staged.locations,
             &state["stagedState"],

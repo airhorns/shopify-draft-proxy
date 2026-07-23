@@ -577,6 +577,8 @@ struct StagedState {
     delivery_promise_participants: StagedRecords<Value>,
     observed_shipping_locations: BTreeMap<String, Value>,
     observed_shipping_location_order: Vec<String>,
+    observed_shipping_locations_complete: bool,
+    observed_shipping_locations_next_cursor: Option<String>,
     locations: StagedRecords<Value>,
     location_limit_reached: bool,
     delivery_customizations: StagedRecords<Value>,

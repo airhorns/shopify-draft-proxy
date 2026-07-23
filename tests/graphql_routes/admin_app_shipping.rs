@@ -11147,7 +11147,7 @@ fn delivery_profile_create_hydrates_unknown_location_before_validation() {
 }
 
 #[test]
-fn delivery_profile_location_validation_fallback_uses_small_catalog_probes() {
+fn delivery_profile_location_validation_fallback_paginates_beyond_first_three() {
     let location_id = "gid://shopify/Location/424242424249";
     let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
     let captured_calls = Arc::clone(&upstream_calls);
@@ -11168,18 +11168,35 @@ fn delivery_profile_location_validation_fallback_uses_small_catalog_probes() {
                 query.contains("locationsAvailableForDeliveryProfilesConnection"),
                 "unexpected upstream query {query}"
             );
-            assert!(
-                !query.contains("first: 250"),
-                "delivery profile location fallback must not request a broad catalog: {query}"
-            );
-            if query.contains("first: 1") {
+            assert!(query.contains("first: 250"));
+            assert!(query.contains("after: $after"));
+            assert!(query.contains("pageInfo { hasNextPage endCursor }"));
+            if body["variables"]["after"].is_null() {
                 return Response {
-                    status: 502,
+                    status: 200,
                     headers: Default::default(),
-                    body: json!({ "errors": [{ "message": "bounded miss" }] }),
+                    body: json!({
+                        "data": {
+                            "locationsAvailableForDeliveryProfilesConnection": {
+                                "nodes": [
+                                    { "id": "gid://shopify/Location/1", "name": "One" },
+                                    { "id": "gid://shopify/Location/2", "name": "Two" },
+                                    { "id": "gid://shopify/Location/3", "name": "Three" },
+                                    { "id": "gid://shopify/Location/4", "name": "Four" }
+                                ],
+                                "pageInfo": {
+                                    "hasNextPage": true,
+                                    "endCursor": "delivery-location-page-1"
+                                }
+                            }
+                        }
+                    }),
                 };
             }
-            assert!(query.contains("first: 2"));
+            assert_eq!(
+                body["variables"]["after"],
+                json!("delivery-location-page-1")
+            );
             Response {
                 status: 200,
                 headers: Default::default(),
@@ -11188,10 +11205,11 @@ fn delivery_profile_location_validation_fallback_uses_small_catalog_probes() {
                         "locationsAvailableForDeliveryProfilesConnection": {
                             "nodes": [{
                                 "id": location_id,
-                                "name": "Small fallback origin",
+                                "name": "Paginated fallback origin",
                                 "isActive": true,
                                 "isFulfillmentService": false
-                            }]
+                            }],
+                            "pageInfo": { "hasNextPage": false, "endCursor": location_id }
                         }
                     }
                 }),
@@ -11232,13 +11250,10 @@ fn delivery_profile_location_validation_fallback_uses_small_catalog_probes() {
     assert_eq!(
         profile.body["data"]["deliveryProfileCreate"]["profile"]["profileLocationGroups"][0]
             ["locationGroup"]["locations"]["nodes"],
-        json!([{ "id": location_id, "name": "Small fallback origin" }])
+        json!([{ "id": location_id, "name": "Paginated fallback origin" }])
     );
     let calls = upstream_calls.lock().unwrap();
     assert_eq!(calls.len(), 3);
-    assert!(calls.iter().all(|call| call["query"]
-        .as_str()
-        .is_some_and(|query| !query.contains("first: 250"))));
     assert_eq!(
         calls
             .iter()
@@ -11247,6 +11262,348 @@ fn delivery_profile_location_validation_fallback_uses_small_catalog_probes() {
                 .is_some_and(|query| query.contains("ShippingDeliveryProfileLocationNodesHydrate")))
             .count(),
         1
+    );
+    assert_eq!(
+        calls
+            .iter()
+            .filter(|call| call["query"].as_str().is_some_and(
+                |query| query.contains("locationsAvailableForDeliveryProfilesConnection")
+            ))
+            .map(|call| call["variables"]["after"].clone())
+            .collect::<Vec<_>>(),
+        vec![Value::Null, json!("delivery-location-page-1")]
+    );
+    assert!(calls.iter().all(|call| call["query"]
+        .as_str()
+        .is_some_and(|query| query.trim_start().starts_with("query"))));
+}
+
+#[test]
+fn delivery_profile_location_validation_keeps_authoritative_missing_user_error() {
+    let location_id = "gid://shopify/Location/424242424250";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            captured_calls.lock().unwrap().push(body.clone());
+            assert!(
+                body["query"].as_str().is_some_and(
+                    |query| query.contains("ShippingDeliveryProfileLocationNodesHydrate")
+                )
+            );
+            assert_eq!(body["variables"], json!({ "ids": [location_id] }));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "nodes": [null] } }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryProfileAuthoritativeMissingLocation($profile: DeliveryProfileInput!) {
+          deliveryProfileCreate(profile: $profile) {
+            profile { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "profile": {
+                "name": "Authoritative missing location",
+                "locationGroupsToCreate": [{ "locations": [location_id] }]
+            }
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"]["deliveryProfileCreate"],
+        json!({
+            "profile": null,
+            "userErrors": [{
+                "field": null,
+                "message": "The Location could not be found for this shop."
+            }]
+        })
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+    assert!(log_snapshot(&proxy)["entries"]
+        .as_array()
+        .unwrap()
+        .is_empty());
+}
+
+#[test]
+fn delivery_profile_location_validation_resumes_incomplete_catalog_without_false_missing() {
+    let location_id = "gid://shopify/Location/424242424251";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            let mut calls = captured_calls.lock().unwrap();
+            calls.push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("ShippingDeliveryProfileLocationNodesHydrate") {
+                return Response {
+                    status: 502,
+                    headers: Default::default(),
+                    body: json!({ "errors": [{ "message": "nodes unavailable" }] }),
+                };
+            }
+            assert!(query.contains("locationsAvailableForDeliveryProfilesConnection"));
+            assert!(query.contains("first: 250"));
+            if body["variables"]["after"].is_null() {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "locationsAvailableForDeliveryProfilesConnection": {
+                                "nodes": [{ "id": "gid://shopify/Location/1", "name": "One" }],
+                                "pageInfo": {
+                                    "hasNextPage": true,
+                                    "endCursor": "incomplete-location-page-1"
+                                }
+                            }
+                        }
+                    }),
+                };
+            }
+            assert_eq!(
+                body["variables"]["after"],
+                json!("incomplete-location-page-1")
+            );
+            let second_page_attempts = calls
+                .iter()
+                .filter(|call| call["variables"]["after"] == json!("incomplete-location-page-1"))
+                .count();
+            if second_page_attempts == 1 {
+                return Response {
+                    status: 502,
+                    headers: Default::default(),
+                    body: json!({ "errors": [{ "message": "page temporarily unavailable" }] }),
+                };
+            }
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "locationsAvailableForDeliveryProfilesConnection": {
+                            "nodes": [{
+                                "id": location_id,
+                                "name": "Resumed delivery location",
+                                "isActive": true,
+                                "isFulfillmentService": false
+                            }],
+                            "pageInfo": { "hasNextPage": false, "endCursor": location_id }
+                        }
+                    }
+                }),
+            }
+        });
+    let mutation = r#"
+        mutation DeliveryProfileResumedLocation($profile: DeliveryProfileInput!) {
+          deliveryProfileCreate(profile: $profile) {
+            profile {
+              id
+              profileLocationGroups {
+                locationGroup { locations(first: 5) { nodes { id name } } }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let variables = json!({
+        "profile": {
+            "name": "Resumable location lookup",
+            "locationGroupsToCreate": [{ "locations": [location_id] }]
+        }
+    });
+
+    let incomplete = proxy.process_request(json_graphql_request(mutation, variables.clone()));
+    assert_eq!(
+        incomplete.body["data"]["deliveryProfileCreate"],
+        Value::Null
+    );
+    assert_eq!(
+        incomplete.body["errors"][0]["message"],
+        json!("Unable to verify delivery profile locations")
+    );
+    assert!(log_snapshot(&proxy)["entries"]
+        .as_array()
+        .unwrap()
+        .is_empty());
+    let incomplete_state = proxy.process_request(request_with_body("GET", "/__meta/state", ""));
+    assert_eq!(
+        incomplete_state.body["stagedState"]["observedShippingLocationsNextCursor"],
+        json!("incomplete-location-page-1")
+    );
+    assert_ne!(
+        incomplete_state.body["stagedState"]["observedShippingLocationsComplete"],
+        json!(true)
+    );
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    assert_eq!(
+        dump.body["state"]["stagedState"]["observedShippingLocationsNextCursor"],
+        json!("incomplete-location-page-1")
+    );
+    let reset = proxy.process_request(request_with_body("POST", "/__meta/reset", ""));
+    assert_eq!(reset.status, 200);
+    let reset_state = proxy.process_request(request_with_body("GET", "/__meta/state", ""));
+    assert_eq!(
+        reset_state.body["stagedState"]["observedShippingLocationsNextCursor"],
+        Value::Null
+    );
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let resumed = proxy.process_request(json_graphql_request(mutation, variables));
+    assert_eq!(
+        resumed.body["data"]["deliveryProfileCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        resumed.body["data"]["deliveryProfileCreate"]["profile"]["profileLocationGroups"][0]
+            ["locationGroup"]["locations"]["nodes"],
+        json!([{ "id": location_id, "name": "Resumed delivery location" }])
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+
+    let calls = upstream_calls.lock().unwrap();
+    assert_eq!(
+        calls
+            .iter()
+            .filter(|call| call["variables"]["after"].is_null()
+                && call["query"].as_str().is_some_and(
+                    |query| query.contains("locationsAvailableForDeliveryProfilesConnection")
+                ))
+            .count(),
+        1,
+        "retry must resume after the last complete page"
+    );
+    assert!(calls.iter().all(|call| call["query"]
+        .as_str()
+        .is_some_and(|query| query.trim_start().starts_with("query"))));
+}
+
+#[test]
+fn delivery_profile_location_baseline_hydrates_beyond_250_once() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            captured_calls.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("StorePropertiesLocationLimitStatus") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "shop": { "resourceLimits": { "locationLimit": 500 } },
+                            "locations": {
+                                "nodes": [],
+                                "pageInfo": { "hasNextPage": false }
+                            }
+                        }
+                    }),
+                };
+            }
+            assert!(query.contains("ShippingDeliveryProfileLocationsHydrate"));
+            assert!(query.contains("first: 250"));
+            assert!(query.contains("after: $after"));
+            let after = &body["variables"]["after"];
+            if after.is_null() {
+                let nodes = (1..=250)
+                    .map(|index| {
+                        json!({
+                            "id": format!("gid://shopify/Location/{index}"),
+                            "name": format!("Delivery location {index}"),
+                            "isActive": true,
+                            "isFulfillmentService": false
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "locationsAvailableForDeliveryProfilesConnection": {
+                                "nodes": nodes,
+                                "pageInfo": {
+                                    "hasNextPage": true,
+                                    "endCursor": "delivery-location-250"
+                                }
+                            }
+                        }
+                    }),
+                };
+            }
+            assert_eq!(after, &json!("delivery-location-250"));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "locationsAvailableForDeliveryProfilesConnection": {
+                            "nodes": [{
+                                "id": "gid://shopify/Location/251",
+                                "name": "Delivery location 251",
+                                "isActive": true,
+                                "isFulfillmentService": false
+                            }],
+                            "pageInfo": { "hasNextPage": false, "endCursor": "delivery-location-251" }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let staged_location_id =
+        seed_delivery_profile_location(&mut proxy, "Staged non-eligible location");
+    assert!(staged_location_id.contains("shopify-draft-proxy=synthetic"));
+    let catalog_query = r#"
+        query DeliveryProfileLargeLocationCatalog {
+          locationsAvailableForDeliveryProfilesConnection(first: 300) {
+            nodes { id name }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+        }
+    "#;
+    let catalog = proxy.process_request(json_graphql_request(catalog_query, json!({})));
+
+    assert_eq!(catalog.status, 200);
+    assert_eq!(
+        catalog.body["data"]["locationsAvailableForDeliveryProfilesConnection"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        251
+    );
+    assert_eq!(
+        catalog.body["data"]["locationsAvailableForDeliveryProfilesConnection"]["nodes"][250]["id"],
+        json!("gid://shopify/Location/251")
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 3);
+
+    let cached = proxy.process_request(json_graphql_request(catalog_query, json!({})));
+    assert_eq!(cached.status, 200);
+    assert_eq!(upstream_calls.lock().unwrap().len(), 3);
+    let state = proxy.process_request(request_with_body("GET", "/__meta/state", ""));
+    assert_eq!(
+        state.body["stagedState"]["observedShippingLocationsComplete"],
+        json!(true)
     );
 }
 
