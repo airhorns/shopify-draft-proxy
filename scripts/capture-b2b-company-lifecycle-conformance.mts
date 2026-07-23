@@ -172,6 +172,24 @@ async function readRustQuery(name: string): Promise<string> {
 }
 
 const mutationTargetsHydrateDocument = await readRustQuery('B2B_MUTATION_TARGETS_HYDRATE_QUERY');
+const companyContactsWindowHydrateDocument = await readRustQuery('B2B_COMPANY_CONTACTS_WINDOW_HYDRATE_QUERY');
+
+function mutationTargetsHydrateVariables(ids: string[]): JsonRecord {
+  return {
+    ids,
+    includeCompanyLocationCardinality: false,
+    includeCompanyDeleteBlockers: false,
+    includeLocationDeleteBlockers: false,
+    includeContactCustomer: false,
+    includeCustomerContactProfiles: true,
+    includeContactRoleMembership: false,
+    includeLocationRoleMembership: false,
+    includeStaffAssignments: false,
+    includeAllContactAssignments: false,
+    roleMembershipLocationQuery: null,
+    roleMembershipContactQuery: null,
+  };
+}
 
 const companiesDeleteDocument = `#graphql
   mutation B2BCompanyLifecycleCompaniesDelete($companyIds: [ID!]!) {
@@ -263,9 +281,9 @@ function recordOperation(query: string, variables: JsonRecord, result: Conforman
   };
 }
 
-function recordUpstreamCall(operation: RecordedOperation): JsonRecord {
+function recordUpstreamCall(operation: RecordedOperation, operationName = 'B2BMutationTargetsHydrate'): JsonRecord {
   return {
-    operationName: 'B2BMutationTargetsHydrate',
+    operationName,
     variables: operation.request.variables,
     query: operation.request.query,
     response: {
@@ -407,29 +425,35 @@ try {
     'customerCreate setup for companyAssignCustomerAsContact',
   );
 
-  const hydrateAssignCompany = await runRequired(
+  const hydrateAssignPrerequisites = await runRequired(
     mutationTargetsHydrateDocument,
-    { ids: [mainCompanyId] },
+    mutationTargetsHydrateVariables([mainCompanyId, customerId]),
     'nodes',
-    'companyAssignCustomerAsContact company prerequisite hydrate',
-  );
-  const hydrateAssignCustomer = await runRequired(
-    mutationTargetsHydrateDocument,
-    { ids: [customerId] },
-    'nodes',
-    'companyAssignCustomerAsContact customer prerequisite hydrate',
+    'companyAssignCustomerAsContact batched prerequisite hydrate',
   );
   const hydrateMissingCompany = await runRequired(
     mutationTargetsHydrateDocument,
-    { ids: [missingCompanyId] },
+    mutationTargetsHydrateVariables([missingCompanyId, customerId]),
     'nodes',
     'companyAssignCustomerAsContact missing company prerequisite hydrate',
   );
   const hydrateMissingCustomer = await runRequired(
     mutationTargetsHydrateDocument,
-    { ids: [missingCustomerId] },
+    mutationTargetsHydrateVariables([mainCompanyId, missingCustomerId]),
     'nodes',
     'companyAssignCustomerAsContact missing customer prerequisite hydrate',
+  );
+  const hydrateBothMissing = await runRequired(
+    mutationTargetsHydrateDocument,
+    mutationTargetsHydrateVariables([missingCompanyId, missingCustomerId]),
+    'nodes',
+    'companyAssignCustomerAsContact both missing prerequisites hydrate',
+  );
+  const hydrateAssignCompanyContactsWindow = await runRequired(
+    companyContactsWindowHydrateDocument,
+    { id: mainCompanyId },
+    'company',
+    'companyAssignCustomerAsContact downstream company contacts window hydrate',
   );
 
   const missingCompanyAssign = await runExpectedUserError(
@@ -628,13 +652,14 @@ try {
     storeDomain,
     apiVersion,
     upstreamCalls: [
-      recordUpstreamCall(hydrateAssignCompany),
-      recordUpstreamCall(hydrateAssignCustomer),
+      recordUpstreamCall(hydrateAssignPrerequisites),
       recordUpstreamCall(hydrateMissingCompany),
       recordUpstreamCall(hydrateMissingCustomer),
+      recordUpstreamCall(hydrateBothMissing),
+      recordUpstreamCall(hydrateAssignCompanyContactsWindow, 'B2BCompanyContactsWindowHydrate'),
     ],
     intent: {
-      plan: 'Create disposable B2B companies and a customer; record cold company/customer prerequisite reads, missing-resource controls, customer-as-contact assignment and downstream reads, company update, main-contact assignment/revocation, wrong-company main-contact validation, main-contact delete clearing, bulk delete, explicit delete, and post-delete empty reads.',
+      plan: 'Create disposable B2B companies and a customer; record batched cold company/customer prerequisite reads, missing-resource controls, customer-as-contact assignment and downstream reads, company update, main-contact assignment/revocation, wrong-company main-contact validation, main-contact delete clearing, bulk delete, explicit delete, and post-delete empty reads.',
     },
     proxyVariables: {
       mainCompanyQuery,
@@ -642,10 +667,11 @@ try {
     companyCreate,
     companyUpdate,
     customerCreate,
-    hydrateAssignCompany,
-    hydrateAssignCustomer,
+    hydrateAssignPrerequisites,
     hydrateMissingCompany,
     hydrateMissingCustomer,
+    hydrateBothMissing,
+    hydrateAssignCompanyContactsWindow,
     missingCompanyAssign,
     missingCustomerAssign,
     bothMissingAssign,
