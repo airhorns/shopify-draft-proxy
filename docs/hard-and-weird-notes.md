@@ -876,9 +876,14 @@ Important live findings:
 - the refreshed happy-path fixture still has `paymentTerms: null`, but now that
   is a readable Shopify value for a draft with no payment terms set, not a
   field access failure
-- setting `input.paymentTerms` is a separate merchant permission branch: a
-  direct live probe on this host returned a `draftOrderCreate.userErrors[]`
-  message, `The user must have access to set payment terms.`
+- setting `input.paymentTerms` is now live-capturable on this host. A current
+  2025-01 disposable `draftOrderCreate` using
+  `gid://shopify/PaymentTermsTemplate/4` plus an issued-at schedule returned a
+  distinct `PaymentTerms` record (`Net 30`, `NET`, `dueInDays: 30`) with no
+  user errors; the immediate `draftOrder(id:)` read returned the same metadata.
+  The evidence is recorded in
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-order-create-payment-terms.json`.
+  Do not echo the input template GID as `DraftOrder.paymentTerms.id` locally.
 - once `draftOrderCreate` is treated as a supported staged write, do not accidentally limit that local behavior to `snapshot` mode only; in live-hybrid the proxy should still stage the supported create locally and short-circuit immediate `draftOrder(id:)` reads for the newly staged synthetic draft id instead of proxying those supported roots upstream
 
 ### Historical: `orderCreate` also has inline GraphQL-validation branches before Shopify reaches the offline-token gate

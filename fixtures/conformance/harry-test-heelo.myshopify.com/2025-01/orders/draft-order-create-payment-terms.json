@@ -1,0 +1,109 @@
+{
+  "scenarioId": "draftOrderCreate-payment-terms",
+  "capturedAt": "2026-07-23T13:53:44.002Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "source": "live-shopify-admin-graphql",
+  "notes": "Live merchant-facing draftOrderCreate with NET payment terms. Template 4 creates a distinct PaymentTerms record with Net 30 / NET / dueInDays 30, and the immediate draftOrder(id:) read preserves the same payment-terms metadata.",
+  "variables": {
+    "input": {
+      "lineItems": [
+        {
+          "title": "Draft order payment terms capture",
+          "quantity": 1,
+          "originalUnitPrice": "1.00"
+        }
+      ],
+      "paymentTerms": {
+        "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+        "paymentSchedules": [
+          {
+            "issuedAt": "2026-08-22T12:00:00Z"
+          }
+        ]
+      }
+    }
+  },
+  "mutation": {
+    "response": {
+      "data": {
+        "draftOrderCreate": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1284311417138",
+            "paymentTerms": {
+              "id": "gid://shopify/PaymentTerms/165991547186",
+              "dueInDays": 30,
+              "paymentTermsName": "Net 30",
+              "paymentTermsType": "NET",
+              "translatedName": "Net 30"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "read": {
+    "query": "query DraftOrderCreatePaymentTermsRead($id: ID!) {\n  draftOrder(id: $id) {\n    id\n    paymentTerms {\n      id\n      dueInDays\n      paymentTermsName\n      paymentTermsType\n      translatedName\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/DraftOrder/1284311417138"
+    },
+    "response": {
+      "data": {
+        "draftOrder": {
+          "id": "gid://shopify/DraftOrder/1284311417138",
+          "paymentTerms": {
+            "id": "gid://shopify/PaymentTerms/165991547186",
+            "dueInDays": 30,
+            "paymentTermsName": "Net 30",
+            "paymentTermsType": "NET",
+            "translatedName": "Net 30"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 2,
+          "actualQueryCost": 2,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1998,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "draftOrderDelete": {
+      "data": {
+        "draftOrderDelete": {
+          "deletedId": "gid://shopify/DraftOrder/1284311417138",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

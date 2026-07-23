@@ -1,0 +1,18 @@
+mutation DraftOrderCreatePaymentTerms($input: DraftOrderInput!) {
+  draftOrderCreate(input: $input) {
+    draftOrder {
+      id
+      paymentTerms {
+        id
+        dueInDays
+        paymentTermsName
+        paymentTermsType
+        translatedName
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

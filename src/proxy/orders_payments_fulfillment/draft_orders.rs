@@ -2018,6 +2018,22 @@ impl DraftProxy {
             &self.b2b_order_input_currency_default(input),
         );
         self.recalculate_draft_order_totals(&mut draft_order);
+        if let Some(payment_terms_attrs) = resolved_object_field(input, "paymentTerms") {
+            let payment_terms_id = shopify_gid("PaymentTerms", resource_id_tail(id));
+            let amount = draft_order["totalPriceSet"]["shopMoney"]["amount"]
+                .as_str()
+                .unwrap_or("0.0");
+            let currency = draft_order["totalPriceSet"]["shopMoney"]["currencyCode"]
+                .as_str()
+                .unwrap_or("CAD");
+            draft_order["paymentTerms"] = payment_terms_record_from_attrs(
+                &payment_terms_id,
+                &payment_terms_attrs,
+                amount,
+                currency,
+                self.current_epoch_seconds(),
+            );
+        }
         draft_order
     }
 

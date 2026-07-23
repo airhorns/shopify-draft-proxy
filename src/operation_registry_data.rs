@@ -607,7 +607,7 @@ pub(crate) fn default_registry_bindings() -> Vec<ExecutableRootRegistration> {
         entry!("draftOrdersCount", Query, Orders, DraftProxy::orders_query_root, ["tests/graphql_routes.rs"]),
         unimplemented_entry!("draftOrderAvailableDeliveryOptions", Query, Orders, []),
         unimplemented_entry!("draftOrderTag", Query, Orders, []),
-        entry!("draftOrderCreate", Mutation, Orders, DraftProxy::orders_mutation_root, []),
+        entry!("draftOrderCreate", Mutation, Orders, DraftProxy::orders_mutation_root, ["tests/graphql_routes/orders.rs"]),
         entry!("draftOrderComplete", Mutation, Orders, DraftProxy::orders_mutation_root, []),
         entry!("draftOrderUpdate", Mutation, Orders, DraftProxy::orders_mutation_root, ["tests/graphql_routes.rs"]),
         entry!("draftOrderDuplicate", Mutation, Orders, DraftProxy::orders_mutation_root, ["tests/graphql_routes.rs"]),
