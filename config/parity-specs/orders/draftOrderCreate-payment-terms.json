@@ -1,0 +1,53 @@
+{
+  "scenarioId": "draft-order-create-payment-terms",
+  "operationNames": ["draftOrderCreate", "draftOrder"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "downstream-read-parity"],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-order-create-payment-terms.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/draftOrderCreate-payment-terms.graphql",
+    "variablesCapturePath": "$.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify 2025-01 capture for draftOrderCreate with NET payment terms. The input's PaymentTermsTemplate is not returned as the created payment-terms ID: Shopify materializes a distinct PaymentTerms record with Net 30 / NET / dueInDays 30, and the immediate draftOrder(id:) read keeps that metadata.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.id",
+        "matcher": "shopify-gid:DraftOrder",
+        "reason": "Live Shopify and the local proxy allocate different draft-order IDs."
+      },
+      {
+        "path": "$.paymentTerms.id",
+        "matcher": "shopify-gid:PaymentTerms",
+        "reason": "Live Shopify and the local proxy allocate different payment-terms IDs while preserving template-derived metadata."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-draft-order-payment-terms",
+        "capturePath": "$.mutation.response.data.draftOrderCreate.draftOrder",
+        "proxyPath": "$.data.draftOrderCreate.draftOrder"
+      },
+      {
+        "name": "read-after-write-draft-order-payment-terms",
+        "capturePath": "$.read.response.data.draftOrder",
+        "proxyPath": "$.data.draftOrder",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderCreate-payment-terms-read.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

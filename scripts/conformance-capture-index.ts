@@ -9002,6 +9002,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'draft-order-create-payment-terms',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-draft-order-create-payment-terms-conformance.ts',
+    purpose:
+      'Merchant-facing draftOrderCreate with a NET payment-terms input and immediate draftOrder read-after-write.',
+    requiredAuthScopes: ['read_draft_orders', 'write_draft_orders', 'read_payment_terms'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-order-create-payment-terms.json',
+      'config/parity-specs/orders/draftOrderCreate-payment-terms.json',
+      'config/parity-requests/orders/draftOrderCreate-payment-terms.graphql',
+      'config/parity-requests/orders/draftOrderCreate-payment-terms-read.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable draft order with payment terms, reads it, then deletes the draft.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'fulfillment-unknown-not-found',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-fulfillment-unknown-not-found-conformance.mts',

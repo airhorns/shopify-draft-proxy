@@ -1,0 +1,12 @@
+query DraftOrderCreatePaymentTermsRead($id: ID!) {
+  draftOrder(id: $id) {
+    id
+    paymentTerms {
+      id
+      dueInDays
+      paymentTermsName
+      paymentTermsType
+      translatedName
+    }
+  }
+}

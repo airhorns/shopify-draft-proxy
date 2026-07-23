@@ -63,6 +63,17 @@ describe('conformance capture index', () => {
     expect(markdown).not.toContain('## customers');
   });
 
+  it('renders the recorded API version for the draft-order payment-terms capture command', () => {
+    const entry = conformanceCaptureIndex.find(
+      (candidate) => candidate.captureId === 'draft-order-create-payment-terms',
+    );
+
+    expect(entry).toBeDefined();
+    expect(renderCaptureIndexMarkdown([entry!])).toContain(
+      'SHOPIFY_CONFORMANCE_API_VERSION=2025-01 corepack pnpm exec tsx ./scripts/capture-draft-order-create-payment-terms-conformance.ts',
+    );
+  });
+
   it('enforces recorder-declared outputs for every checked-in live Shopify fixture', () => {
     const profile = profileConformanceFixtureProvenance(repoRoot);
 

@@ -9682,6 +9682,85 @@ fn draft_order_create_reserve_inventory_until_uses_proxy_clock_boundary() {
 }
 
 #[test]
+fn draft_order_create_materializes_payment_terms_for_mutation_and_downstream_read() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDraftWithPaymentTerms($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder {
+              id
+              paymentTerms {
+                id
+                dueInDays
+                paymentTermsName
+                paymentTermsType
+                translatedName
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "lineItems": [{
+                    "title": "Payment terms draft",
+                    "quantity": 1,
+                    "originalUnitPrice": "1.00"
+                }],
+                "paymentTerms": {
+                    "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+                    "paymentSchedules": [{ "issuedAt": "2030-07-23T00:00:00Z" }]
+                }
+            }
+        }),
+    ));
+
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    let draft_order = &create.body["data"]["draftOrderCreate"]["draftOrder"];
+    let payment_terms = &draft_order["paymentTerms"];
+    assert!(payment_terms["id"]
+        .as_str()
+        .is_some_and(|id| id.starts_with("gid://shopify/PaymentTerms/")));
+    assert_ne!(
+        payment_terms["id"],
+        json!("gid://shopify/PaymentTermsTemplate/4")
+    );
+    assert_eq!(payment_terms["dueInDays"], json!(30));
+    assert_eq!(payment_terms["paymentTermsName"], json!("Net 30"));
+    assert_eq!(payment_terms["paymentTermsType"], json!("NET"));
+    assert_eq!(payment_terms["translatedName"], json!("Net 30"));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadCreatedDraftPaymentTerms($id: ID!) {
+          draftOrder(id: $id) {
+            paymentTerms {
+              id
+              dueInDays
+              paymentTermsName
+              paymentTermsType
+              translatedName
+            }
+          }
+        }
+        "#,
+        json!({ "id": draft_order["id"] }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["draftOrder"]["paymentTerms"],
+        payment_terms.clone()
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+}
+
+#[test]
 fn draft_orders_count_applies_query_filter_like_connection() {
     let mut proxy = snapshot_proxy();
 
@@ -18559,7 +18638,10 @@ fn draft_order_complete_uses_payment_terms_as_implicit_pending_unless_overridden
         "terms-implicit-completion@example.test",
         true,
     );
-    assert_eq!(
+    assert!(terms_draft["paymentTerms"]["id"]
+        .as_str()
+        .is_some_and(|id| id.starts_with("gid://shopify/PaymentTerms/")));
+    assert_ne!(
         terms_draft["paymentTerms"]["id"],
         json!("gid://shopify/PaymentTermsTemplate/4")
     );
