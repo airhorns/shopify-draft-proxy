@@ -4,30 +4,32 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/media/file-delete-product-media-parity.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/media/media-file-mutation-first-lifecycle.json"
   ],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/media/fileDelete-parity.graphql",
+    "documentPath": "config/parity-requests/media/media-file-mutation-first-delete.graphql",
     "variablesPath": null,
-    "variablesCapturePath": "$.mutation.variables"
+    "variablesCapturePath": "$.delete.variables",
+    "apiVersion": "2025-01"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captured generic Files API `fileDelete` against a MediaImage that was first attached to a product through `productCreateMedia`; Shopify removes the associated `product.media` node from immediate downstream reads.",
+  "notes": "Fresh live Shopify 2025-01 capture of mutation-first `fileDelete` against an unobserved MediaImage attached through `productCreateMedia`. The cassette records the runtime's exact target and complete-owner read queries, and Shopify removes the associated `product.media` node from the immediate downstream read.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "mutation-data",
-        "capturePath": "$.mutation.response.data",
+        "name": "mutation-first-delete-hydrates-unobserved-real-file",
+        "capturePath": "$.delete.response.data",
         "proxyPath": "$.data"
       },
       {
-        "name": "downstream-read-data",
-        "capturePath": "$.downstreamRead.data",
+        "name": "file-delete-removes-product-media-association",
+        "capturePath": "$.downstreamRead.response.data",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/media/fileDelete-product-media-downstream-read.graphql",
-          "variablesCapturePath": "$.setup.productCreate.response.data.productCreate.product"
+          "documentPath": "config/parity-requests/media/media-file-mutation-first-downstream.graphql",
+          "variablesCapturePath": "$.downstreamRead.variables",
+          "apiVersion": "2025-01"
         },
         "proxyPath": "$.data"
       }

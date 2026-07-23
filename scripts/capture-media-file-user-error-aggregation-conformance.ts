@@ -152,46 +152,21 @@ const fileReadQuery = `#graphql
   }
 `;
 
-const mediaFileReferencesHydrateQuery = `query MediaFileReferencesHydrate($fileIds: [ID!]!) {
+const mediaFileTargetHydrateQuery = `query MediaFileTargetHydrate($fileIds: [ID!]!) {
   nodes(ids: $fileIds) {
     id
     __typename
-    ... on MediaImage {
+    ... on File {
       alt
+      createdAt
       fileStatus
-      mediaContentType
-      status
-      preview { image { url width height } }
+    }
+    ... on MediaImage {
       image { url width height }
-      references(first: 50) {
-        nodes {
-          ... on Product {
-            id
-            title
-            handle
-            status
-            media(first: 50) {
-              nodes {
-                id
-                __typename
-                alt
-                fileStatus
-                mediaContentType
-                status
-                preview { image { url width height } }
-                ... on MediaImage { image { url width height } }
-              }
-            }
-            variants(first: 50) {
-              nodes {
-                id
-                title
-                media(first: 10) { nodes { id alt mediaContentType } }
-              }
-            }
-          }
-        }
-      }
+      preview { image { url width height } }
+    }
+    ... on GenericFile {
+      url
     }
   }
 }`;
@@ -304,6 +279,7 @@ const nonReadyCreateVariables = {
 };
 const missingDeleteFileIds = ['gid://shopify/MediaImage/900000000000001', 'gid://shopify/MediaImage/900000000000002'];
 const missingUpdateFileIds = ['gid://shopify/MediaImage/900000000000003', 'gid://shopify/MediaImage/900000000000004'];
+const missingAcknowledgeFileId = 'gid://shopify/MediaImage/900000000000005';
 const fileDeleteMissingVariables = { fileIds: missingDeleteFileIds };
 const fileUpdateMissingVariables = {
   files: [
@@ -315,10 +291,13 @@ const fileUpdateMissingVariables = {
 let createdFileIds: string[] = [];
 
 try {
-  const mediaFileReferencesHydrate = await recordUpstreamCall(
-    'MediaFileReferencesHydrate',
-    mediaFileReferencesHydrateQuery,
-    { fileIds: missingDeleteFileIds },
+  const mediaFileDeleteTargetHydrate = await recordUpstreamCall('MediaFileTargetHydrate', mediaFileTargetHydrateQuery, {
+    fileIds: missingDeleteFileIds,
+  });
+  const mediaFileAcknowledgeTargetHydrate = await recordUpstreamCall(
+    'MediaFileTargetHydrate',
+    mediaFileTargetHydrateQuery,
+    { fileIds: [missingAcknowledgeFileId] },
   );
   const mediaFileUpdateHydrate = await recordUpstreamCall('MediaFileUpdateHydrate', mediaFileUpdateHydrateQuery, {
     fileIds: missingUpdateFileIds,
@@ -349,7 +328,7 @@ try {
   );
 
   const fileAcknowledgeMixedVariables = {
-    fileIds: ['gid://shopify/MediaImage/900000000000005', createdFileIds[0]],
+    fileIds: [missingAcknowledgeFileId, createdFileIds[0]],
   };
   const fileAcknowledgeMixed = await runGraphql<FileAcknowledgeData>(
     fileAcknowledgeMutation,
@@ -404,7 +383,7 @@ try {
         response: fileAcknowledgeNonReady,
       },
     },
-    upstreamCalls: [mediaFileReferencesHydrate, mediaFileUpdateHydrate],
+    upstreamCalls: [mediaFileDeleteTargetHydrate, mediaFileAcknowledgeTargetHydrate, mediaFileUpdateHydrate],
   };
 
   await mkdir(outputDir, { recursive: true });

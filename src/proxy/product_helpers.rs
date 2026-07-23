@@ -950,8 +950,16 @@ impl DraftProxy {
             "products" | "productsCount" => true,
             "product" => {
                 let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                id.is_empty()
-                    || (!self.store.has_product(&id) && !self.store.product_is_tombstoned(&id))
+                if self.has_deleted_media_files() && !id.is_empty() {
+                    // fileDelete keeps an authoritative file tombstone. Route a
+                    // cold singular owner through the local callback so it can
+                    // hydrate every media/variant page and apply that tombstone
+                    // instead of returning Shopify's still-undeleted base row.
+                    false
+                } else {
+                    id.is_empty()
+                        || (!self.store.has_product(&id) && !self.store.product_is_tombstoned(&id))
+                }
             }
             "productByIdentifier" => !self.product_identifier_has_local_answer(field),
             _ => false,
@@ -1071,6 +1079,16 @@ impl DraftProxy {
             .get("id")
             .and_then(Value::as_str)
             .unwrap_or_default();
+        let media_hydration_attempted = self.config.read_mode == ReadMode::LiveHybrid
+            && self.has_deleted_media_files()
+            && !id.is_empty()
+            && self.store.product_variant_by_id(id).is_none()
+            && !self.store.product_variants.staged.is_tombstoned(id);
+        if media_hydration_attempted {
+            if let Err(error) = self.hydrate_complete_media_variant(invocation.request, id) {
+                return ResolverOutcome::error(error);
+            }
+        }
         let owner_metafield_catalog_active = self
             .store
             .staged
@@ -1091,7 +1109,8 @@ impl DraftProxy {
             || self
                 .execution_session
                 .owner_metafield_hydrated_ids
-                .contains(id);
+                .contains(id)
+            || media_hydration_attempted;
         if self.config.read_mode == ReadMode::Live
             || (self.config.read_mode == ReadMode::LiveHybrid && !has_local_answer)
         {
@@ -1127,6 +1146,18 @@ impl DraftProxy {
             .get("id")
             .and_then(Value::as_str)
             .unwrap_or_default();
+        if self.config.read_mode == ReadMode::LiveHybrid
+            && self.has_deleted_media_files()
+            && !id.is_empty()
+            && !self.store.has_product(id)
+            && !self.store.product_is_tombstoned(id)
+        {
+            if let Err(error) =
+                self.hydrate_complete_media_products(invocation.request, &[id.to_string()])
+            {
+                return ResolverOutcome::error(error);
+            }
+        }
         let owner_metafield_catalog_active = self
             .store
             .staged
@@ -3475,20 +3506,29 @@ pub(in crate::proxy) fn variant_attached_media_nodes(
     variant: &ProductVariantRecord,
     product: Option<&ProductRecord>,
 ) -> Vec<Value> {
-    match product {
-        Some(product) => variant
-            .media_ids
-            .iter()
-            .filter_map(|media_id| {
-                product
-                    .media
-                    .iter()
-                    .find(|node| node.get("id").and_then(Value::as_str) == Some(media_id.as_str()))
-                    .cloned()
-            })
-            .collect(),
-        None => Vec::new(),
-    }
+    let embedded = variant
+        .extra_fields
+        .get("media")
+        .map(connection_nodes)
+        .unwrap_or_default();
+    variant
+        .media_ids
+        .iter()
+        .filter_map(|media_id| {
+            product
+                .and_then(|product| {
+                    product.media.iter().find(|node| {
+                        node.get("id").and_then(Value::as_str) == Some(media_id.as_str())
+                    })
+                })
+                .or_else(|| {
+                    embedded.iter().find(|node| {
+                        node.get("id").and_then(Value::as_str) == Some(media_id.as_str())
+                    })
+                })
+                .cloned()
+        })
+        .collect()
 }
 
 fn product_media_connection_value(

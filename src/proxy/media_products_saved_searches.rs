@@ -7,6 +7,7 @@ mod owner_metafields;
 pub(in crate::proxy) use self::bulk_operations::bulk_operation_field_resolver_type_policies;
 pub(in crate::proxy) use self::media::{
     media_field_resolver_registrations, media_field_resolver_type_policies,
+    remove_media_ids_from_observed_product,
 };
 pub(in crate::proxy) use self::owner_metafields::{
     list_reference_ids, owner_metafield_field_resolver_registrations, scalar_reference_id,

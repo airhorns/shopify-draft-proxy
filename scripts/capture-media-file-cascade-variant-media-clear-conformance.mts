@@ -87,17 +87,116 @@ type ProductVariantMediaReadData = {
     };
   } | null;
 };
+type RecordedUpstreamCall = {
+  operationName: string;
+  variables: GraphqlVariables;
+  query: string;
+  response: {
+    status: number;
+    body: GraphqlPayload<unknown>;
+  };
+};
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'media');
-const { runGraphql } = createAdminGraphqlClient({
+const { runGraphql, runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
 }) as {
   runGraphql: <TData>(query: string, variables?: GraphqlVariables) => Promise<GraphqlPayload<TData>>;
+  runGraphqlRequest: <TData>(
+    query: string,
+    variables?: GraphqlVariables,
+  ) => Promise<{ status: number; payload: GraphqlPayload<TData> }>;
 };
+
+const mediaFileTargetHydrateQuery = `query MediaFileTargetHydrate($fileIds: [ID!]!) {
+  nodes(ids: $fileIds) {
+    id
+    __typename
+    ... on File {
+      alt
+      createdAt
+      fileStatus
+    }
+    ... on MediaImage {
+      image { url width height }
+      preview { image { url width height } }
+    }
+    ... on GenericFile {
+      url
+    }
+  }
+}`;
+
+const mediaFileUpdateHydrateQuery = `query MediaFileUpdateHydrate($fileIds: [ID!]!) {
+  nodes(ids: $fileIds) {
+    id
+    __typename
+    ... on File {
+      alt
+      createdAt
+      fileStatus
+    }
+    ... on MediaImage {
+      image { url width height }
+      preview { image { url width height } }
+    }
+    ... on GenericFile {
+      url
+    }
+  }
+}`;
+
+const mediaProductHydrateQuery = `query MediaProductHydrate($id: ID!) {
+  product(id: $id) {
+    id
+    title
+    handle
+    status
+    media(first: 50) {
+      nodes {
+        id
+        alt
+        mediaContentType
+        status
+        preview { image { url width height } }
+        ... on MediaImage { image { url width height } }
+      }
+    }
+    variants(first: 50) {
+      nodes {
+        id
+        title
+        media(first: 10) { nodes { id } }
+      }
+    }
+  }
+}`;
+
+const mediaVariantOwnerHydrateQuery = `query MediaVariantOwnerHydrate($id: ID!) {
+  node(id: $id) {
+    ... on ProductVariant {
+      id
+      title
+      product { id }
+      media(first: 10) {
+        nodes {
+          id
+          __typename
+          alt
+          mediaContentType
+          status
+          preview { image { url width height } }
+          ... on MediaImage { image { url width height } }
+        }
+        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+      }
+    }
+  }
+}`;
 
 const productCreateMutation = `#graphql
   mutation MediaFileCascadeProductCreate($product: ProductCreateInput!) {
@@ -296,6 +395,25 @@ function requireId(pathLabel: string, id: string | null | undefined): string {
   throw new Error(`${pathLabel} did not return an id.`);
 }
 
+async function recordUpstreamCall(
+  operationName: string,
+  query: string,
+  variables: GraphqlVariables,
+): Promise<RecordedUpstreamCall> {
+  const response = await runGraphqlRequest<unknown>(query, variables);
+  if (response.status < 200 || response.status >= 300 || response.payload.errors !== undefined) {
+    throw new Error(
+      `${operationName} failed during capture: HTTP ${response.status} ${JSON.stringify(response.payload, null, 2)}`,
+    );
+  }
+  return {
+    operationName,
+    variables,
+    query,
+    response: { status: response.status, body: response.payload },
+  };
+}
+
 function productCreateVariables(label: string, runId: string): GraphqlVariables {
   return {
     product: {
@@ -401,76 +519,6 @@ async function createProductWithVariantMedia(
   };
 }
 
-function productNodeForHydrate(
-  setup: Awaited<ReturnType<typeof createProductWithVariantMedia>>,
-): Record<string, unknown> {
-  const product = setup.productCreate.response.data?.productCreate?.product;
-  const variant = product?.variants?.nodes?.[0];
-  return {
-    id: setup.productId,
-    title: product?.title ?? 'Media cascade product',
-    handle: `media-cascade-${setup.productId.split('/').pop() ?? 'product'}`,
-    status: 'DRAFT',
-    media: {
-      nodes: [setup.fileReadBeforeCascade.response.data?.node],
-    },
-    variants: {
-      nodes: [
-        {
-          id: setup.variantId,
-          title: variant?.title ?? 'Default Title',
-          media: {
-            nodes: setup.variantReadBeforeCascade.response.data?.productVariant?.media?.nodes ?? [],
-          },
-        },
-      ],
-    },
-  };
-}
-
-function mediaFileReferencesHydrateCall(
-  setup: Awaited<ReturnType<typeof createProductWithVariantMedia>>,
-): Record<string, unknown> {
-  return {
-    operationName: 'MediaFileReferencesHydrate',
-    variables: { fileIds: [setup.mediaId] },
-    query: 'hand-synthesized from live media cascade setup capture',
-    response: {
-      status: 200,
-      body: {
-        data: {
-          nodes: [
-            {
-              ...setup.fileReadBeforeCascade.response.data?.node,
-              references: {
-                nodes: [productNodeForHydrate(setup)],
-              },
-            },
-          ],
-        },
-      },
-    },
-  };
-}
-
-function mediaProductHydrateCall(
-  setup: Awaited<ReturnType<typeof createProductWithVariantMedia>>,
-): Record<string, unknown> {
-  return {
-    operationName: 'MediaProductHydrate',
-    variables: { id: setup.productId },
-    query: 'hand-synthesized from live media cascade setup capture',
-    response: {
-      status: 200,
-      body: {
-        data: {
-          product: productNodeForHydrate(setup),
-        },
-      },
-    },
-  };
-}
-
 async function cleanupProduct(productId: string): Promise<GraphqlPayload<ProductDeleteData>> {
   return runGraphql<ProductDeleteData>(productDeleteMutation, { input: { id: productId } });
 }
@@ -488,6 +536,12 @@ const cleanupFileIds: string[] = [];
 try {
   const deleteSetup = await createProductWithVariantMedia('delete', runId);
   productIds.push(deleteSetup.productId);
+  const deleteTargetHydrate = await recordUpstreamCall('MediaFileTargetHydrate', mediaFileTargetHydrateQuery, {
+    fileIds: [deleteSetup.mediaId],
+  });
+  const deleteVariantHydrate = await recordUpstreamCall('MediaVariantOwnerHydrate', mediaVariantOwnerHydrateQuery, {
+    id: deleteSetup.variantId,
+  });
   const deleteVariables = { fileIds: [deleteSetup.mediaId] };
   const deleteResponse = await runGraphql<FileDeleteData>(fileDeleteMutation, deleteVariables);
   expectNoUserErrors('fileDelete cascade', deleteResponse.data?.fileDelete?.userErrors);
@@ -500,6 +554,12 @@ try {
   const updateSetup = await createProductWithVariantMedia('update-detach', runId);
   productIds.push(updateSetup.productId);
   cleanupFileIds.push(updateSetup.mediaId);
+  const updateProductHydrate = await recordUpstreamCall('MediaProductHydrate', mediaProductHydrateQuery, {
+    id: updateSetup.productId,
+  });
+  const updateTargetHydrate = await recordUpstreamCall('MediaFileUpdateHydrate', mediaFileUpdateHydrateQuery, {
+    fileIds: [updateSetup.mediaId],
+  });
   const updateVariables = {
     files: [{ id: updateSetup.mediaId, referencesToRemove: [updateSetup.productId] }],
   };
@@ -536,7 +596,7 @@ try {
         response: updateDownstreamRead,
       },
     },
-    upstreamCalls: [mediaFileReferencesHydrateCall(deleteSetup), mediaProductHydrateCall(updateSetup)],
+    upstreamCalls: [deleteTargetHydrate, deleteVariantHydrate, updateProductHydrate, updateTargetHydrate],
   };
 
   await writeFile(
