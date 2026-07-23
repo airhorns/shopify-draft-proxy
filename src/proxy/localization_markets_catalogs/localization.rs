@@ -199,9 +199,16 @@ impl DraftProxy {
             arguments: resolved_arguments_from_json(&arguments),
         };
         self.localization_mutation_preflight(&input, request);
-        ResolverOutcome::value(self.localization_mutation_value(&input)).with_log_draft(
-            LogDraft::staged(root_name, "localization", vec![response_key.to_string()]),
-        )
+        let result = self.localization_mutation_value(&input);
+        let mut outcome = ResolverOutcome::value(result.value);
+        if result.staged {
+            outcome = outcome.with_log_draft(LogDraft::staged(
+                root_name,
+                "localization",
+                vec![response_key.to_string()],
+            ));
+        }
+        outcome
     }
 
     pub(in crate::proxy) fn preflight_localization_markets_context(
@@ -285,14 +292,17 @@ impl DraftProxy {
         }
     }
 
-    fn localization_mutation_value(&mut self, input: &LocalizationMutationInput) -> Value {
+    fn localization_mutation_value(
+        &mut self,
+        input: &LocalizationMutationInput,
+    ) -> LocalMutationResult {
         match input.name.as_str() {
             "shopLocaleEnable" => self.shop_locale_enable_response(input),
             "shopLocaleUpdate" => self.shop_locale_update_response(input),
             "shopLocaleDisable" => self.shop_locale_disable_response(input),
             "translationsRegister" => self.localization_register_response(input),
             "translationsRemove" => self.localization_remove_response(input),
-            _ => Value::Null,
+            _ => LocalMutationResult::no_stage(Value::Null),
         }
     }
 
@@ -376,16 +386,28 @@ impl DraftProxy {
         locales
     }
 
-    fn shop_locale_enable_response(&mut self, input: &LocalizationMutationInput) -> Value {
+    fn shop_locale_enable_response(
+        &mut self,
+        input: &LocalizationMutationInput,
+    ) -> LocalMutationResult {
         let locale =
             resolved_string_field(&input.arguments, "locale").unwrap_or_else(|| "fr".to_string());
         let primary_locale = self.localization_primary_locale();
         if locale == primary_locale {
-            shop_locale_payload_error("shopLocale", PRIMARY_LOCALE_CHANGE_MESSAGE)
+            LocalMutationResult::no_stage(shop_locale_payload_error(
+                "shopLocale",
+                PRIMARY_LOCALE_CHANGE_MESSAGE,
+            ))
         } else if self.localization_available_locale_name(&locale).is_none() {
-            shop_locale_payload_error("shopLocale", "Locale is invalid")
+            LocalMutationResult::no_stage(shop_locale_payload_error(
+                "shopLocale",
+                "Locale is invalid",
+            ))
         } else if self.localization_shop_locale_added(&locale) {
-            shop_locale_payload_error("shopLocale", "Locale has already been taken")
+            LocalMutationResult::no_stage(shop_locale_payload_error(
+                "shopLocale",
+                "Locale has already been taken",
+            ))
         } else if self
             .localization_shop_locales(None)
             .iter()
@@ -393,13 +415,13 @@ impl DraftProxy {
             .count()
             >= 20
         {
-            payload_user_error(
+            LocalMutationResult::no_stage(payload_user_error(
                 "shopLocale",
                 user_error_omit_code(Value::Null, &format!(
                         "Your store has reached its 20 language limit. To add {}, delete one of your other languages.",
                         self.localization_available_locale_name(&locale).unwrap_or(locale.as_str())
                     ), None),
-            )
+            ))
         } else {
             let name = self
                 .localization_available_locale_name(&locale)
@@ -422,11 +444,14 @@ impl DraftProxy {
                 .shop_locales
                 .insert(locale.clone(), record.clone());
             self.sync_web_presence_locales(&locale, &target_web_presence_ids, false);
-            json!({ "shopLocale": record, "userErrors": [] })
+            LocalMutationResult::staged(json!({ "shopLocale": record, "userErrors": [] }))
         }
     }
 
-    fn shop_locale_update_response(&mut self, input: &LocalizationMutationInput) -> Value {
+    fn shop_locale_update_response(
+        &mut self,
+        input: &LocalizationMutationInput,
+    ) -> LocalMutationResult {
         let locale =
             resolved_string_field(&input.arguments, "locale").unwrap_or_else(|| "fr".to_string());
         let shop_locale = resolved_object_field(&input.arguments, "shopLocale").unwrap_or_default();
@@ -435,12 +460,18 @@ impl DraftProxy {
         let primary_locale = self.localization_primary_locale();
 
         if locale == primary_locale && published.is_some() {
-            return shop_locale_payload_error("shopLocale", PRIMARY_LOCALE_CHANGE_MESSAGE);
+            return LocalMutationResult::no_stage(shop_locale_payload_error(
+                "shopLocale",
+                PRIMARY_LOCALE_CHANGE_MESSAGE,
+            ));
         }
 
         let locale_exists = self.localization_shop_locale_added(&locale);
         if !locale_exists && published.is_some() {
-            return shop_locale_payload_error("shopLocale", "The locale doesn't exist.");
+            return LocalMutationResult::no_stage(shop_locale_payload_error(
+                "shopLocale",
+                "The locale doesn't exist.",
+            ));
         }
 
         let mut record = self
@@ -472,13 +503,18 @@ impl DraftProxy {
             );
             self.sync_web_presence_locales(&locale, &target_web_presence_ids, true);
         }
-        if locale != primary_locale {
+        let staged = locale != primary_locale;
+        if staged {
             self.store
                 .staged
                 .shop_locales
                 .insert(locale, record.clone());
         }
-        json!({ "shopLocale": record, "userErrors": [] })
+        if staged {
+            LocalMutationResult::staged(json!({ "shopLocale": record, "userErrors": [] }))
+        } else {
+            LocalMutationResult::no_stage(json!({ "shopLocale": record, "userErrors": [] }))
+        }
     }
 
     fn known_market_web_presence_ids(&self, ids: Vec<String>) -> Vec<String> {
@@ -511,14 +547,23 @@ impl DraftProxy {
             .unwrap_or_else(|| self.localization_primary_locale())
     }
 
-    fn shop_locale_disable_response(&mut self, input: &LocalizationMutationInput) -> Value {
+    fn shop_locale_disable_response(
+        &mut self,
+        input: &LocalizationMutationInput,
+    ) -> LocalMutationResult {
         let locale =
             resolved_string_field(&input.arguments, "locale").unwrap_or_else(|| "fr".to_string());
         let primary_locale = self.localization_primary_locale();
         if locale == primary_locale {
-            shop_locale_payload_error("locale", PRIMARY_LOCALE_CHANGE_MESSAGE)
+            LocalMutationResult::no_stage(shop_locale_payload_error(
+                "locale",
+                PRIMARY_LOCALE_CHANGE_MESSAGE,
+            ))
         } else if !self.store.staged.shop_locales.contains_key(&locale) {
-            shop_locale_payload_error("locale", "The locale doesn't exist.")
+            LocalMutationResult::no_stage(shop_locale_payload_error(
+                "locale",
+                "The locale doesn't exist.",
+            ))
         } else {
             self.store.staged.shop_locales.remove(&locale);
             self.store
@@ -526,7 +571,7 @@ impl DraftProxy {
                 .localization_translations
                 .retain(|translation| translation["locale"] != json!(locale));
             self.store.staged.localization_dirty = true;
-            json!({ "locale": locale, "userErrors": [] })
+            LocalMutationResult::staged(json!({ "locale": locale, "userErrors": [] }))
         }
     }
 
@@ -703,28 +748,28 @@ impl DraftProxy {
     pub(in crate::proxy) fn market_localization_mutation_value(
         &mut self,
         field: &MarketsRootInput,
-    ) -> Value {
+    ) -> LocalMutationResult {
         match field.name.as_str() {
             "marketLocalizationsRegister" => self.market_localizations_register_response(field),
             "marketLocalizationsRemove" => self.market_localizations_remove_response(field),
-            _ => Value::Null,
+            _ => LocalMutationResult::no_stage(Value::Null),
         }
     }
 
     pub(in crate::proxy) fn market_localizations_register_response(
         &mut self,
         field: &MarketsRootInput,
-    ) -> Value {
+    ) -> LocalMutationResult {
         let resource_id = resolved_string_field(&field.arguments, "resourceId").unwrap_or_default();
         let localizations = resolved_list_arg(&field.arguments, "marketLocalizations");
         // 1. Per-mutation key cap fires before resource existence (matches live Shopify).
         if localizations.len() > 100 {
-            return selected_market_localization_error(
+            return LocalMutationResult::no_stage(selected_market_localization_error(
                 field,
                 vec!["resourceId"],
                 "TOO_MANY_KEYS_FOR_RESOURCE",
                 "Too many keys for resource - maximum 100 per mutation",
-            );
+            ));
         }
         // 2. The resource must have been observed (cold read / mutation preflight).
         let Some(content) = self
@@ -734,12 +779,12 @@ impl DraftProxy {
             .get(&resource_id)
             .cloned()
         else {
-            return selected_market_localization_error(
+            return LocalMutationResult::no_stage(selected_market_localization_error(
                 field,
                 vec!["resourceId"],
                 "RESOURCE_NOT_FOUND",
                 &format!("Resource {resource_id} does not exist"),
-            );
+            ));
         };
 
         let mut staged_inputs = Vec::new();
@@ -747,12 +792,12 @@ impl DraftProxy {
             let field_index = index.to_string();
             let market_id = resolved_object_string(input, "marketId").unwrap_or_default();
             if market_id.is_empty() || !self.market_exists(&market_id) {
-                return selected_market_localization_error(
+                return LocalMutationResult::no_stage(selected_market_localization_error(
                     field,
                     vec!["marketLocalizations", &field_index, "marketId"],
                     "MARKET_DOES_NOT_EXIST",
                     "The market does not exist",
-                );
+                ));
             }
             let key = resolved_object_string(input, "key").unwrap_or_default();
             // 3. The key must be one of the resource's localizable content keys.
@@ -761,19 +806,19 @@ impl DraftProxy {
                     .iter()
                     .find(|entry| entry["key"].as_str() == Some(key.as_str()))
             }) else {
-                return selected_market_localization_error(
+                return LocalMutationResult::no_stage(selected_market_localization_error(
                     field,
                     vec!["marketLocalizations", &field_index, "key"],
                     "INVALID_KEY_FOR_MODEL",
                     &format!("Key {key} is not a valid market localizable field"),
-                );
+                ));
             };
             // 4. The supplied digest must match the resource's current content digest.
             let expected_digest = content_entry["digest"].as_str();
             if resolved_object_string(input, "marketLocalizableContentDigest").as_deref()
                 != expected_digest
             {
-                return selected_market_localization_error(
+                return LocalMutationResult::no_stage(selected_market_localization_error(
                     field,
                     vec![
                         "marketLocalizations",
@@ -782,27 +827,27 @@ impl DraftProxy {
                     ],
                     "INVALID_MARKET_LOCALIZABLE_CONTENT",
                     "The provided content digest does not match the latest resource content",
-                );
+                ));
             }
             // 5. The localized value must not be blank.
             if resolved_object_string(input, "value").as_deref() == Some("") {
-                return selected_market_localization_error(
+                return LocalMutationResult::no_stage(selected_market_localization_error(
                     field,
                     vec!["marketLocalizations", &field_index, "value"],
                     "FAILS_RESOURCE_VALIDATION",
                     "Value can't be blank",
-                );
+                ));
             }
             // 6. Shopify exposes definition-backed money metafields as a
             // `value` market-localizable field, but rejects JSON money payloads
             // during register with a resource-validation error.
             if market_localizable_content_is_money_metafield(content_entry) {
-                return selected_market_localization_error(
+                return LocalMutationResult::no_stage(selected_market_localization_error(
                     field,
                     vec!["marketLocalizations", &field_index, "value"],
                     "FAILS_RESOURCE_VALIDATION",
                     "Market Localizable content is invalid",
-                );
+                ));
             }
             staged_inputs.push((market_id, input));
         }
@@ -842,7 +887,13 @@ impl DraftProxy {
                 .push(record.clone());
         }
 
-        json!({ "marketLocalizations": staged, "userErrors": [] })
+        if staged.is_empty() {
+            LocalMutationResult::no_stage(
+                json!({ "marketLocalizations": staged, "userErrors": [] }),
+            )
+        } else {
+            LocalMutationResult::staged(json!({ "marketLocalizations": staged, "userErrors": [] }))
+        }
     }
 
     /// Build a staged market-localization record with the live market name resolved
@@ -878,7 +929,7 @@ impl DraftProxy {
     pub(in crate::proxy) fn market_localizations_remove_response(
         &mut self,
         field: &MarketsRootInput,
-    ) -> Value {
+    ) -> LocalMutationResult {
         let resource_id = resolved_string_field(&field.arguments, "resourceId").unwrap_or_default();
         if !self
             .store
@@ -886,17 +937,17 @@ impl DraftProxy {
             .localization_resources
             .contains_key(&resource_id)
         {
-            return selected_market_localization_error(
+            return LocalMutationResult::no_stage(selected_market_localization_error(
                 field,
                 vec!["resourceId"],
                 "RESOURCE_NOT_FOUND",
                 &format!("Resource {resource_id} does not exist"),
-            );
+            ));
         }
         let keys = resolved_string_list_arg(&field.arguments, "marketLocalizationKeys");
         let market_ids = resolved_string_list_arg(&field.arguments, "marketIds");
         if keys.is_empty() {
-            return payload_error("marketLocalizations", vec![]);
+            return LocalMutationResult::no_stage(payload_error("marketLocalizations", vec![]));
         }
 
         let mut removed = Vec::new();
@@ -919,32 +970,41 @@ impl DraftProxy {
                 }
                 !should_remove
             });
+        let staged = !removed.is_empty();
         let removed = if removed.is_empty() {
             Value::Null
         } else {
             Value::Array(removed)
         };
-        json!({ "marketLocalizations": removed, "userErrors": [] })
+        let value = json!({ "marketLocalizations": removed, "userErrors": [] });
+        if staged {
+            LocalMutationResult::staged(value)
+        } else {
+            LocalMutationResult::no_stage(value)
+        }
     }
 
-    fn localization_register_response(&mut self, input: &LocalizationMutationInput) -> Value {
+    fn localization_register_response(
+        &mut self,
+        input: &LocalizationMutationInput,
+    ) -> LocalMutationResult {
         let resource_id = resolved_string_field(&input.arguments, "resourceId").unwrap_or_default();
         if !self.localization_translation_mutation_resource_exists(&resource_id) {
-            return translation_payload_error(
+            return LocalMutationResult::no_stage(translation_payload_error(
                 &format!("Resource {resource_id} does not exist"),
                 "RESOURCE_NOT_FOUND",
-            );
+            ));
         }
 
         let translations = resolved_list_arg(&input.arguments, "translations");
         if translations.is_empty() {
-            return json!({ "translations": [], "userErrors": [] });
+            return LocalMutationResult::no_stage(json!({ "translations": [], "userErrors": [] }));
         }
         if translations.len() > 100 {
-            return translation_payload_error(
+            return LocalMutationResult::no_stage(translation_payload_error(
                 "Too many keys for resource - maximum 100 per mutation",
                 "TOO_MANY_KEYS_FOR_RESOURCE",
-            );
+            ));
         }
         let mut staged = Vec::new();
         let mut user_errors = Vec::new();
@@ -1074,24 +1134,34 @@ impl DraftProxy {
                 .push(translation.clone());
         }
 
-        json!({ "translations": staged, "userErrors": user_errors })
+        if staged.is_empty() {
+            LocalMutationResult::no_stage(
+                json!({ "translations": staged, "userErrors": user_errors }),
+            )
+        } else {
+            LocalMutationResult::staged(
+                json!({ "translations": staged, "userErrors": user_errors }),
+            )
+        }
     }
 
-    fn localization_remove_response(&mut self, input: &LocalizationMutationInput) -> Value {
+    fn localization_remove_response(
+        &mut self,
+        input: &LocalizationMutationInput,
+    ) -> LocalMutationResult {
         let resource_id = resolved_string_field(&input.arguments, "resourceId").unwrap_or_default();
         if !self.localization_translation_mutation_resource_exists(&resource_id) {
-            return translation_payload_error(
+            return LocalMutationResult::no_stage(translation_payload_error(
                 &format!("Resource {resource_id} does not exist"),
                 "RESOURCE_NOT_FOUND",
-            );
+            ));
         }
         let keys = resolved_string_list_arg(&input.arguments, "translationKeys");
         let market_ids = resolved_string_list_arg(&input.arguments, "marketIds");
         let locales = resolved_string_list_arg(&input.arguments, "locales");
         if keys.is_empty() || locales.is_empty() {
-            return payload_error("translations", vec![]);
+            return LocalMutationResult::no_stage(payload_error("translations", vec![]));
         }
-        self.store.staged.localization_dirty = true;
         let mut removed = Vec::new();
         let mut retained = Vec::new();
         for translation in self.store.staged.localization_translations.drain(..) {
@@ -1113,12 +1183,21 @@ impl DraftProxy {
             }
         }
         self.store.staged.localization_translations = retained;
+        let staged = !removed.is_empty();
+        if staged {
+            self.store.staged.localization_dirty = true;
+        }
         let removed = if removed.is_empty() {
             Value::Null
         } else {
             Value::Array(removed)
         };
-        json!({ "translations": removed, "userErrors": [] })
+        let value = json!({ "translations": removed, "userErrors": [] });
+        if staged {
+            LocalMutationResult::staged(value)
+        } else {
+            LocalMutationResult::no_stage(value)
+        }
     }
 
     pub(in crate::proxy) fn localization_translatable_resource_value(

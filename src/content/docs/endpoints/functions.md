@@ -38,7 +38,7 @@ Function-backed behavior is modeled as Admin metadata/state only:
 
 - The proxy records Function handles or IDs attached to validations, cart transforms, and fulfillment constraint rules, preserves or hydrates local `ShopifyFunction` rows, and updates relevant detail/catalog roots after staged writes.
 - In LiveHybrid mode, cold `shopifyFunction` / `shopifyFunctions` reads forward upstream and cache observed Function metadata for later local read-after-write behavior. Snapshot mode does not invent Function catalog rows that are absent from local state.
-- Supported mutation roots stage locally, append the original raw GraphQL request body to the mutation log for ordered `__meta/commit` replay, and must not proxy to Shopify at runtime.
+- Supported mutation roots stage locally and must not proxy to Shopify at runtime. A request that produces an effective staged transition appends its original raw GraphQL body once for ordered `__meta/commit` replay; payload-only validation failures and top-level access/schema failures append no replay entry.
 - The runtime does not execute external Function code, invoke Function WASM, run checkout/cart transform behavior, or call tax calculation callbacks. `taxAppConfigure` stores readiness metadata only, with a synthetic `TaxAppConfiguration` ID that remains stable for later reads in the same staged state.
 
 Validation behavior:

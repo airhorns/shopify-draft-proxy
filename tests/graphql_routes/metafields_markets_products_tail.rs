@@ -10510,6 +10510,8 @@ fn market_localizations_register_remove_current_runtime_helpers_stage_and_valida
     // so the engine *computes* every downstream validation/staging result rather
     // than recognizing a magic synthetic id (which the de-cheating refactor
     // deliberately removed).
+    let replayed = Arc::new(Mutex::new(Vec::<String>::new()));
+    let replayed_for_transport = Arc::clone(&replayed);
     let resource_id = "gid://shopify/Metafield/localizable";
     let mut proxy =
         configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
@@ -10541,6 +10543,14 @@ fn market_localizations_register_remove_current_runtime_helpers_stage_and_valida
                         }
                     }
                 }),
+            }
+        })
+        .with_commit_transport(move |request| {
+            replayed_for_transport.lock().unwrap().push(request.body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": {} }),
             }
         });
     let register_query = r#"
@@ -10598,6 +10608,7 @@ fn market_localizations_register_remove_current_runtime_helpers_stage_and_valida
         json!({"resourceId": resource_id, "marketId": "gid://shopify/Market/ca"}),
     ));
     assert_eq!(preflight.status, 200);
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 
     let too_many = (1..=101)
         .map(|index| {
@@ -10707,6 +10718,11 @@ fn market_localizations_register_remove_current_runtime_helpers_stage_and_valida
         money_remove_after_rejection.body["data"]["marketLocalizationsRemove"],
         json!({"marketLocalizations": null, "userErrors": []})
     );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"],
+        json!([]),
+        "failed and no-stage market-localization mutations must not enter commit replay"
+    );
 
     let register = proxy.process_request(json_graphql_request(
         register_query,
@@ -10721,6 +10737,11 @@ fn market_localizations_register_remove_current_runtime_helpers_stage_and_valida
             ],
             "userErrors": []
         })
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        1,
+        "successful market-localization registration must log once"
     );
 
     let read_after_register = proxy.process_request(json_graphql_request(
@@ -10756,6 +10777,11 @@ fn market_localizations_register_remove_current_runtime_helpers_stage_and_valida
             json!({"marketLocalizations": null, "userErrors": []})
         );
     }
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        1,
+        "captured successful market-localization no-ops must not enter commit replay"
+    );
 
     let remove_title = proxy.process_request(json_graphql_request(
         remove_query,
@@ -10801,6 +10827,18 @@ fn market_localizations_register_remove_current_runtime_helpers_stage_and_valida
         read_after_remove.body["data"]["marketLocalizableResource"]["marketLocalizations"],
         json!([])
     );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        3,
+        "only register and two effective removes should enter commit replay"
+    );
+    let commit = proxy.process_request(request_with_body("POST", "/__meta/commit", ""));
+    assert_eq!(commit.body["committed"], json!(3));
+    let replayed = replayed.lock().unwrap();
+    assert_eq!(replayed.len(), 3);
+    assert!(replayed[0].contains("RustMarketLocalizationsLocalRuntimeRegister"));
+    assert!(replayed[1].contains("RustMarketLocalizationsLocalRuntimeRemove"));
+    assert!(replayed[2].contains("RustMarketLocalizationsLocalRuntimeRemove"));
 }
 
 #[test]

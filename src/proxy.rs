@@ -106,6 +106,29 @@ pub(in crate::proxy) struct UnsupportedOperationDispatch<'a> {
     pub root_field: &'a str,
 }
 
+/// One locally handled mutation payload plus whether it produced an effective
+/// staged transition that must be replayed by `POST /__meta/commit`.
+struct LocalMutationResult {
+    value: Value,
+    staged: bool,
+}
+
+impl LocalMutationResult {
+    fn no_stage(value: Value) -> Self {
+        Self {
+            value,
+            staged: false,
+        }
+    }
+
+    fn staged(value: Value) -> Self {
+        Self {
+            value,
+            staged: true,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Response {
     pub status: u16,
