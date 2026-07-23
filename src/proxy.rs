@@ -714,6 +714,7 @@ struct StagedState {
     returns_by_order: BTreeMap<String, Vec<String>>,
     reverse_deliveries: BTreeMap<String, Value>,
     reverse_fulfillment_orders: BTreeMap<String, Value>,
+    reverse_fulfillment_order_line_items: BTreeMap<String, Value>,
     next_refund_id: u64,
     next_refund_line_item_id: u64,
     next_order_id: u64,

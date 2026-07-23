@@ -3720,10 +3720,28 @@ impl DraftProxy {
     }
 
     pub(super) fn remove_reverse_fulfillment_order(&mut self, reverse_id: &str) {
+        let line_ids = self
+            .store
+            .staged
+            .reverse_fulfillment_orders
+            .get(reverse_id)
+            .map(|reverse_order| {
+                connection_nodes(&reverse_order["lineItems"])
+                    .into_iter()
+                    .filter_map(|line| line["id"].as_str().map(str::to_string))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
         self.store
             .staged
             .reverse_fulfillment_orders
             .remove(reverse_id);
+        for line_id in line_ids {
+            self.store
+                .staged
+                .reverse_fulfillment_order_line_items
+                .remove(&line_id);
+        }
         let delivery_ids = self
             .store
             .staged

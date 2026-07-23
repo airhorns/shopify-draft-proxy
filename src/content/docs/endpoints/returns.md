@@ -128,7 +128,20 @@ Local staged mutations:
   Shopify's documented expansion rule and creates one local reverse delivery line for each reverse fulfillment order line
   at that line's total quantity. `ReverseDeliveryLabelInput` accepts Shopify's `fileUrl` field and preserves it as the
   downstream `label.publicFileUrl`; legacy local fixture aliases `publicFileUrl` and `url` are still accepted for older
-  recorded runtime fixtures.
+  recorded runtime fixtures. In live-hybrid mode, a cold reverse fulfillment order is hydrated with a query before the
+  mutation is staged. Typed-but-missing orders return `NOT_FOUND`; wrong resource types return Shopify's top-level
+  `RESOURCE_NOT_FOUND`; and missing, unrelated, duplicate, or over-quantity line references return the captured payload
+  errors without allocating IDs, changing staged state, or appending a commit-log entry. Submitted GIDs are never used to
+  fabricate relationship records.
+- `reverseDeliveryShippingUpdate` query-hydrates a cold existing reverse delivery in live-hybrid mode, stages the tracking
+  update locally, and makes the delivery and its reverse fulfillment order available through top-level and generic node
+  reads. Missing typed delivery IDs return the captured `NOT_FOUND` payload; wrong resource types return a top-level
+  `RESOURCE_NOT_FOUND`. Rejections leave staged state and the ordered commit log unchanged.
+- `reverseFulfillmentOrderDispose` resolves every referenced line and location before staging. Cold inputs are fetched in
+  one deduplicated, query-only `nodes(ids:)` request. Missing locations return `NOT_FOUND`, wrong resource types return a
+  top-level `RESOURCE_NOT_FOUND`, custom-line `RESTOCKED` remains invalid, and duplicate, over-quantity, or unprovable
+  multi-order inputs fail atomically. A valid cold line is stored as an authoritative local overlay, including disposition
+  and location data, so `node(id:)` reads and state dump/restore preserve the disposal.
 - Supported return mutations are handled locally in snapshot mode and for local/synthetic orders in live-hybrid mode.
   They do not call upstream Shopify at runtime.
 - Validation branches for unknown orders, unknown fulfillment line items, invalid quantities, and unknown returns return
@@ -140,10 +153,11 @@ Local staged mutations:
   behavior payload evidence for the local lifecycle replay.
 - Executable parity covers `returnableFulfillments`, `returnCalculate`, `returnApproveRequest`, `returnDeclineRequest`,
   `removeFromReturn`, `returnProcess`, reverse delivery creation/update, reverse fulfillment disposal, and downstream
-  reverse logistics reads. Public 2026-04 evidence covers fulfilled-line returnability, calculated return-line subtotal
-  shape, empty `reverseFulfillmentOrderDispose` inputs, custom-line `RESTOCKED` rejection, multiple reverse fulfillment
-  order rejection, valid `NOT_RESTOCKED` disposal, and downstream disposition readback. Unknown-line and over-disposal
-  guardrails remain covered by focused runtime tests because the public custom-line capture did not reject those probes.
+  reverse logistics reads. Public 2026-04 evidence covers cold valid create/update/dispose hydration; missing and wrong-type
+  reverse fulfillment orders, delivery lines, deliveries, and locations; unrelated and duplicate delivery lines;
+  over-quantity delivery creation; empty `reverseFulfillmentOrderDispose` inputs; custom-line `RESTOCKED` rejection;
+  multiple reverse fulfillment order rejection; valid `NOT_RESTOCKED` disposal; and downstream disposition readback.
+  The stricter local over-disposal guard remains runtime-tested because the public custom-line capture accepted that probe.
 - `return-decline-request-validation` covers public-schema `returnDeclineRequest` validation for invalid
   `ReturnDeclineReason` variables and non-public `tmp_notify_customer` payloads, comparing proxy responses against the
   live `return-decline-request-validation.json` fixture. `return-request-decline-local-staging` covers live-backed

@@ -592,6 +592,7 @@ impl DraftProxy {
                 "returnsByOrder": self.store.staged.returns_by_order.clone(),
                 "reverseDeliveries": self.store.staged.reverse_deliveries.clone(),
                 "reverseFulfillmentOrders": self.store.staged.reverse_fulfillment_orders.clone(),
+                "reverseFulfillmentOrderLineItems": self.store.staged.reverse_fulfillment_order_line_items.clone(),
                 "observedShippingLocations": self.store.staged.observed_shipping_locations.clone(),
                 "observedShippingLocationOrder": self.store.staged.observed_shipping_location_order.clone(),
                 "locations": self.store.staged.locations.records.clone(),
@@ -2460,6 +2461,8 @@ impl DraftProxy {
             value_map_from_json(state["stagedState"].get("reverseDeliveries"));
         self.store.staged.reverse_fulfillment_orders =
             value_map_from_json(state["stagedState"].get("reverseFulfillmentOrders"));
+        self.store.staged.reverse_fulfillment_order_line_items =
+            value_map_from_json(state["stagedState"].get("reverseFulfillmentOrderLineItems"));
         self.store.staged.observed_shipping_locations =
             value_map_from_json(state["stagedState"].get("observedShippingLocations"));
         self.store.staged.observed_shipping_location_order = state["stagedState"]
