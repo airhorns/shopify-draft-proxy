@@ -86,6 +86,10 @@ fn ok_json(body: Value) -> Response {
 }
 
 fn create_collection_handle(proxy: &mut DraftProxy, title: &str) -> String {
+    create_collection_handle_from_input(proxy, json!({ "title": title }))
+}
+
+fn create_collection_handle_from_input(proxy: &mut DraftProxy, input: Value) -> String {
     let response = proxy.process_request(graphql_request(
         r#"
         mutation CollectionHandleCreate($input: CollectionInput!) {
@@ -102,7 +106,7 @@ fn create_collection_handle(proxy: &mut DraftProxy, title: &str) -> String {
           }
         }
         "#,
-        json!({ "input": { "title": title } }),
+        json!({ "input": input }),
     ));
 
     assert_eq!(response.status, 200);
@@ -1400,28 +1404,31 @@ fn collection_create_reserves_repeated_generated_handles() {
             "repeated-collection-43",
         ]
     );
+
+    assert_eq!(
+        [
+            create_collection_handle_from_input(
+                &mut proxy,
+                json!({ "title": "Explicit Collection", "handle": "explicit-collection-41" }),
+            ),
+            create_collection_handle_from_input(
+                &mut proxy,
+                json!({ "title": "Explicit Collection", "handle": "explicit-collection-41" }),
+            ),
+        ],
+        ["explicit-collection-41", "explicit-collection-1"],
+        "generated numeric-tail behavior must not broaden to explicit handles"
+    );
 }
 
 #[test]
 fn collection_create_reserves_handles_against_observed_and_staged_collections() {
     let upstream_body = json!({
         "data": {
-            "collections": {
-                "nodes": [{
-                    "id": "gid://shopify/Collection/900",
-                    "title": "Observed Collection 41",
-                    "handle": "observed-collection-41"
-                }]
-            },
-            "matching": {
-                "edges": [{
-                    "cursor": "opaque-shopify-collection-cursor",
-                    "node": {
-                        "id": "gid://shopify/Collection/900",
-                        "title": "Observed Collection 41",
-                        "handle": "observed-collection-41"
-                    }
-                }]
+            "collection": {
+                "id": "gid://shopify/Collection/900",
+                "title": "Observed Collection 41",
+                "handle": "observed-collection-41"
             }
         }
     });
@@ -1446,22 +1453,10 @@ fn collection_create_reserves_handles_against_observed_and_staged_collections() 
     let observed = proxy.process_request(graphql_request(
         r#"
         query CollectionHandleObservedBase {
-          collections(first: 10) {
-            nodes {
-              id
-              title
-              handle
-            }
-          }
-          matching: collections(first: 1, query: "handle:observed-collection-41") {
-            edges {
-              cursor
-              node {
-                id
-                title
-                handle
-              }
-            }
+          collection(id: "gid://shopify/Collection/900") {
+            id
+            title
+            handle
           }
         }
         "#,
