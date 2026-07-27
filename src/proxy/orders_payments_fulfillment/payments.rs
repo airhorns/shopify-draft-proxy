@@ -555,34 +555,21 @@ fn capture_authorized_amount_error_text(amount: f64) -> String {
     format!("{:.2}", (amount * 100.0).round() / 100.0)
 }
 
-pub(in crate::proxy) fn next_refund_transaction_id(order: &Value, next: u64) -> (String, u64) {
-    let highest = order_transactions(order)
-        .iter()
-        .filter_map(|transaction| transaction["id"].as_str())
-        .map(resource_id_path_tail)
-        .filter_map(|tail| tail.parse::<u64>().ok())
-        .max()
-        .unwrap_or(0);
-    let number = next.max(highest + 1);
-    (shopify_gid("OrderTransaction", number), number + 1)
-}
-
 pub(in crate::proxy) fn build_refund_line_items(
     input: &BTreeMap<String, ResolvedValue>,
     order: &Value,
     shop_currency: &str,
     presentment_currency: &str,
-    next_refund_line_item_id: &mut u64,
+    refund_line_item_ids: Vec<String>,
 ) -> Vec<Value> {
     resolved_object_list_field(input, "refundLineItems")
-        .iter()
-        .map(|line_input| {
-            let id = shopify_gid("RefundLineItem", *next_refund_line_item_id);
-            *next_refund_line_item_id += 1;
-            let quantity = refund_line_item_quantity(line_input);
-            let restock_type = resolved_string_field(line_input, "restockType")
+        .into_iter()
+        .zip(refund_line_item_ids)
+        .map(|(line_input, id)| {
+            let quantity = refund_line_item_quantity(&line_input);
+            let restock_type = resolved_string_field(&line_input, "restockType")
                 .unwrap_or_else(|| "NO_RESTOCK".to_string());
-            let line_item_id = resolved_string_field(line_input, "lineItemId").unwrap_or_default();
+            let line_item_id = resolved_string_field(&line_input, "lineItemId").unwrap_or_default();
             let line = order_line_item_by_id(order, &line_item_id).unwrap_or(Value::Null);
             let subtotal = order_line_unit_amount(&line) * quantity as f64;
             json!({
@@ -1210,20 +1197,19 @@ impl DraftProxy {
         let presentment_currency = order_presentment_currency(&order, &shop_currency);
         let refund_amount = refund_input_total_amount(&input, &order);
         let shipping_refund_amount = refund_input_shipping_amount(&input, &order);
-        let refund_id = shopify_gid("Refund", self.store.staged.next_refund_id);
-        self.store.staged.next_refund_id += 1;
-        let mut next_line_item_id = self.store.staged.next_refund_line_item_id;
+        let refund_id = self.next_synthetic_gid("Refund");
+        let refund_line_item_ids = resolved_object_list_field(&input, "refundLineItems")
+            .iter()
+            .map(|_| self.next_synthetic_gid("RefundLineItem"))
+            .collect();
         let refund_line_items = build_refund_line_items(
             &input,
             &order,
             &shop_currency,
             &presentment_currency,
-            &mut next_line_item_id,
+            refund_line_item_ids,
         );
-        self.store.staged.next_refund_line_item_id = next_line_item_id;
-        let (transaction_id, next_transaction_id) =
-            next_refund_transaction_id(&order, self.store.staged.order_payment_next_transaction_id);
-        self.store.staged.order_payment_next_transaction_id = next_transaction_id;
+        let transaction_id = self.next_synthetic_gid("OrderTransaction");
         let refund_transactions = build_refund_transactions(
             &input,
             &order,
@@ -1889,8 +1875,7 @@ impl DraftProxy {
         &mut self,
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let id = shopify_gid("Order", self.store.staged.next_order_id);
-        self.store.staged.next_order_id += 1;
+        let id = self.next_synthetic_gid("Order");
         let order_input = resolved_object_field(arguments, "order").unwrap_or_default();
         let transaction_inputs = resolved_object_list_field(&order_input, "transactions");
         let first_transaction = transaction_inputs.first().cloned().unwrap_or_default();
@@ -2775,8 +2760,7 @@ impl DraftProxy {
             return payment_customization_error_payload(metafield_errors);
         }
 
-        let id = shopify_gid("PaymentCustomization", self.next_synthetic_id);
-        self.next_synthetic_id += 1;
+        let id = self.next_synthetic_gid("PaymentCustomization");
         let timestamp = self.next_mutation_timestamp();
         let record = payment_customization_record(
             &id,
@@ -2784,6 +2768,7 @@ impl DraftProxy {
             api_client_id,
             resolved_function.as_ref(),
             &timestamp,
+            &mut || self.next_synthetic_gid("Metafield"),
         );
         self.stage_payment_customization_record(record.clone());
         payment_customization_record_payload(&record)
@@ -2869,8 +2854,13 @@ impl DraftProxy {
         }
         if input.contains_key("metafields") {
             let timestamp = self.next_mutation_timestamp();
-            let metafields =
-                payment_customization_metafields(&input, api_client_id, &timestamp, Some(&updated));
+            let metafields = payment_customization_metafields(
+                &input,
+                api_client_id,
+                &timestamp,
+                Some(&updated),
+                &mut || self.next_synthetic_gid("Metafield"),
+            );
             payment_customization_set_metafields(&mut updated, metafields);
         }
         self.stage_payment_customization_record(updated.clone());
