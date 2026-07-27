@@ -2570,6 +2570,7 @@ pub(in crate::proxy) const PRODUCT_MUTATION_PREFLIGHT_HYDRATE_QUERY: &str =
 
 const PRODUCT_OBSERVED_FIELDS_FIELD: &str = "__shopifyDraftProxyObservedFields";
 const PRODUCT_COMPLETE_RELATIONSHIPS_FIELD: &str = "__shopifyDraftProxyCompleteRelationships";
+const PRODUCT_STAGED_FIELDS_FIELD: &str = "__shopifyDraftProxyStagedFields";
 pub(in crate::proxy) const PRODUCT_MUTATION_HYDRATION_COMPLETE_FIELD: &str =
     "__shopifyDraftProxyMutationHydrationComplete";
 const PRODUCT_MUTATION_REQUIRED_FIELDS: &[&str] = &[
@@ -2643,6 +2644,7 @@ pub(in crate::proxy) fn merge_observed_product(
     observed: ProductRecord,
 ) -> ProductRecord {
     let existing_observed_fields = product_observed_fields(&existing);
+    let existing_staged_fields = product_staged_fields(&existing);
     let observed_fields = product_observed_fields(&observed);
     let existing_is_authoritative = existing_observed_fields.is_none();
     let observed_has = |field: &str| {
@@ -2650,7 +2652,9 @@ pub(in crate::proxy) fn merge_observed_product(
             .as_ref()
             .is_none_or(|fields| fields.contains(field))
     };
-    let merge_scalar = |field: &str| !existing_is_authoritative && observed_has(field);
+    let merge_scalar = |field: &str| {
+        !existing_is_authoritative && !existing_staged_fields.contains(field) && observed_has(field)
+    };
 
     if merge_scalar("title") {
         existing.title = observed.title.clone();
@@ -2693,21 +2697,30 @@ pub(in crate::proxy) fn merge_observed_product(
         existing.tracks_inventory = observed.tracks_inventory;
     }
 
-    if !existing_is_authoritative && observed_has("media") {
+    if !existing_is_authoritative
+        && !existing_staged_fields.contains("media")
+        && observed_has("media")
+    {
         merge_observed_product_nodes(
             &mut existing.media,
             observed.media.clone(),
             product_relationship_is_complete(&observed, "media"),
         );
     }
-    if !existing_is_authoritative && observed_has("variants") {
+    if !existing_is_authoritative
+        && !existing_staged_fields.contains("variants")
+        && observed_has("variants")
+    {
         merge_observed_product_nodes(
             &mut existing.variants,
             observed.variants.clone(),
             product_relationship_is_complete(&observed, "variants"),
         );
     }
-    if !existing_is_authoritative && observed_has("collections") {
+    if !existing_is_authoritative
+        && !existing_staged_fields.contains("collections")
+        && observed_has("collections")
+    {
         if product_relationship_is_complete(&observed, "collections") {
             existing.collections = observed.collections.clone();
         } else {
@@ -2721,11 +2734,13 @@ pub(in crate::proxy) fn merge_observed_product(
         for (key, value) in &observed.extra_fields {
             if matches!(
                 key.as_str(),
-                PRODUCT_OBSERVED_FIELDS_FIELD | PRODUCT_COMPLETE_RELATIONSHIPS_FIELD
+                PRODUCT_OBSERVED_FIELDS_FIELD
+                    | PRODUCT_COMPLETE_RELATIONSHIPS_FIELD
+                    | PRODUCT_STAGED_FIELDS_FIELD
             ) {
                 continue;
             }
-            if observed_has(key) {
+            if !existing_staged_fields.contains(key) && observed_has(key) {
                 existing.extra_fields.insert(key.clone(), value.clone());
             }
         }
@@ -2798,6 +2813,16 @@ fn set_product_metadata_set(product: &mut ProductRecord, field: &str, values: BT
 
 fn product_observed_fields(product: &ProductRecord) -> Option<BTreeSet<String>> {
     product_metadata_set(product, PRODUCT_OBSERVED_FIELDS_FIELD)
+}
+
+fn product_staged_fields(product: &ProductRecord) -> BTreeSet<String> {
+    product_metadata_set(product, PRODUCT_STAGED_FIELDS_FIELD).unwrap_or_default()
+}
+
+pub(in crate::proxy) fn mark_product_staged_fields(product: &mut ProductRecord, fields: &[&str]) {
+    let mut staged_fields = product_staged_fields(product);
+    staged_fields.extend(fields.iter().map(|field| (*field).to_string()));
+    set_product_metadata_set(product, PRODUCT_STAGED_FIELDS_FIELD, staged_fields);
 }
 
 fn product_complete_relationships(product: &ProductRecord) -> BTreeSet<String> {

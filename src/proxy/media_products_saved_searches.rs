@@ -515,8 +515,16 @@ impl DraftProxy {
         let Some(id) = resolved_string_field(&input, "id") else {
             return ResolverOutcome::value(product_update_missing_payload_value());
         };
-        if !self.ensure_product_mutation_hydrated(request, &id)
+        let mutation_hydration_complete = self.ensure_product_mutation_hydrated(request, &id);
+        if !mutation_hydration_complete
             && self.config.read_mode == ReadMode::LiveHybrid
+            && self.store.product_by_id(&id).is_none()
+        {
+            self.hydrate_product_nodes_for_observation_with_request(request, vec![id.clone()]);
+        }
+        if !mutation_hydration_complete
+            && self.config.read_mode == ReadMode::LiveHybrid
+            && self.store.product_by_id(&id).is_none()
         {
             return ResolverOutcome::value(product_update_missing_payload_value());
         }
@@ -555,6 +563,12 @@ impl DraftProxy {
         }
 
         let top_level_media_inputs = product_top_level_media_inputs(&arguments);
+        if !mutation_hydration_complete
+            && self.config.read_mode == ReadMode::LiveHybrid
+            && top_level_media_inputs.is_some()
+        {
+            return ResolverOutcome::value(product_update_missing_payload_value());
+        }
         if let Some(media_inputs) = top_level_media_inputs.as_ref() {
             let media_errors = product_top_level_media_user_errors(media_inputs);
             if !media_errors.is_empty() {
@@ -619,7 +633,7 @@ impl DraftProxy {
         let mut response_media = existing.media.clone();
         response_media.extend(media_append.mutation_nodes);
 
-        let product = ProductRecord {
+        let mut product = ProductRecord {
             id: existing.id,
             created_at: existing.created_at,
             updated_at: self.next_product_updated_at(&existing.updated_at),
@@ -649,6 +663,29 @@ impl DraftProxy {
             collections: existing.collections,
             extra_fields,
         };
+        let mut staged_fields = vec!["updatedAt"];
+        for field in [
+            "title",
+            "handle",
+            "status",
+            "descriptionHtml",
+            "vendor",
+            "productType",
+            "tags",
+            "templateSuffix",
+            "seo",
+        ] {
+            if input.contains_key(field) {
+                staged_fields.push(field);
+            }
+        }
+        if product_category_input_id(&input).is_some() {
+            staged_fields.push("category");
+        }
+        if top_level_media_inputs.is_some() {
+            staged_fields.push("media");
+        }
+        mark_product_staged_fields(&mut product, &staged_fields);
         self.store.stage_product(product.clone());
         let mut response_product = product.clone();
         response_product.media = response_media;

@@ -1,5 +1,6 @@
 use super::common::*;
 use pretty_assertions::assert_eq;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 const DEFAULT_ORDER_UNFULFILLED_ID: &str =
     "gid://shopify/SavedSearch/default-order-unfulfilled?shopify-draft-proxy=synthetic";
@@ -625,6 +626,135 @@ fn product_and_variant_mutations_hydrate_rich_products_through_the_last_variant_
         bodies[1]["variables"]["variantsAfter"],
         json!("variant-250")
     );
+}
+
+#[test]
+fn sparse_product_update_survives_delayed_complete_hydration() {
+    let product_id = "gid://shopify/Product/sparse-hydration";
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let complete_hydrate_attempts = Arc::new(AtomicUsize::new(0));
+    let captured_complete_hydrate_attempts = Arc::clone(&complete_hydrate_attempts);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream body should parse");
+            captured_requests.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("ProductMutationPreflightHydrate") {
+                if captured_complete_hydrate_attempts.fetch_add(1, Ordering::SeqCst) == 0 {
+                    return Response {
+                        status: 500,
+                        headers: Default::default(),
+                        body: json!({ "errors": [{ "message": "temporary hydrate failure" }] }),
+                    };
+                }
+                let mut product = mutation_hydrate_product_page(product_id, None);
+                product["variants"]["nodes"] =
+                    Value::Array(vec![mutation_hydrate_variant(product_id, 1)]);
+                product["variants"]["pageInfo"] = json!({
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "variant-1",
+                    "endCursor": "variant-1"
+                });
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "product": product } }),
+                };
+            }
+            assert!(query.contains("ProductsHydrateNodes"));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "nodes": [{
+                            "__typename": "Product",
+                            "id": product_id,
+                            "title": "Sparse upstream title",
+                            "handle": "sparse-upstream-title",
+                            "status": "ACTIVE",
+                            "totalInventory": 0,
+                            "tracksInventory": false,
+                            "variants": {
+                                "nodes": [mutation_hydrate_variant(product_id, 1)],
+                                "pageInfo": { "hasNextPage": false, "hasPreviousPage": false }
+                            },
+                            "collections": {
+                                "nodes": [],
+                                "pageInfo": { "hasNextPage": false, "hasPreviousPage": false }
+                            }
+                        }]
+                    }
+                }),
+            }
+        });
+
+    let sparse_update = proxy.process_request(mutation_request(
+        r#"
+        mutation SparseProductUpdate($product: ProductUpdateInput!) {
+          productUpdate(product: $product) {
+            product { id title handle status tags }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "id": product_id,
+                "title": "Locally staged title",
+                "handle": "locally-staged-title",
+                "tags": ["locally-staged"]
+            }
+        }),
+    ));
+    assert_eq!(sparse_update.status, 200);
+    assert_eq!(
+        sparse_update.body["data"]["productUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        sparse_update.body["data"]["productUpdate"]["product"]["title"],
+        json!("Locally staged title")
+    );
+
+    let hydrated_update = proxy.process_request(mutation_request(
+        r#"
+        mutation HydratedProductUpdate($product: ProductUpdateInput!) {
+          productUpdate(product: $product) {
+            product {
+              id title handle tags vendor productType descriptionHtml
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "id": product_id,
+                "productType": "Locally updated type"
+            }
+        }),
+    ));
+    assert_eq!(hydrated_update.status, 200);
+    assert_eq!(
+        hydrated_update.body["data"]["productUpdate"]["userErrors"],
+        json!([])
+    );
+    let product = &hydrated_update.body["data"]["productUpdate"]["product"];
+    assert_eq!(product["title"], json!("Locally staged title"));
+    assert_eq!(product["handle"], json!("locally-staged-title"));
+    assert_eq!(product["tags"], json!(["locally-staged"]));
+    assert_eq!(product["vendor"], json!("Rich Vendor"));
+    assert_eq!(product["productType"], json!("Locally updated type"));
+    assert_eq!(
+        product["descriptionHtml"],
+        json!("<p>Preserve this description</p>")
+    );
+    assert_eq!(complete_hydrate_attempts.load(Ordering::SeqCst), 2);
+    assert_eq!(upstream_requests.lock().unwrap().len(), 3);
 }
 
 #[test]
