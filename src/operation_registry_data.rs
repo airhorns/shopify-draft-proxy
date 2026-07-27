@@ -1009,10 +1009,13 @@ fn commit_id_mappings(name: &str) -> Vec<CommitIdMappingSpec> {
             &["bulkCreation", "id"],
         )],
         "marketingActivityCreate" | "marketingActivityCreateExternal" => {
-            vec![single_commit_id_mapping(
-                &["MarketingActivity"],
-                &["marketingActivity", "id"],
-            )]
+            vec![
+                single_commit_id_mapping(&["MarketingActivity"], &["marketingActivity", "id"]),
+                single_commit_id_mapping(
+                    &["MarketingEvent"],
+                    &["marketingActivity", "marketingEvent", "id"],
+                ),
+            ]
         }
         "marketingEngagementCreate" => vec![single_commit_id_mapping(
             &["MarketingEngagement"],
