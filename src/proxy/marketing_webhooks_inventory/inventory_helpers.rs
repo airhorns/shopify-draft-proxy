@@ -160,11 +160,13 @@ pub(in crate::proxy) fn inventory_field_resolver_registrations() -> Vec<FieldRes
                 "lineItemsCount",
                 "name",
                 "origin",
+                "shipments",
                 "status",
                 "tags",
                 "totalQuantity",
             ][..],
         ),
+        ("LocationSnapshot", &["location", "name"][..]),
         (
             "InventoryTransferLineItemConnection",
             &["edges", "nodes", "pageInfo"][..],
@@ -806,6 +808,9 @@ const INVENTORY_VALID_COUNTRY_CODES: &[&str] = &[
     "UA", "UG", "UM", "US", "UY", "UZ", "VA", "VC", "VE", "VG", "VN", "VU", "WF", "WS", "XK", "YE",
     "YT", "ZA", "ZM", "ZW",
 ];
+// Keep this legacy document byte-for-byte stable: existing captured scenarios
+// contain its exact upstream request as their general inventory hydration
+// cassette. Lifecycle hydration below uses the registered formatted document.
 const INVENTORY_TRANSFER_HYDRATE_NODES_QUERY: &str = r#"#graphql
   query ProductsHydrateNodes($ids: [ID!]!) {
     nodes(ids: $ids) {
@@ -849,6 +854,21 @@ const INVENTORY_TRANSFER_HYDRATE_NODES_QUERY: &str = r#"#graphql
     }
   }
 "#;
+
+const INVENTORY_LIFECYCLE_REFERENCE_HYDRATE_NODES_QUERY: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/config/parity-requests/products/inventory-transfer-reference-hydrate.graphql"
+));
+
+const INVENTORY_TRANSFER_MUTATION_HYDRATE_QUERY: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/config/parity-requests/products/inventory-transfer-mutation-hydrate.graphql"
+));
+
+const INVENTORY_SHIPMENT_MUTATION_HYDRATE_QUERY: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/config/parity-requests/products/inventory-shipment-mutation-hydrate.graphql"
+));
 
 const INVENTORY_RICH_REFERENCE_HYDRATE_NODES_QUERY: &str = r#"query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on InventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } } } } ... on InventoryLevel { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } item { id tracked requiresShipping variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } } } } } } }"#;
 
@@ -904,6 +924,68 @@ const INVENTORY_ITEMS_CATALOG_HYDRATE_QUERY: &str = r#"#graphql
   }
 "#;
 
+fn connection_node_values(connection: Option<&Value>) -> Vec<&Value> {
+    let Some(connection) = connection else {
+        return Vec::new();
+    };
+    if let Some(nodes) = connection.get("nodes").and_then(Value::as_array) {
+        return nodes.iter().collect();
+    }
+    connection
+        .get("edges")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|edge| edge.get("node"))
+        .collect()
+}
+
+fn inventory_lifecycle_unhydrated_reference_ids(value: &Value) -> Vec<String> {
+    fn collect(
+        value: &Value,
+        ids: &mut BTreeSet<String>,
+        ids_with_inventory_levels: &mut BTreeSet<String>,
+    ) {
+        match value {
+            Value::Array(values) => {
+                for value in values {
+                    collect(value, ids, ids_with_inventory_levels);
+                }
+            }
+            Value::Object(object) => {
+                if let Some(id) = object.get("id").and_then(Value::as_str) {
+                    if is_shopify_gid_of_type(id, "InventoryItem") {
+                        ids.insert(id.to_string());
+                        if object.get("inventoryLevels").is_some() {
+                            ids_with_inventory_levels.insert(id.to_string());
+                        }
+                    }
+                }
+                for value in object.values() {
+                    collect(value, ids, ids_with_inventory_levels);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut ids = BTreeSet::new();
+    let mut ids_with_inventory_levels = BTreeSet::new();
+    collect(value, &mut ids, &mut ids_with_inventory_levels);
+    ids.retain(|id| !ids_with_inventory_levels.contains(id));
+    ids.into_iter().collect()
+}
+
+fn inventory_transfer_for_shipment<'a>(body: &'a Value, shipment_id: &str) -> Option<&'a Value> {
+    connection_node_values(body.pointer("/data/inventoryTransfers"))
+        .into_iter()
+        .find(|transfer| {
+            connection_node_values(transfer.get("shipments"))
+                .into_iter()
+                .any(|shipment| shipment.get("id").and_then(Value::as_str) == Some(shipment_id))
+        })
+}
+
 impl DraftProxy {
     fn inventory_level_view_state(&self) -> InventoryLevelViewState<'_> {
         InventoryLevelViewState {
@@ -920,6 +1002,188 @@ impl DraftProxy {
             fulfillment_service_locations: &self.store.staged.fulfillment_service_locations.records,
         }
     }
+
+    fn hydrate_inventory_transfer_mutation_target(
+        &mut self,
+        request: &Request,
+        id: &str,
+    ) -> Result<(), ResolverOutcome<Value>> {
+        if self.config.read_mode != ReadMode::LiveHybrid
+            || id.is_empty()
+            || is_synthetic_gid(id)
+            || self.store.inventory_transfer_by_id(id).is_some()
+            || self.store.staged.inventory_transfers.is_tombstoned(id)
+        {
+            return Ok(());
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": INVENTORY_TRANSFER_MUTATION_HYDRATE_QUERY,
+                "variables": { "id": id }
+            }),
+        );
+        if let Some(outcome) =
+            inventory_lifecycle_hydration_failure(&response, "inventory transfer mutation target")
+        {
+            return Err(outcome);
+        }
+        let Some(target) = response.body.pointer("/data/inventoryTransfer").cloned() else {
+            return Err(ResolverOutcome::error(
+                "Inventory transfer hydration returned no inventoryTransfer field",
+            ));
+        };
+        if target.is_null() {
+            return Ok(());
+        }
+        self.hydrate_inventory_lifecycle_references(
+            request,
+            &target,
+            "inventory transfer mutation target",
+        )?;
+        self.observe_inventory_transfer_read_response(&response.body);
+        if self.store.inventory_transfer_by_id(id).is_none() {
+            return Err(ResolverOutcome::error(
+                "Inventory transfer hydration returned an unusable transfer record",
+            ));
+        }
+        Ok(())
+    }
+
+    fn hydrate_inventory_shipment_mutation_target(
+        &mut self,
+        request: &Request,
+        id: &str,
+    ) -> Result<(), ResolverOutcome<Value>> {
+        if self.config.read_mode != ReadMode::LiveHybrid
+            || id.is_empty()
+            || is_synthetic_gid(id)
+            || self.store.inventory_shipment_by_id(id).is_some()
+            || self.store.staged.inventory_shipments.is_tombstoned(id)
+        {
+            return Ok(());
+        }
+        // InventoryShipment has no public reverse transfer field. Fetch the
+        // shipment plus transfer.shipments linkage so receive/quantity validators
+        // can use the authoritative destination and sibling shipment quantities.
+        let mut response = self.upstream_post(
+            request,
+            json!({
+                "query": INVENTORY_SHIPMENT_MUTATION_HYDRATE_QUERY,
+                "variables": { "id": id, "after": Value::Null }
+            }),
+        );
+        if let Some(outcome) =
+            inventory_lifecycle_hydration_failure(&response, "inventory shipment mutation target")
+        {
+            return Err(outcome);
+        }
+        let Some(target) = response.body.pointer("/data/inventoryShipment").cloned() else {
+            return Err(ResolverOutcome::error(
+                "Inventory shipment hydration returned no inventoryShipment field",
+            ));
+        };
+        if target.is_null() {
+            return Ok(());
+        }
+
+        let mut seen_cursors = BTreeSet::new();
+        let mut owning_transfer = None;
+        loop {
+            if let Some(transfer) = inventory_transfer_for_shipment(&response.body, id) {
+                owning_transfer = Some(transfer.clone());
+                break;
+            }
+            let has_next_page = response
+                .body
+                .pointer("/data/inventoryTransfers/pageInfo/hasNextPage")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            let Some(end_cursor) = response
+                .body
+                .pointer("/data/inventoryTransfers/pageInfo/endCursor")
+                .and_then(Value::as_str)
+                .filter(|cursor| has_next_page && seen_cursors.insert((*cursor).to_string()))
+            else {
+                break;
+            };
+            response = self.upstream_post(
+                request,
+                json!({
+                    "query": INVENTORY_SHIPMENT_MUTATION_HYDRATE_QUERY,
+                    "variables": { "id": id, "after": end_cursor }
+                }),
+            );
+            if let Some(outcome) = inventory_lifecycle_hydration_failure(
+                &response,
+                "inventory shipment transfer linkage",
+            ) {
+                return Err(outcome);
+            }
+        }
+
+        if let Some(transfer) = owning_transfer {
+            let Some(transfer_id) = transfer.get("id").and_then(Value::as_str) else {
+                return Err(ResolverOutcome::error(
+                    "Inventory shipment hydration returned an unusable transfer linkage",
+                ));
+            };
+            if transfer.get("status").is_some() && transfer.get("lineItems").is_some() {
+                self.hydrate_inventory_lifecycle_references(
+                    request,
+                    &transfer,
+                    "inventory shipment transfer linkage",
+                )?;
+                self.observe_inventory_transfer_value(&transfer);
+            } else {
+                self.hydrate_inventory_transfer_mutation_target(request, transfer_id)?;
+            }
+            self.observe_inventory_shipment_value(&target, Some(transfer_id));
+        } else {
+            self.hydrate_inventory_lifecycle_references(
+                request,
+                &target,
+                "inventory shipment mutation target",
+            )?;
+            self.observe_inventory_shipment_value(&target, None);
+        }
+        if self.store.inventory_shipment_by_id(id).is_none() {
+            return Err(ResolverOutcome::error(
+                "Inventory shipment hydration returned an unusable shipment record",
+            ));
+        }
+        Ok(())
+    }
+
+    fn hydrate_inventory_lifecycle_references(
+        &mut self,
+        request: &Request,
+        value: &Value,
+        target: &str,
+    ) -> Result<(), ResolverOutcome<Value>> {
+        let ids = inventory_lifecycle_unhydrated_reference_ids(value);
+        if ids.is_empty() {
+            return Ok(());
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": INVENTORY_LIFECYCLE_REFERENCE_HYDRATE_NODES_QUERY,
+                "variables": { "ids": ids }
+            }),
+        );
+        if let Some(outcome) = inventory_lifecycle_hydration_failure(&response, target) {
+            return Err(outcome);
+        }
+        if response.body.pointer("/data/nodes").is_none() {
+            return Err(ResolverOutcome::error(format!(
+                "Shopify returned no reference nodes while hydrating {target}"
+            )));
+        }
+        self.observe_inventory_transfer_hydration_response(&response.body);
+        Ok(())
+    }
+
     pub(crate) fn inventory_properties_root(
         &mut self,
         _invocation: RootInvocation<'_>,
@@ -1098,6 +1362,29 @@ impl DraftProxy {
             .unwrap_or_default();
         ResolverOutcome::value(self.inventory_shipment_value_by_id(id))
     }
+}
+
+fn inventory_lifecycle_hydration_failure(
+    response: &Response,
+    target: &str,
+) -> Option<ResolverOutcome<Value>> {
+    if response.status >= 400 {
+        return Some(crate::proxy::graphql_runtime::resolver_http_error_outcome(
+            response.status,
+            format!("Shopify failed to hydrate {target}"),
+        ));
+    }
+    let errors = response
+        .body
+        .get("errors")
+        .and_then(Value::as_array)
+        .filter(|errors| !errors.is_empty())?;
+    let message = errors
+        .first()
+        .and_then(|error| error.get("message"))
+        .and_then(Value::as_str)
+        .unwrap_or("Shopify returned a GraphQL error while hydrating inventory lifecycle state");
+    Some(ResolverOutcome::error(message))
 }
 
 fn inventory_quantity_missing_change_from_error(
