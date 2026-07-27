@@ -1,8 +1,8 @@
 {
-  "capturedAt": "2026-07-05T08:11:14.270Z",
+  "capturedAt": "2026-07-19T19:11:37.970Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "document": "#graphql\n  mutation DraftOrderCalculateValidationAndShippingRates(\n    $emptyLineItems: DraftOrderInput!\n    $invalidEmail: DraftOrderInput!\n    $availableShippingRatesEmpty: DraftOrderInput!\n    $paymentTermsTemplateId: DraftOrderInput!\n  ) {\n    emptyLineItems: draftOrderCalculate(input: $emptyLineItems) {\n      calculatedDraftOrder { currencyCode }\n      userErrors { field message }\n    }\n    invalidEmail: draftOrderCalculate(input: $invalidEmail) {\n      calculatedDraftOrder { currencyCode }\n      userErrors { field message }\n    }\n    availableShippingRatesEmpty: draftOrderCalculate(input: $availableShippingRatesEmpty) {\n      calculatedDraftOrder {\n        availableShippingRates {\n          handle\n          title\n          price { amount currencyCode }\n        }\n      }\n      userErrors { field message }\n    }\n    paymentTermsTemplateId: draftOrderCalculate(input: $paymentTermsTemplateId) {\n      calculatedDraftOrder { currencyCode }\n      userErrors { field message }\n    }\n  }\n",
+  "document": "mutation DraftOrderCalculateValidationAndShippingRates(\n  $emptyLineItems: DraftOrderInput!\n  $invalidEmail: DraftOrderInput!\n  $availableShippingRatesEmpty: DraftOrderInput!\n  $availableShippingRatesNoMatch: DraftOrderInput!\n  $availableShippingRatesMatching: DraftOrderInput!\n  $paymentTermsTemplateId: DraftOrderInput!\n) {\n  emptyLineItems: draftOrderCalculate(input: $emptyLineItems) {\n    calculatedDraftOrder {\n      currencyCode\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  invalidEmail: draftOrderCalculate(input: $invalidEmail) {\n    calculatedDraftOrder {\n      currencyCode\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  availableShippingRatesEmpty: draftOrderCalculate(input: $availableShippingRatesEmpty) {\n    calculatedDraftOrder {\n      availableShippingRates {\n        handle\n        title\n        price {\n          amount\n          currencyCode\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  availableShippingRatesNoMatch: draftOrderCalculate(input: $availableShippingRatesNoMatch) {\n    calculatedDraftOrder {\n      availableShippingRates {\n        handle\n        title\n        price {\n          amount\n          currencyCode\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  availableShippingRatesMatching: draftOrderCalculate(input: $availableShippingRatesMatching) {\n    calculatedDraftOrder {\n      availableShippingRates {\n        handle\n        title\n        price {\n          amount\n          currencyCode\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  paymentTermsTemplateId: draftOrderCalculate(input: $paymentTermsTemplateId) {\n    calculatedDraftOrder {\n      currencyCode\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
   "variables": {
     "emptyLineItems": {
       "lineItems": []
@@ -11,7 +11,7 @@
       "email": "bad email",
       "lineItems": [
         {
-          "title": "HAR-580 invalid email",
+          "title": "Invalid email item",
           "quantity": 1,
           "originalUnitPrice": "1.00"
         }
@@ -20,10 +20,44 @@
     "availableShippingRatesEmpty": {
       "lineItems": [
         {
-          "variantId": "gid://shopify/ProductVariant/49875425296690",
+          "variantId": "gid://shopify/ProductVariant/51488585187634",
           "quantity": 1
         }
       ]
+    },
+    "availableShippingRatesNoMatch": {
+      "lineItems": [
+        {
+          "variantId": "gid://shopify/ProductVariant/51488585187634",
+          "quantity": 1
+        }
+      ],
+      "shippingAddress": {
+        "firstName": "Rate",
+        "lastName": "Recipient",
+        "address1": "11 Wall Street",
+        "city": "New York",
+        "provinceCode": "ON",
+        "countryCode": "CA",
+        "zip": "M5H 2N2"
+      }
+    },
+    "availableShippingRatesMatching": {
+      "lineItems": [
+        {
+          "variantId": "gid://shopify/ProductVariant/51488585187634",
+          "quantity": 1
+        }
+      ],
+      "shippingAddress": {
+        "firstName": "Rate",
+        "lastName": "Recipient",
+        "address1": "11 Wall Street",
+        "city": "New York",
+        "provinceCode": "NY",
+        "countryCode": "US",
+        "zip": "10005"
+      }
     },
     "paymentTermsTemplateId": {
       "paymentTerms": {
@@ -36,7 +70,7 @@
       },
       "lineItems": [
         {
-          "title": "HAR-580 payment terms",
+          "title": "Payment terms item",
           "quantity": 1,
           "originalUnitPrice": "1.00"
         }
@@ -44,216 +78,631 @@
     }
   },
   "setup": {
-    "variantLookup": {
-      "document": "#graphql\n  query Har580ShippingVariant {\n    products(first: 10) {\n      nodes {\n        variants(first: 10) {\n          nodes {\n            id\n            inventoryItem {\n              requiresShipping\n            }\n          }\n        }\n      }\n    }\n  }\n",
+    "productCreate": {
+      "document": "#graphql\n  mutation DraftOrderShippingRateProductCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        variants(first: 1) { nodes { id title } }\n      }\n      userErrors { field message }\n    }\n  }\n",
+      "variables": {
+        "product": {
+          "title": "Draft order shipping rate 20260719191132",
+          "status": "ACTIVE"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10243978264882",
+              "title": "Draft order shipping rate 20260719191132",
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51488585187634",
+                    "title": "Default Title"
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "variantUpdate": {
+      "document": "#graphql\n  mutation DraftOrderShippingRateVariantUpdate(\n    $productId: ID!\n    $variants: [ProductVariantsBulkInput!]!\n  ) {\n    productVariantsBulkUpdate(productId: $productId, variants: $variants) {\n      productVariants {\n        id\n        title\n        sku\n        taxable\n        price\n        inventoryItem { requiresShipping }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "productId": "gid://shopify/Product/10243978264882",
+        "variants": [
+          {
+            "id": "gid://shopify/ProductVariant/51488585187634",
+            "price": "25.00",
+            "taxable": true,
+            "inventoryItem": {
+              "sku": "DRAFT-SHIPPING-20260719191132",
+              "requiresShipping": true
+            }
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "productVariantsBulkUpdate": {
+            "productVariants": [
+              {
+                "id": "gid://shopify/ProductVariant/51488585187634",
+                "title": "Default Title",
+                "sku": "DRAFT-SHIPPING-20260719191132",
+                "taxable": true,
+                "price": "25.00",
+                "inventoryItem": {
+                  "requiresShipping": true
+                }
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "locations": {
+      "document": "#graphql\n  query DraftOrderShippingRateLocations {\n    locationsAvailableForDeliveryProfilesConnection(first: 50) {\n      nodes { id isActive isFulfillmentService }\n    }\n  }\n",
       "variables": {},
       "response": {
         "data": {
-          "products": {
+          "locationsAvailableForDeliveryProfilesConnection": {
             "nodes": [
               {
-                "variants": {
-                  "nodes": [
-                    {
-                      "id": "gid://shopify/ProductVariant/49875425296690",
-                      "inventoryItem": {
-                        "requiresShipping": true
-                      }
-                    }
-                  ]
-                }
+                "id": "gid://shopify/Location/106318430514",
+                "isActive": true,
+                "isFulfillmentService": false
               },
               {
-                "variants": {
-                  "nodes": [
-                    {
-                      "id": "gid://shopify/ProductVariant/49875425329458",
-                      "inventoryItem": {
-                        "requiresShipping": false
-                      }
-                    },
-                    {
-                      "id": "gid://shopify/ProductVariant/49875425362226",
-                      "inventoryItem": {
-                        "requiresShipping": false
-                      }
-                    },
-                    {
-                      "id": "gid://shopify/ProductVariant/49875425394994",
-                      "inventoryItem": {
-                        "requiresShipping": false
-                      }
-                    },
-                    {
-                      "id": "gid://shopify/ProductVariant/49875425427762",
-                      "inventoryItem": {
-                        "requiresShipping": false
-                      }
-                    }
-                  ]
-                }
+                "id": "gid://shopify/Location/106318463282",
+                "isActive": true,
+                "isFulfillmentService": false
               },
               {
-                "variants": {
-                  "nodes": [
-                    {
-                      "id": "gid://shopify/ProductVariant/49875425460530",
-                      "inventoryItem": {
-                        "requiresShipping": true
-                      }
-                    }
-                  ]
-                }
+                "id": "gid://shopify/Location/106318496050",
+                "isActive": true,
+                "isFulfillmentService": true
               },
               {
-                "variants": {
-                  "nodes": [
-                    {
-                      "id": "gid://shopify/ProductVariant/49875425493298",
-                      "inventoryItem": {
-                        "requiresShipping": true
-                      }
-                    }
-                  ]
-                }
+                "id": "gid://shopify/Location/112829759794",
+                "isActive": true,
+                "isFulfillmentService": false
               },
               {
-                "variants": {
-                  "nodes": [
-                    {
-                      "id": "gid://shopify/ProductVariant/49875425526066",
-                      "inventoryItem": {
-                        "requiresShipping": true
-                      }
-                    }
-                  ]
-                }
+                "id": "gid://shopify/Location/112829858098",
+                "isActive": true,
+                "isFulfillmentService": true
               },
               {
-                "variants": {
-                  "nodes": [
-                    {
-                      "id": "gid://shopify/ProductVariant/49875425558834",
-                      "inventoryItem": {
-                        "requiresShipping": true
-                      }
-                    }
-                  ]
-                }
+                "id": "gid://shopify/Location/112829956402",
+                "isActive": true,
+                "isFulfillmentService": false
               },
               {
-                "variants": {
-                  "nodes": [
-                    {
-                      "id": "gid://shopify/ProductVariant/49875425886514",
-                      "inventoryItem": {
-                        "requiresShipping": true
-                      }
-                    },
-                    {
-                      "id": "gid://shopify/ProductVariant/49875425919282",
-                      "inventoryItem": {
-                        "requiresShipping": true
-                      }
-                    },
-                    {
-                      "id": "gid://shopify/ProductVariant/49875425952050",
-                      "inventoryItem": {
-                        "requiresShipping": true
-                      }
-                    }
-                  ]
-                }
+                "id": "gid://shopify/Location/112833036594",
+                "isActive": true,
+                "isFulfillmentService": false
               },
               {
-                "variants": {
-                  "nodes": [
-                    {
-                      "id": "gid://shopify/ProductVariant/49875425591602",
-                      "inventoryItem": {
-                        "requiresShipping": true
-                      }
-                    }
-                  ]
-                }
+                "id": "gid://shopify/Location/112864887090",
+                "isActive": true,
+                "isFulfillmentService": false
               },
               {
-                "variants": {
-                  "nodes": [
-                    {
-                      "id": "gid://shopify/ProductVariant/49875425624370",
-                      "inventoryItem": {
-                        "requiresShipping": true
-                      }
-                    }
-                  ]
-                }
+                "id": "gid://shopify/Location/112864919858",
+                "isActive": true,
+                "isFulfillmentService": false
               },
               {
-                "variants": {
-                  "nodes": [
-                    {
-                      "id": "gid://shopify/ProductVariant/49875425657138",
-                      "inventoryItem": {
-                        "requiresShipping": true
-                      }
-                    }
-                  ]
-                }
+                "id": "gid://shopify/Location/112864952626",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/112864985394",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/112865116466",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/112865149234",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113491607858",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113491640626",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113783472434",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113783505202",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113783537970",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113783570738",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113792155954",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113792188722",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113792254258",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113792319794",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113792352562",
+                "isActive": false,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113792385330",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113792450866",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113792549170",
+                "isActive": false,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113792581938",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113828626738",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113883906354",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113883939122",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113884070194",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113884102962",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113903927602",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113903960370",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113903993138",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113904025906",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113904058674",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113904091442",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113904124210",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113904156978",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113904189746",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113904222514",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113904255282",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113904288050",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113904320818",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113904353586",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113977196850",
+                "isActive": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113977229618",
+                "isActive": false,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113977262386",
+                "isActive": true,
+                "isFulfillmentService": false
               }
             ]
           }
         },
         "extensions": {
           "cost": {
-            "requestedQueryCost": 46,
-            "actualQueryCost": 22,
+            "requestedQueryCost": 9,
+            "actualQueryCost": 9,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1978,
+              "currentlyAvailable": 1991,
               "restoreRate": 100
             }
           }
         }
       },
-      "selectedVariantId": "gid://shopify/ProductVariant/49875425296690"
+      "status": 200
     },
-    "variantHydrate": {
-      "document": "query OrdersDraftOrderVariantHydrate($id: ID!) {\n  productVariant(id: $id) { id title sku taxable price inventoryItem { requiresShipping } product { title } }\n}\n",
+    "deliveryProfileCreate": {
+      "document": "mutation DeliveryProfileLifecycleCreate($profile: DeliveryProfileInput!) {\n  deliveryProfileCreate(profile: $profile) {\n    profile {\n      id\n      name\n      version\n      originLocationCount\n      zoneCountryCount\n      activeMethodDefinitionsCount\n      profileItems(first: 5) {\n        nodes {\n          product {\n            id\n            title\n          }\n          variants(first: 5) {\n            nodes {\n              id\n              title\n            }\n          }\n        }\n      }\n      profileLocationGroups {\n        countriesInAnyZone {\n          zone\n          country {\n            code {\n              countryCode\n              restOfWorld\n            }\n          }\n        }\n        locationGroup {\n          id\n        }\n        locationGroupZones(first: 5) {\n          nodes {\n            zone {\n              id\n              name\n              countries {\n                code {\n                  countryCode\n                  restOfWorld\n                }\n              }\n            }\n            methodDefinitions(first: 5) {\n              nodes {\n                id\n                name\n                active\n                description\n                rateProvider {\n                  ... on DeliveryRateDefinition {\n                    id\n                    price {\n                      amount\n                      currencyCode\n                    }\n                  }\n                }\n                methodConditions {\n                  id\n                  field\n                  operator\n                  conditionCriteria {\n                    __typename\n                    ... on Weight {\n                      value\n                      unit\n                    }\n                    ... on MoneyV2 {\n                      amount\n                      currencyCode\n                    }\n                  }\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/ProductVariant/49875425296690"
+        "profile": {
+          "name": "Draft order shipping rates 20260719191132",
+          "variantsToAssociate": ["gid://shopify/ProductVariant/51488585187634"],
+          "locationGroupsToCreate": [
+            {
+              "locations": ["gid://shopify/Location/106318430514"],
+              "zonesToCreate": [
+                {
+                  "name": "United States",
+                  "countries": [
+                    {
+                      "code": "US",
+                      "includeAllProvinces": true
+                    }
+                  ],
+                  "methodDefinitionsToCreate": [
+                    {
+                      "name": "Conformance Standard",
+                      "description": "Captured fixed draft-order shipping rate",
+                      "active": true,
+                      "rateDefinition": {
+                        "price": {
+                          "amount": "7.25",
+                          "currencyCode": "CAD"
+                        }
+                      }
+                    },
+                    {
+                      "name": "Conformance Express",
+                      "description": "Captured expedited draft-order shipping rate",
+                      "active": true,
+                      "rateDefinition": {
+                        "price": {
+                          "amount": "12.00",
+                          "currencyCode": "CAD"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
       },
       "response": {
         "data": {
-          "productVariant": {
-            "id": "gid://shopify/ProductVariant/49875425296690",
-            "title": "Default Title",
-            "sku": "sku-untracked-1",
-            "taxable": true,
-            "price": "949.95",
-            "inventoryItem": {
-              "requiresShipping": true
+          "deliveryProfileCreate": {
+            "profile": {
+              "id": "gid://shopify/DeliveryProfile/132898488626",
+              "name": "Draft order shipping rates 20260719191132",
+              "version": 1,
+              "originLocationCount": 1,
+              "zoneCountryCount": 1,
+              "activeMethodDefinitionsCount": 2,
+              "profileItems": {
+                "nodes": [
+                  {
+                    "product": {
+                      "id": "gid://shopify/Product/10243978264882",
+                      "title": "Draft order shipping rate 20260719191132"
+                    },
+                    "variants": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/ProductVariant/51488585187634",
+                          "title": "Default Title"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              "profileLocationGroups": [
+                {
+                  "countriesInAnyZone": [
+                    {
+                      "zone": "United States",
+                      "country": {
+                        "code": {
+                          "countryCode": "US",
+                          "restOfWorld": false
+                        }
+                      }
+                    }
+                  ],
+                  "locationGroup": {
+                    "id": "gid://shopify/DeliveryLocationGroup/134610321714"
+                  },
+                  "locationGroupZones": {
+                    "nodes": [
+                      {
+                        "zone": {
+                          "id": "gid://shopify/DeliveryZone/586248847666",
+                          "name": "United States",
+                          "countries": [
+                            {
+                              "code": {
+                                "countryCode": "US",
+                                "restOfWorld": false
+                              }
+                            }
+                          ]
+                        },
+                        "methodDefinitions": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/DeliveryMethodDefinition/1114694353202",
+                              "name": "Conformance Standard",
+                              "active": true,
+                              "description": "Captured fixed draft-order shipping rate",
+                              "rateProvider": {
+                                "id": "gid://shopify/DeliveryRateDefinition/1036222464306",
+                                "price": {
+                                  "amount": "7.25",
+                                  "currencyCode": "CAD"
+                                }
+                              },
+                              "methodConditions": []
+                            },
+                            {
+                              "id": "gid://shopify/DeliveryMethodDefinition/1114694385970",
+                              "name": "Conformance Express",
+                              "active": true,
+                              "description": "Captured expedited draft-order shipping rate",
+                              "rateProvider": {
+                                "id": "gid://shopify/DeliveryRateDefinition/1036222497074",
+                                "price": {
+                                  "amount": "12.0",
+                                  "currencyCode": "CAD"
+                                }
+                              },
+                              "methodConditions": []
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
             },
-            "product": {
-              "title": "The Inventory Not Tracked Snowboard"
-            }
+            "userErrors": []
           }
         },
         "extensions": {
           "cost": {
-            "requestedQueryCost": 3,
-            "actualQueryCost": 3,
+            "requestedQueryCost": 94,
+            "actualQueryCost": 29,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1986,
+              "currentlyAvailable": 1971,
               "restoreRate": 100
             }
           }
         }
+      },
+      "status": 200
+    },
+    "selectedLocationId": "gid://shopify/Location/106318430514",
+    "selectedVariantId": "gid://shopify/ProductVariant/51488585187634",
+    "selectedDeliveryProfileId": "gid://shopify/DeliveryProfile/132898488626",
+    "matchingAddress": {
+      "firstName": "Rate",
+      "lastName": "Recipient",
+      "address1": "11 Wall Street",
+      "city": "New York",
+      "provinceCode": "NY",
+      "countryCode": "US",
+      "zip": "10005"
+    },
+    "configuredRates": [
+      {
+        "title": "Conformance Standard",
+        "amount": "7.25",
+        "currencyCode": "CAD"
+      },
+      {
+        "title": "Conformance Express",
+        "amount": "12.00",
+        "currencyCode": "CAD"
       }
-    }
+    ]
   },
-  "mutation": {
+  "calculate": {
+    "document": "mutation DraftOrderCalculateValidationAndShippingRates(\n  $emptyLineItems: DraftOrderInput!\n  $invalidEmail: DraftOrderInput!\n  $availableShippingRatesEmpty: DraftOrderInput!\n  $availableShippingRatesNoMatch: DraftOrderInput!\n  $availableShippingRatesMatching: DraftOrderInput!\n  $paymentTermsTemplateId: DraftOrderInput!\n) {\n  emptyLineItems: draftOrderCalculate(input: $emptyLineItems) {\n    calculatedDraftOrder {\n      currencyCode\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  invalidEmail: draftOrderCalculate(input: $invalidEmail) {\n    calculatedDraftOrder {\n      currencyCode\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  availableShippingRatesEmpty: draftOrderCalculate(input: $availableShippingRatesEmpty) {\n    calculatedDraftOrder {\n      availableShippingRates {\n        handle\n        title\n        price {\n          amount\n          currencyCode\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  availableShippingRatesNoMatch: draftOrderCalculate(input: $availableShippingRatesNoMatch) {\n    calculatedDraftOrder {\n      availableShippingRates {\n        handle\n        title\n        price {\n          amount\n          currencyCode\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  availableShippingRatesMatching: draftOrderCalculate(input: $availableShippingRatesMatching) {\n    calculatedDraftOrder {\n      availableShippingRates {\n        handle\n        title\n        price {\n          amount\n          currencyCode\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  paymentTermsTemplateId: draftOrderCalculate(input: $paymentTermsTemplateId) {\n    calculatedDraftOrder {\n      currencyCode\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "emptyLineItems": {
+        "lineItems": []
+      },
+      "invalidEmail": {
+        "email": "bad email",
+        "lineItems": [
+          {
+            "title": "Invalid email item",
+            "quantity": 1,
+            "originalUnitPrice": "1.00"
+          }
+        ]
+      },
+      "availableShippingRatesEmpty": {
+        "lineItems": [
+          {
+            "variantId": "gid://shopify/ProductVariant/51488585187634",
+            "quantity": 1
+          }
+        ]
+      },
+      "availableShippingRatesNoMatch": {
+        "lineItems": [
+          {
+            "variantId": "gid://shopify/ProductVariant/51488585187634",
+            "quantity": 1
+          }
+        ],
+        "shippingAddress": {
+          "firstName": "Rate",
+          "lastName": "Recipient",
+          "address1": "11 Wall Street",
+          "city": "New York",
+          "provinceCode": "ON",
+          "countryCode": "CA",
+          "zip": "M5H 2N2"
+        }
+      },
+      "availableShippingRatesMatching": {
+        "lineItems": [
+          {
+            "variantId": "gid://shopify/ProductVariant/51488585187634",
+            "quantity": 1
+          }
+        ],
+        "shippingAddress": {
+          "firstName": "Rate",
+          "lastName": "Recipient",
+          "address1": "11 Wall Street",
+          "city": "New York",
+          "provinceCode": "NY",
+          "countryCode": "US",
+          "zip": "10005"
+        }
+      },
+      "paymentTermsTemplateId": {
+        "paymentTerms": {
+          "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+          "paymentSchedules": [
+            {
+              "issuedAt": "2026-01-01T00:00:00Z"
+            }
+          ]
+        },
+        "lineItems": [
+          {
+            "title": "Payment terms item",
+            "quantity": 1,
+            "originalUnitPrice": "1.00"
+          }
+        ]
+      }
+    },
     "response": {
       "data": {
         "emptyLineItems": {
@@ -280,6 +729,35 @@
           },
           "userErrors": []
         },
+        "availableShippingRatesNoMatch": {
+          "calculatedDraftOrder": {
+            "availableShippingRates": []
+          },
+          "userErrors": []
+        },
+        "availableShippingRatesMatching": {
+          "calculatedDraftOrder": {
+            "availableShippingRates": [
+              {
+                "handle": "eyJhbGciOiJIUzI1NiJ9.eyJ0aXRsZSI6IkNvbmZvcm1hbmNlIFN0YW5kYXJkIiwiY29kZSI6IkNvbmZvcm1hbmNlIFN0YW5kYXJkIiwic291cmNlIjoic2hvcGlmeSIsInByaWNlIjoiNy4yNSIsImN1cnJlbmN5IjoiQ0FEIiwicHJpY2VfcHJlc2VudG1lbnQiOiI2LjAiLCJjdXJyZW5jeV9wcmVzZW50bWVudCI6IlVTRCIsImVzdGltYXRlZF9kZWxpdmVyeV90aW1lX3JhbmdlIjpudWxsLCJncm91cF9pZCI6bnVsbH0.leFT5X6h9tVXtXKsSKJKKvoysp2vOWzVi06l4M2VEgo",
+                "title": "Conformance Standard",
+                "price": {
+                  "amount": "7.25",
+                  "currencyCode": "CAD"
+                }
+              },
+              {
+                "handle": "eyJhbGciOiJIUzI1NiJ9.eyJ0aXRsZSI6IkNvbmZvcm1hbmNlIEV4cHJlc3MiLCJjb2RlIjoiQ29uZm9ybWFuY2UgRXhwcmVzcyIsInNvdXJjZSI6InNob3BpZnkiLCJwcmljZSI6IjEyLjAiLCJjdXJyZW5jeSI6IkNBRCIsInByaWNlX3ByZXNlbnRtZW50IjoiOS4wIiwiY3VycmVuY3lfcHJlc2VudG1lbnQiOiJVU0QiLCJlc3RpbWF0ZWRfZGVsaXZlcnlfdGltZV9yYW5nZSI6bnVsbCwiZ3JvdXBfaWQiOm51bGx9.Zzn35UFC9lJGjqdhpm__eCNl7eC8zMLkLJaiNZXRJIE",
+                "title": "Conformance Express",
+                "price": {
+                  "amount": "12.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            ]
+          },
+          "userErrors": []
+        },
         "paymentTermsTemplateId": {
           "calculatedDraftOrder": {
             "currencyCode": "CAD"
@@ -289,22 +767,128 @@
       },
       "extensions": {
         "cost": {
-          "requestedQueryCost": 41,
-          "actualQueryCost": 41,
+          "requestedQueryCost": 63,
+          "actualQueryCost": 63,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1959,
+            "currentlyAvailable": 1937,
             "restoreRate": 100
           }
         }
       }
-    }
+    },
+    "status": 200
+  },
+  "createWithRate": {
+    "document": "mutation DraftOrderShippingRateCreate($input: DraftOrderInput!) {\n  draftOrderCreate(input: $input) {\n    draftOrder {\n      id\n      shippingLine {\n        title\n        code\n        custom\n        shippingRateHandle\n        originalPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "input": {
+        "email": "draft-shipping-20260719191132@example.com",
+        "lineItems": [
+          {
+            "variantId": "gid://shopify/ProductVariant/51488585187634",
+            "quantity": 1
+          }
+        ],
+        "shippingAddress": {
+          "firstName": "Rate",
+          "lastName": "Recipient",
+          "address1": "11 Wall Street",
+          "city": "New York",
+          "provinceCode": "NY",
+          "countryCode": "US",
+          "zip": "10005"
+        },
+        "shippingLine": {
+          "shippingRateHandle": "eyJhbGciOiJIUzI1NiJ9.eyJ0aXRsZSI6IkNvbmZvcm1hbmNlIFN0YW5kYXJkIiwiY29kZSI6IkNvbmZvcm1hbmNlIFN0YW5kYXJkIiwic291cmNlIjoic2hvcGlmeSIsInByaWNlIjoiNy4yNSIsImN1cnJlbmN5IjoiQ0FEIiwicHJpY2VfcHJlc2VudG1lbnQiOiI2LjAiLCJjdXJyZW5jeV9wcmVzZW50bWVudCI6IlVTRCIsImVzdGltYXRlZF9kZWxpdmVyeV90aW1lX3JhbmdlIjpudWxsLCJncm91cF9pZCI6bnVsbH0.leFT5X6h9tVXtXKsSKJKKvoysp2vOWzVi06l4M2VEgo"
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "draftOrderCreate": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1283068657970",
+            "shippingLine": {
+              "title": "Conformance Standard",
+              "code": "Conformance Standard",
+              "custom": false,
+              "shippingRateHandle": "eyJhbGciOiJIUzI1NiJ9.eyJ0aXRsZSI6IkNvbmZvcm1hbmNlIFN0YW5kYXJkIiwiY29kZSI6IkNvbmZvcm1hbmNlIFN0YW5kYXJkIiwic291cmNlIjoic2hvcGlmeSIsInByaWNlIjoiNy4yNSIsImN1cnJlbmN5IjoiQ0FEIiwicHJpY2VfcHJlc2VudG1lbnQiOiI2LjAiLCJjdXJyZW5jeV9wcmVzZW50bWVudCI6IlVTRCIsImVzdGltYXRlZF9kZWxpdmVyeV90aW1lX3JhbmdlIjpudWxsLCJncm91cF9pZCI6bnVsbH0.leFT5X6h9tVXtXKsSKJKKvoysp2vOWzVi06l4M2VEgo",
+              "originalPriceSet": {
+                "shopMoney": {
+                  "amount": "7.25",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "status": 200
+  },
+  "updateWithRate": {
+    "document": "mutation DraftOrderShippingRateUpdate($id: ID!, $input: DraftOrderInput!) {\n  draftOrderUpdate(id: $id, input: $input) {\n    draftOrder {\n      id\n      shippingLine {\n        title\n        code\n        custom\n        shippingRateHandle\n        originalPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/DraftOrder/1283068657970",
+      "input": {
+        "shippingLine": {
+          "shippingRateHandle": "eyJhbGciOiJIUzI1NiJ9.eyJ0aXRsZSI6IkNvbmZvcm1hbmNlIEV4cHJlc3MiLCJjb2RlIjoiQ29uZm9ybWFuY2UgRXhwcmVzcyIsInNvdXJjZSI6InNob3BpZnkiLCJwcmljZSI6IjEyLjAiLCJjdXJyZW5jeSI6IkNBRCIsInByaWNlX3ByZXNlbnRtZW50IjoiOS4wIiwiY3VycmVuY3lfcHJlc2VudG1lbnQiOiJVU0QiLCJlc3RpbWF0ZWRfZGVsaXZlcnlfdGltZV9yYW5nZSI6bnVsbCwiZ3JvdXBfaWQiOm51bGx9.Zzn35UFC9lJGjqdhpm__eCNl7eC8zMLkLJaiNZXRJIE"
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "draftOrderUpdate": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1283068657970",
+            "shippingLine": {
+              "title": "Conformance Express",
+              "code": "Conformance Express",
+              "custom": false,
+              "shippingRateHandle": "eyJhbGciOiJIUzI1NiJ9.eyJ0aXRsZSI6IkNvbmZvcm1hbmNlIEV4cHJlc3MiLCJjb2RlIjoiQ29uZm9ybWFuY2UgRXhwcmVzcyIsInNvdXJjZSI6InNob3BpZnkiLCJwcmljZSI6IjEyLjAiLCJjdXJyZW5jeSI6IkNBRCIsInByaWNlX3ByZXNlbnRtZW50IjoiOS4wIiwiY3VycmVuY3lfcHJlc2VudG1lbnQiOiJVU0QiLCJlc3RpbWF0ZWRfZGVsaXZlcnlfdGltZV9yYW5nZSI6bnVsbCwiZ3JvdXBfaWQiOm51bGx9.Zzn35UFC9lJGjqdhpm__eCNl7eC8zMLkLJaiNZXRJIE",
+              "originalPriceSet": {
+                "shopMoney": {
+                  "amount": "12.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "status": 200
   },
   "upstreamCalls": [
     {
       "operationName": "OrdersDraftOrderVariantHydrate",
       "variables": {
-        "id": "gid://shopify/ProductVariant/49875425296690"
+        "id": "gid://shopify/ProductVariant/51488585187634"
       },
       "query": "query OrdersDraftOrderVariantHydrate($id: ID!) {\n  productVariant(id: $id) { id title sku taxable price inventoryItem { requiresShipping } product { title } }\n}\n",
       "response": {
@@ -312,16 +896,27 @@
         "body": {
           "data": {
             "productVariant": {
-              "id": "gid://shopify/ProductVariant/49875425296690",
+              "id": "gid://shopify/ProductVariant/51488585187634",
               "title": "Default Title",
-              "sku": "sku-untracked-1",
+              "sku": "DRAFT-SHIPPING-20260719191132",
               "taxable": true,
-              "price": "949.95",
+              "price": "25.00",
               "inventoryItem": {
                 "requiresShipping": true
               },
               "product": {
-                "title": "The Inventory Not Tracked Snowboard"
+                "title": "Draft order shipping rate 20260719191132"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
               }
             }
           }
@@ -348,7 +943,416 @@
               "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1994,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrdersDraftOrderDeliveryProfilesHydrate",
+      "variables": {},
+      "query": "query OrdersDraftOrderDeliveryProfilesHydrate {\n  deliveryProfiles(first: 10) {\n    nodes {\n      id\n      name\n      default\n      profileItems(first: 10) {\n        nodes {\n          variants(first: 10) { nodes { id } }\n        }\n      }\n      profileLocationGroups {\n        locationGroup {\n          id\n          locations(first: 10) { nodes { id } }\n        }\n        locationGroupZones(first: 10) {\n          nodes {\n            zone {\n              id\n              countries {\n                code { countryCode restOfWorld }\n                provinces { code }\n              }\n            }\n            methodDefinitions(first: 10) {\n              nodes {\n                id\n                name\n                active\n                rateProvider {\n                  ... on DeliveryRateDefinition { id price { amount currencyCode } }\n                  ... on DeliveryParticipant { id fixedFee { amount currencyCode } percentageOfRateFee }\n                }\n                methodConditions {\n                  id\n                  field\n                  operator\n                  conditionCriteria {\n                    __typename\n                    ... on MoneyV2 { amount currencyCode }\n                    ... on Weight { unit value }\n                  }\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "deliveryProfiles": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/DeliveryProfile/125254992178",
+                  "name": "General profile",
+                  "default": true,
+                  "profileItems": {
+                    "nodes": [
+                      {
+                        "variants": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/ProductVariant/49875425296690"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "variants": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/ProductVariant/49875425329458"
+                            },
+                            {
+                              "id": "gid://shopify/ProductVariant/49875425362226"
+                            },
+                            {
+                              "id": "gid://shopify/ProductVariant/49875425394994"
+                            },
+                            {
+                              "id": "gid://shopify/ProductVariant/49875425427762"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "variants": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/ProductVariant/49875425460530"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "variants": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/ProductVariant/49875425493298"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "variants": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/ProductVariant/49875425526066"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "variants": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/ProductVariant/49875425558834"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "variants": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/ProductVariant/49875425886514"
+                            },
+                            {
+                              "id": "gid://shopify/ProductVariant/49875425919282"
+                            },
+                            {
+                              "id": "gid://shopify/ProductVariant/49875425952050"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "variants": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/ProductVariant/49875425591602"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "variants": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/ProductVariant/49875425624370"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "variants": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/ProductVariant/49875425657138"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  "profileLocationGroups": []
+                },
+                {
+                  "id": "gid://shopify/DeliveryProfile/132898488626",
+                  "name": "Draft order shipping rates 20260719191132",
+                  "default": false,
+                  "profileItems": {
+                    "nodes": [
+                      {
+                        "variants": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/ProductVariant/51488585187634"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  "profileLocationGroups": [
+                    {
+                      "locationGroup": {
+                        "id": "gid://shopify/DeliveryLocationGroup/134610321714",
+                        "locations": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/Location/106318430514"
+                            }
+                          ]
+                        }
+                      },
+                      "locationGroupZones": {
+                        "nodes": [
+                          {
+                            "zone": {
+                              "id": "gid://shopify/DeliveryZone/586248847666",
+                              "countries": [
+                                {
+                                  "code": {
+                                    "countryCode": "US",
+                                    "restOfWorld": false
+                                  },
+                                  "provinces": [
+                                    {
+                                      "code": "AL"
+                                    },
+                                    {
+                                      "code": "AK"
+                                    },
+                                    {
+                                      "code": "AS"
+                                    },
+                                    {
+                                      "code": "AZ"
+                                    },
+                                    {
+                                      "code": "AR"
+                                    },
+                                    {
+                                      "code": "AA"
+                                    },
+                                    {
+                                      "code": "AE"
+                                    },
+                                    {
+                                      "code": "AP"
+                                    },
+                                    {
+                                      "code": "CA"
+                                    },
+                                    {
+                                      "code": "CO"
+                                    },
+                                    {
+                                      "code": "CT"
+                                    },
+                                    {
+                                      "code": "DE"
+                                    },
+                                    {
+                                      "code": "DC"
+                                    },
+                                    {
+                                      "code": "FM"
+                                    },
+                                    {
+                                      "code": "FL"
+                                    },
+                                    {
+                                      "code": "GA"
+                                    },
+                                    {
+                                      "code": "GU"
+                                    },
+                                    {
+                                      "code": "HI"
+                                    },
+                                    {
+                                      "code": "ID"
+                                    },
+                                    {
+                                      "code": "IL"
+                                    },
+                                    {
+                                      "code": "IN"
+                                    },
+                                    {
+                                      "code": "IA"
+                                    },
+                                    {
+                                      "code": "KS"
+                                    },
+                                    {
+                                      "code": "KY"
+                                    },
+                                    {
+                                      "code": "LA"
+                                    },
+                                    {
+                                      "code": "ME"
+                                    },
+                                    {
+                                      "code": "MH"
+                                    },
+                                    {
+                                      "code": "MD"
+                                    },
+                                    {
+                                      "code": "MA"
+                                    },
+                                    {
+                                      "code": "MI"
+                                    },
+                                    {
+                                      "code": "MN"
+                                    },
+                                    {
+                                      "code": "MS"
+                                    },
+                                    {
+                                      "code": "MO"
+                                    },
+                                    {
+                                      "code": "MT"
+                                    },
+                                    {
+                                      "code": "NE"
+                                    },
+                                    {
+                                      "code": "NV"
+                                    },
+                                    {
+                                      "code": "NH"
+                                    },
+                                    {
+                                      "code": "NJ"
+                                    },
+                                    {
+                                      "code": "NM"
+                                    },
+                                    {
+                                      "code": "NY"
+                                    },
+                                    {
+                                      "code": "NC"
+                                    },
+                                    {
+                                      "code": "ND"
+                                    },
+                                    {
+                                      "code": "MP"
+                                    },
+                                    {
+                                      "code": "OH"
+                                    },
+                                    {
+                                      "code": "OK"
+                                    },
+                                    {
+                                      "code": "OR"
+                                    },
+                                    {
+                                      "code": "PW"
+                                    },
+                                    {
+                                      "code": "PA"
+                                    },
+                                    {
+                                      "code": "PR"
+                                    },
+                                    {
+                                      "code": "RI"
+                                    },
+                                    {
+                                      "code": "SC"
+                                    },
+                                    {
+                                      "code": "SD"
+                                    },
+                                    {
+                                      "code": "TN"
+                                    },
+                                    {
+                                      "code": "TX"
+                                    },
+                                    {
+                                      "code": "UT"
+                                    },
+                                    {
+                                      "code": "VT"
+                                    },
+                                    {
+                                      "code": "VI"
+                                    },
+                                    {
+                                      "code": "VA"
+                                    },
+                                    {
+                                      "code": "WA"
+                                    },
+                                    {
+                                      "code": "WV"
+                                    },
+                                    {
+                                      "code": "WI"
+                                    },
+                                    {
+                                      "code": "WY"
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            "methodDefinitions": {
+                              "nodes": [
+                                {
+                                  "id": "gid://shopify/DeliveryMethodDefinition/1114694353202",
+                                  "name": "Conformance Standard",
+                                  "active": true,
+                                  "rateProvider": {
+                                    "id": "gid://shopify/DeliveryRateDefinition/1036222464306",
+                                    "price": {
+                                      "amount": "7.25",
+                                      "currencyCode": "CAD"
+                                    }
+                                  },
+                                  "methodConditions": []
+                                },
+                                {
+                                  "id": "gid://shopify/DeliveryMethodDefinition/1114694385970",
+                                  "name": "Conformance Express",
+                                  "active": true,
+                                  "rateProvider": {
+                                    "id": "gid://shopify/DeliveryRateDefinition/1036222497074",
+                                    "price": {
+                                      "amount": "12.0",
+                                      "currencyCode": "CAD"
+                                    }
+                                  },
+                                  "methodConditions": []
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 534,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
                 "restoreRate": 100
               }
             }
@@ -356,5 +1360,92 @@
         }
       }
     }
-  ]
+  ],
+  "cleanup": {
+    "draftOrderDelete": {
+      "document": "#graphql\n  mutation DraftOrderShippingRateDraftDelete($input: DraftOrderDeleteInput!) {\n    draftOrderDelete(input: $input) {\n      deletedId\n      userErrors { field message }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/DraftOrder/1283068657970"
+        }
+      },
+      "response": {
+        "data": {
+          "draftOrderDelete": {
+            "deletedId": "gid://shopify/DraftOrder/1283068657970",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "deliveryProfileRemove": {
+      "document": "#graphql\n  mutation DraftOrderShippingRateProfileRemove($id: ID!) {\n    deliveryProfileRemove(id: $id) {\n      job { id done }\n      userErrors { field message }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/DeliveryProfile/132898488626"
+      },
+      "response": {
+        "data": {
+          "deliveryProfileRemove": {
+            "job": {
+              "id": "gid://shopify/Job/6003ba87-156b-4b1e-993a-46af3d098d1b",
+              "done": false
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "productDelete": {
+      "document": "#graphql\n  mutation DraftOrderShippingRateProductDelete($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors { field message }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Product/10243978264882"
+        }
+      },
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10243978264882",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    }
+  }
 }
