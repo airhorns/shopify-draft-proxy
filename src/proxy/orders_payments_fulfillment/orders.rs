@@ -6,6 +6,16 @@ use self::order_customer_paths::*;
 use self::order_edit::*;
 use crate::proxy::storefront::storefront_customer_email_key;
 
+const ORDER_CREATE_INVENTORY_PREFLIGHT_QUERY: &str =
+    include_str!("../../../config/parity-requests/orders/order-create-inventory-preflight.graphql");
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OrderCreateInventoryEffect {
+    inventory_item_id: String,
+    location_id: String,
+    quantity: i64,
+}
+
 fn order_edit_error_payload(errors: Vec<Value>) -> Value {
     oe_error_payload(errors)
 }
@@ -20,6 +30,26 @@ pub(in crate::proxy) fn order_create_inventory_behaviour(
     resolved_object_field(arguments, "options")
         .and_then(|options| resolved_string_field(&options, "inventoryBehaviour"))
         .unwrap_or_else(|| "DECREMENT_IGNORING_POLICY".to_string())
+}
+
+fn order_create_unresolved_variant_payload() -> Value {
+    json!({
+        "order": Value::Null,
+        "userErrors": [
+            {
+                "field": ["order"],
+                "message": "Order Line items is invalid"
+            },
+            {
+                "field": ["order", "lineItems"],
+                "message": "Line items Name can't be blank"
+            },
+            {
+                "field": ["order", "lineItems"],
+                "message": "Line items Title can't be blank"
+            }
+        ]
+    })
 }
 
 fn order_create_input_needs_shop_currency_default(
@@ -704,14 +734,13 @@ pub(in crate::proxy) fn order_update_validation_errors(
 }
 
 pub(in crate::proxy) fn order_update_metafields(
-    order_id: &str,
     input: &BTreeMap<String, ResolvedValue>,
     existing: &[Value],
+    allocate_metafield_id: &mut impl FnMut() -> String,
 ) -> Vec<Value> {
     resolved_object_list_field(input, "metafields")
         .into_iter()
-        .enumerate()
-        .filter_map(|(index, metafield)| {
+        .filter_map(|metafield| {
             let namespace = resolved_string_field(&metafield, "namespace")?;
             let key = resolved_string_field(&metafield, "key")?;
             // Reuse the backing metafield id when the order already carries a
@@ -724,9 +753,7 @@ pub(in crate::proxy) fn order_update_metafields(
                         && m["key"].as_str() == Some(key.as_str())
                 })
                 .and_then(|m| m["id"].as_str().map(str::to_string))
-                .unwrap_or_else(|| {
-                    shopify_gid("Metafield", format!("{}{}", resource_id_tail(order_id), index + 1))
-                });
+                .unwrap_or_else(&mut *allocate_metafield_id);
             Some(json!({
                 "id": metafield_id,
                 "namespace": namespace,
@@ -806,7 +833,7 @@ pub(in crate::proxy) fn order_create_discount_amount(
 
 pub(in crate::proxy) fn order_create_line_item_record(
     input: &BTreeMap<String, ResolvedValue>,
-    index: usize,
+    id: &str,
     currency_code: &str,
     presentment_currency_code: &str,
 ) -> (Value, f64, f64) {
@@ -849,7 +876,7 @@ pub(in crate::proxy) fn order_create_line_item_record(
     let unit_amount_text = format_money_amount(unit_amount);
     let presentment_amount_text = format_money_amount(presentment_amount);
     let line = json!({
-        "id": shopify_gid("LineItem", index + 1),
+        "id": id,
         "title": resolved_string_field(input, "title").unwrap_or_else(|| "Custom Item".to_string()),
         "quantity": quantity,
         "currentQuantity": quantity,
@@ -1535,22 +1562,149 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn next_order_transaction_id(&mut self) -> String {
-        let number = self.store.staged.order_payment_next_transaction_id.max(3);
-        self.store.staged.order_payment_next_transaction_id = number.saturating_add(1);
-        shopify_gid("OrderTransaction", number)
+        self.next_synthetic_gid("OrderTransaction")
     }
 
-    fn order_line_inventory_item_id(
-        &self,
-        line_item: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<String> {
-        resolved_string_field(line_item, "inventoryItemId").or_else(|| {
-            let variant_id = resolved_string_field(line_item, "variantId")?;
-            self.store
-                .product_variant_by_id(&variant_id)
-                .map(|variant| variant.inventory_item.id.clone())
-                .or_else(|| Some(shopify_gid("InventoryItem", resource_id_tail(&variant_id))))
-        })
+    fn hydrate_order_create_inventory_variants(
+        &mut self,
+        request: &Request,
+        variant_ids: &[String],
+    ) {
+        if self.config.read_mode != ReadMode::LiveHybrid || variant_ids.is_empty() {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": ORDER_CREATE_INVENTORY_PREFLIGHT_QUERY.trim_end(),
+                "operationName": "OrdersOrderCreateInventoryPreflight",
+                "variables": { "ids": variant_ids }
+            }),
+        );
+        if !response_is_success(&response) {
+            return;
+        }
+        let requested = variant_ids
+            .iter()
+            .map(String::as_str)
+            .collect::<BTreeSet<_>>();
+        for variant in response.body["data"]["nodes"]
+            .as_array()
+            .into_iter()
+            .flatten()
+        {
+            let Some(variant_id) = variant.get("id").and_then(Value::as_str) else {
+                continue;
+            };
+            if !requested.contains(variant_id)
+                || variant.get("__typename").and_then(Value::as_str) != Some("ProductVariant")
+            {
+                continue;
+            }
+            let Some(mut inventory_item) = variant.get("inventoryItem").cloned() else {
+                continue;
+            };
+            let relationship_is_complete = inventory_item
+                .get("id")
+                .and_then(Value::as_str)
+                .is_some_and(|id| is_shopify_gid_of_type(id, "InventoryItem"))
+                && inventory_item
+                    .get("inventoryLevels")
+                    .and_then(|connection| connection.get("nodes"))
+                    .is_some_and(Value::is_array);
+            if !relationship_is_complete {
+                continue;
+            }
+            inventory_item["variant"] = variant.clone();
+            self.observe_inventory_item_node(&inventory_item);
+        }
+    }
+
+    fn order_create_inventory_effects(
+        &mut self,
+        request: &Request,
+        order_input: &BTreeMap<String, ResolvedValue>,
+    ) -> Result<Vec<OrderCreateInventoryEffect>, Value> {
+        let line_items = resolved_object_list_field(order_input, "lineItems");
+        let mut seen_variant_ids = BTreeSet::new();
+        let variant_ids = line_items
+            .iter()
+            .filter_map(|line_item| resolved_string_field(line_item, "variantId"))
+            .filter(|variant_id| seen_variant_ids.insert(variant_id.clone()))
+            .collect::<Vec<_>>();
+        let variants_to_hydrate = variant_ids
+            .iter()
+            .filter(|variant_id| {
+                if is_synthetic_gid(variant_id) {
+                    return false;
+                }
+                self.store
+                    .product_variant_by_id(variant_id)
+                    .is_none_or(|variant| {
+                        !is_shopify_gid_of_type(&variant.inventory_item.id, "InventoryItem")
+                            || self
+                                .inventory_levels_for_item(&variant.inventory_item.id)
+                                .is_empty()
+                    })
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        self.hydrate_order_create_inventory_variants(request, &variants_to_hydrate);
+
+        if variant_ids
+            .iter()
+            .any(|variant_id| self.store.product_variant_by_id(variant_id).is_none())
+        {
+            return Err(order_create_unresolved_variant_payload());
+        }
+
+        let mut quantities_by_item = BTreeMap::<String, i64>::new();
+        for line_item in line_items {
+            let quantity = resolved_int_field(&line_item, "quantity").unwrap_or(1);
+            if quantity <= 0 {
+                continue;
+            }
+            let inventory_item_id =
+                if let Some(variant_id) = resolved_string_field(&line_item, "variantId") {
+                    let variant = self.store.product_variant_by_id(&variant_id).expect(
+                        "all order variants were resolved before planning inventory effects",
+                    );
+                    if !variant.inventory_item.tracked {
+                        continue;
+                    }
+                    variant.inventory_item.id.clone()
+                } else if let Some(inventory_item_id) =
+                    resolved_string_field(&line_item, "inventoryItemId")
+                {
+                    if self
+                        .store
+                        .product_variant_by_inventory_item_id(&inventory_item_id)
+                        .is_none()
+                    {
+                        continue;
+                    }
+                    inventory_item_id
+                } else {
+                    continue;
+                };
+            if !is_shopify_gid_of_type(&inventory_item_id, "InventoryItem") {
+                return Err(order_create_unresolved_variant_payload());
+            }
+            *quantities_by_item.entry(inventory_item_id).or_default() += quantity;
+        }
+
+        Ok(quantities_by_item
+            .into_iter()
+            .filter_map(|(inventory_item_id, quantity)| {
+                let location_id =
+                    self.inventory_item_decrement_location(&inventory_item_id, quantity)?;
+                Some(OrderCreateInventoryEffect {
+                    inventory_item_id,
+                    location_id,
+                    quantity,
+                })
+            })
+            .collect())
     }
 
     pub(in crate::proxy) fn order_create_local_outcome(
@@ -1793,7 +1947,9 @@ impl DraftProxy {
                 .cloned()
                 .or_else(|| self.store.staged.owner_metafields.get(&order_id).cloned())
                 .unwrap_or_default();
-            let metafields = order_update_metafields(&order_id, &input, &existing_metafields);
+            let metafields = order_update_metafields(&input, &existing_metafields, &mut || {
+                self.next_synthetic_gid("Metafield")
+            });
             self.store
                 .staged
                 .owner_metafields
@@ -1872,16 +2028,21 @@ impl DraftProxy {
             self.hydrate_shop_pricing_state_if_missing(request, true, false);
         }
         if order_create_inventory_behaviour(arguments) != "BYPASS" {
-            for line_item in resolved_object_list_field(&order_input, "lineItems") {
-                if let Some(inventory_item_id) = self.order_line_inventory_item_id(&line_item) {
-                    let quantity = resolved_int_field(&line_item, "quantity").unwrap_or(1);
-                    self.decrement_inventory_item_available(&inventory_item_id, quantity);
-                }
+            let inventory_effects = match self.order_create_inventory_effects(request, &order_input)
+            {
+                Ok(effects) => effects,
+                Err(payload) => return payload,
+            };
+            for effect in inventory_effects {
+                self.decrement_inventory_item_available_at_location(
+                    &effect.inventory_item_id,
+                    &effect.location_id,
+                    effect.quantity,
+                );
             }
         }
 
-        let order_id = shopify_gid("Order", self.store.staged.next_order_id);
-        self.store.staged.next_order_id += 1;
+        let order_id = self.next_synthetic_gid("Order");
         if order_create_updates_customer_email_from_order(request) {
             if let (Some(customer_id), Some(order_email)) = (
                 resolved_string_field(&order_input, "customerId"),
@@ -2147,6 +2308,47 @@ impl DraftProxy {
     ) -> Option<String> {
         self.staged_order_id_for_fulfillment_order(fulfillment_order_id)
             .or_else(|| self.hydrate_order_for_fulfillment_order(fulfillment_order_id, request))
+    }
+
+    pub(super) fn hydrate_orders_for_fulfillment_order_merge(
+        &mut self,
+        fulfillment_order_ids: &[String],
+        request: &Request,
+    ) {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return;
+        }
+        let mut seen = BTreeSet::new();
+        let missing_ids = fulfillment_order_ids
+            .iter()
+            .filter(|id| {
+                self.staged_order_id_for_fulfillment_order(id).is_none()
+                    && seen.insert((*id).clone())
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        if missing_ids.is_empty() {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": ORDERS_FULFILLMENT_ORDER_MERGE_HYDRATE_QUERY,
+                "variables": { "ids": missing_ids }
+            }),
+        );
+        if !response_is_success(&response) {
+            return;
+        }
+        for fulfillment_order in response.body["data"]["nodes"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|node| node.is_object())
+            .cloned()
+        {
+            self.merge_hydrated_fulfillment_order_into_order(fulfillment_order);
+        }
     }
 
     pub(super) fn stage_hydrated_order(&mut self, mut order: Value) -> Option<String> {
@@ -2418,11 +2620,11 @@ impl DraftProxy {
         let mut tax_total = 0.0;
         let line_items = resolved_object_list_field(order_input, "lineItems")
             .into_iter()
-            .enumerate()
-            .map(|(index, line_item)| {
+            .map(|line_item| {
+                let line_item_id = self.next_synthetic_gid("LineItem");
                 let (line, line_subtotal, line_tax_total) = order_create_line_item_record(
                     &line_item,
-                    index,
+                    &line_item_id,
                     &currency_code,
                     &presentment_currency_code,
                 );
@@ -2538,6 +2740,7 @@ impl DraftProxy {
             "discountCodes": discount_codes,
             "shippingLines": order_connection(shipping_lines),
             "lineItems": order_connection(line_items),
+            "metafields": order_connection(Vec::new()),
             "fulfillments": [],
             "fulfillmentOrders": order_connection(fulfillment_orders),
             "transactions": transactions
@@ -2563,11 +2766,12 @@ impl DraftProxy {
     }
 
     pub(super) fn record_orders_local_log_entry(&mut self, entry: OrdersLocalLogEntry<'_>) {
+        let id = self.next_synthetic_gid("MutationLogEntry");
         let root_fields = parse_operation(entry.query)
             .map(|operation| operation.root_fields)
             .unwrap_or_else(|| vec![entry.root_field.to_string()]);
         self.log_entries.push(json!({
-            "id": shopify_gid("MutationLogEntry", self.log_entries.len() + 1),
+            "id": id,
             "operationName": entry.root_field,
             "path": entry.request.path,
             "query": entry.query,

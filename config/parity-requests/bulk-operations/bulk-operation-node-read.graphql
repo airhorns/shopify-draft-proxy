@@ -1,0 +1,21 @@
+query BulkOperationNodeRead($id: ID!) {
+  effective: node(id: $id) {
+    __typename
+    ...BulkOperationNodeFields
+  }
+}
+
+fragment BulkOperationNodeFields on BulkOperation {
+  id
+  status
+  type
+  errorCode
+  createdAt
+  completedAt
+  objectCount
+  rootObjectCount
+  fileSize
+  url
+  partialDataUrl
+  query
+}
