@@ -7,11 +7,15 @@ import path from 'node:path';
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+import {
+  captureProductMutationPreflight,
+  captureProductOptionLifecycleHydration,
+} from './product-mutation-preflight-capture.js';
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
-const { runGraphql } = createAdminGraphqlClient({
+const { runGraphql, runGraphqlRaw } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
@@ -233,6 +237,9 @@ async function captureOptionStrategyScenario(runId, suffix, variantStrategy) {
   const productId = await createProduct(runId, suffix, productIds);
   const variables = optionCreateVariables(productId, variantStrategy);
   const preMutationRead = await runGraphql(productReadQuery, { id: productId });
+  const lifecycleHydration = await captureProductOptionLifecycleHydration(runGraphqlRaw, productId);
+  const mutationHydration = await captureProductMutationPreflight(runGraphqlRaw, productId);
+  const upstreamCalls = [lifecycleHydration, ...mutationHydration];
   const response = await runGraphql(optionsCreateMutation, variables);
   const downstreamRead = await runGraphql(productReadQuery, { id: productId });
   return {
@@ -241,6 +248,7 @@ async function captureOptionStrategyScenario(runId, suffix, variantStrategy) {
       preMutationRead,
       mutation: { variables, response },
       downstreamRead,
+      upstreamCalls,
     },
   };
 }
@@ -277,6 +285,9 @@ async function captureCreateOverLimitScenario(runId) {
     ],
   };
   const preMutationRead = await runGraphql(productReadQuery, { id: productId });
+  const lifecycleHydration = await captureProductOptionLifecycleHydration(runGraphqlRaw, productId);
+  const mutationHydration = await captureProductMutationPreflight(runGraphqlRaw, productId);
+  const upstreamCalls = [lifecycleHydration, ...mutationHydration];
   const response = await runGraphql(optionsCreateMutation, variables);
   const downstreamRead = await runGraphql(productReadQuery, { id: productId });
   return {
@@ -289,6 +300,7 @@ async function captureCreateOverLimitScenario(runId) {
       preMutationRead,
       mutation: { variables, response },
       downstreamRead,
+      upstreamCalls,
     },
   };
 }
@@ -303,6 +315,7 @@ async function captureBulkDefaultStandaloneScenario(runId, suffix, strategy) {
     `HERMES-${runId}-${suffix}`.toUpperCase(),
   );
   const preMutationRead = await runGraphql(productReadQuery, { id: productId });
+  const upstreamCalls = await captureProductMutationPreflight(runGraphqlRaw, productId);
   const response = await runGraphql(bulkCreateMutation, variables);
   const downstreamRead = await runGraphql(productReadQuery, { id: productId });
   return {
@@ -311,6 +324,7 @@ async function captureBulkDefaultStandaloneScenario(runId, suffix, strategy) {
       preMutationRead,
       mutation: { variables, response },
       downstreamRead,
+      upstreamCalls,
     },
   };
 }
@@ -342,6 +356,7 @@ async function captureBulkCustomStandaloneScenario(runId, suffix, strategy) {
     `HERMES-${runId}-${suffix}`.toUpperCase(),
   );
   const preMutationRead = await runGraphql(productReadQuery, { id: productId });
+  const upstreamCalls = await captureProductMutationPreflight(runGraphqlRaw, productId);
   const response = await runGraphql(bulkCreateMutation, variables);
   const downstreamRead = await runGraphql(productReadQuery, { id: productId });
   return {
@@ -354,6 +369,7 @@ async function captureBulkCustomStandaloneScenario(runId, suffix, strategy) {
       preMutationRead,
       mutation: { variables, response },
       downstreamRead,
+      upstreamCalls,
     },
   };
 }

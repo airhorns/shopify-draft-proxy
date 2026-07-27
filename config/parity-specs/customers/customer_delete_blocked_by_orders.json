@@ -1,15 +1,27 @@
 {
   "scenarioId": "customer_delete_blocked_by_orders",
-  "operationNames": ["customerCreate", "orderCreate", "customerDelete", "customer"],
+  "operationNames": ["customerDelete", "customer"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["runtime-staging", "user-errors-parity", "downstream-read-parity", "no-upstream-passthrough"],
+  "assertionKinds": [
+    "upstream-hydration-parity",
+    "runtime-staging",
+    "user-errors-parity",
+    "downstream-read-parity",
+    "no-upstream-mutation-passthrough"
+  ],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-delete-blocked-by-orders.json"
   ],
   "runtimeTestFiles": ["tests/graphql_routes/admin_app_shipping.rs"],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/customers/customer-delete-order-precondition-customer-create.graphql",
-    "variablesCapturePath": "$.setup.customerCreate.variables",
+    "documentPath": "config/parity-requests/customers/customer-delete-order-precondition-delete.graphql",
+    "variables": {
+      "input": {
+        "id": {
+          "fromCapturePath": "$.setup.customerCreate.response.data.customerCreate.customer.id"
+        }
+      }
+    },
     "apiVersion": "2025-01"
   },
   "comparisonMode": "captured-vs-proxy-request",
@@ -18,50 +30,36 @@
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "setup-customer",
-        "capturePath": "$.expected.customerCreate.data.customerCreate.userErrors",
-        "proxyPath": "$.data.customerCreate.userErrors"
+        "name": "mutation-first-blocked-delete-from-hydrated-can-delete",
+        "capturePath": "$.expected.customerDelete.data.customerDelete",
+        "proxyPath": "$.data.customerDelete"
       },
       {
-        "name": "setup-order",
-        "capturePath": "$.expected.orderCreate.data.orderCreate.userErrors",
-        "proxyPath": "$.data.orderCreate.userErrors",
+        "name": "blocked-customer-remains-visible",
+        "capturePath": "$.expected.readAfterBlockedDelete.data.customer",
+        "proxyPath": "$.data.customer",
+        "preserveProxyState": true,
         "proxyRequest": {
-          "documentPath": "config/parity-requests/customers/customer-delete-order-precondition-order-create.graphql",
+          "documentPath": "config/parity-requests/customers/customer-delete-order-precondition-read.graphql",
           "variables": {
-            "order": {
-              "email": "customer-delete-order@example.test",
-              "customerId": {
-                "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
-              },
-              "currency": "CAD",
-              "lineItems": [
-                {
-                  "title": "Customer delete blocking line",
-                  "quantity": 1,
-                  "priceSet": {
-                    "shopMoney": {
-                      "amount": "9.99",
-                      "currencyCode": "CAD"
-                    }
-                  }
-                }
-              ]
+            "id": {
+              "fromCapturePath": "$.setup.customerCreate.response.data.customerCreate.customer.id"
             }
           },
           "apiVersion": "2025-01"
         }
       },
       {
-        "name": "blocked-delete",
-        "capturePath": "$.expected.customerDelete.data.customerDelete",
+        "name": "mutation-first-deletable-control",
+        "capturePath": "$.control.expected.customerDelete.data.customerDelete",
         "proxyPath": "$.data.customerDelete",
+        "isolatedProxy": true,
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/customer-delete-order-precondition-delete.graphql",
           "variables": {
             "input": {
               "id": {
-                "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+                "fromCapturePath": "$.control.setup.customerCreate.response.data.customerCreate.customer.id"
               }
             }
           },
@@ -69,41 +67,15 @@
         }
       },
       {
-        "name": "read-after-blocked-delete-can-delete-and-orders",
-        "capturePath": "$.expected.readAfterBlockedDelete.data.customer",
+        "name": "deletable-control-remains-deleted",
+        "capturePath": "$.control.expected.readAfterDelete.data.customer",
         "proxyPath": "$.data.customer",
-        "expectedDifferences": [
-          {
-            "path": "$.id",
-            "matcher": "shopify-gid:Customer",
-            "reason": "The proxy reads back the customer staged by the primary proxy request and returns that synthetic Customer GID instead of Shopify's live Customer GID."
-          },
-          {
-            "path": "$.orders.nodes[*].id",
-            "matcher": "shopify-gid:Order",
-            "reason": "The local runtime allocates deterministic synthetic Order GIDs independently from the fixture label."
-          },
-          {
-            "path": "$.orders.nodes[*].customer.id",
-            "matcher": "shopify-gid:Customer",
-            "reason": "Nested order customer references point at the proxy-staged Customer GID instead of Shopify's live Customer GID."
-          },
-          {
-            "path": "$.orders.pageInfo.startCursor",
-            "matcher": "any-string",
-            "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
-          },
-          {
-            "path": "$.orders.pageInfo.endCursor",
-            "matcher": "any-string",
-            "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
-          }
-        ],
+        "preserveProxyState": true,
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/customer-delete-order-precondition-read.graphql",
           "variables": {
             "id": {
-              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+              "fromCapturePath": "$.control.setup.customerCreate.response.data.customerCreate.customer.id"
             }
           },
           "apiVersion": "2025-01"
@@ -111,5 +83,5 @@
       }
     ]
   },
-  "notes": "Live Shopify Admin GraphQL 2025-01 parity for Shopify's customerDelete order precondition. Shopify returned field [\"id\"] and message \"Customer can’t be deleted because they have associated orders\"; customerDelete.userErrors is public UserError, so selecting code is a GraphQL error and no code is pinned here. The replay creates a customer, creates an order for that customer, verifies customerDelete is blocked without deleting, and verifies a follow-up customer(id:) read returns canDelete false plus the linked order."
+  "notes": "Live Shopify Admin GraphQL 2025-01 mutation-first parity. The registered recorder creates a disposable customer plus a real order before replay begins, captures the exact CustomerHydrate response where canDelete is false, and proves a cold proxy returns Shopify's associated-orders userError without deleting. The same capture includes an isolated cold no-order customer whose hydrated canDelete is true and whose delete succeeds. Follow-up reads prove the blocked customer remains visible and the control remains deleted. No proxy setup mutation or private state seeding supplies either prerequisite."
 }

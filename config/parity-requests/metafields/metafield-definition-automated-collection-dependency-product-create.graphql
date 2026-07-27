@@ -1,0 +1,12 @@
+mutation MetafieldDefinitionAutomatedCollectionProductCreate($product: ProductCreateInput!) {
+  productCreate(product: $product) {
+    product {
+      id
+      title
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

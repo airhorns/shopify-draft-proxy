@@ -30,7 +30,8 @@ type RecordedCall = {
 
 type SeedState = {
   type: string;
-  handle: string;
+  emptyHandle: string;
+  overLimitHandle: string;
   definitionId?: string;
   rowId?: string;
 };
@@ -43,8 +44,9 @@ const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 
 const outputPath = path.join(outputDir, 'metaobject-bulk-delete-edge-cases.json');
 const runId = Date.now().toString();
 const seed: SeedState = {
-  type: `codex_har_680_bulk_delete_empty_${runId}`,
-  handle: `codex-har-680-empty-${runId}`,
+  type: `codex_bulk_delete_empty_${runId}`,
+  emptyHandle: `codex-bulk-delete-empty-${runId}`,
+  overLimitHandle: `codex-bulk-delete-over-limit-${runId}`,
 };
 
 const emptyIdsMutation = await readFile(
@@ -61,6 +63,14 @@ const knownEmptyTypeMutation = await readFile(
 );
 const bothTypeAndIdsMutation = await readFile(
   'config/parity-requests/metaobjects/metaobject-bulk-delete-edge-both-type-and-ids.graphql',
+  'utf8',
+);
+const overLimitMutation = await readFile(
+  'config/parity-requests/metaobjects/metaobject-bulk-delete-edge-over-limit.graphql',
+  'utf8',
+);
+const overLimitReadQuery = await readFile(
+  'config/parity-requests/metaobjects/metaobject-bulk-delete-edge-over-limit-read.graphql',
   'utf8',
 );
 
@@ -362,7 +372,7 @@ try {
     'bulk-delete-empty-ids',
   );
 
-  const unknownType = `codex_har_680_missing_${runId}`;
+  const unknownType = `codex_bulk_delete_missing_${runId}`;
   branches['unknownType'] = await captureGraphql('bulk-delete-unknown-type', unknownTypeMutation, {
     type: unknownType,
   });
@@ -370,7 +380,7 @@ try {
   const definitionCreate = await captureGraphql('setup-definition-create', definitionCreateMutation, {
     definition: {
       type: seed.type,
-      name: `Codex HAR-680 Empty ${runId}`,
+      name: `Codex Bulk Delete Empty ${runId}`,
       displayNameKey: 'title',
       fieldDefinitions: [
         {
@@ -392,7 +402,7 @@ try {
   const entryCreate = await captureGraphql('setup-entry-create', entryCreateMutation, {
     metaobject: {
       type: seed.type,
-      handle: seed.handle,
+      handle: seed.emptyHandle,
       fields: [{ key: 'title', value: 'Deleted before type bulk delete' }],
     },
   });
@@ -421,6 +431,53 @@ try {
     bothTypeAndIdsMutation,
     {},
   );
+
+  const overLimitEntryCreate = await captureGraphql('setup-over-limit-entry-create', entryCreateMutation, {
+    metaobject: {
+      type: seed.type,
+      handle: seed.overLimitHandle,
+      fields: [{ key: 'title', value: 'Must survive the rejected oversized delete' }],
+    },
+  });
+  setup.push(overLimitEntryCreate);
+  seed.rowId = extractId(
+    overLimitEntryCreate.response,
+    ['data', 'metaobjectCreate', 'metaobject', 'id'],
+    'over-limit entry create',
+  );
+  const overLimitReadVariables = {
+    id: seed.rowId,
+    type: seed.type,
+    query: `handle:${seed.overLimitHandle}`,
+  };
+  const overLimitBefore = await captureGraphql(
+    'bulk-delete-over-limit-before-read',
+    overLimitReadQuery,
+    overLimitReadVariables,
+  );
+  branches['overLimitBefore'] = overLimitBefore;
+  const overLimit = await captureGraphqlAllowErrors('bulk-delete-over-limit', overLimitMutation, {
+    ids: [
+      seed.rowId,
+      ...Array.from({ length: 250 }, (_, index) => `gid://shopify/Metaobject/${9_000_000_000_000 + index}`),
+    ],
+  });
+  branches['overLimit'] = overLimit;
+  if (!Array.isArray(readPath(overLimit.response, ['errors']))) {
+    throw new Error(`bulk-delete-over-limit did not return top-level errors: ${JSON.stringify(overLimit, null, 2)}`);
+  }
+  const overLimitAfter = await captureGraphql(
+    'bulk-delete-over-limit-after-read',
+    overLimitReadQuery,
+    overLimitReadVariables,
+  );
+  branches['overLimitAfter'] = overLimitAfter;
+  if (
+    readPath(overLimitBefore.response, ['data', 'selected', 'id']) !==
+    readPath(overLimitAfter.response, ['data', 'selected', 'id'])
+  ) {
+    throw new Error('bulk-delete-over-limit changed the selected row despite the top-level validation error');
+  }
 } catch (error) {
   fatalError = error;
 }

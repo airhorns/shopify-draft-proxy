@@ -26,7 +26,7 @@ The JavaScript package wraps the HTTP surface exposed by `src/bin/shopify-draft-
 
 ## DraftProxy Is Instance-Owned
 
-The Rust `DraftProxy` owns its store, operation registry, synthetic identity, mutation log, and injectable transports:
+The Rust `DraftProxy` owns its store, operation registry, mutation log, and injectable transports. Its normalized store owns the single monotonic synthetic-identity sequence used across domains:
 
 ```rust
 pub struct DraftProxy {

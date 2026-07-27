@@ -899,31 +899,29 @@ const FULFILLMENT_EVENT_STATUS_VALUES: &[&str] = &[
 // Draft-order hydration forwarded on a cold miss for draftOrder reads and
 // update/delete/duplicate/complete/invoice-send mutations operating on a draft
 // not created locally this scenario, then observed into staged state instead of
-// a precondition seed. Shares the `.graphql` file with the capture scripts (via
-// include_str!) so the recorded cassette byte-matches the proxy's forward under
-// the strict cassette matcher. The file preserves the original constant's bytes
-// (leading newline + indentation) so previously recorded cassettes still match.
+// a precondition seed. Parity capture maintains a separate byte-matching request.
+// The runtime document preserves the original leading newline and indentation.
 const DRAFT_ORDER_HYDRATE_QUERY: &str =
-    include_str!("../../config/parity-requests/orders/draft-order-hydrate.graphql");
+    include_str!("../runtime_graphql/orders/draft-order-hydrate.graphql.raw");
 // Order hydration for `orderEditBegin` operating on an order that was not
 // created locally in this scenario. Forwarded verbatim on a cold miss and
 // observed into staged state so the edit session is built from real line items,
-// currency, and editability flags instead of a precondition seed. Shares the
-// `.graphql` file with the capture scripts (via include_str!) so the recorded
-// cassette byte-matches the proxy's forward under the strict cassette matcher.
+// currency, and editability flags instead of a precondition seed. Parity capture
+// maintains a separate byte-matching request.
 const ORDER_EDIT_HYDRATE_QUERY: &str =
-    include_str!("../../config/parity-requests/orders/order-edit-hydrate.graphql");
+    include_str!("../runtime_graphql/orders/order-edit-hydrate.graphql");
 // Order hydration for `returnCreate` / `returnRequest` operating on an order that
 // was not created locally in this scenario. Forwarded verbatim on a cold miss and
 // observed into staged state so the return engine validates requested lines
 // against the order's real fulfillment line items and any outstanding returns,
-// instead of a precondition seed. Shares the `.graphql` file with the capture
-// scripts (via include_str!) so the recorded cassette byte-matches the proxy's
-// forward under the strict cassette matcher.
+// instead of a precondition seed. Parity capture maintains a separate
+// byte-matching request.
 const RETURN_ORDER_HYDRATE_QUERY: &str =
-    include_str!("../../config/parity-requests/orders/return-order-hydrate.graphql");
+    include_str!("../runtime_graphql/orders/return-order-hydrate.graphql.raw");
+const RETURN_FULFILLMENT_LINE_ITEMS_HYDRATE_QUERY: &str =
+    include_str!("../runtime_graphql/orders/return-fulfillment-line-items-hydrate.graphql");
 const ORDER_HYDRATE_QUERY: &str =
-    include_str!("../../config/parity-requests/orders/order-hydrate-pageable.graphql");
+    include_str!("../runtime_graphql/orders/order-hydrate-pageable.graphql.raw");
 // These hydrate queries are forwarded verbatim to the backend; their exact text
 // must match the recorded `OrdersDraftOrder*Hydrate` cassette calls (compact
 // two-space layout, customer carries firstName/lastName) so the strict cassette
@@ -936,6 +934,7 @@ const DRAFT_ORDER_VARIANT_HYDRATE_QUERY: &str =
 const DRAFT_ORDER_VARIANTS_HYDRATE_QUERY: &str =
     "query OrdersDraftOrderVariantsHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) { __typename ... on ProductVariant { id title sku taxable price inventoryItem { requiresShipping } product { title } } }\n}\n";
 const ORDERS_FULFILLMENT_ORDER_HYDRATE_QUERY: &str = "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }";
+const ORDERS_FULFILLMENT_ORDER_MERGE_HYDRATE_QUERY: &str = "query ShippingFulfillmentOrdersMergeHydrate($ids: [ID!]!) {\n    nodes(ids: $ids) {\n      ... on FulfillmentOrder {\n        id\n        status\n        requestStatus\n        fulfillAt\n        fulfillBy\n        updatedAt\n        supportedActions {\n          action\n        }\n        assignedLocation {\n          name\n          location {\n            id\n            name\n          }\n        }\n        fulfillmentHolds {\n          id\n          handle\n          reason\n          reasonNotes\n          displayReason\n          heldByApp {\n            id\n            title\n          }\n          heldByRequestingApp\n        }\n        merchantRequests(first: 10) {\n          nodes {\n            kind\n            message\n            requestOptions\n          }\n        }\n        lineItems(first: 20) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n              quantity\n              fulfillableQuantity\n            }\n          }\n        }\n        order {\n          id\n          name\n          displayFulfillmentStatus\n        }\n      }\n    }\n  }";
 // Order hydration for `orderMarkAsPaid` operating on an order that was not
 // created locally in this scenario. The proxy forwards this exact query (it is
 // byte-identical to the `OrdersOrderHydrate` recording so the strict cassette

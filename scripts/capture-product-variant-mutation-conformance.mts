@@ -90,138 +90,10 @@ const initialVariantQuery = `#graphql
   }
 `;
 
-const productHydrateNodesQuery = `#graphql
-  query ProductsHydrateNodes($ids: [ID!]!) {
-    nodes(ids: $ids) {
-      __typename
-      id
-      ... on Product {
-        title
-        handle
-        status
-        totalInventory
-        tracksInventory
-        variants(first: 250) {
-          nodes {
-            id
-            title
-            sku
-            barcode
-            price
-            compareAtPrice
-            taxable
-            taxCode
-            inventoryPolicy
-            inventoryQuantity
-            position
-            requiresComponents
-            showUnitPrice
-            unitPriceMeasurement { quantityValue quantityUnit referenceValue referenceUnit }
-            selectedOptions { name value }
-            metafields(first: 250) {
-              nodes {
-                id
-                namespace
-                key
-                type
-                value
-                compareDigest
-                jsonValue
-                createdAt
-                updatedAt
-                ownerType
-              }
-            }
-            inventoryItem {
-              id
-              tracked
-              requiresShipping
-              countryCodeOfOrigin
-              provinceCodeOfOrigin
-              harmonizedSystemCode
-              measurement { weight { unit value } }
-            }
-          }
-        }
-      }
-      ... on ProductVariant {
-        title
-        sku
-        barcode
-        price
-        compareAtPrice
-        taxable
-        taxCode
-        inventoryPolicy
-        inventoryQuantity
-        position
-        requiresComponents
-        showUnitPrice
-        unitPriceMeasurement { quantityValue quantityUnit referenceValue referenceUnit }
-        selectedOptions { name value }
-        metafields(first: 250) {
-          nodes {
-            id
-            namespace
-            key
-            type
-            value
-            compareDigest
-            jsonValue
-            createdAt
-            updatedAt
-            ownerType
-          }
-        }
-        inventoryItem {
-          id
-          tracked
-          requiresShipping
-          countryCodeOfOrigin
-          provinceCodeOfOrigin
-          harmonizedSystemCode
-          measurement { weight { unit value } }
-        }
-        product {
-          id
-          title
-          handle
-          status
-          totalInventory
-          tracksInventory
-          variants(first: 250) {
-            nodes {
-              id
-              title
-              sku
-              barcode
-              price
-              compareAtPrice
-              taxable
-              taxCode
-              inventoryPolicy
-              inventoryQuantity
-              position
-              requiresComponents
-              showUnitPrice
-              unitPriceMeasurement { quantityValue quantityUnit referenceValue referenceUnit }
-              selectedOptions { name value }
-              inventoryItem {
-                id
-                tracked
-                requiresShipping
-                countryCodeOfOrigin
-                provinceCodeOfOrigin
-                harmonizedSystemCode
-                measurement { weight { unit value } }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-`;
+const productMutationPreflightHydrateQuery = await readFile(
+  'config/parity-requests/products/product-mutation-preflight-hydrate.graphql',
+  'utf8',
+);
 
 const bulkUpdateMutation = await readFile(
   'config/parity-requests/products/productVariantsBulkUpdate-parity-plan.graphql',
@@ -373,16 +245,21 @@ function buildBulkCreateVariables(productId, skuPrefix) {
   };
 }
 
-async function recordProductHydrationCall(ids) {
-  const variables = { ids };
-  const response = await runGraphqlRaw(productHydrateNodesQuery, variables);
+async function recordProductHydrationCall(productId) {
+  const variables = {
+    id: productId,
+    variantsAfter: null,
+    mediaAfter: null,
+    collectionsAfter: null,
+  };
+  const response = await runGraphqlRaw(productMutationPreflightHydrateQuery, variables);
   if (response.status < 200 || response.status >= 300 || response.payload.errors) {
-    throw new Error(`ProductsHydrateNodes failed: ${JSON.stringify(response, null, 2)}`);
+    throw new Error(`ProductMutationPreflightHydrate failed: ${JSON.stringify(response, null, 2)}`);
   }
   return {
-    operationName: 'ProductsHydrateNodes',
+    operationName: 'ProductMutationPreflightHydrate',
     variables,
-    query: productHydrateNodesQuery,
+    query: productMutationPreflightHydrateQuery,
     response: {
       status: response.status,
       body: response.payload,
@@ -441,7 +318,7 @@ try {
   }
 
   const bulkUpdateVariables = buildBulkUpdateVariables(productId, defaultVariantId, skuPrefix);
-  const bulkUpdateHydrationCall = await recordProductHydrationCall([productId, defaultVariantId]);
+  const bulkUpdateHydrationCall = await recordProductHydrationCall(productId);
   const bulkUpdateResponse = await runGraphql(bulkUpdateMutation, bulkUpdateVariables);
   expectNoUserErrors('productVariantsBulkUpdate', bulkUpdateResponse.data?.productVariantsBulkUpdate?.userErrors);
   const bulkUpdateReadVariables = {
@@ -451,7 +328,7 @@ try {
   const bulkUpdateRead = await runGraphql(bulkUpdateDownstreamQuery, bulkUpdateReadVariables);
 
   const bulkCreateVariables = buildBulkCreateVariables(productId, skuPrefix);
-  const bulkCreateHydrationCall = await recordProductHydrationCall([productId]);
+  const bulkCreateHydrationCall = await recordProductHydrationCall(productId);
   const bulkCreateResponse = await runGraphql(bulkCreateMutation, bulkCreateVariables);
   expectNoUserErrors('productVariantsBulkCreate', bulkCreateResponse.data?.productVariantsBulkCreate?.userErrors);
   const bulkCreateReadVariables = {
@@ -464,7 +341,7 @@ try {
     productId,
     variantsIds: [defaultVariantId],
   };
-  const bulkDeleteHydrationCall = await recordProductHydrationCall([productId, defaultVariantId]);
+  const bulkDeleteHydrationCall = await recordProductHydrationCall(productId);
   const bulkDeleteResponse = await runGraphql(bulkDeleteMutation, bulkDeleteVariables);
   expectNoUserErrors('productVariantsBulkDelete', bulkDeleteResponse.data?.productVariantsBulkDelete?.userErrors);
   const bulkDeleteReadVariables = {
@@ -503,7 +380,7 @@ try {
       },
       downstreamRead: {
         requestVariables: bulkDeleteReadVariables,
-        ...bulkDeleteRead,
+        response: bulkDeleteRead,
       },
       upstreamCalls: [bulkDeleteHydrationCall],
     },

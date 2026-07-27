@@ -21,10 +21,21 @@ type Capture = {
 type SeedState = {
   type: string;
   firstHandle: string;
-  secondHandle: string;
+  lastHandle: string;
   definitionId?: string;
   firstId?: string;
-  secondId?: string;
+  lastId?: string;
+  entryIds: string[];
+};
+
+type RecordedCall = {
+  operationName: string;
+  variables: Record<string, unknown>;
+  query: string;
+  response: {
+    status: number;
+    body: unknown;
+  };
 };
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
@@ -35,9 +46,10 @@ const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 
 const outputPath = path.join(outputDir, 'metaobject-bulk-delete-type-lifecycle.json');
 const runId = Date.now().toString();
 const seed: SeedState = {
-  type: `codex_har_450_bulk_delete_${runId}`,
-  firstHandle: `codex-har-450-bulk-first-${runId}`,
-  secondHandle: `codex-har-450-bulk-second-${runId}`,
+  type: `codex_bulk_delete_multi_page_${runId}`,
+  firstHandle: `codex-bulk-delete-first-${runId}`,
+  lastHandle: `codex-bulk-delete-last-${runId}`,
+  entryIds: [],
 };
 
 const bulkDeleteMutation = await readFile(
@@ -48,6 +60,94 @@ const bulkReadQuery = await readFile(
   'config/parity-requests/metaobjects/metaobject-bulk-delete-type-read.graphql',
   'utf8',
 );
+const jobReadQuery = await readFile(
+  'config/parity-requests/metaobjects/metaobject-bulk-delete-job-read.graphql',
+  'utf8',
+);
+const bulkDeleteHydrateByTypeQuery = `#graphql
+  query MetaobjectBulkDeleteHydrateByType($type: String!) {
+    catalog: metaobjects(type: $type, first: 250) {
+      nodes {
+        id
+        handle
+        type
+        displayName
+        createdAt
+        updatedAt
+        capabilities {
+          publishable {
+            status
+          }
+          onlineStore {
+            templateSuffix
+          }
+        }
+        fields {
+          key
+          type
+          value
+          jsonValue
+          definition {
+            key
+            name
+            required
+            type {
+              name
+              category
+            }
+          }
+        }
+      }
+    }
+    definition: metaobjectDefinitionByType(type: $type) {
+      id
+      type
+      name
+      description
+      displayNameKey
+      access {
+        admin
+        storefront
+      }
+      capabilities {
+        publishable {
+          enabled
+        }
+        translatable {
+          enabled
+        }
+        renderable {
+          enabled
+        }
+        onlineStore {
+          enabled
+        }
+      }
+      fieldDefinitions {
+        key
+        name
+        description
+        required
+        type {
+          name
+          category
+        }
+        validations {
+          name
+          value
+        }
+      }
+      hasThumbnailField
+      metaobjectsCount
+      standardTemplate {
+        type
+        name
+      }
+      createdAt
+      updatedAt
+    }
+  }
+`;
 
 const definitionFields = `#graphql
   fragment MetaobjectBulkDeleteDefinitionFields on MetaobjectDefinition {
@@ -244,6 +344,22 @@ async function runSuccessMutation(
   return capture;
 }
 
+function recordedCall(operationName: string, capture: Capture): RecordedCall {
+  return {
+    operationName,
+    variables: capture.request.variables,
+    query: capture.request.query,
+    response: {
+      status: capture.status,
+      body: capture.response,
+    },
+  };
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
 async function writeBlocker(stage: string, error: unknown, captures: Capture[]): Promise<void> {
   await mkdir(outputDir, { recursive: true });
   const blockerPath = path.join(outputDir, `metaobject-bulk-delete-type-lifecycle-blocker-${runId}.json`);
@@ -272,7 +388,7 @@ async function writeBlocker(stage: string, error: unknown, captures: Capture[]):
 }
 
 async function captureCleanup(cleanup: Capture[]): Promise<void> {
-  for (const entryId of [seed.firstId, seed.secondId]) {
+  for (const entryId of seed.entryIds) {
     if (!entryId) {
       continue;
     }
@@ -290,9 +406,12 @@ async function captureCleanup(cleanup: Capture[]): Promise<void> {
 const setupCaptures: Capture[] = [];
 const seededReads: Capture[] = [];
 const bulkDeleteCaptures: Capture[] = [];
+const jobReads: Capture[] = [];
 const downstreamReads: Capture[] = [];
 const cleanupCaptures: Capture[] = [];
+const upstreamCalls: RecordedCall[] = [];
 let fatalError: unknown = null;
+let bulkDeleteSucceeded = false;
 
 try {
   const definitionCreate = await runSuccessMutation(
@@ -301,7 +420,7 @@ try {
     {
       definition: {
         type: seed.type,
-        name: `Codex HAR-450 Bulk ${runId}`,
+        name: `Codex Bulk Delete Multi Page ${runId}`,
         displayNameKey: 'title',
         fieldDefinitions: [
           {
@@ -328,71 +447,96 @@ try {
     'definition create',
   );
 
-  const firstCreate = await runSuccessMutation(
-    'setup-first-entry-create',
-    entryCreateMutation,
-    {
-      metaobject: {
-        type: seed.type,
-        handle: seed.firstHandle,
-        fields: [
-          { key: 'title', value: 'Bulk delete first' },
-          { key: 'body', value: 'First entry selected by type bulk delete.' },
-        ],
+  for (let index = 0; index < 251; index += 1) {
+    const isLast = index === 250;
+    const handle = isLast ? seed.lastHandle : index === 0 ? seed.firstHandle : `codex-bulk-delete-${index}-${runId}`;
+    const entryCreate = await runSuccessMutation(
+      `setup-entry-create-${index}`,
+      entryCreateMutation,
+      {
+        metaobject: {
+          type: seed.type,
+          handle,
+          fields: [
+            { key: 'title', value: `Bulk delete entry ${index}` },
+            { key: 'body', value: `Entry ${index} selected by type bulk delete.` },
+          ],
+        },
       },
-    },
-    ['data', 'metaobjectCreate', 'userErrors'],
-  );
-  setupCaptures.push(firstCreate);
-  seed.firstId = extractId(
-    firstCreate.response,
-    ['data', 'metaobjectCreate', 'metaobject', 'id'],
-    'first entry create',
-  );
-
-  const secondCreate = await runSuccessMutation(
-    'setup-second-entry-create',
-    entryCreateMutation,
-    {
-      metaobject: {
-        type: seed.type,
-        handle: seed.secondHandle,
-        fields: [
-          { key: 'title', value: 'Bulk delete second' },
-          { key: 'body', value: 'Second entry selected by type bulk delete.' },
-        ],
-      },
-    },
-    ['data', 'metaobjectCreate', 'userErrors'],
-  );
-  setupCaptures.push(secondCreate);
-  seed.secondId = extractId(
-    secondCreate.response,
-    ['data', 'metaobjectCreate', 'metaobject', 'id'],
-    'second entry create',
-  );
+      ['data', 'metaobjectCreate', 'userErrors'],
+    );
+    setupCaptures.push(entryCreate);
+    const entryId = extractId(
+      entryCreate.response,
+      ['data', 'metaobjectCreate', 'metaobject', 'id'],
+      `entry ${index} create`,
+    );
+    seed.entryIds.push(entryId);
+    if (index === 0) seed.firstId = entryId;
+    if (isLast) seed.lastId = entryId;
+  }
 
   const readVariables = {
     type: seed.type,
     firstId: seed.firstId,
-    secondId: seed.secondId,
+    lastId: seed.lastId,
+    lastHandleQuery: `handle:${seed.lastHandle}`,
   };
 
-  seededReads.push(await captureGraphql('seeded-before-bulk-delete-read', bulkReadQuery, readVariables));
-  bulkDeleteCaptures.push(
-    await runSuccessMutation('bulk-delete-by-type', bulkDeleteMutation, { type: seed.type }, [
-      'data',
-      'metaobjectBulkDelete',
-      'userErrors',
-    ]),
-  );
-  downstreamReads.push(await captureGraphql('downstream-after-bulk-delete-read', bulkReadQuery, readVariables));
+  const hydrateRead = await captureGraphql('seeded-bounded-type-hydrate', bulkDeleteHydrateByTypeQuery, {
+    type: seed.type,
+  });
+  seededReads.push(hydrateRead);
+  const beforeDeleteRead = await captureGraphql('seeded-before-bulk-delete-read', bulkReadQuery, readVariables);
+  seededReads.push(beforeDeleteRead);
+  upstreamCalls.push(recordedCall('MetaobjectBulkDeleteHydrateByType', hydrateRead));
+  upstreamCalls.push(recordedCall('MetaobjectBulkDeleteByTypeRead', beforeDeleteRead));
+  const hydratedNodes = readPath(hydrateRead.response, ['data', 'catalog', 'nodes']);
+  if (!Array.isArray(hydratedNodes) || hydratedNodes.length !== 250) {
+    throw new Error(`bounded hydrate did not return exactly 250 rows: ${JSON.stringify(hydratedNodes, null, 2)}`);
+  }
+  if (readPath(beforeDeleteRead.response, ['data', 'last', 'id']) !== seed.lastId) {
+    throw new Error(
+      `the row beyond the bounded hydrate was not readable: ${JSON.stringify(beforeDeleteRead.response, null, 2)}`,
+    );
+  }
+
+  const bulkDelete = await runSuccessMutation('bulk-delete-by-type', bulkDeleteMutation, { type: seed.type }, [
+    'data',
+    'metaobjectBulkDelete',
+    'userErrors',
+  ]);
+  bulkDeleteCaptures.push(bulkDelete);
+  bulkDeleteSucceeded = true;
+  const jobId = extractId(bulkDelete.response, ['data', 'metaobjectBulkDelete', 'job', 'id'], 'bulk delete job');
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const jobRead = await captureGraphql(`bulk-delete-job-read-${attempt}`, jobReadQuery, { id: jobId });
+    jobReads.push(jobRead);
+    if (readPath(jobRead.response, ['data', 'job', 'done']) === true) break;
+    await delay(250);
+  }
+  if (readPath(jobReads.at(-1)?.response, ['data', 'job', 'done']) !== true) {
+    throw new Error(`bulk delete job did not settle: ${JSON.stringify(jobReads.at(-1), null, 2)}`);
+  }
+  let settledDownstreamRead: Capture | null = null;
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    settledDownstreamRead = await captureGraphql('downstream-after-bulk-delete-read', bulkReadQuery, readVariables);
+    const last = readPath(settledDownstreamRead.response, ['data', 'last']);
+    const catalog = readPath(settledDownstreamRead.response, ['data', 'catalog', 'nodes']);
+    if (last === null && Array.isArray(catalog) && catalog.length === 0) break;
+    await delay(1_000);
+  }
+  if (readPath(settledDownstreamRead?.response, ['data', 'last']) !== null) {
+    throw new Error('the row beyond the first page did not disappear after the bulk-delete job settled');
+  }
+  if (settledDownstreamRead) downstreamReads.push(settledDownstreamRead);
 } catch (error) {
   fatalError = error;
   await writeBlocker('capture', error, [...setupCaptures, ...seededReads, ...bulkDeleteCaptures, ...downstreamReads]);
 }
 
 try {
+  if (bulkDeleteSucceeded) seed.entryIds = [];
   await captureCleanup(cleanupCaptures);
 } catch (error) {
   await writeBlocker('cleanup', error, [
@@ -421,8 +565,10 @@ await writeFile(
       setup: setupCaptures,
       seededReads,
       bulkDelete: bulkDeleteCaptures,
+      jobReads,
       downstreamReads,
       cleanup: cleanupCaptures,
+      upstreamCalls,
     },
     null,
     2,
