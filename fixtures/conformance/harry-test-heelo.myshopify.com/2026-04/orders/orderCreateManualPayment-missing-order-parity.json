@@ -1,7 +1,10 @@
 {
+  "capturedAt": "2026-07-27T18:25:03.964Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
   "variables": {
     "id": "gid://shopify/Order/0",
-    "processedAt": "2026-07-20T06:19:07.212Z"
+    "processedAt": "2026-07-27T18:25:03.871Z"
   },
   "mutation": {
     "response": {

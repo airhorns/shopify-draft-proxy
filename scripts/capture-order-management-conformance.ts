@@ -577,8 +577,13 @@ function customerHydrateCall(customer: CreatedCustomer): JsonRecord {
   };
 }
 
-async function writeFixture(name: string, payload: unknown): Promise<void> {
-  await writeJson(path.join(fixtureDir, name), payload);
+async function writeFixture(name: string, payload: JsonRecord): Promise<void> {
+  await writeJson(path.join(fixtureDir, name), {
+    capturedAt: new Date().toISOString(),
+    storeDomain,
+    apiVersion,
+    ...payload,
+  });
 }
 
 async function captureOrderClose(stamp: number): Promise<void> {

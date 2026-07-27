@@ -1,7 +1,10 @@
 {
+  "capturedAt": "2026-07-27T18:25:00.411Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
   "variables": {
-    "id": "gid://shopify/Order/8980252623154",
-    "processedAt": "2026-07-20T06:18:07.016Z",
+    "id": "gid://shopify/Order/8997470765362",
+    "processedAt": "2026-07-27T18:25:00.313Z",
     "amount": {
       "amount": "8.00",
       "currencyCode": "USD"
@@ -10,17 +13,17 @@
   "warmup": {
     "query": "query OrdersManualPaymentOrderRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    createdAt\n    updatedAt\n    closed\n    closedAt\n    cancelledAt\n    cancelReason\n    currencyCode\n    presentmentCurrencyCode\n    displayFinancialStatus\n    displayFulfillmentStatus\n    capturable\n    totalCapturable\n    totalCapturableSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalOutstandingSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalReceivedSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    netPaymentSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    paymentGatewayNames\n    transactions {\n      id\n      kind\n      status\n      gateway\n      processedAt\n      amountSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n  }\n}",
     "variables": {
-      "id": "gid://shopify/Order/8980252623154"
+      "id": "gid://shopify/Order/8997470765362"
     },
     "response": {
       "status": 200,
       "payload": {
         "data": {
           "order": {
-            "id": "gid://shopify/Order/8980252623154",
-            "name": "#1895",
-            "createdAt": "2026-07-20T06:18:06Z",
-            "updatedAt": "2026-07-20T06:18:06Z",
+            "id": "gid://shopify/Order/8997470765362",
+            "name": "#1944",
+            "createdAt": "2026-07-27T18:24:59Z",
+            "updatedAt": "2026-07-27T18:24:59Z",
             "closed": false,
             "closedAt": null,
             "cancelledAt": null,
@@ -440,7 +443,7 @@
     {
       "operationName": "OrdersManualPaymentOrderRead",
       "variables": {
-        "id": "gid://shopify/Order/8980252623154"
+        "id": "gid://shopify/Order/8997470765362"
       },
       "query": "query OrdersManualPaymentOrderRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    createdAt\n    updatedAt\n    closed\n    closedAt\n    cancelledAt\n    cancelReason\n    currencyCode\n    presentmentCurrencyCode\n    displayFinancialStatus\n    displayFulfillmentStatus\n    capturable\n    totalCapturable\n    totalCapturableSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalOutstandingSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalReceivedSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    netPaymentSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    paymentGatewayNames\n    transactions {\n      id\n      kind\n      status\n      gateway\n      processedAt\n      amountSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n  }\n}",
       "response": {
@@ -448,10 +451,10 @@
         "body": {
           "data": {
             "order": {
-              "id": "gid://shopify/Order/8980252623154",
-              "name": "#1895",
-              "createdAt": "2026-07-20T06:18:06Z",
-              "updatedAt": "2026-07-20T06:18:06Z",
+              "id": "gid://shopify/Order/8997470765362",
+              "name": "#1944",
+              "createdAt": "2026-07-27T18:24:59Z",
+              "updatedAt": "2026-07-27T18:24:59Z",
               "closed": false,
               "closedAt": null,
               "cancelledAt": null,

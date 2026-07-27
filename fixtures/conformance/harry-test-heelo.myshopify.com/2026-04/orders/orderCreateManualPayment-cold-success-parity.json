@@ -1,14 +1,17 @@
 {
+  "capturedAt": "2026-07-27T18:25:02.693Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
   "variables": {
-    "id": "gid://shopify/Order/8980253606194",
-    "processedAt": "2026-07-20T06:19:12.136Z"
+    "id": "gid://shopify/Order/8997470798130",
+    "processedAt": "2026-07-27T18:25:00.990Z"
   },
   "mutation": {
     "response": {
       "data": {
         "orderCreateManualPayment": {
           "order": {
-            "id": "gid://shopify/Order/8980253606194",
+            "id": "gid://shopify/Order/8997470798130",
             "displayFinancialStatus": "PAID",
             "capturable": false,
             "totalCapturable": "0.00",
@@ -75,11 +78,11 @@
             "paymentGatewayNames": ["manual"],
             "transactions": [
               {
-                "id": "gid://shopify/OrderTransaction/10740705165618",
+                "id": "gid://shopify/OrderTransaction/10764334072114",
                 "kind": "SALE",
                 "status": "SUCCESS",
                 "gateway": "manual",
-                "processedAt": "2026-07-20T06:19:12Z",
+                "processedAt": "2026-07-27T18:25:00Z",
                 "amountSet": {
                   "shopMoney": {
                     "amount": "18.0",
@@ -111,15 +114,15 @@
   },
   "downstreamRead": {
     "variables": {
-      "id": "gid://shopify/Order/8980253606194"
+      "id": "gid://shopify/Order/8997470798130"
     },
     "response": {
       "data": {
         "order": {
-          "id": "gid://shopify/Order/8980253606194",
-          "name": "#1896",
-          "createdAt": "2026-07-20T06:19:11Z",
-          "updatedAt": "2026-07-20T06:19:13Z",
+          "id": "gid://shopify/Order/8997470798130",
+          "name": "#1945",
+          "createdAt": "2026-07-27T18:25:00Z",
+          "updatedAt": "2026-07-27T18:25:02Z",
           "closed": false,
           "closedAt": null,
           "cancelledAt": null,
@@ -193,11 +196,11 @@
           "paymentGatewayNames": ["manual"],
           "transactions": [
             {
-              "id": "gid://shopify/OrderTransaction/10740705165618",
+              "id": "gid://shopify/OrderTransaction/10764334072114",
               "kind": "SALE",
               "status": "SUCCESS",
               "gateway": "manual",
-              "processedAt": "2026-07-20T06:19:12Z",
+              "processedAt": "2026-07-27T18:25:00Z",
               "amountSet": {
                 "shopMoney": {
                   "amount": "18.0",
@@ -218,7 +221,7 @@
           "actualQueryCost": 2,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1994,
+            "currentlyAvailable": 1998,
             "restoreRate": 100
           }
         }
@@ -229,7 +232,7 @@
     {
       "operationName": "OrdersManualPaymentContext",
       "variables": {
-        "id": "gid://shopify/Order/8980253606194"
+        "id": "gid://shopify/Order/8997470798130"
       },
       "query": "query OrdersManualPaymentContext($id: ID!) {\n  shop {\n    plan {\n      shopifyPlus\n    }\n  }\n  currentAppInstallation {\n    accessScopes {\n      handle\n    }\n  }\n  order(id: $id) {\n    id\n    name\n    createdAt\n    updatedAt\n    closed\n    closedAt\n    cancelledAt\n    cancelReason\n    currencyCode\n    presentmentCurrencyCode\n    displayFinancialStatus\n    displayFulfillmentStatus\n    capturable\n    totalCapturable\n    totalCapturableSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalOutstandingSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalReceivedSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    netPaymentSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    paymentGatewayNames\n    transactions {\n      id\n      kind\n      status\n      gateway\n      processedAt\n      amountSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n  }\n}",
       "response": {
@@ -507,10 +510,10 @@
               ]
             },
             "order": {
-              "id": "gid://shopify/Order/8980253606194",
-              "name": "#1896",
-              "createdAt": "2026-07-20T06:19:11Z",
-              "updatedAt": "2026-07-20T06:19:11Z",
+              "id": "gid://shopify/Order/8997470798130",
+              "name": "#1945",
+              "createdAt": "2026-07-27T18:25:00Z",
+              "updatedAt": "2026-07-27T18:25:00Z",
               "closed": false,
               "closedAt": null,
               "cancelledAt": null,
