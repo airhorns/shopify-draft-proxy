@@ -22,7 +22,7 @@ use crate::operation_registry::{
 use crate::resolver_registry::ResolverRegistry;
 pub(in crate::proxy) use crate::resolver_registry::{
     FieldResolverRegistration, FieldResolverTypePolicy, LocalResolverMode,
-    MutationLogDraft as LogDraft, ResolverOutcome, RootInvocation,
+    MutationLogDraft as LogDraft, OperationRootInvocation, ResolverOutcome, RootInvocation,
 };
 
 pub const DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: u64 = 104_857_600;
@@ -104,6 +104,29 @@ pub(in crate::proxy) struct UnsupportedOperationDispatch<'a> {
     pub operation_type: OperationType,
     pub root_fields: &'a [String],
     pub root_field: &'a str,
+}
+
+/// One locally handled mutation payload plus whether it produced an effective
+/// staged transition that must be replayed by `POST /__meta/commit`.
+struct LocalMutationResult {
+    value: Value,
+    staged: bool,
+}
+
+impl LocalMutationResult {
+    fn no_stage(value: Value) -> Self {
+        Self {
+            value,
+            staged: false,
+        }
+    }
+
+    fn staged(value: Value) -> Self {
+        Self {
+            value,
+            staged: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -224,6 +247,24 @@ struct SellingPlanGroupRecord {
     product_ids: Vec<String>,
     product_variant_ids: Vec<String>,
     #[serde(default)]
+    products_count: Option<usize>,
+    #[serde(default)]
+    product_variants_count: Option<usize>,
+    #[serde(default)]
+    products_complete: bool,
+    #[serde(default)]
+    product_variants_complete: bool,
+    #[serde(default)]
+    added_product_ids: BTreeSet<String>,
+    #[serde(default)]
+    removed_product_ids: BTreeSet<String>,
+    #[serde(default)]
+    added_product_variant_ids: BTreeSet<String>,
+    #[serde(default)]
+    removed_product_variant_ids: BTreeSet<String>,
+    #[serde(default)]
+    locally_staged: bool,
+    #[serde(default)]
     product_cursors: BTreeMap<String, String>,
     #[serde(default)]
     product_variant_cursors: BTreeMap<String, String>,
@@ -343,9 +384,17 @@ struct SavedSearchRecord {
     id: String,
     #[serde(default)]
     cursor: Option<String>,
+    #[serde(default)]
+    legacy_resource_id: String,
     name: String,
     query: String,
     resource_type: String,
+    #[serde(default)]
+    search_terms: String,
+    #[serde(default)]
+    filters: Vec<(String, String)>,
+    #[serde(default)]
+    api_client_id: String,
 }
 
 #[derive(Clone)]
@@ -415,6 +464,13 @@ struct Store {
     shop_policies: ResourceStore<ShopPolicyRecord>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum B2bRelationshipCompleteness {
+    Partial,
+    Complete,
+}
+
 #[derive(Clone, Default)]
 struct BaseState {
     delivery_profiles: OrderedRecords<Value>,
@@ -428,6 +484,7 @@ struct BaseState {
     delivery_promise_participant_previous_cursors: BTreeMap<String, String>,
     delivery_promise_complete_node_ids: BTreeSet<String>,
     orders: OrderedRecords<Value>,
+    return_precondition_hydrated_order_ids: BTreeSet<String>,
     order_count_baselines: BTreeMap<String, Value>,
     draft_orders: OrderedRecords<Value>,
     draft_order_count_baselines: BTreeMap<String, Value>,
@@ -436,6 +493,13 @@ struct BaseState {
     marketing_activities: OrderedRecords<Value>,
     marketing_events: OrderedRecords<Value>,
     segments: OrderedRecords<Value>,
+    segment_name_ids: BTreeMap<String, BTreeSet<String>>,
+    segment_complete_name_probes: BTreeSet<String>,
+    segment_known_missing_ids: BTreeSet<String>,
+    segment_count_baseline: Option<Value>,
+    segment_catalog_complete: bool,
+    customer_segment_member_queries: BTreeMap<String, Value>,
+    customer_segment_member_query_known_missing_ids: BTreeSet<String>,
     bulk_operations: OrderedRecords<Value>,
     bulk_operations_observed: bool,
     locations: OrderedRecords<Value>,
@@ -490,6 +554,10 @@ struct BaseState {
     b2b_role_assignments: OrderedRecords<Value>,
     b2b_staff_assignments: OrderedRecords<Value>,
     b2b_staff_member_ids: BTreeSet<String>,
+    b2b_customers: OrderedRecords<Value>,
+    b2b_relationship_completeness: BTreeMap<String, B2bRelationshipCompleteness>,
+    b2b_address_ids: BTreeSet<String>,
+    b2b_address_location_ids: BTreeMap<String, String>,
 }
 
 type MetafieldDefinitionKey = (String, String, String);
@@ -621,6 +689,8 @@ struct StagedState {
     b2b_role_assignments: BTreeMap<String, Value>,
     b2b_staff_assignments: BTreeMap<String, Value>,
     deleted_b2b_staff_assignment_ids: BTreeSet<String>,
+    b2b_address_location_ids: BTreeMap<String, String>,
+    deleted_b2b_address_ids: BTreeSet<String>,
     next_b2b_company_id: u64,
     inventory_levels: BTreeMap<(String, String), BTreeMap<String, i64>>,
     inventory_level_order: Vec<(String, String)>,
@@ -639,6 +709,7 @@ struct StagedState {
     inventory_shipments: BTreeMap<String, InventoryShipmentRecord>,
     metaobject_definitions: StagedRecords<Value>,
     metaobjects: StagedRecords<Value>,
+    deleted_metaobject_types: BTreeSet<String>,
     url_redirects: BTreeMap<String, Value>,
     url_redirect_order: Vec<String>,
     linked_product_option_metaobject_sets: Vec<BTreeSet<String>>,
@@ -1513,6 +1584,28 @@ impl Store {
     }
 
     fn effective_segment_count(&self) -> usize {
+        if let Some(base_count) = self
+            .base
+            .segment_count_baseline
+            .as_ref()
+            .and_then(|count| count.get("count"))
+            .and_then(Value::as_u64)
+        {
+            let mut count = base_count as usize;
+            for id in &self.staged.segments.tombstones {
+                if self.base.segments.records.contains_key(id) {
+                    count = count.saturating_sub(1);
+                }
+            }
+            for id in self.staged.segments.records.keys() {
+                if !self.base.segments.records.contains_key(id)
+                    && !self.staged.segments.is_tombstoned(id)
+                {
+                    count = count.saturating_add(1);
+                }
+            }
+            return count;
+        }
         self.base
             .segments
             .records
@@ -1540,7 +1633,68 @@ impl Store {
         if self.staged.segments.is_tombstoned(&id) || self.staged.segments.contains_staged(&id) {
             return;
         }
+        if let Some(previous_name) = self
+            .base
+            .segments
+            .get(&id)
+            .and_then(|segment| segment.get("name"))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+        {
+            if let Some(ids) = self.base.segment_name_ids.get_mut(&previous_name) {
+                ids.remove(&id);
+                if ids.is_empty() {
+                    self.base.segment_name_ids.remove(&previous_name);
+                }
+            }
+        }
+        if let Some(name) = segment.get("name").and_then(Value::as_str) {
+            self.base
+                .segment_name_ids
+                .entry(name.to_string())
+                .or_default()
+                .insert(id.clone());
+        }
+        self.base.segment_known_missing_ids.remove(&id);
         self.base.segments.insert(id, segment);
+    }
+
+    fn rebuild_segment_name_index(&mut self) {
+        self.base.segment_name_ids.clear();
+        for (id, segment) in &self.base.segments.records {
+            let Some(name) = segment.get("name").and_then(Value::as_str) else {
+                continue;
+            };
+            self.base
+                .segment_name_ids
+                .entry(name.to_string())
+                .or_default()
+                .insert(id.clone());
+        }
+    }
+
+    fn customer_segment_member_query_by_id(&self, id: &str) -> Option<&Value> {
+        self.staged
+            .customer_segment_member_queries
+            .get(id)
+            .or_else(|| self.base.customer_segment_member_queries.get(id))
+    }
+
+    fn observe_base_customer_segment_member_query(&mut self, record: Value) {
+        let Some(id) = record.get("id").and_then(Value::as_str).map(str::to_string) else {
+            return;
+        };
+        if self
+            .staged
+            .customer_segment_member_queries
+            .contains_key(&id)
+        {
+            return;
+        }
+        self.base
+            .customer_segment_member_query_known_missing_ids
+            .remove(&id);
+        self.base.customer_segment_member_queries.insert(id, record);
     }
 
     fn observe_base_order(&mut self, order: Value) {
@@ -2438,7 +2592,8 @@ impl Store {
             .collect()
     }
 
-    fn stage_selling_plan_group(&mut self, group: SellingPlanGroupRecord) {
+    fn stage_selling_plan_group(&mut self, mut group: SellingPlanGroupRecord) {
+        group.locally_staged = true;
         self.staged.selling_plan_groups_overlay_dirty = true;
         self.staged
             .selling_plan_groups
@@ -2631,6 +2786,7 @@ struct ExecutionSession {
     mutation_log_start: Option<usize>,
     discount_refs_preflighted: bool,
     owner_metafield_hydrated_ids: BTreeSet<String>,
+    owner_metafield_resolved_keys: BTreeSet<(String, String, String)>,
     upstream_query_response: Option<Response>,
     upstream_query_data: Option<Value>,
     upstream_query_selections: BTreeMap<String, Vec<SelectedField>>,

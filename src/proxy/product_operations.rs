@@ -145,6 +145,15 @@ impl DraftProxy {
             by_handle = self.store.product_by_handle(handle).cloned();
         }
         let base = existing.or(by_handle);
+        let category = match self.product_category_for_mutation_input(
+            request,
+            &input,
+            response_key,
+            root_location,
+        ) {
+            Ok(category) => category,
+            Err(outcome) => return outcome,
+        };
         let product_id = base
             .as_ref()
             .map(|product| product.id.clone())
@@ -231,23 +240,10 @@ impl DraftProxy {
                 .unwrap_or_default(),
         };
 
-        if let Some(category_id) = product_category_input_id(&input) {
-            match self.product_category_value_for_input(request, &category_id) {
-                Some(category) => {
-                    product
-                        .extra_fields
-                        .insert("category".to_string(), category);
-                }
-                None => {
-                    return graphql_error_outcome(
-                        vec![invalid_product_taxonomy_node_id_error(
-                            response_key,
-                            root_location,
-                        )],
-                        invocation.response_key,
-                    );
-                }
-            }
+        if let Some(category) = category {
+            product
+                .extra_fields
+                .insert("category".to_string(), category);
         }
         if let Some(requires_selling_plan) = input.get("requiresSellingPlan") {
             product.extra_fields.insert(
@@ -292,17 +288,6 @@ impl DraftProxy {
                     .insert("metafield".to_string(), first.clone());
             }
         }
-        // Shopify returns a store-specific signed preview URL for staged products; the
-        // parity spec matches it via `non-empty-string`, so a stable local URL suffices.
-        product
-            .extra_fields
-            .entry("onlineStorePreviewUrl".to_string())
-            .or_insert_with(|| {
-                json!(format!(
-                    "https://shopify-draft-proxy.preview/products/{}",
-                    resource_id_tail(&product_id)
-                ))
-            });
         // Shopify reports `null` (not an empty string) for unset SEO fields and template
         // suffix. Render the effective value (input or carried-over base) as null when empty.
         product.extra_fields.insert(
@@ -787,6 +772,10 @@ impl DraftProxy {
         duplicate.created_at = timestamp.clone();
         duplicate.updated_at = timestamp;
         duplicate.variants = Vec::new();
+        // A hydrated preview URL is signed for the source product. The locally staged
+        // duplicate has a different identity, so carrying that URL over would make an
+        // authoritative value point at the wrong resource.
+        duplicate.extra_fields.remove("onlineStorePreviewUrl");
         // Shopify copies media asynchronously: the duplicate's immediate payload (and the
         // downstream read right after) expose an empty media connection.
         duplicate.media = Vec::new();

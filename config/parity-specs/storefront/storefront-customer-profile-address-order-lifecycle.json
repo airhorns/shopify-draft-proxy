@@ -9,7 +9,8 @@
     "customerAddressUpdate",
     "customerAddressDelete",
     "customerDefaultAddressUpdate",
-    "orderCreate"
+    "orderCreate",
+    "orderUpdate"
   ],
   "scenarioStatus": "captured",
   "assertionKinds": [
@@ -468,12 +469,17 @@
               "email": {
                 "fromCapturePath": "$.disposableInputs.orderEmail"
               },
+              "phone": {
+                "fromCapturePath": "$.disposableInputs.orderPhone"
+              },
               "customerId": {
                 "fromProxyResponse": "storefront-profile-customer-create",
                 "path": "$.data.customerCreate.customer.id"
               },
               "test": true,
               "currency": "CAD",
+              "name": "WEB-2026-#77-A",
+              "processedAt": "2026-01-02T03:04:05Z",
               "lineItems": [
                 {
                   "title": "Storefront customer visible order",
@@ -513,19 +519,9 @@
             "reason": "The proxy creates a deterministic local Order ID."
           },
           {
-            "path": "$.order.name",
-            "matcher": "non-empty-string",
-            "reason": "Live order names are assigned by Shopify's shop sequence; the proxy uses a deterministic local name."
-          },
-          {
             "path": "$.order.customer.id",
             "matcher": "shopify-gid:Customer",
             "reason": "The proxy associates the order to the locally staged Customer ID."
-          },
-          {
-            "path": "$.order.processedAt",
-            "matcher": "iso-timestamp",
-            "reason": "The proxy uses its deterministic local order timestamp."
           }
         ]
       },
@@ -592,14 +588,9 @@
             "reason": "The proxy returns the locally staged Order ID."
           },
           {
-            "path": "$.orders.nodes[0].name",
-            "matcher": "non-empty-string",
-            "reason": "Live order names are assigned by Shopify's shop sequence; the proxy uses a deterministic local name."
-          },
-          {
-            "path": "$.orders.nodes[0].processedAt",
-            "matcher": "iso-timestamp",
-            "reason": "The proxy uses its deterministic local order timestamp."
+            "path": "$.orders.nodes[0].orderNumber",
+            "matcher": "any-number",
+            "reason": "Shopify and the proxy allocate independent authoritative order-number sequences; the runtime guard proves the number is not parsed from the custom digit-bearing name."
           },
           {
             "path": "$.orders.pageInfo.startCursor",
@@ -610,6 +601,66 @@
             "path": "$.orders.pageInfo.endCursor",
             "matcher": "non-empty-string",
             "reason": "Shopify Storefront cursors are opaque; the proxy uses stable order cursors."
+          }
+        ]
+      },
+      {
+        "name": "admin-order-update-preserves-projection-fields",
+        "capturePath": "$.captures.adminOrderUpdate.response.body.data.orderUpdate",
+        "proxyPath": "$.data.orderUpdate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-admin-order-update.graphql",
+          "operationName": "StorefrontCustomerAdminOrderUpdate",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "admin-order-create-customer-visible",
+                "path": "$.data.orderCreate.order.id"
+              },
+              "email": {
+                "fromCapturePath": "$.disposableInputs.updatedOrderEmail"
+              },
+              "phone": {
+                "fromCapturePath": "$.disposableInputs.updatedOrderPhone"
+              }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.order.id",
+            "matcher": "shopify-gid:Order",
+            "reason": "The proxy updates the locally staged Order ID."
+          }
+        ]
+      },
+      {
+        "name": "storefront-order-projection-after-admin-update",
+        "capturePath": "$.captures.storefrontReadAfterOrderUpdate.response.body.data.customer.orders.nodes[0]",
+        "proxyPath": "$.data.customer.orders.nodes[0]",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-profile-address-order-read.graphql",
+          "operationName": "StorefrontCustomerProfileAddressOrderRead",
+          "variables": {
+            "token": {
+              "fromProxyResponse": "storefront-profile-token-create",
+              "path": "$.data.customerAccessTokenCreate.customerAccessToken.accessToken"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Order",
+            "reason": "The proxy returns the locally staged Order ID."
+          },
+          {
+            "path": "$.orderNumber",
+            "matcher": "any-number",
+            "reason": "Shopify and the proxy allocate independent authoritative order-number sequences; the runtime guard proves the number is not parsed from the custom digit-bearing name."
           }
         ]
       },
@@ -740,14 +791,9 @@
             "reason": "The proxy returns the locally staged Order ID."
           },
           {
-            "path": "$.orders.nodes[0].name",
-            "matcher": "non-empty-string",
-            "reason": "Live order names are assigned by Shopify's shop sequence; the proxy uses a deterministic local name."
-          },
-          {
-            "path": "$.orders.nodes[0].processedAt",
-            "matcher": "iso-timestamp",
-            "reason": "The proxy uses its deterministic local order timestamp."
+            "path": "$.orders.nodes[0].orderNumber",
+            "matcher": "any-number",
+            "reason": "Shopify and the proxy allocate independent authoritative order-number sequences; the runtime guard proves the number is not parsed from the custom digit-bearing name."
           },
           {
             "path": "$.orders.pageInfo.startCursor",
@@ -797,5 +843,5 @@
       }
     ]
   },
-  "notes": "Live Storefront customer profile/address/order fixture captured a disposable Storefront-created customer, Storefront profile update, address create/update/default/delete behavior, Admin read-after-Storefront write, Admin profile/address/order setup, Storefront read-after-Admin write, password-update token invalidation, and invalid-token address userErrors. The fixture redacts passwords and Storefront access tokens and cleans up the disposable order and customer."
+  "notes": "Live Storefront customer profile/address/order fixture captured a disposable Storefront-created customer, Storefront profile update, address create/update/default/delete behavior, Admin read-after-Storefront write, and Admin profile/address/order setup. The order uses a custom digit-bearing name and fixed processedAt; strict whole-order targets compare its Storefront number, money, currencies, statuses, and contact fields before and after Admin orderUpdate. Password-update token invalidation and invalid-token address userErrors remain covered. The fixture redacts passwords and Storefront access tokens and cleans up the disposable order and customer."
 }

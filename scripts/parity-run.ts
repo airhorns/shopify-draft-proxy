@@ -1007,6 +1007,7 @@ function isJsonlString(value: unknown): boolean {
 function matchesRule(value: unknown, rule: ExpectedDifference): boolean {
   if (rule.ignore) return true;
   const matcher = rule.matcher ?? '';
+  if (matcher === 'null') return value === null;
   if (matcher === 'any-string') return typeof value === 'string';
   if (matcher === 'non-empty-string') return typeof value === 'string' && value.length > 0;
   if (matcher === 'any-number') return typeof value === 'number';

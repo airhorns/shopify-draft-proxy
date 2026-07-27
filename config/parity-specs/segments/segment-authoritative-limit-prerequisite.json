@@ -1,0 +1,31 @@
+{
+  "scenarioId": "segment-authoritative-limit-prerequisite",
+  "operationNames": ["segmentCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["mutation-first-hydration", "payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-name-suffix-and-limit.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/segments.rs"],
+  "proxyConfig": {
+    "readMode": "live-hybrid"
+  },
+  "proxyRequest": {
+    "apiVersion": "2025-01",
+    "documentPath": "config/parity-requests/segments/segment-create-limit-validation.graphql",
+    "variablesCapturePath": "$.cases[240].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify evidence that a fresh LiveHybrid proxy obtains an authoritative segmentsCount(limit: 6000) threshold before rejecting segmentCreate at the store limit.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "segment-limit-authoritative-count-probe",
+        "capturePath": "$.cases[240].response.payload.data.segmentCreate",
+        "proxyPath": "$.data.segmentCreate"
+      }
+    ]
+  }
+}

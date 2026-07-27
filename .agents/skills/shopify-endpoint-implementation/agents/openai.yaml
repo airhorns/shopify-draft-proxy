@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Shopify Endpoint Implementation'
+  short_description: 'Build faithful, scalable staged endpoints'
+  default_prompt: 'Use $shopify-endpoint-implementation to implement an endpoint or audit a Shopify domain end to end.'

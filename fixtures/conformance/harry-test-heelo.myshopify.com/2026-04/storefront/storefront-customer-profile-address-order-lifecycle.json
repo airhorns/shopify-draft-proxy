@@ -1,6 +1,6 @@
 {
   "scenarioId": "storefront-customer-profile-address-order-lifecycle",
-  "capturedAt": "2026-07-16T02:10:35.811Z",
+  "capturedAt": "2026-07-19T12:33:20.852Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "apiSurface": "storefront",
@@ -25,10 +25,13 @@
     "obtainedAt": "2026-07-14T23:55:26.161Z"
   },
   "disposableInputs": {
-    "email": "hermes-storefront-profile-mrmvglfj-a25a18cb@example.com",
-    "updatedEmail": "hermes-storefront-updated-mrmvglfj-a25a18cb@example.com",
-    "orderEmail": "hermes-storefront-order-mrmvglfj-a25a18cb@example.com",
-    "updatedPhone": "+16135552518"
+    "email": "hermes-storefront-profile-mrrs0zx0-b74d3be7@example.com",
+    "updatedEmail": "hermes-storefront-updated-mrrs0zx0-b74d3be7@example.com",
+    "orderEmail": "hermes-storefront-order-mrrs0zx0-b74d3be7@example.com",
+    "updatedOrderEmail": "hermes-storefront-order-updated-mrrs0zx0-b74d3be7@example.com",
+    "updatedPhone": "+16135550074",
+    "orderPhone": "+14165550074",
+    "updatedOrderPhone": "+15145550074"
   },
   "captures": {
     "storefrontCreate": {
@@ -45,7 +48,7 @@
       "query": "mutation StorefrontCustomerAuthCreate($input: CustomerCreateInput!) {\n  customerCreate(input: $input) {\n    customer {\n      id\n      email\n      firstName\n      lastName\n      displayName\n      acceptsMarketing\n      createdAt\n      updatedAt\n      numberOfOrders\n      tags\n      addresses(first: 2) {\n        nodes {\n          id\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n        }\n      }\n    }\n    customerUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "email": "hermes-storefront-profile-mrmvglfj-a25a18cb@example.com",
+          "email": "hermes-storefront-profile-mrrs0zx0-b74d3be7@example.com",
           "password": "<redacted:storefront-customer-profile-address-order>",
           "firstName": "Storefront",
           "lastName": "Profile",
@@ -58,14 +61,14 @@
           "data": {
             "customerCreate": {
               "customer": {
-                "id": "gid://shopify/Customer/10965467300146",
-                "email": "hermes-storefront-profile-mrmvglfj-a25a18cb@example.com",
+                "id": "gid://shopify/Customer/10993061626162",
+                "email": "hermes-storefront-profile-mrrs0zx0-b74d3be7@example.com",
                 "firstName": "Storefront",
                 "lastName": "Profile",
                 "displayName": "Storefront Profile",
                 "acceptsMarketing": false,
-                "createdAt": "2026-07-16T02:10:31Z",
-                "updatedAt": "2026-07-16T02:10:31Z",
+                "createdAt": "2026-07-19T12:33:16Z",
+                "updatedAt": "2026-07-19T12:33:16Z",
                 "numberOfOrders": "0",
                 "tags": [],
                 "addresses": {
@@ -102,7 +105,7 @@
       "query": "mutation StorefrontCustomerAuthTokenCreate($input: CustomerAccessTokenCreateInput!) {\n  customerAccessTokenCreate(input: $input) {\n    customerAccessToken {\n      accessToken\n      expiresAt\n    }\n    customerUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "email": "hermes-storefront-profile-mrmvglfj-a25a18cb@example.com",
+          "email": "hermes-storefront-profile-mrrs0zx0-b74d3be7@example.com",
           "password": "<redacted:storefront-customer-profile-address-order>"
         }
       },
@@ -113,7 +116,7 @@
             "customerAccessTokenCreate": {
               "customerAccessToken": {
                 "accessToken": "<redacted:storefront-customer-profile-address-order>",
-                "expiresAt": "2026-08-27T02:10:32Z"
+                "expiresAt": "2026-08-30T12:33:16Z"
               },
               "customerUserErrors": [],
               "userErrors": []
@@ -142,7 +145,7 @@
       "variables": {
         "token": "<redacted:storefront-customer-profile-address-order>",
         "customer": {
-          "email": "hermes-storefront-updated-mrmvglfj-a25a18cb@example.com",
+          "email": "hermes-storefront-updated-mrrs0zx0-b74d3be7@example.com",
           "firstName": "Denied",
           "acceptsMarketing": true
         }
@@ -194,7 +197,7 @@
         "customer": {
           "firstName": "Updated",
           "lastName": "Profile",
-          "phone": "+16135552518",
+          "phone": "+16135550074",
           "acceptsMarketing": true
         }
       },
@@ -204,15 +207,15 @@
           "data": {
             "customerUpdate": {
               "customer": {
-                "id": "gid://shopify/Customer/10965467300146",
-                "email": "hermes-storefront-profile-mrmvglfj-a25a18cb@example.com",
+                "id": "gid://shopify/Customer/10993061626162",
+                "email": "hermes-storefront-profile-mrrs0zx0-b74d3be7@example.com",
                 "firstName": "Updated",
                 "lastName": "Profile",
                 "displayName": "Updated Profile",
-                "phone": "+16135552518",
+                "phone": "+16135550074",
                 "acceptsMarketing": true,
-                "createdAt": "2026-07-16T02:10:31Z",
-                "updatedAt": "2026-07-16T02:10:32Z"
+                "createdAt": "2026-07-19T12:33:16Z",
+                "updatedAt": "2026-07-19T12:33:17Z"
               },
               "customerAccessToken": null,
               "customerUserErrors": [],
@@ -256,7 +259,7 @@
           "data": {
             "customerAddressCreate": {
               "customerAddress": {
-                "id": "gid://shopify/MailingAddress/12304836591922?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
+                "id": "gid://shopify/MailingAddress/12311636607282?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
                 "firstName": "Updated",
                 "lastName": "Profile",
                 "address1": "1 Storefront Main St",
@@ -315,7 +318,7 @@
           "data": {
             "customerAddressCreate": {
               "customerAddress": {
-                "id": "gid://shopify/MailingAddress/12304836624690?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
+                "id": "gid://shopify/MailingAddress/12311636640050?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
                 "firstName": "Second",
                 "lastName": "Address",
                 "address1": "2 Storefront Side St",
@@ -358,7 +361,7 @@
       "query": "mutation StorefrontCustomerDefaultAddressUpdate($token: String!, $addressId: ID!) {\n  customerDefaultAddressUpdate(customerAccessToken: $token, addressId: $addressId) {\n    customer {\n      id\n      email\n      firstName\n      lastName\n      displayName\n      defaultAddress {\n        id\n        address1\n        city\n        country\n      }\n      addresses(first: 5) {\n        nodes {\n          id\n          address1\n          city\n          country\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n    customerUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
       "variables": {
         "token": "<redacted:storefront-customer-profile-address-order>",
-        "addressId": "gid://shopify/MailingAddress/12304836624690?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>"
+        "addressId": "gid://shopify/MailingAddress/12311636640050?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>"
       },
       "response": {
         "status": 200,
@@ -366,13 +369,13 @@
           "data": {
             "customerDefaultAddressUpdate": {
               "customer": {
-                "id": "gid://shopify/Customer/10965467300146",
-                "email": "hermes-storefront-profile-mrmvglfj-a25a18cb@example.com",
+                "id": "gid://shopify/Customer/10993061626162",
+                "email": "hermes-storefront-profile-mrrs0zx0-b74d3be7@example.com",
                 "firstName": "Updated",
                 "lastName": "Profile",
                 "displayName": "Updated Profile",
                 "defaultAddress": {
-                  "id": "gid://shopify/MailingAddress/12304836624690?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
+                  "id": "gid://shopify/MailingAddress/12311636640050?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
                   "address1": "2 Storefront Side St",
                   "city": "Toronto",
                   "country": "Canada"
@@ -380,13 +383,13 @@
                 "addresses": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/MailingAddress/12304836591922?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
+                      "id": "gid://shopify/MailingAddress/12311636607282?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
                       "address1": "1 Storefront Main St",
                       "city": "Ottawa",
                       "country": "Canada"
                     },
                     {
-                      "id": "gid://shopify/MailingAddress/12304836624690?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
+                      "id": "gid://shopify/MailingAddress/12311636640050?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
                       "address1": "2 Storefront Side St",
                       "city": "Toronto",
                       "country": "Canada"
@@ -395,8 +398,8 @@
                   "pageInfo": {
                     "hasNextPage": false,
                     "hasPreviousPage": false,
-                    "startCursor": "eyJsYXN0X2lkIjoxMjMwNDgzNjU5MTkyMiwibGFzdF92YWx1ZSI6bnVsbCwib2Zmc2V0IjowfQ==",
-                    "endCursor": "eyJsYXN0X2lkIjoxMjMwNDgzNjYyNDY5MCwibGFzdF92YWx1ZSI6bnVsbCwib2Zmc2V0IjoxfQ=="
+                    "startCursor": "eyJsYXN0X2lkIjoxMjMxMTYzNjYwNzI4MiwibGFzdF92YWx1ZSI6bnVsbCwib2Zmc2V0IjowfQ==",
+                    "endCursor": "eyJsYXN0X2lkIjoxMjMxMTYzNjY0MDA1MCwibGFzdF92YWx1ZSI6bnVsbCwib2Zmc2V0IjoxfQ=="
                   }
                 }
               },
@@ -426,7 +429,7 @@
       "query": "mutation StorefrontCustomerAddressUpdate($token: String!, $id: ID!, $address: MailingAddressInput!) {\n  customerAddressUpdate(customerAccessToken: $token, id: $id, address: $address) {\n    customerAddress {\n      id\n      firstName\n      lastName\n      address1\n      address2\n      city\n      company\n      province\n      provinceCode\n      country\n      countryCode\n      countryCodeV2\n      zip\n      phone\n      name\n      formattedArea\n    }\n    customerUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
       "variables": {
         "token": "<redacted:storefront-customer-profile-address-order>",
-        "id": "gid://shopify/MailingAddress/12304836591922?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
+        "id": "gid://shopify/MailingAddress/12311636607282?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
         "address": {
           "address1": "10 Storefront Main St",
           "city": "Gatineau",
@@ -441,7 +444,7 @@
           "data": {
             "customerAddressUpdate": {
               "customerAddress": {
-                "id": "gid://shopify/MailingAddress/12304836591922?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
+                "id": "gid://shopify/MailingAddress/12311636607282?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
                 "firstName": "Updated",
                 "lastName": "Profile",
                 "address1": "10 Storefront Main St",
@@ -484,14 +487,14 @@
       "query": "mutation StorefrontCustomerAddressDelete($token: String!, $id: ID!) {\n  customerAddressDelete(customerAccessToken: $token, id: $id) {\n    deletedCustomerAddressId\n    customerUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
       "variables": {
         "token": "<redacted:storefront-customer-profile-address-order>",
-        "id": "gid://shopify/MailingAddress/12304836624690?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>"
+        "id": "gid://shopify/MailingAddress/12311636640050?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>"
       },
       "response": {
         "status": 200,
         "body": {
           "data": {
             "customerAddressDelete": {
-              "deletedCustomerAddressId": "gid://shopify/MailingAddress/12304836624690?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
+              "deletedCustomerAddressId": "gid://shopify/MailingAddress/12311636640050?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
               "customerUserErrors": [],
               "userErrors": []
             }
@@ -514,21 +517,21 @@
       "operationName": "StorefrontCustomerAdminRead",
       "query": "query StorefrontCustomerAdminRead($id: ID!) {\n  customer(id: $id) {\n    id\n    email\n    firstName\n    lastName\n    displayName\n    phone\n    defaultAddress {\n      id\n      firstName\n      lastName\n      address1\n      city\n      province\n      provinceCode\n      country\n      countryCodeV2\n      zip\n      phone\n      name\n      formattedArea\n    }\n    addressesV2(first: 5) {\n      nodes {\n        id\n        firstName\n        lastName\n        address1\n        city\n        province\n        provinceCode\n        country\n        countryCodeV2\n        zip\n        phone\n        name\n        formattedArea\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    orders(first: 5) {\n      nodes {\n        id\n        name\n        email\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/Customer/10965467300146"
+        "id": "gid://shopify/Customer/10993061626162"
       },
       "response": {
         "status": 200,
         "body": {
           "data": {
             "customer": {
-              "id": "gid://shopify/Customer/10965467300146",
-              "email": "hermes-storefront-profile-mrmvglfj-a25a18cb@example.com",
+              "id": "gid://shopify/Customer/10993061626162",
+              "email": "hermes-storefront-profile-mrrs0zx0-b74d3be7@example.com",
               "firstName": "Updated",
               "lastName": "Profile",
               "displayName": "Updated Profile",
-              "phone": "+16135552518",
+              "phone": "+16135550074",
               "defaultAddress": {
-                "id": "gid://shopify/MailingAddress/12304836591922?model_name=CustomerAddress",
+                "id": "gid://shopify/MailingAddress/12311636607282?model_name=CustomerAddress",
                 "firstName": "Updated",
                 "lastName": "Profile",
                 "address1": "10 Storefront Main St",
@@ -545,7 +548,7 @@
               "addressesV2": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/MailingAddress/12304836591922?model_name=CustomerAddress",
+                    "id": "gid://shopify/MailingAddress/12311636607282?model_name=CustomerAddress",
                     "firstName": "Updated",
                     "lastName": "Profile",
                     "address1": "10 Storefront Main St",
@@ -563,8 +566,8 @@
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjoxMjMwNDgzNjU5MTkyMiwibGFzdF92YWx1ZSI6IjEyMzA0ODM2NTkxOTIyIn0=",
-                  "endCursor": "eyJsYXN0X2lkIjoxMjMwNDgzNjU5MTkyMiwibGFzdF92YWx1ZSI6IjEyMzA0ODM2NTkxOTIyIn0="
+                  "startCursor": "eyJsYXN0X2lkIjoxMjMxMTYzNjYwNzI4MiwibGFzdF92YWx1ZSI6IjEyMzExNjM2NjA3MjgyIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoxMjMxMTYzNjYwNzI4MiwibGFzdF92YWx1ZSI6IjEyMzExNjM2NjA3MjgyIn0="
                 }
               },
               "orders": {
@@ -603,10 +606,10 @@
       "query": "mutation StorefrontCustomerAuthAdminUpdate($input: CustomerInput!) {\n  customerUpdate(input: $input) {\n    customer {\n      id\n      email\n      firstName\n      lastName\n      displayName\n      state\n      updatedAt\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "id": "gid://shopify/Customer/10965467300146",
+          "id": "gid://shopify/Customer/10993061626162",
           "firstName": "Admin",
           "lastName": "Visible",
-          "email": "hermes-storefront-updated-mrmvglfj-a25a18cb@example.com"
+          "email": "hermes-storefront-updated-mrrs0zx0-b74d3be7@example.com"
         }
       },
       "response": {
@@ -615,13 +618,13 @@
           "data": {
             "customerUpdate": {
               "customer": {
-                "id": "gid://shopify/Customer/10965467300146",
-                "email": "hermes-storefront-updated-mrmvglfj-a25a18cb@example.com",
+                "id": "gid://shopify/Customer/10993061626162",
+                "email": "hermes-storefront-updated-mrrs0zx0-b74d3be7@example.com",
                 "firstName": "Admin",
                 "lastName": "Visible",
                 "displayName": "Admin Visible",
                 "state": "ENABLED",
-                "updatedAt": "2026-07-16T02:10:33Z"
+                "updatedAt": "2026-07-19T12:33:18Z"
               },
               "userErrors": []
             }
@@ -650,7 +653,7 @@
       "operationName": "StorefrontCustomerAdminAddressCreate",
       "query": "mutation StorefrontCustomerAdminAddressCreate($customerId: ID!, $address: MailingAddressInput!) {\n  customerAddressCreate(customerId: $customerId, address: $address, setAsDefault: true) {\n    address {\n      id\n      firstName\n      lastName\n      address1\n      city\n      province\n      provinceCode\n      country\n      countryCodeV2\n      zip\n      phone\n      name\n      formattedArea\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
       "variables": {
-        "customerId": "gid://shopify/Customer/10965467300146",
+        "customerId": "gid://shopify/Customer/10993061626162",
         "address": {
           "firstName": "Admin",
           "lastName": "Address",
@@ -667,7 +670,7 @@
           "data": {
             "customerAddressCreate": {
               "address": {
-                "id": "gid://shopify/MailingAddress/12304836690226?model_name=CustomerAddress",
+                "id": "gid://shopify/MailingAddress/12311636705586?model_name=CustomerAddress",
                 "firstName": "Admin",
                 "lastName": "Address",
                 "address1": "50 Admin Way",
@@ -706,16 +709,19 @@
       "endpoint": "https://harry-test-heelo.myshopify.com/admin/api/2026-04/graphql.json",
       "authMode": "admin-access-token",
       "operationName": "StorefrontCustomerAdminOrderCreate",
-      "query": "mutation StorefrontCustomerAdminOrderCreate($order: OrderCreateOrderInput!) {\n  orderCreate(order: $order) {\n    order {\n      id\n      name\n      email\n      customer {\n        id\n        email\n      }\n      currentTotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      displayFinancialStatus\n      displayFulfillmentStatus\n      processedAt\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "query": "mutation StorefrontCustomerAdminOrderCreate($order: OrderCreateOrderInput!) {\n  orderCreate(order: $order) {\n    order {\n      id\n      name\n      email\n      phone\n      currencyCode\n      customer {\n        id\n        email\n      }\n      currentTotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      currentSubtotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      displayFinancialStatus\n      displayFulfillmentStatus\n      processedAt\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "order": {
-          "email": "hermes-storefront-order-mrmvglfj-a25a18cb@example.com",
-          "customerId": "gid://shopify/Customer/10965467300146",
+          "email": "hermes-storefront-order-mrrs0zx0-b74d3be7@example.com",
+          "phone": "+14165550074",
+          "customerId": "gid://shopify/Customer/10993061626162",
           "test": true,
           "currency": "CAD",
+          "name": "WEB-2026-#77-A",
+          "processedAt": "2026-01-02T03:04:05Z",
           "lineItems": [
             {
-              "title": "Storefront customer visible order mrmvglfj-a25a18cb",
+              "title": "Storefront customer visible order mrrs0zx0-b74d3be7",
               "quantity": 1,
               "priceSet": {
                 "shopMoney": {
@@ -725,7 +731,7 @@
               },
               "requiresShipping": false,
               "taxable": false,
-              "sku": "SFP-mrmvglfj-a25a18cb"
+              "sku": "SFP-mrrs0zx0-b74d3be7"
             }
           ],
           "transactions": [
@@ -750,12 +756,14 @@
           "data": {
             "orderCreate": {
               "order": {
-                "id": "gid://shopify/Order/8954034651442",
-                "name": "#1840",
-                "email": "hermes-storefront-order-mrmvglfj-a25a18cb@example.com",
+                "id": "gid://shopify/Order/8978445893938",
+                "name": "WEB-2026-#77-A",
+                "email": "hermes-storefront-order-mrrs0zx0-b74d3be7@example.com",
+                "phone": "+14165550074",
+                "currencyCode": "CAD",
                 "customer": {
-                  "id": "gid://shopify/Customer/10965467300146",
-                  "email": "hermes-storefront-order-mrmvglfj-a25a18cb@example.com"
+                  "id": "gid://shopify/Customer/10993061626162",
+                  "email": "hermes-storefront-order-mrrs0zx0-b74d3be7@example.com"
                 },
                 "currentTotalPriceSet": {
                   "shopMoney": {
@@ -763,9 +771,15 @@
                     "currencyCode": "CAD"
                   }
                 },
+                "currentSubtotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "19.9",
+                    "currencyCode": "CAD"
+                  }
+                },
                 "displayFinancialStatus": "AUTHORIZED",
                 "displayFulfillmentStatus": "UNFULFILLED",
-                "processedAt": "2026-07-16T02:10:34Z"
+                "processedAt": "2026-01-02T03:04:05Z"
               },
               "userErrors": []
             }
@@ -795,7 +809,7 @@
         "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
       },
       "operationName": "StorefrontCustomerProfileAddressOrderRead",
-      "query": "query StorefrontCustomerProfileAddressOrderRead($token: String!) {\n  customer(customerAccessToken: $token) {\n    id\n    email\n    firstName\n    lastName\n    displayName\n    phone\n    acceptsMarketing\n    createdAt\n    updatedAt\n    defaultAddress {\n      id\n      firstName\n      lastName\n      address1\n      address2\n      city\n      company\n      province\n      provinceCode\n      country\n      countryCode\n      countryCodeV2\n      zip\n      phone\n      name\n      formattedArea\n    }\n    addresses(first: 5) {\n      nodes {\n        id\n        firstName\n        lastName\n        address1\n        address2\n        city\n        company\n        province\n        provinceCode\n        country\n        countryCode\n        countryCodeV2\n        zip\n        phone\n        name\n        formattedArea\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    orders(first: 5) {\n      nodes {\n        id\n        name\n        email\n        currencyCode\n        financialStatus\n        fulfillmentStatus\n        processedAt\n        totalPrice {\n          amount\n          currencyCode\n        }\n        totalPriceV2 {\n          amount\n          currencyCode\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "query": "query StorefrontCustomerProfileAddressOrderRead($token: String!) {\n  customer(customerAccessToken: $token) {\n    id\n    email\n    firstName\n    lastName\n    displayName\n    phone\n    acceptsMarketing\n    createdAt\n    updatedAt\n    defaultAddress {\n      id\n      firstName\n      lastName\n      address1\n      address2\n      city\n      company\n      province\n      provinceCode\n      country\n      countryCode\n      countryCodeV2\n      zip\n      phone\n      name\n      formattedArea\n    }\n    addresses(first: 5) {\n      nodes {\n        id\n        firstName\n        lastName\n        address1\n        address2\n        city\n        company\n        province\n        provinceCode\n        country\n        countryCode\n        countryCodeV2\n        zip\n        phone\n        name\n        formattedArea\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    orders(first: 5) {\n      nodes {\n        id\n        name\n        email\n        phone\n        currencyCode\n        financialStatus\n        fulfillmentStatus\n        orderNumber\n        processedAt\n        subtotalPriceV2 {\n          amount\n          currencyCode\n        }\n        totalPrice {\n          amount\n          currencyCode\n        }\n        totalPriceV2 {\n          amount\n          currencyCode\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
       "variables": {
         "token": "<redacted:storefront-customer-profile-address-order>"
       },
@@ -804,17 +818,17 @@
         "body": {
           "data": {
             "customer": {
-              "id": "gid://shopify/Customer/10965467300146",
-              "email": "hermes-storefront-order-mrmvglfj-a25a18cb@example.com",
+              "id": "gid://shopify/Customer/10993061626162",
+              "email": "hermes-storefront-order-mrrs0zx0-b74d3be7@example.com",
               "firstName": "Admin",
               "lastName": "Visible",
               "displayName": "Admin Visible",
-              "phone": "+16135552518",
+              "phone": "+16135550074",
               "acceptsMarketing": false,
-              "createdAt": "2026-07-16T02:10:31Z",
-              "updatedAt": "2026-07-16T02:10:34Z",
+              "createdAt": "2026-07-19T12:33:16Z",
+              "updatedAt": "2026-07-19T12:33:18Z",
               "defaultAddress": {
-                "id": "gid://shopify/MailingAddress/12304836690226?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
+                "id": "gid://shopify/MailingAddress/12311636705586?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
                 "firstName": "Admin",
                 "lastName": "Address",
                 "address1": "50 Admin Way",
@@ -834,7 +848,7 @@
               "addresses": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/MailingAddress/12304836591922?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
+                    "id": "gid://shopify/MailingAddress/12311636607282?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
                     "firstName": "Updated",
                     "lastName": "Profile",
                     "address1": "10 Storefront Main St",
@@ -852,7 +866,7 @@
                     "formattedArea": "Gatineau QC, Canada"
                   },
                   {
-                    "id": "gid://shopify/MailingAddress/12304836690226?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
+                    "id": "gid://shopify/MailingAddress/12311636705586?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
                     "firstName": "Admin",
                     "lastName": "Address",
                     "address1": "50 Admin Way",
@@ -873,20 +887,26 @@
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjoxMjMwNDgzNjU5MTkyMiwibGFzdF92YWx1ZSI6bnVsbCwib2Zmc2V0IjowfQ==",
-                  "endCursor": "eyJsYXN0X2lkIjoxMjMwNDgzNjY5MDIyNiwibGFzdF92YWx1ZSI6bnVsbCwib2Zmc2V0IjoxfQ=="
+                  "startCursor": "eyJsYXN0X2lkIjoxMjMxMTYzNjYwNzI4MiwibGFzdF92YWx1ZSI6bnVsbCwib2Zmc2V0IjowfQ==",
+                  "endCursor": "eyJsYXN0X2lkIjoxMjMxMTYzNjcwNTU4NiwibGFzdF92YWx1ZSI6bnVsbCwib2Zmc2V0IjoxfQ=="
                 }
               },
               "orders": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/Order/8954034651442?key=ea934613af82d9e7f00dc2f98f4e653b",
-                    "name": "#1840",
-                    "email": "hermes-storefront-order-mrmvglfj-a25a18cb@example.com",
+                    "id": "gid://shopify/Order/8978445893938?key=25a879164603d3260f06990fc7a8d361",
+                    "name": "WEB-2026-#77-A",
+                    "email": "hermes-storefront-order-mrrs0zx0-b74d3be7@example.com",
+                    "phone": "+14165550074",
                     "currencyCode": "CAD",
                     "financialStatus": "AUTHORIZED",
                     "fulfillmentStatus": "UNFULFILLED",
-                    "processedAt": "2026-07-16T02:10:34Z",
+                    "orderNumber": 1843,
+                    "processedAt": "2026-01-02T03:04:05Z",
+                    "subtotalPriceV2": {
+                      "amount": "19.9",
+                      "currencyCode": "CAD"
+                    },
                     "totalPrice": {
                       "amount": "19.9",
                       "currencyCode": "CAD"
@@ -900,15 +920,211 @@
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjo4OTU0MDM0NjUxNDQyLCJsYXN0X3ZhbHVlIjpudWxsLCJvZmZzZXQiOjB9",
-                  "endCursor": "eyJsYXN0X2lkIjo4OTU0MDM0NjUxNDQyLCJsYXN0X3ZhbHVlIjpudWxsLCJvZmZzZXQiOjB9"
+                  "startCursor": "eyJsYXN0X2lkIjo4OTc4NDQ1ODkzOTM4LCJsYXN0X3ZhbHVlIjpudWxsLCJvZmZzZXQiOjB9",
+                  "endCursor": "eyJsYXN0X2lkIjo4OTc4NDQ1ODkzOTM4LCJsYXN0X3ZhbHVlIjpudWxsLCJvZmZzZXQiOjB9"
                 }
               }
             }
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 22
+              "requestedQueryCost": 25
+            }
+          }
+        }
+      }
+    },
+    "adminOrderUpdate": {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "path": "/admin/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/admin/api/2026-04/graphql.json",
+      "authMode": "admin-access-token",
+      "operationName": "StorefrontCustomerAdminOrderUpdate",
+      "query": "mutation StorefrontCustomerAdminOrderUpdate($input: OrderInput!) {\n  orderUpdate(input: $input) {\n    order {\n      id\n      name\n      email\n      phone\n      currencyCode\n      currentSubtotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      currentTotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      displayFinancialStatus\n      displayFulfillmentStatus\n      processedAt\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Order/8978445893938",
+          "email": "hermes-storefront-order-updated-mrrs0zx0-b74d3be7@example.com",
+          "phone": "+15145550074"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "orderUpdate": {
+              "order": {
+                "id": "gid://shopify/Order/8978445893938",
+                "name": "WEB-2026-#77-A",
+                "email": "hermes-storefront-order-updated-mrrs0zx0-b74d3be7@example.com",
+                "phone": "+15145550074",
+                "currencyCode": "CAD",
+                "currentSubtotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "19.9",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "currentTotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "19.9",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "displayFinancialStatus": "AUTHORIZED",
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "processedAt": "2026-01-02T03:04:05Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "storefrontReadAfterOrderUpdate": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerProfileAddressOrderRead",
+      "query": "query StorefrontCustomerProfileAddressOrderRead($token: String!) {\n  customer(customerAccessToken: $token) {\n    id\n    email\n    firstName\n    lastName\n    displayName\n    phone\n    acceptsMarketing\n    createdAt\n    updatedAt\n    defaultAddress {\n      id\n      firstName\n      lastName\n      address1\n      address2\n      city\n      company\n      province\n      provinceCode\n      country\n      countryCode\n      countryCodeV2\n      zip\n      phone\n      name\n      formattedArea\n    }\n    addresses(first: 5) {\n      nodes {\n        id\n        firstName\n        lastName\n        address1\n        address2\n        city\n        company\n        province\n        provinceCode\n        country\n        countryCode\n        countryCodeV2\n        zip\n        phone\n        name\n        formattedArea\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    orders(first: 5) {\n      nodes {\n        id\n        name\n        email\n        phone\n        currencyCode\n        financialStatus\n        fulfillmentStatus\n        orderNumber\n        processedAt\n        subtotalPriceV2 {\n          amount\n          currencyCode\n        }\n        totalPrice {\n          amount\n          currencyCode\n        }\n        totalPriceV2 {\n          amount\n          currencyCode\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "token": "<redacted:storefront-customer-profile-address-order>"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10993061626162",
+              "email": "hermes-storefront-order-mrrs0zx0-b74d3be7@example.com",
+              "firstName": "Admin",
+              "lastName": "Visible",
+              "displayName": "Admin Visible",
+              "phone": "+16135550074",
+              "acceptsMarketing": false,
+              "createdAt": "2026-07-19T12:33:16Z",
+              "updatedAt": "2026-07-19T12:33:18Z",
+              "defaultAddress": {
+                "id": "gid://shopify/MailingAddress/12311636705586?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
+                "firstName": "Admin",
+                "lastName": "Address",
+                "address1": "50 Admin Way",
+                "address2": null,
+                "city": "Montreal",
+                "company": null,
+                "province": "Quebec",
+                "provinceCode": "QC",
+                "country": "Canada",
+                "countryCode": "CA",
+                "countryCodeV2": "CA",
+                "zip": "H2Y 1C6",
+                "phone": null,
+                "name": "Admin Address",
+                "formattedArea": "Montreal QC, Canada"
+              },
+              "addresses": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/MailingAddress/12311636607282?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
+                    "firstName": "Updated",
+                    "lastName": "Profile",
+                    "address1": "10 Storefront Main St",
+                    "address2": null,
+                    "city": "Gatineau",
+                    "company": null,
+                    "province": "Quebec",
+                    "provinceCode": "QC",
+                    "country": "Canada",
+                    "countryCode": "CA",
+                    "countryCodeV2": "CA",
+                    "zip": "J8X 2X1",
+                    "phone": "+1 (613) 555-0199",
+                    "name": "Updated Profile",
+                    "formattedArea": "Gatineau QC, Canada"
+                  },
+                  {
+                    "id": "gid://shopify/MailingAddress/12311636705586?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
+                    "firstName": "Admin",
+                    "lastName": "Address",
+                    "address1": "50 Admin Way",
+                    "address2": null,
+                    "city": "Montreal",
+                    "company": null,
+                    "province": "Quebec",
+                    "provinceCode": "QC",
+                    "country": "Canada",
+                    "countryCode": "CA",
+                    "countryCodeV2": "CA",
+                    "zip": "H2Y 1C6",
+                    "phone": null,
+                    "name": "Admin Address",
+                    "formattedArea": "Montreal QC, Canada"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxMjMxMTYzNjYwNzI4MiwibGFzdF92YWx1ZSI6bnVsbCwib2Zmc2V0IjowfQ==",
+                  "endCursor": "eyJsYXN0X2lkIjoxMjMxMTYzNjcwNTU4NiwibGFzdF92YWx1ZSI6bnVsbCwib2Zmc2V0IjoxfQ=="
+                }
+              },
+              "orders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Order/8978445893938?key=25a879164603d3260f06990fc7a8d361",
+                    "name": "WEB-2026-#77-A",
+                    "email": "hermes-storefront-order-updated-mrrs0zx0-b74d3be7@example.com",
+                    "phone": "+15145550074",
+                    "currencyCode": "CAD",
+                    "financialStatus": "AUTHORIZED",
+                    "fulfillmentStatus": "UNFULFILLED",
+                    "orderNumber": 1843,
+                    "processedAt": "2026-01-02T03:04:05Z",
+                    "subtotalPriceV2": {
+                      "amount": "19.9",
+                      "currencyCode": "CAD"
+                    },
+                    "totalPrice": {
+                      "amount": "19.9",
+                      "currencyCode": "CAD"
+                    },
+                    "totalPriceV2": {
+                      "amount": "19.9",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo4OTc4NDQ1ODkzOTM4LCJsYXN0X3ZhbHVlIjpudWxsLCJvZmZzZXQiOjB9",
+                  "endCursor": "eyJsYXN0X2lkIjo4OTc4NDQ1ODkzOTM4LCJsYXN0X3ZhbHVlIjpudWxsLCJvZmZzZXQiOjB9"
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25
             }
           }
         }
@@ -938,19 +1154,19 @@
           "data": {
             "customerUpdate": {
               "customer": {
-                "id": "gid://shopify/Customer/10965467300146",
-                "email": "hermes-storefront-order-mrmvglfj-a25a18cb@example.com",
+                "id": "gid://shopify/Customer/10993061626162",
+                "email": "hermes-storefront-order-mrrs0zx0-b74d3be7@example.com",
                 "firstName": "Admin",
                 "lastName": "Visible",
                 "displayName": "Admin Visible",
-                "phone": "+16135552518",
+                "phone": "+16135550074",
                 "acceptsMarketing": false,
-                "createdAt": "2026-07-16T02:10:31Z",
-                "updatedAt": "2026-07-16T02:10:34Z"
+                "createdAt": "2026-07-19T12:33:16Z",
+                "updatedAt": "2026-07-19T12:33:19Z"
               },
               "customerAccessToken": {
                 "accessToken": "<redacted:storefront-customer-profile-address-order>",
-                "expiresAt": "2026-08-27T02:10:34Z"
+                "expiresAt": "2026-08-30T12:33:19Z"
               },
               "customerUserErrors": [],
               "userErrors": []
@@ -975,7 +1191,7 @@
         "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
       },
       "operationName": "StorefrontCustomerProfileAddressOrderRead",
-      "query": "query StorefrontCustomerProfileAddressOrderRead($token: String!) {\n  customer(customerAccessToken: $token) {\n    id\n    email\n    firstName\n    lastName\n    displayName\n    phone\n    acceptsMarketing\n    createdAt\n    updatedAt\n    defaultAddress {\n      id\n      firstName\n      lastName\n      address1\n      address2\n      city\n      company\n      province\n      provinceCode\n      country\n      countryCode\n      countryCodeV2\n      zip\n      phone\n      name\n      formattedArea\n    }\n    addresses(first: 5) {\n      nodes {\n        id\n        firstName\n        lastName\n        address1\n        address2\n        city\n        company\n        province\n        provinceCode\n        country\n        countryCode\n        countryCodeV2\n        zip\n        phone\n        name\n        formattedArea\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    orders(first: 5) {\n      nodes {\n        id\n        name\n        email\n        currencyCode\n        financialStatus\n        fulfillmentStatus\n        processedAt\n        totalPrice {\n          amount\n          currencyCode\n        }\n        totalPriceV2 {\n          amount\n          currencyCode\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "query": "query StorefrontCustomerProfileAddressOrderRead($token: String!) {\n  customer(customerAccessToken: $token) {\n    id\n    email\n    firstName\n    lastName\n    displayName\n    phone\n    acceptsMarketing\n    createdAt\n    updatedAt\n    defaultAddress {\n      id\n      firstName\n      lastName\n      address1\n      address2\n      city\n      company\n      province\n      provinceCode\n      country\n      countryCode\n      countryCodeV2\n      zip\n      phone\n      name\n      formattedArea\n    }\n    addresses(first: 5) {\n      nodes {\n        id\n        firstName\n        lastName\n        address1\n        address2\n        city\n        company\n        province\n        provinceCode\n        country\n        countryCode\n        countryCodeV2\n        zip\n        phone\n        name\n        formattedArea\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    orders(first: 5) {\n      nodes {\n        id\n        name\n        email\n        phone\n        currencyCode\n        financialStatus\n        fulfillmentStatus\n        orderNumber\n        processedAt\n        subtotalPriceV2 {\n          amount\n          currencyCode\n        }\n        totalPrice {\n          amount\n          currencyCode\n        }\n        totalPriceV2 {\n          amount\n          currencyCode\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
       "variables": {
         "token": "<redacted:storefront-customer-profile-address-order>"
       },
@@ -987,7 +1203,7 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 22
+              "requestedQueryCost": 25
             }
           }
         }
@@ -1004,7 +1220,7 @@
         "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
       },
       "operationName": "StorefrontCustomerProfileAddressOrderRead",
-      "query": "query StorefrontCustomerProfileAddressOrderRead($token: String!) {\n  customer(customerAccessToken: $token) {\n    id\n    email\n    firstName\n    lastName\n    displayName\n    phone\n    acceptsMarketing\n    createdAt\n    updatedAt\n    defaultAddress {\n      id\n      firstName\n      lastName\n      address1\n      address2\n      city\n      company\n      province\n      provinceCode\n      country\n      countryCode\n      countryCodeV2\n      zip\n      phone\n      name\n      formattedArea\n    }\n    addresses(first: 5) {\n      nodes {\n        id\n        firstName\n        lastName\n        address1\n        address2\n        city\n        company\n        province\n        provinceCode\n        country\n        countryCode\n        countryCodeV2\n        zip\n        phone\n        name\n        formattedArea\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    orders(first: 5) {\n      nodes {\n        id\n        name\n        email\n        currencyCode\n        financialStatus\n        fulfillmentStatus\n        processedAt\n        totalPrice {\n          amount\n          currencyCode\n        }\n        totalPriceV2 {\n          amount\n          currencyCode\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "query": "query StorefrontCustomerProfileAddressOrderRead($token: String!) {\n  customer(customerAccessToken: $token) {\n    id\n    email\n    firstName\n    lastName\n    displayName\n    phone\n    acceptsMarketing\n    createdAt\n    updatedAt\n    defaultAddress {\n      id\n      firstName\n      lastName\n      address1\n      address2\n      city\n      company\n      province\n      provinceCode\n      country\n      countryCode\n      countryCodeV2\n      zip\n      phone\n      name\n      formattedArea\n    }\n    addresses(first: 5) {\n      nodes {\n        id\n        firstName\n        lastName\n        address1\n        address2\n        city\n        company\n        province\n        provinceCode\n        country\n        countryCode\n        countryCodeV2\n        zip\n        phone\n        name\n        formattedArea\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    orders(first: 5) {\n      nodes {\n        id\n        name\n        email\n        phone\n        currencyCode\n        financialStatus\n        fulfillmentStatus\n        orderNumber\n        processedAt\n        subtotalPriceV2 {\n          amount\n          currencyCode\n        }\n        totalPrice {\n          amount\n          currencyCode\n        }\n        totalPriceV2 {\n          amount\n          currencyCode\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
       "variables": {
         "token": "<redacted:storefront-customer-profile-address-order>"
       },
@@ -1013,17 +1229,17 @@
         "body": {
           "data": {
             "customer": {
-              "id": "gid://shopify/Customer/10965467300146",
-              "email": "hermes-storefront-order-mrmvglfj-a25a18cb@example.com",
+              "id": "gid://shopify/Customer/10993061626162",
+              "email": "hermes-storefront-order-mrrs0zx0-b74d3be7@example.com",
               "firstName": "Admin",
               "lastName": "Visible",
               "displayName": "Admin Visible",
-              "phone": "+16135552518",
+              "phone": "+16135550074",
               "acceptsMarketing": false,
-              "createdAt": "2026-07-16T02:10:31Z",
-              "updatedAt": "2026-07-16T02:10:34Z",
+              "createdAt": "2026-07-19T12:33:16Z",
+              "updatedAt": "2026-07-19T12:33:19Z",
               "defaultAddress": {
-                "id": "gid://shopify/MailingAddress/12304836690226?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
+                "id": "gid://shopify/MailingAddress/12311636705586?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
                 "firstName": "Admin",
                 "lastName": "Address",
                 "address1": "50 Admin Way",
@@ -1043,7 +1259,7 @@
               "addresses": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/MailingAddress/12304836591922?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
+                    "id": "gid://shopify/MailingAddress/12311636607282?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
                     "firstName": "Updated",
                     "lastName": "Profile",
                     "address1": "10 Storefront Main St",
@@ -1061,7 +1277,7 @@
                     "formattedArea": "Gatineau QC, Canada"
                   },
                   {
-                    "id": "gid://shopify/MailingAddress/12304836690226?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
+                    "id": "gid://shopify/MailingAddress/12311636705586?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
                     "firstName": "Admin",
                     "lastName": "Address",
                     "address1": "50 Admin Way",
@@ -1082,20 +1298,26 @@
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjoxMjMwNDgzNjU5MTkyMiwibGFzdF92YWx1ZSI6bnVsbCwib2Zmc2V0IjowfQ==",
-                  "endCursor": "eyJsYXN0X2lkIjoxMjMwNDgzNjY5MDIyNiwibGFzdF92YWx1ZSI6bnVsbCwib2Zmc2V0IjoxfQ=="
+                  "startCursor": "eyJsYXN0X2lkIjoxMjMxMTYzNjYwNzI4MiwibGFzdF92YWx1ZSI6bnVsbCwib2Zmc2V0IjowfQ==",
+                  "endCursor": "eyJsYXN0X2lkIjoxMjMxMTYzNjcwNTU4NiwibGFzdF92YWx1ZSI6bnVsbCwib2Zmc2V0IjoxfQ=="
                 }
               },
               "orders": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/Order/8954034651442?key=ea934613af82d9e7f00dc2f98f4e653b",
-                    "name": "#1840",
-                    "email": "hermes-storefront-order-mrmvglfj-a25a18cb@example.com",
+                    "id": "gid://shopify/Order/8978445893938?key=25a879164603d3260f06990fc7a8d361",
+                    "name": "WEB-2026-#77-A",
+                    "email": "hermes-storefront-order-updated-mrrs0zx0-b74d3be7@example.com",
+                    "phone": "+15145550074",
                     "currencyCode": "CAD",
                     "financialStatus": "AUTHORIZED",
                     "fulfillmentStatus": "UNFULFILLED",
-                    "processedAt": "2026-07-16T02:10:34Z",
+                    "orderNumber": 1843,
+                    "processedAt": "2026-01-02T03:04:05Z",
+                    "subtotalPriceV2": {
+                      "amount": "19.9",
+                      "currencyCode": "CAD"
+                    },
                     "totalPrice": {
                       "amount": "19.9",
                       "currencyCode": "CAD"
@@ -1109,15 +1331,15 @@
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjo4OTU0MDM0NjUxNDQyLCJsYXN0X3ZhbHVlIjpudWxsLCJvZmZzZXQiOjB9",
-                  "endCursor": "eyJsYXN0X2lkIjo4OTU0MDM0NjUxNDQyLCJsYXN0X3ZhbHVlIjpudWxsLCJvZmZzZXQiOjB9"
+                  "startCursor": "eyJsYXN0X2lkIjo4OTc4NDQ1ODkzOTM4LCJsYXN0X3ZhbHVlIjpudWxsLCJvZmZzZXQiOjB9",
+                  "endCursor": "eyJsYXN0X2lkIjo4OTc4NDQ1ODkzOTM4LCJsYXN0X3ZhbHVlIjpudWxsLCJvZmZzZXQiOjB9"
                 }
               }
             }
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 22
+              "requestedQueryCost": 25
             }
           }
         }
@@ -1171,7 +1393,7 @@
   "cleanup": {
     "orderCleanup": [
       {
-        "orderId": "gid://shopify/Order/8954034651442",
+        "orderId": "gid://shopify/Order/8978445893938",
         "orderCancel": {
           "status": 200,
           "body": {
@@ -1198,7 +1420,7 @@
           "body": {
             "data": {
               "orderDelete": {
-                "deletedId": "gid://shopify/Order/8954034651442",
+                "deletedId": "gid://shopify/Order/8978445893938",
                 "userErrors": []
               }
             },
@@ -1219,13 +1441,13 @@
     ],
     "customerDeletes": [
       {
-        "customerId": "gid://shopify/Customer/10965467300146",
+        "customerId": "gid://shopify/Customer/10993061626162",
         "response": {
           "status": 200,
           "body": {
             "data": {
               "customerDelete": {
-                "deletedCustomerId": "gid://shopify/Customer/10965467300146",
+                "deletedCustomerId": "gid://shopify/Customer/10993061626162",
                 "userErrors": []
               }
             },
@@ -1249,6 +1471,8 @@
   "notes": [
     "Disposable Storefront customer, customer addresses, and Admin test order were created against live Shopify.",
     "The scenario proves Storefront profile/address mutations are visible through Admin reads, then Admin profile/address/order changes are visible through Storefront token-authenticated reads.",
+    "The order uses a custom digit-bearing name and fixed processedAt; Storefront returns an independent positive orderNumber rather than concatenating digits from the name.",
+    "A staged-shape Admin orderUpdate changes contact fields, while the later Storefront read preserves the order identity, money, statuses, and timestamp.",
     "Passwords and Storefront access tokens are redacted in this checked-in fixture; disposable example.com emails and Canadian safe addresses are not real customer data.",
     "Cleanup cancels/deletes the disposable test order before deleting the customer."
   ]

@@ -1,0 +1,30 @@
+mutation StorefrontCustomerAdminOrderUpdate($input: OrderInput!) {
+  orderUpdate(input: $input) {
+    order {
+      id
+      name
+      email
+      phone
+      currencyCode
+      currentSubtotalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      currentTotalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      displayFinancialStatus
+      displayFulfillmentStatus
+      processedAt
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

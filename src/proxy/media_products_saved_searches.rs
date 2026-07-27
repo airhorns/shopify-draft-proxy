@@ -222,6 +222,16 @@ impl DraftProxy {
                 return ResolverOutcome::value(product_create_payload_value(None, vec![error]));
             }
         };
+        let category = match self.product_category_for_mutation_input(
+            request,
+            &input,
+            invocation.response_key,
+            invocation.root_location,
+        ) {
+            Ok(category) => category,
+            Err(outcome) => return outcome,
+        };
+
         let id = self.next_proxy_synthetic_gid("Product");
         let status =
             resolved_string_field(&input, "status").unwrap_or_else(|| "ACTIVE".to_string());
@@ -275,26 +285,12 @@ impl DraftProxy {
                 .extra_fields
                 .insert("giftCardTemplateSuffix".to_string(), json!(suffix));
         }
-        // Shopify resolves the input `category` taxonomy GID into a `{id, fullName}`
-        // object on the created product, surfaced through both the mutation payload and
-        // downstream reads.
-        if let Some(category_id) = product_category_input_id(&input) {
-            match self.product_category_value_for_input(request, &category_id) {
-                Some(category) => {
-                    product
-                        .extra_fields
-                        .insert("category".to_string(), category);
-                }
-                None => {
-                    return graphql_error_outcome(
-                        vec![invalid_product_taxonomy_node_id_error(
-                            invocation.response_key,
-                            invocation.root_location,
-                        )],
-                        invocation.response_key,
-                    );
-                }
-            }
+        // Shopify resolves the input taxonomy GID before product identity or related
+        // resources are allocated. Only authoritative category metadata reaches state.
+        if let Some(category) = category {
+            product
+                .extra_fields
+                .insert("category".to_string(), category);
         }
 
         // `productCreate` always materializes at least one variant. With `productOptions`,
@@ -577,6 +573,16 @@ impl DraftProxy {
             Err(error) => return self.product_update_field_user_error(&existing, error),
         };
 
+        let category = match self.product_category_for_mutation_input(
+            request,
+            &input,
+            invocation.response_key,
+            invocation.root_location,
+        ) {
+            Ok(category) => category,
+            Err(outcome) => return outcome,
+        };
+
         let mut extra_fields = existing.extra_fields;
         if let Some(seo_input) = resolved_object_field(&input, "seo") {
             let mut seo = extra_fields
@@ -599,21 +605,8 @@ impl DraftProxy {
             }
             extra_fields.insert("seo".to_string(), Value::Object(seo));
         }
-        if let Some(category_id) = product_category_input_id(&input) {
-            match self.product_category_value_for_input(request, &category_id) {
-                Some(category) => {
-                    extra_fields.insert("category".to_string(), category);
-                }
-                None => {
-                    return graphql_error_outcome(
-                        vec![invalid_product_taxonomy_node_id_error(
-                            invocation.response_key,
-                            invocation.root_location,
-                        )],
-                        invocation.response_key,
-                    );
-                }
-            }
+        if let Some(category) = category {
+            extra_fields.insert("category".to_string(), category);
         }
 
         let media_append = top_level_media_inputs
@@ -696,20 +689,6 @@ impl DraftProxy {
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
-        if self.config.read_mode == ReadMode::Snapshot
-            && matches!(
-                invocation.root_name,
-                "productVariantAppendMedia" | "productVariantDetachMedia"
-            )
-        {
-            return resolver_http_error_outcome(
-                400,
-                format!(
-                    "No mutation dispatcher implemented for root field: {}",
-                    invocation.root_name
-                ),
-            );
-        }
         let request = invocation.request;
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         match invocation.root_name {

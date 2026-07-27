@@ -1,0 +1,147 @@
+{
+  "scenarioId": "saved-search-mutation-first-hydration",
+  "operationNames": ["savedSearchUpdate", "savedSearchDelete", "node", "productSavedSearches"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity",
+    "runtime-staging",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-mutation-first-hydration.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-mutation-first-update.graphql",
+    "variablesCapturePath": "$.updateExisting.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify capture for arbitrary persisted PRODUCT saved-search mutation targets. The proxy replays update/delete as local staged writes, while exact node(id:) hydration reads are recorded in upstreamCalls. Named targets compare existing and truly missing mutation payloads plus singular/list readback after local update and delete.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-first-existing-update-payload",
+        "capturePath": "$.updateExisting.response.data.savedSearchUpdate",
+        "proxyPath": "$.data.savedSearchUpdate",
+        "upstreamCapturePath": null,
+        "expectedDifferences": []
+      },
+      {
+        "name": "mutation-first-update-singular-readback",
+        "capturePath": "$.nodeAfterUpdate.response.data.node",
+        "proxyPath": "$.data.node",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-mutation-first-node-read.graphql",
+          "variablesCapturePath": "$.nodeAfterUpdate.variables",
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": []
+      },
+      {
+        "name": "mutation-first-update-list-readback",
+        "capturePath": "$.listAfterUpdate.response.data.productSavedSearches",
+        "proxyPath": "$.data.productSavedSearches",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-mutation-first-list-read.graphql",
+          "variablesCapturePath": "$.listAfterUpdate.variables",
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[*].id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The persistent delete target is recreated after live deletion and therefore has a different authoritative Shopify id during proxy cassette recording."
+          },
+          {
+            "path": "$.nodes[*].legacyResourceId",
+            "matcher": "non-empty-string",
+            "reason": "The persistent delete target's legacy id changes with its recreated authoritative Shopify id."
+          }
+        ]
+      },
+      {
+        "name": "mutation-first-existing-delete-payload",
+        "capturePath": "$.deleteExisting.response.data.savedSearchDelete",
+        "proxyPath": "$.data.savedSearchDelete",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-mutation-first-delete.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromCapturePath": "$.cleanup.recreateDelete.data.savedSearchCreate.savedSearch.id"
+              }
+            }
+          },
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deletedSavedSearchId",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "Cleanup recreates the disposable delete target with a new authoritative Shopify SavedSearch id for cassette recording."
+          }
+        ]
+      },
+      {
+        "name": "mutation-first-delete-singular-readback",
+        "capturePath": "$.nodeAfterDelete.response.data.node",
+        "proxyPath": "$.data.node",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-mutation-first-node-read.graphql",
+          "variables": {
+            "id": {
+              "fromCapturePath": "$.cleanup.recreateDelete.data.savedSearchCreate.savedSearch.id"
+            }
+          },
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": []
+      },
+      {
+        "name": "mutation-first-delete-list-readback",
+        "capturePath": "$.listAfterDelete.response.data.productSavedSearches",
+        "proxyPath": "$.data.productSavedSearches",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-mutation-first-list-read.graphql",
+          "variablesCapturePath": "$.listAfterDelete.variables",
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": []
+      },
+      {
+        "name": "mutation-first-truly-missing-update-payload",
+        "capturePath": "$.updateMissing.response.data.savedSearchUpdate",
+        "proxyPath": "$.data.savedSearchUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-mutation-first-update.graphql",
+          "variablesCapturePath": "$.updateMissing.variables",
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": []
+      },
+      {
+        "name": "mutation-first-truly-missing-delete-payload",
+        "capturePath": "$.deleteMissing.response.data.savedSearchDelete",
+        "proxyPath": "$.data.savedSearchDelete",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-mutation-first-delete.graphql",
+          "variablesCapturePath": "$.deleteMissing.variables",
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": []
+      }
+    ]
+  }
+}

@@ -58,10 +58,16 @@ query StorefrontCustomerProfileAddressOrderRead($token: String!) {
         id
         name
         email
+        phone
         currencyCode
         financialStatus
         fulfillmentStatus
+        orderNumber
         processedAt
+        subtotalPriceV2 {
+          amount
+          currencyCode
+        }
         totalPrice {
           amount
           currencyCode

@@ -37,6 +37,7 @@ const documentPaths = {
   adminAddressCreate: 'config/parity-requests/storefront/storefront-customer-admin-address-create.graphql',
   adminDelete: 'config/parity-requests/storefront/storefront-customer-auth-admin-delete.graphql',
   adminOrderCreate: 'config/parity-requests/storefront/storefront-customer-admin-order-create.graphql',
+  adminOrderUpdate: 'config/parity-requests/storefront/storefront-customer-admin-order-update.graphql',
   adminRead: 'config/parity-requests/storefront/storefront-customer-admin-read.graphql',
   adminUpdate: 'config/parity-requests/storefront/storefront-customer-auth-admin-update.graphql',
   addressCreate: 'config/parity-requests/storefront/storefront-customer-address-create.graphql',
@@ -107,6 +108,7 @@ const suffix = `${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`;
 const email = `hermes-storefront-profile-${suffix}@example.com`;
 const updatedEmail = `hermes-storefront-updated-${suffix}@example.com`;
 const orderEmail = `hermes-storefront-order-${suffix}@example.com`;
+const updatedOrderEmail = `hermes-storefront-order-updated-${suffix}@example.com`;
 const password = 'CodexPass123!';
 const updatedPassword = 'NewCodexPass123!';
 const phoneTail = suffix
@@ -114,6 +116,8 @@ const phoneTail = suffix
   .padEnd(4, '7')
   .slice(0, 4);
 const updatedPhone = `+1613555${phoneTail}`;
+const orderPhone = `+1416555${phoneTail}`;
+const updatedOrderPhone = `+1514555${phoneTail}`;
 const cleanupCustomerIds = new Set<string>();
 const cleanupOrderIds = new Set<string>();
 
@@ -395,9 +399,12 @@ try {
   const orderCreate = await recordAdmin('StorefrontCustomerAdminOrderCreate', documentPaths.adminOrderCreate, {
     order: {
       email: orderEmail,
+      phone: orderPhone,
       customerId,
       test: true,
       currency: 'CAD',
+      name: 'WEB-2026-#77-A',
+      processedAt: '2026-01-02T03:04:05Z',
       lineItems: [
         {
           title: `Storefront customer visible order ${suffix}`,
@@ -433,6 +440,35 @@ try {
   cleanupOrderIds.add(orderId);
 
   const storefrontReadAfterAdmin = await recordStorefront(
+    'StorefrontCustomerProfileAddressOrderRead',
+    documentPaths.profileRead,
+    {
+      token: accessToken,
+    },
+  );
+  const storefrontOrder = pathValue(
+    storefrontReadAfterAdmin.raw,
+    ['data', 'customer', 'orders', 'nodes', '0'],
+    'Storefront order projection',
+  );
+  const capturedOrderNumber = pathValue(storefrontOrder, ['orderNumber'], 'Storefront order number');
+  if (typeof capturedOrderNumber !== 'number' || capturedOrderNumber <= 0) {
+    throw new Error(`Expected a positive Storefront orderNumber, got ${JSON.stringify(capturedOrderNumber)}`);
+  }
+  const concatenatedNameDigits = Number.parseInt('WEB-2026-#77-A'.replace(/\D/gu, ''), 10);
+  if (capturedOrderNumber === concatenatedNameDigits) {
+    throw new Error('Storefront orderNumber unexpectedly concatenated arbitrary digits from the custom order name.');
+  }
+
+  const adminOrderUpdate = await recordAdmin('StorefrontCustomerAdminOrderUpdate', documentPaths.adminOrderUpdate, {
+    input: {
+      id: orderId,
+      email: updatedOrderEmail,
+      phone: updatedOrderPhone,
+    },
+  });
+  pathValue(adminOrderUpdate.raw, ['data', 'orderUpdate', 'order'], 'updated Admin order');
+  const storefrontReadAfterOrderUpdate = await recordStorefront(
     'StorefrontCustomerProfileAddressOrderRead',
     documentPaths.profileRead,
     {
@@ -512,7 +548,10 @@ try {
           email,
           updatedEmail,
           orderEmail,
+          updatedOrderEmail,
           updatedPhone,
+          orderPhone,
+          updatedOrderPhone,
         },
         captures: {
           storefrontCreate: storefrontCreate.record,
@@ -529,6 +568,8 @@ try {
           adminAddressCreate: adminAddressCreate.record,
           orderCreate: orderCreate.record,
           storefrontReadAfterAdmin: storefrontReadAfterAdmin.record,
+          adminOrderUpdate: adminOrderUpdate.record,
+          storefrontReadAfterOrderUpdate: storefrontReadAfterOrderUpdate.record,
           passwordUpdate: passwordUpdate.record,
           readWithOldTokenAfterPassword: readWithOldTokenAfterPassword.record,
           readWithRotatedToken: readWithRotatedToken.record,
@@ -542,6 +583,8 @@ try {
         notes: [
           'Disposable Storefront customer, customer addresses, and Admin test order were created against live Shopify.',
           'The scenario proves Storefront profile/address mutations are visible through Admin reads, then Admin profile/address/order changes are visible through Storefront token-authenticated reads.',
+          'The order uses a custom digit-bearing name and fixed processedAt; Storefront returns an independent positive orderNumber rather than concatenating digits from the name.',
+          'A staged-shape Admin orderUpdate changes contact fields, while the later Storefront read preserves the order identity, money, statuses, and timestamp.',
           'Passwords and Storefront access tokens are redacted in this checked-in fixture; disposable example.com emails and Canadian safe addresses are not real customer data.',
           'Cleanup cancels/deletes the disposable test order before deleting the customer.',
         ],

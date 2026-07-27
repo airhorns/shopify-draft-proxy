@@ -1,5 +1,5 @@
 mutation MetaobjectBulkDeleteEdgeBothTypeAndIds {
-  metaobjectBulkDelete(where: { type: "codex_har_680_invalid", ids: [] }) {
+  metaobjectBulkDelete(where: { type: "codex_bulk_delete_invalid", ids: [] }) {
     job {
       id
       done
