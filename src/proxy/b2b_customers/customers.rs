@@ -21,6 +21,11 @@ pub(in crate::proxy) fn customer_field_resolver_registrations() -> Vec<FieldReso
                 "storeCreditAccounts",
                 customer_store_credit_accounts_field,
             ),
+            (
+                "Customer",
+                "companyContactProfiles",
+                customer_company_contact_profiles_field,
+            ),
             ("Customer", "metafield", customer_metafield_field),
             ("Customer", "metafields", customer_metafields_field),
         ]
@@ -120,6 +125,16 @@ fn customer_payment_methods_field(
     ))
 }
 
+fn customer_company_contact_profiles_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(Value::Array(proxy.b2b_contacts_for_customer(
+        customer_parent_id(invocation)?,
+    )))
+}
+
 fn customer_store_credit_accounts_field(
     proxy: &mut DraftProxy,
     _request: &Request,
@@ -191,32 +206,10 @@ struct CustomerCustomIdUpstreamLookup {
     found_id: Option<String>,
 }
 
-const CUSTOMER_HYDRATE_QUERY: &str = r#"
-query CustomerHydrate($id: ID!) {
-  customer(id: $id) {
-    id
-    firstName
-    lastName
-    displayName
-    email
-    phone
-    locale
-    note
-    canDelete
-    verifiedEmail
-    dataSaleOptOut
-    taxExempt
-    taxExemptions
-    state
-    tags
-    createdAt
-    updatedAt
-    defaultEmailAddress { emailAddress }
-    defaultPhoneNumber { phoneNumber }
-    defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }
-  }
-}
-"#;
+// Shared with capture scripts so mutation-first customer hydration cassettes
+// byte-match the production read issued before a supported local mutation.
+const CUSTOMER_HYDRATE_QUERY: &str =
+    include_str!("../../../config/parity-requests/customers/customer-hydrate.graphql");
 // Shared with the parity capture scripts via include_str! so recorded address-aware
 // `CustomerHydrate` cassettes byte-match the request forwarded when address nodes
 // are required for validation/output. The leading newline is significant: the
@@ -297,11 +290,17 @@ impl DraftProxy {
             "customer" => resolved_string_field(arguments, "id").is_some_and(|id| {
                 self.store.staged.customers.contains_key(&id)
                     || self.store.staged.customers.is_tombstoned(&id)
+                    || self.store.base.b2b_customers.get(&id).is_some()
                     || self.store_credit_owner_has_accounts(&id)
                     || self.owner_has_metafield_local_effects(&id)
                     || requests_payment_methods
             }),
-            "customerByIdentifier" => !self.store.staged.customers.is_empty(),
+            "customerByIdentifier" => {
+                !self.store.staged.customers.is_empty()
+                    || resolved_object_field(arguments, "identifier").is_some_and(|identifier| {
+                        self.customer_staged_identifier_match(&identifier).is_some()
+                    })
+            }
             // A standalone `customers(query:)` / `customersCount` list read is
             // served from the staged overlay once this scenario has staged at
             // least one customer (e.g. a customerCreate or a privacy
@@ -326,7 +325,7 @@ impl DraftProxy {
         }
         match root_name {
             "customer" => resolved_string_field(arguments, "id").is_some_and(|id| {
-                !self.store.staged.customers.contains_key(&id)
+                self.b2b_effective_customer(&id).is_none()
                     && !self.store.staged.customers.is_tombstoned(&id)
             }),
             "customerByIdentifier" => {
@@ -537,6 +536,9 @@ impl DraftProxy {
         if let Some(customer) = self.store.staged.customers.get(&id) {
             return self.canonical_customer_value(&id, customer);
         }
+        if let Some(customer) = self.store.base.b2b_customers.get(&id) {
+            return self.canonical_customer_value(&id, customer);
+        }
         if let Some(customer) = upstream_value.filter(|customer| !customer.is_null()) {
             return self.canonical_customer_value(&id, customer);
         }
@@ -565,7 +567,7 @@ impl DraftProxy {
         if self.store.staged.customers.is_tombstoned(id) {
             return Some(Value::Null);
         }
-        self.store.staged.customers.get(id).cloned()
+        self.b2b_effective_customer(id)
     }
 
     pub(in crate::proxy) fn customer_address_node_value_by_id(&self, id: &str) -> Option<Value> {
@@ -1111,9 +1113,7 @@ impl DraftProxy {
     fn store_credit_owner_exists(&mut self, request: &Request, owner_id: &str) -> bool {
         match shopify_gid_resource_type(owner_id) {
             Some("Customer") => {
-                if self.store.staged.customers.contains_key(owner_id)
-                    && !self.store.staged.customers.is_tombstoned(owner_id)
-                {
+                if self.b2b_effective_customer(owner_id).is_some() {
                     true
                 } else {
                     self.hydrate_store_credit_customer_for_mutation(request, owner_id)
@@ -1130,18 +1130,10 @@ impl DraftProxy {
     fn store_credit_owner_json(&self, owner_id: &str) -> Value {
         match shopify_gid_resource_type(owner_id) {
             Some("Customer") => self
-                .store
-                .staged
-                .customers
-                .get(owner_id)
-                .cloned()
+                .b2b_effective_customer(owner_id)
                 .unwrap_or_else(|| json!({ "id": owner_id })),
             Some("CompanyLocation") => self
-                .store
-                .staged
-                .b2b_locations
-                .get(owner_id)
-                .cloned()
+                .b2b_effective_location(owner_id)
                 .unwrap_or_else(|| json!({ "id": owner_id })),
             _ => json!({ "id": owner_id }),
         }
@@ -1341,7 +1333,13 @@ impl DraftProxy {
             if self.store.staged.customers.is_tombstoned(&id) {
                 return Some(None);
             }
-            return self.store.staged.customers.get(&id).map(Some);
+            return self
+                .store
+                .staged
+                .customers
+                .get(&id)
+                .or_else(|| self.store.base.b2b_customers.get(&id))
+                .map(Some);
         }
         if let Some(custom_id) = customer_custom_id_from_identifier(identifier, None) {
             if self.customer_custom_id_has_local_valid_definition(&custom_id) {
@@ -1359,6 +1357,17 @@ impl DraftProxy {
             .iter()
             .find(|(id, customer)| self.customer_matches_identifier(id, customer, identifier))
             .map(|(_, customer)| Some(customer))
+            .or_else(|| {
+                self.store
+                    .base
+                    .b2b_customers
+                    .records
+                    .iter()
+                    .find(|(id, customer)| {
+                        self.customer_matches_identifier(id, customer, identifier)
+                    })
+                    .map(|(_, customer)| Some(customer))
+            })
     }
 
     fn customer_matches_identifier(
@@ -1456,6 +1465,15 @@ impl DraftProxy {
                 .cloned()
                 .unwrap_or(record);
             records_by_id.insert(id, record);
+        }
+        for id in &self.store.base.b2b_customers.order {
+            if records_by_id.contains_key(id) || self.store.staged.customers.is_tombstoned(id) {
+                continue;
+            }
+            if let Some(customer) = self.store.base.b2b_customers.get(id) {
+                ordered_ids.push(id.clone());
+                records_by_id.insert(id.clone(), customer.clone());
+            }
         }
         for (id, customer) in self.store.staged.customers.iter() {
             if self.store.staged.customers.is_tombstoned(id) {
@@ -1914,26 +1932,24 @@ impl DraftProxy {
     ) -> (Value, Vec<String>, Vec<Value>) {
         let input = resolved_object_field(arguments, "input").unwrap_or_default();
         let id = resolved_string_field(&input, "id").unwrap_or_default();
-        let customer_exists = !id.is_empty() && self.customer_exists_for_mutation(request, &id);
+        let existing_customer = (!id.is_empty())
+            .then(|| self.customer_existing_for_update(request, &id, false))
+            .flatten();
         self.hydrate_customer_delete_shop_if_requested(
             request,
             requests_shop,
             requested_field_paths,
         );
         let selected_shop = self.customer_delete_shop_payload(requests_shop);
-        let payload = if !customer_exists {
+        let payload = if existing_customer.is_none() {
             json!({
                 "deletedCustomerId": null,
                 "shop": selected_shop.clone(),
                 "userErrors": [user_error_omit_code(["id"], "Customer can't be found", None)]
             })
-        } else if self
-            .store
-            .staged
-            .customer_orders
-            .get(&id)
-            .map(|orders| !orders.is_empty())
-            .unwrap_or(false)
+        } else if existing_customer
+            .as_ref()
+            .is_some_and(|customer| !self.customer_can_delete_value(&id, customer))
         {
             json!({
                 "deletedCustomerId": null,

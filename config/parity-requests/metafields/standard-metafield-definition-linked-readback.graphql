@@ -1,0 +1,78 @@
+query StandardLinkedMetafieldValuesReadback(
+  $productId: ID!
+  $materialId: ID!
+  $colorPatternId: ID!
+) {
+  product(id: $productId) {
+    id
+    material: metafield(namespace: "shopify", key: "material") {
+      namespace
+      key
+      type
+      value
+      references(first: 10) {
+        nodes {
+          __typename
+          ... on Metaobject {
+            id
+            type
+            displayName
+            definition {
+              id
+              type
+            }
+          }
+        }
+      }
+    }
+    colorPattern: metafield(namespace: "shopify", key: "color-pattern") {
+      namespace
+      key
+      type
+      value
+      references(first: 10) {
+        nodes {
+          __typename
+          ... on Metaobject {
+            id
+            type
+            displayName
+            definition {
+              id
+              type
+            }
+          }
+        }
+      }
+    }
+    options {
+      name
+      linkedMetafield {
+        namespace
+        key
+      }
+      optionValues {
+        name
+        linkedMetafieldValue
+      }
+    }
+  }
+  material: metaobject(id: $materialId) {
+    id
+    type
+    displayName
+    definition {
+      id
+      type
+    }
+  }
+  colorPattern: metaobject(id: $colorPatternId) {
+    id
+    type
+    displayName
+    definition {
+      id
+      type
+    }
+  }
+}
