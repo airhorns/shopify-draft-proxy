@@ -7,6 +7,9 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-create-name-failure-short-circuits-query-grammar.json"
   ],
   "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "proxyConfig": {
+    "readMode": "snapshot"
+  },
   "proxyRequest": {
     "documentPath": "config/parity-requests/segments/segments-user-errors-shape-segment-create.graphql",
     "variablesCapturePath": "$.cases[0].request.variables"

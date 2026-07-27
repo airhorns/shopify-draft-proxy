@@ -1,0 +1,89 @@
+{
+  "scenarioId": "segment-mutation-first-hydration",
+  "operationNames": ["segmentUpdate", "segmentDelete", "segment", "segments", "segmentsCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "mutation-first-hydration",
+    "read-after-write",
+    "downstream-read-parity",
+    "payload-shape",
+    "error-envelope-parity"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-mutation-first-hydration.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "proxyConfig": {
+    "readMode": "live-hybrid"
+  },
+  "proxyRequest": {
+    "apiVersion": "2025-01",
+    "documentPath": "config/parity-requests/segments/segment-mutation-first-update.graphql",
+    "variablesCapturePath": "$.proxyVariables.update"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify evidence for mutation-first segmentUpdate and segmentDelete. The recorder creates disposable persisted targets, captures exact query-only segment(id:) hydration and pre-mutation read cassettes, executes each proxy mutation from a fresh session, compares downstream detail/list/count materialization, and cleans up every real segment.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-first-update-payload",
+        "capturePath": "$.liveUpdate.response.body.data.segmentUpdate",
+        "proxyPath": "$.data.segmentUpdate",
+        "expectedDifferences": [
+          {
+            "path": "$.segment.lastEditDate",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy stages the update at replay time while Shopify recorded the live mutation timestamp."
+          }
+        ]
+      },
+      {
+        "name": "mutation-first-update-downstream-detail-list-count",
+        "capturePath": "$.updateReadAfter.response.body.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiVersion": "2025-01",
+          "documentPath": "config/parity-requests/segments/segment-mutation-first-update-read.graphql",
+          "variablesCapturePath": "$.proxyVariables.updateRead"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.detail.lastEditDate",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy stages the update at replay time while Shopify recorded the live mutation timestamp."
+          },
+          {
+            "path": "$.list.nodes[0].lastEditDate",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy stages the update at replay time while Shopify recorded the live mutation timestamp."
+          }
+        ]
+      },
+      {
+        "name": "mutation-first-delete-payload",
+        "capturePath": "$.liveDelete.response.body.data.segmentDelete",
+        "proxyPath": "$.data.segmentDelete",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "apiVersion": "2025-01",
+          "documentPath": "config/parity-requests/segments/segment-mutation-first-delete.graphql",
+          "variablesCapturePath": "$.proxyVariables.delete"
+        }
+      },
+      {
+        "name": "mutation-first-delete-downstream-detail-list-count",
+        "capturePath": "$.deleteReadAfter.response.body",
+        "proxyPath": "$",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "apiVersion": "2025-01",
+          "documentPath": "config/parity-requests/segments/segment-mutation-first-delete-read.graphql",
+          "variablesCapturePath": "$.proxyVariables.deleteRead"
+        },
+        "selectedPaths": ["$.errors", "$.data"]
+      }
+    ]
+  }
+}

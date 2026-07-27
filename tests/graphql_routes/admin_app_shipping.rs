@@ -1007,6 +1007,291 @@ fn bulk_operation_reads_are_operation_name_independent_and_store_backed() {
 }
 
 #[test]
+fn bulk_operation_node_reads_share_snapshot_effective_state_and_reset_discards_jobs() {
+    let upstream_hits = Arc::new(Mutex::new(0usize));
+    let mut proxy = configured_proxy(ReadMode::Snapshot, None).with_upstream_transport({
+        let upstream_hits = Arc::clone(&upstream_hits);
+        move |_request| {
+            *upstream_hits.lock().unwrap() += 1;
+            shopify_draft_proxy::proxy::Response {
+                status: 500,
+                headers: Default::default(),
+                body: json!({ "errors": [{ "message": "snapshot must not call upstream" }] }),
+            }
+        }
+    });
+    let product_id = create_bulk_metadata_product(&mut proxy, "Bulk Node mixed product");
+    let run = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RunForNodeRead($query: String!) {
+          bulkOperationRunQuery(query: $query) {
+            bulkOperation { id status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "query": "{ products { edges { node { id } } } }" }),
+    ));
+    assert_eq!(
+        run.body["data"]["bulkOperationRunQuery"]["userErrors"],
+        json!([])
+    );
+    let bulk_operation_id = run.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let unknown_id = "gid://shopify/BulkOperation/9999999999999";
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query EffectiveBulkOperationNodes($bulkOperationId: ID!, $unknownId: ID!, $ids: [ID!]!) {
+          direct: bulkOperation(id: $bulkOperationId) {
+            __typename
+            ...BulkOperationNodeFields
+          }
+          effective: node(id: $bulkOperationId) {
+            __typename
+            ...BulkOperationNodeFields
+          }
+          missing: node(id: $unknownId) {
+            __typename
+            ...BulkOperationNodeFields
+          }
+          aliasedBatch: nodes(ids: $ids) {
+            __typename
+            ...BulkOperationNodeFields
+            ... on Product { id title }
+          }
+        }
+
+        fragment BulkOperationNodeFields on BulkOperation {
+          id
+          status
+          type
+          errorCode
+          createdAt
+          completedAt
+          objectCount
+          rootObjectCount
+          fileSize
+          url
+          partialDataUrl
+          query
+        }
+        "#,
+        json!({
+            "bulkOperationId": bulk_operation_id,
+            "unknownId": unknown_id,
+            "ids": [bulk_operation_id, unknown_id, product_id, bulk_operation_id]
+        }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(read.body["errors"], Value::Null);
+    assert_eq!(read.body["data"]["effective"], read.body["data"]["direct"]);
+    assert_eq!(
+        read.body["data"]["effective"]["__typename"],
+        json!("BulkOperation")
+    );
+    assert_eq!(read.body["data"]["missing"], Value::Null);
+    assert_eq!(
+        read.body["data"]["aliasedBatch"],
+        json!([
+            read.body["data"]["direct"].clone(),
+            Value::Null,
+            {
+                "__typename": "Product",
+                "id": product_id,
+                "title": "Bulk Node mixed product"
+            },
+            read.body["data"]["direct"].clone()
+        ])
+    );
+    assert_eq!(*upstream_hits.lock().unwrap(), 0);
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(
+        log["entries"].as_array().unwrap().last().unwrap()["interpreted"]["primaryRootField"],
+        json!("bulkOperationRunQuery")
+    );
+    assert!(log["entries"].as_array().unwrap().last().unwrap()["query"]
+        .as_str()
+        .unwrap()
+        .contains("bulkOperationRunQuery"));
+
+    let reset = proxy.process_request(request_with_body("POST", "/__meta/reset", ""));
+    assert_eq!(reset.status, 200);
+    let after_reset = proxy.process_request(json_graphql_request(
+        r#"
+        query BulkOperationNodeAfterReset($id: ID!) {
+          node(id: $id) { __typename ... on BulkOperation { id status } }
+        }
+        "#,
+        json!({ "id": bulk_operation_id }),
+    ));
+    assert_eq!(after_reset.body["data"]["node"], Value::Null);
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    assert_eq!(*upstream_hits.lock().unwrap(), 0);
+}
+
+#[test]
+fn bulk_operation_nodes_batch_cold_live_hybrid_loads_and_overlay_cancel_state() {
+    let bulk_operation_id = "gid://shopify/BulkOperation/8123456789012";
+    let unknown_id = "gid://shopify/BulkOperation/9999999999999";
+    let query = "{ products { edges { node { id } } } }";
+    let hydrated_operation = json!({
+        "__typename": "BulkOperation",
+        "id": bulk_operation_id,
+        "status": "RUNNING",
+        "type": "QUERY",
+        "errorCode": null,
+        "createdAt": "2026-07-21T00:00:00Z",
+        "completedAt": null,
+        "objectCount": "3",
+        "rootObjectCount": "2",
+        "fileSize": null,
+        "url": null,
+        "partialDataUrl": null,
+        "query": query
+    });
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_requests = Arc::clone(&upstream_requests);
+        let hydrated_operation = hydrated_operation.clone();
+        move |request| {
+            upstream_requests
+                .lock()
+                .unwrap()
+                .push(serde_json::from_str(&request.body).unwrap());
+            shopify_draft_proxy::proxy::Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "aliasedBatch": [
+                            hydrated_operation,
+                            null,
+                            null,
+                            hydrated_operation
+                        ]
+                    }
+                }),
+            }
+        }
+    });
+    let product_id = create_bulk_metadata_product(&mut proxy, "Live Bulk Node mixed product");
+
+    let batch = proxy.process_request(json_graphql_request(
+        r#"
+        query ColdBulkOperationBatch($ids: [ID!]!) {
+          aliasedBatch: nodes(ids: $ids) {
+            __typename
+            ...BulkOperationNodeFields
+            ... on Product { id title }
+          }
+        }
+
+        fragment BulkOperationNodeFields on BulkOperation {
+          id
+          status
+          type
+          errorCode
+          createdAt
+          completedAt
+          objectCount
+          rootObjectCount
+          fileSize
+          url
+          partialDataUrl
+          query
+        }
+        "#,
+        json!({ "ids": [bulk_operation_id, unknown_id, product_id, bulk_operation_id] }),
+    ));
+
+    assert_eq!(batch.status, 200);
+    assert_eq!(batch.body["errors"], Value::Null);
+    assert_eq!(batch.body["data"]["aliasedBatch"][0], hydrated_operation);
+    assert_eq!(batch.body["data"]["aliasedBatch"][1], Value::Null);
+    assert_eq!(
+        batch.body["data"]["aliasedBatch"][2],
+        json!({
+            "__typename": "Product",
+            "id": product_id,
+            "title": "Live Bulk Node mixed product"
+        })
+    );
+    assert_eq!(batch.body["data"]["aliasedBatch"][3], hydrated_operation);
+    assert_eq!(upstream_requests.lock().unwrap().len(), 1);
+
+    let dedicated = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadHydratedBulkOperation($id: ID!) {
+          bulkOperation(id: $id) { id status type objectCount query }
+        }
+        "#,
+        json!({ "id": bulk_operation_id }),
+    ));
+    assert_eq!(
+        dedicated.body["data"]["bulkOperation"]["status"],
+        json!("RUNNING")
+    );
+    assert_eq!(upstream_requests.lock().unwrap().len(), 1);
+
+    let cancel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CancelHydratedBulkOperation($id: ID!) {
+          bulkOperationCancel(id: $id) {
+            bulkOperation { id status type objectCount query }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": bulk_operation_id }),
+    ));
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["status"],
+        json!("CANCELING")
+    );
+
+    let staged_node = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadCanceledBulkOperationNode($id: ID!) {
+          effective: node(id: $id) {
+            __typename
+            ... on BulkOperation { id status type objectCount query }
+          }
+        }
+        "#,
+        json!({ "id": bulk_operation_id }),
+    ));
+    assert_eq!(
+        staged_node.body["data"]["effective"],
+        json!({
+            "__typename": "BulkOperation",
+            "id": bulk_operation_id,
+            "status": "CANCELING",
+            "type": "QUERY",
+            "objectCount": "3",
+            "query": query
+        })
+    );
+    assert_eq!(upstream_requests.lock().unwrap().len(), 1);
+    assert_eq!(
+        log_snapshot(&proxy)["entries"]
+            .as_array()
+            .unwrap()
+            .last()
+            .unwrap()["interpreted"]["primaryRootField"],
+        json!("bulkOperationCancel")
+    );
+}
+
+#[test]
 fn bulk_operation_completed_url_is_absolute_and_serves_jsonl_artifact() {
     let mut proxy = snapshot_proxy();
 
@@ -5219,6 +5504,127 @@ fn customer_delete_shop_payload_hydrates_live_shop_state_when_selected() {
     assert_eq!(calls.len(), 2);
     assert!(calls[0].contains("CustomerHydrate"));
     assert!(calls[1].contains("CustomerDeleteShopHydrate"));
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    assert!(log["entries"][0]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("CustomerDeleteLiveHydrateShop"));
+    assert_eq!(
+        log["entries"][0]["variables"],
+        json!({ "input": { "id": customer_id } })
+    );
+    assert_eq!(log["entries"][0]["stagedResourceIds"], json!([customer_id]));
+}
+
+#[test]
+fn customer_delete_honors_hydrated_can_delete_without_staging_side_effects() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let customer_id = "gid://shopify/Customer/customer-delete-hydrated-blocked";
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            captured_calls.lock().unwrap().push(body.clone());
+            let customer = json!({
+                "id": customer_id,
+                "firstName": "Hydrated",
+                "lastName": "Blocked",
+                "displayName": "Hydrated Blocked",
+                "email": "customer-delete-hydrated-blocked@example.test",
+                "phone": null,
+                "locale": "en",
+                "note": null,
+                "canDelete": false,
+                "verifiedEmail": true,
+                "dataSaleOptOut": false,
+                "taxExempt": false,
+                "taxExemptions": [],
+                "state": "DISABLED",
+                "tags": [],
+                "createdAt": "2026-07-19T00:00:00Z",
+                "updatedAt": "2026-07-19T00:00:00Z",
+                "defaultEmailAddress": {
+                    "emailAddress": "customer-delete-hydrated-blocked@example.test"
+                },
+                "defaultPhoneNumber": null,
+                "defaultAddress": null
+            });
+            match (
+                body["operationName"].as_str(),
+                body["query"].as_str().unwrap_or_default(),
+            ) {
+                (Some("CustomerHydrate"), _) => Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "customer": customer } }),
+                },
+                (None, query) if query.contains("CustomerDeleteHydratedCanDeleteRead") => {
+                    Response {
+                        status: 200,
+                        headers: Default::default(),
+                        body: json!({ "data": { "customer": customer } }),
+                    }
+                }
+                operation => panic!("unexpected upstream operation: {operation:?}"),
+            }
+        });
+    let state_before = state_snapshot(&proxy);
+    let log_before = log_snapshot(&proxy);
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerDeleteHydratedCanDelete($input: CustomerDeleteInput!) {
+          customerDelete(input: $input) {
+            deletedCustomerId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": customer_id } }),
+    ));
+
+    assert_eq!(
+        delete.body["data"]["customerDelete"],
+        json!({
+            "deletedCustomerId": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Customer can’t be deleted because they have associated orders"
+            }]
+        })
+    );
+    assert_eq!(state_snapshot(&proxy), state_before);
+    assert_eq!(log_snapshot(&proxy), log_before);
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomerDeleteHydratedCanDeleteRead($id: ID!) {
+          customer(id: $id) { id email canDelete }
+        }
+        "#,
+        json!({ "id": customer_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["customer"],
+        json!({
+            "id": customer_id,
+            "email": "customer-delete-hydrated-blocked@example.test",
+            "canDelete": false
+        })
+    );
+
+    let calls = upstream_calls.lock().unwrap();
+    assert_eq!(calls.len(), 2);
+    assert_eq!(calls[0]["operationName"], json!("CustomerHydrate"));
+    assert!(calls[1]["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("CustomerDeleteHydratedCanDeleteRead"));
+    assert!(calls.iter().all(|call| !call["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("mutation")));
 }
 
 #[test]
@@ -5287,6 +5693,8 @@ fn customer_delete_order_precondition_blocks_only_when_order_exists() {
         json!("customer-delete-blocked@example.test")
     );
 
+    let state_before_blocked_delete = state_snapshot(&proxy);
+    let log_before_blocked_delete = log_snapshot(&proxy);
     let blocked = proxy.process_request(admin_2025_01_graphql_request(
         r#"
         mutation CustomerDeleteOrderPreconditionDelete($input: CustomerDeleteInput!) {
@@ -5302,6 +5710,8 @@ fn customer_delete_order_precondition_blocks_only_when_order_exists() {
             "userErrors": [{ "field": ["id"], "message": "Customer can’t be deleted because they have associated orders" }]
         })
     );
+    assert_eq!(state_snapshot(&proxy), state_before_blocked_delete);
+    assert_eq!(log_snapshot(&proxy), log_before_blocked_delete);
 
     let read = proxy.process_request(admin_2025_01_graphql_request(
         r#"
@@ -5386,6 +5796,97 @@ fn customer_delete_order_precondition_blocks_only_when_order_exists() {
             .unwrap()
             .len(),
         1
+    );
+}
+
+#[test]
+fn customer_delete_preserves_missing_and_draft_order_controls() {
+    let mut missing_proxy = snapshot_proxy();
+    let missing_state = state_snapshot(&missing_proxy);
+    let missing_log = log_snapshot(&missing_proxy);
+    let missing = missing_proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerDeleteMissingControl($input: CustomerDeleteInput!) {
+          customerDelete(input: $input) { deletedCustomerId userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/Customer/missing-delete-control" } }),
+    ));
+    assert_eq!(
+        missing.body["data"]["customerDelete"],
+        json!({
+            "deletedCustomerId": null,
+            "userErrors": [{ "field": ["id"], "message": "Customer can't be found" }]
+        })
+    );
+    assert_eq!(state_snapshot(&missing_proxy), missing_state);
+    assert_eq!(log_snapshot(&missing_proxy), missing_log);
+
+    let mut draft_proxy = snapshot_proxy();
+    let create = draft_proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerDeleteDraftOrderControlCreate($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "customer-delete-draft-order-control@example.test",
+                "firstName": "Draft",
+                "lastName": "Control"
+            }
+        }),
+    ));
+    let customer_id = create.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let draft = draft_proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerDeleteDraftOrderControlDraft($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder { id customer { id } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "customer-delete-draft-order-control@example.test",
+                "purchasingEntity": { "customerId": customer_id },
+                "lineItems": [{
+                    "title": "Draft orders do not block customer deletion",
+                    "quantity": 1,
+                    "originalUnitPrice": "5.00",
+                    "requiresShipping": false,
+                    "taxable": false
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        draft.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        draft.body["data"]["draftOrderCreate"]["draftOrder"]["customer"]["id"],
+        json!(customer_id)
+    );
+
+    let delete = draft_proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerDeleteDraftOrderControlDelete($input: CustomerDeleteInput!) {
+          customerDelete(input: $input) { deletedCustomerId userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "id": customer_id } }),
+    ));
+    assert_eq!(
+        delete.body["data"]["customerDelete"],
+        json!({ "deletedCustomerId": customer_id, "userErrors": [] })
     );
 }
 
@@ -13489,7 +13990,9 @@ fn location_local_pickup_enable_disable_stage_settings_and_downstream_reads() {
 
 #[test]
 fn location_local_pickup_enable_validates_pickup_time_and_location_status() {
-    let mut proxy = snapshot_proxy();
+    let mut proxy = snapshot_proxy().with_upstream_transport(|_| {
+        panic!("snapshot local-pickup validation must not call upstream")
+    });
     let add = proxy.process_request(json_graphql_request(
         r#"
         mutation SeedPickupLocation($input: LocationAddInput!) {
@@ -13716,6 +14219,293 @@ fn location_local_pickup_live_hybrid_mutations_are_local_and_overlay_observed_re
         json!({ "pickupTime": "TWO_HOURS", "instructions": "Desk pickup" })
     );
     assert_eq!(forwarded.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn location_local_pickup_cold_mutations_hydrate_each_target_with_caller_context() {
+    let enable_location_id = "gid://shopify/Location/cold-pickup-enable";
+    let enable_calls = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured_enable_calls = Arc::clone(&enable_calls);
+    let mut enable_proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured_enable_calls.lock().unwrap().push(request.clone());
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "location": {
+                            "id": enable_location_id,
+                            "name": "Cold pickup enable",
+                            "isActive": true,
+                            "isFulfillmentService": true,
+                            "localPickupSettingsV2": null
+                        }
+                    }
+                }),
+            }
+        });
+    let enable_query = r#"
+        mutation ColdPickupEnable($localPickupSettings: DeliveryLocationLocalPickupEnableInput!) {
+          locationLocalPickupEnable(localPickupSettings: $localPickupSettings) {
+            localPickupSettings { pickupTime instructions }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let mut enable_request = json_graphql_request(
+        enable_query,
+        json!({
+            "localPickupSettings": {
+                "locationId": enable_location_id,
+                "pickupTime": "TWO_HOURS",
+                "instructions": "Cold enable"
+            }
+        }),
+    );
+    enable_request.path = "/admin/api/2025-10/graphql.json".to_string();
+    enable_request.headers.insert(
+        "X-Shopify-Access-Token".to_string(),
+        "pickup-caller-token".to_string(),
+    );
+    let enable = enable_proxy.process_request(enable_request);
+    assert_eq!(
+        enable.body["data"]["locationLocalPickupEnable"],
+        json!({
+            "localPickupSettings": {
+                "pickupTime": "TWO_HOURS",
+                "instructions": "Cold enable"
+            },
+            "userErrors": []
+        })
+    );
+    let enable_read = enable_proxy.process_request(json_graphql_request(
+        r#"
+        query ColdPickupEnableRead($id: ID!) {
+          location(id: $id) {
+            id
+            name
+            isFulfillmentService
+            localPickupSettingsV2 { pickupTime instructions }
+          }
+        }
+        "#,
+        json!({ "id": enable_location_id }),
+    ));
+    assert_eq!(
+        enable_read.body["data"]["location"],
+        json!({
+            "id": enable_location_id,
+            "name": "Cold pickup enable",
+            "isFulfillmentService": true,
+            "localPickupSettingsV2": {
+                "pickupTime": "TWO_HOURS",
+                "instructions": "Cold enable"
+            }
+        })
+    );
+    let enable_calls = enable_calls.lock().unwrap();
+    assert_eq!(enable_calls.len(), 1);
+    assert_eq!(enable_calls[0].method, "POST");
+    assert_eq!(enable_calls[0].path, "/admin/api/2025-10/graphql.json");
+    assert_eq!(
+        enable_calls[0].headers.get("X-Shopify-Access-Token"),
+        Some(&"pickup-caller-token".to_string())
+    );
+    let enable_hydrate: Value = serde_json::from_str(&enable_calls[0].body).unwrap();
+    assert_eq!(
+        enable_hydrate["variables"],
+        json!({ "id": enable_location_id })
+    );
+    assert!(enable_hydrate["query"]
+        .as_str()
+        .is_some_and(|query| query.trim_start().starts_with("query ")));
+    drop(enable_calls);
+
+    let disable_location_id = "gid://shopify/Location/cold-pickup-disable";
+    let disable_calls = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured_disable_calls = Arc::clone(&disable_calls);
+    let mut disable_proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured_disable_calls.lock().unwrap().push(request.clone());
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "location": {
+                            "id": disable_location_id,
+                            "name": "Cold pickup disable",
+                            "isActive": true,
+                            "isFulfillmentService": true,
+                            "localPickupSettingsV2": {
+                                "pickupTime": "ONE_HOUR",
+                                "instructions": "Before disable"
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+    let disable_query = r#"
+        mutation ColdPickupDisable($locationId: ID!) {
+          locationLocalPickupDisable(locationId: $locationId) {
+            locationId
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let mut disable_request =
+        json_graphql_request(disable_query, json!({ "locationId": disable_location_id }));
+    disable_request.path = "/admin/api/2025-10/graphql.json".to_string();
+    disable_request.headers.insert(
+        "X-Shopify-Access-Token".to_string(),
+        "pickup-caller-token".to_string(),
+    );
+    let disable = disable_proxy.process_request(disable_request);
+    assert_eq!(
+        disable.body["data"]["locationLocalPickupDisable"],
+        json!({ "locationId": disable_location_id, "userErrors": [] })
+    );
+    let disable_read = disable_proxy.process_request(json_graphql_request(
+        r#"
+        query ColdPickupDisableRead($id: ID!) {
+          location(id: $id) { id name isFulfillmentService localPickupSettingsV2 { pickupTime instructions } }
+        }
+        "#,
+        json!({ "id": disable_location_id }),
+    ));
+    assert_eq!(
+        disable_read.body["data"]["location"],
+        json!({
+            "id": disable_location_id,
+            "name": "Cold pickup disable",
+            "isFulfillmentService": true,
+            "localPickupSettingsV2": null
+        })
+    );
+    let disable_calls = disable_calls.lock().unwrap();
+    assert_eq!(disable_calls.len(), 1);
+    assert_eq!(disable_calls[0].path, "/admin/api/2025-10/graphql.json");
+    assert_eq!(
+        disable_calls[0].headers.get("X-Shopify-Access-Token"),
+        Some(&"pickup-caller-token".to_string())
+    );
+    let disable_hydrate: Value = serde_json::from_str(&disable_calls[0].body).unwrap();
+    assert_eq!(
+        disable_hydrate["variables"],
+        json!({ "id": disable_location_id })
+    );
+    assert!(disable_hydrate["query"]
+        .as_str()
+        .is_some_and(|query| query.trim_start().starts_with("query ")));
+}
+
+#[test]
+fn location_local_pickup_cold_evidence_distinguishes_missing_inactive_and_unresolved() {
+    let missing_id = "gid://shopify/Location/cold-pickup-missing";
+    let inactive_id = "gid://shopify/Location/cold-pickup-inactive";
+    let unresolved_id = "gid://shopify/Location/cold-pickup-unresolved";
+    let graphql_error_id = "gid://shopify/Location/cold-pickup-graphql-error";
+    let calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap();
+            captured_calls.lock().unwrap().push(body.clone());
+            match body["variables"]["id"].as_str() {
+                Some(id) if id == missing_id => Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "location": null } }),
+                },
+                Some(id) if id == inactive_id => Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "location": {
+                                "id": inactive_id,
+                                "name": "Inactive pickup location",
+                                "isActive": false,
+                                "isFulfillmentService": false,
+                                "localPickupSettingsV2": null
+                            }
+                        }
+                    }),
+                },
+                Some(id) if id == unresolved_id => Response {
+                    status: 503,
+                    headers: Default::default(),
+                    body: json!({ "errors": [{ "message": "hydration unavailable" }] }),
+                },
+                Some(id) if id == graphql_error_id => Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": { "location": null },
+                        "errors": [{ "message": "location lookup failed" }]
+                    }),
+                },
+                _ => Response {
+                    status: 599,
+                    headers: Default::default(),
+                    body: json!({ "errors": [{ "message": "unexpected hydration request" }] }),
+                },
+            }
+        });
+    let query = r#"
+        mutation ColdPickupEvidence($localPickupSettings: DeliveryLocationLocalPickupEnableInput!) {
+          locationLocalPickupEnable(localPickupSettings: $localPickupSettings) {
+            localPickupSettings { pickupTime instructions }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    for id in [missing_id, inactive_id] {
+        let response = proxy.process_request(json_graphql_request(
+            query,
+            json!({
+                "localPickupSettings": {
+                    "locationId": id,
+                    "pickupTime": "ONE_HOUR"
+                }
+            }),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["locationLocalPickupEnable"]["userErrors"][0]["code"],
+            json!("ACTIVE_LOCATION_NOT_FOUND")
+        );
+    }
+    let unresolved = proxy.process_request(json_graphql_request(
+        query,
+        json!({
+            "localPickupSettings": {
+                "locationId": unresolved_id,
+                "pickupTime": "ONE_HOUR"
+            }
+        }),
+    ));
+    assert_eq!(unresolved.status, 503);
+    assert!(unresolved.body["errors"][0]["message"]
+        .as_str()
+        .is_some_and(|message| message.contains("hydrate location validation target")));
+    let graphql_error = proxy.process_request(json_graphql_request(
+        query,
+        json!({
+            "localPickupSettings": {
+                "locationId": graphql_error_id,
+                "pickupTime": "ONE_HOUR"
+            }
+        }),
+    ));
+    assert_eq!(graphql_error.status, 502);
+    assert!(graphql_error.body["errors"][0]["message"]
+        .as_str()
+        .is_some_and(|message| message.contains("hydrate location validation target")));
+    assert_eq!(calls.lock().unwrap().len(), 4);
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]

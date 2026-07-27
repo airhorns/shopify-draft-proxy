@@ -13,7 +13,7 @@
     "variablesCapturePath": "$.setup.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live 2025-01 validation evidence for Product category taxonomy IDs. The setup creates a local product; the strict targets prove that unknown taxonomy category IDs return top-level INVALID_PRODUCT_TAXONOMY_NODE_ID for productCreate, productUpdate, and productSet without staging a product-category object with null fullName.",
+  "notes": "Live 2025-01 validation evidence for Product category taxonomy IDs. The strict targets use a syntactically plausible but nonexistent TaxonomyCategory GID and prove that GID shape alone does not establish category existence: productCreate, productUpdate, and productSet return top-level INVALID_PRODUCT_TAXONOMY_NODE_ID without staging a category.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -30,7 +30,7 @@
         "proxyPath": "$.data"
       },
       {
-        "name": "product-create-unknown-category-error",
+        "name": "product-create-taxonomy-shaped-unknown-category-error",
         "capturePath": "$.captures.productCreateUnknownCategory.response.payload",
         "proxyPath": "$",
         "excludedPaths": ["$.extensions"],
@@ -41,7 +41,7 @@
         }
       },
       {
-        "name": "product-update-unknown-category-error",
+        "name": "product-update-taxonomy-shaped-unknown-category-error",
         "capturePath": "$.captures.productUpdateUnknownCategory.response.payload",
         "proxyPath": "$",
         "excludedPaths": ["$.extensions"],
@@ -61,7 +61,7 @@
         }
       },
       {
-        "name": "product-set-unknown-category-error",
+        "name": "product-set-taxonomy-shaped-unknown-category-error",
         "capturePath": "$.captures.productSetUnknownCategory.response.payload",
         "proxyPath": "$",
         "excludedPaths": ["$.extensions"],

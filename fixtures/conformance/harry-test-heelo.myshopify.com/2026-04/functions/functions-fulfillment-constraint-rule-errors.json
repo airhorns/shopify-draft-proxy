@@ -1,10 +1,10 @@
 {
   "scenarioId": "functions-fulfillment-constraint-rule-errors",
-  "capturedAt": "2026-07-19T17:21:34.238Z",
+  "capturedAt": "2026-07-19T18:25:22.117Z",
   "source": "live-shopify",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "summary": "fulfillmentConstraintRuleCreate deterministic userErrors, fulfillmentConstraintRuleDelete unknown-id shape, and empty fulfillmentConstraintRules read.",
+  "summary": "fulfillmentConstraintRuleCreate deterministic userErrors, fulfillmentConstraintRuleUpdate/Delete unknown-id shapes, and empty fulfillmentConstraintRules read.",
   "setupBlocker": "The conformance app currently has no released FULFILLMENT_CONSTRAINT_RULE Function, so live success-path, wrong-API-type, and read-after-created-rule capture require releasing a purchase.fulfillment-constraint-rule.run or cart.fulfillment-constraints.generate.run Function in the installed conformance app with read/write fulfillment constraint rule scopes.",
   "schemaFindings": {
     "singularReadRoot": "Admin GraphQL 2026-04 exposes fulfillmentConstraintRules only; no fulfillmentConstraintRule(id:) query root was present in live introspection."
@@ -5905,33 +5905,8 @@
       }
     }
   },
-  "missingHydrate": {
-    "query": "query FunctionFulfillmentConstraintRuleHydrateById($id: ID!) {\n  node(id: $id) {\n    ... on FulfillmentConstraintRule {\n      id\n      deliveryMethodTypes\n      function {\n        id\n        title\n        handle\n        apiType\n        description\n        appKey\n        app {\n          __typename\n          id\n          title\n          handle\n          apiKey\n        }\n      }\n      metafields(first: 100) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n}\n",
-    "variables": {
-      "id": "gid://shopify/FulfillmentConstraintRule/999999999999"
-    },
-    "response": {
-      "status": 200,
-      "payload": {
-        "data": {
-          "node": null
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 14,
-            "actualQueryCost": 1,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1999,
-              "restoreRate": 100
-            }
-          }
-        }
-      }
-    }
-  },
   "errorShape": {
-    "query": "mutation FulfillmentConstraintRuleErrorShape {\n  missing: fulfillmentConstraintRuleCreate(deliveryMethodTypes: [SHIPPING]) {\n    fulfillmentConstraintRule {\n      id\n    }\n    userErrors {\n      code\n      field\n      message\n    }\n  }\n  multiple: fulfillmentConstraintRuleCreate(\n    functionId: \"gid://shopify/ShopifyFunction/999999999999\"\n    functionHandle: \"definitely-missing-fulfillment-constraint\"\n    deliveryMethodTypes: [SHIPPING]\n  ) {\n    fulfillmentConstraintRule {\n      id\n    }\n    userErrors {\n      code\n      field\n      message\n    }\n  }\n  emptyDelivery: fulfillmentConstraintRuleCreate(\n    functionId: \"gid://shopify/ShopifyFunction/999999999999\"\n    deliveryMethodTypes: []\n  ) {\n    fulfillmentConstraintRule {\n      id\n    }\n    userErrors {\n      code\n      field\n      message\n    }\n  }\n  deleteUnknown: fulfillmentConstraintRuleDelete(id: \"gid://shopify/FulfillmentConstraintRule/999999999999\") {\n    success\n    userErrors {\n      code\n      field\n      message\n    }\n  }\n}\n",
+    "query": "mutation FulfillmentConstraintRuleErrorShape {\n  missing: fulfillmentConstraintRuleCreate(deliveryMethodTypes: [SHIPPING]) {\n    fulfillmentConstraintRule {\n      id\n    }\n    userErrors {\n      code\n      field\n      message\n    }\n  }\n  multiple: fulfillmentConstraintRuleCreate(\n    functionId: \"gid://shopify/ShopifyFunction/999999999999\"\n    functionHandle: \"definitely-missing-fulfillment-constraint\"\n    deliveryMethodTypes: [SHIPPING]\n  ) {\n    fulfillmentConstraintRule {\n      id\n    }\n    userErrors {\n      code\n      field\n      message\n    }\n  }\n  emptyDelivery: fulfillmentConstraintRuleCreate(\n    functionId: \"gid://shopify/ShopifyFunction/999999999999\"\n    deliveryMethodTypes: []\n  ) {\n    fulfillmentConstraintRule {\n      id\n    }\n    userErrors {\n      code\n      field\n      message\n    }\n  }\n  deleteUnknown: fulfillmentConstraintRuleDelete(id: \"gid://shopify/FulfillmentConstraintRule/999999999999\") {\n    success\n    userErrors {\n      code\n      field\n      message\n    }\n  }\n  updateUnknown: fulfillmentConstraintRuleUpdate(\n    id: \"gid://shopify/FulfillmentConstraintRule/999999999999\"\n    deliveryMethodTypes: [SHIPPING]\n  ) {\n    fulfillmentConstraintRule {\n      id\n    }\n    userErrors {\n      code\n      field\n      message\n    }\n  }\n}\n",
     "variables": {},
     "response": {
       "status": 200,
@@ -5976,15 +5951,25 @@
                 "message": "Could not find FulfillmentConstraintRule with id: gid://shopify/FulfillmentConstraintRule/999999999999"
               }
             ]
+          },
+          "updateUnknown": {
+            "fulfillmentConstraintRule": null,
+            "userErrors": [
+              {
+                "code": "NOT_FOUND",
+                "field": ["id"],
+                "message": "Could not find FulfillmentConstraintRule with id: gid://shopify/FulfillmentConstraintRule/999999999999"
+              }
+            ]
           }
         },
         "extensions": {
           "cost": {
-            "requestedQueryCost": 40,
-            "actualQueryCost": 40,
+            "requestedQueryCost": 50,
+            "actualQueryCost": 50,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1960,
+              "currentlyAvailable": 1950,
               "restoreRate": 100
             }
           }
@@ -6007,7 +5992,7 @@
             "actualQueryCost": 1,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1967,
+              "currentlyAvailable": 1959,
               "restoreRate": 100
             }
           }
@@ -6049,7 +6034,7 @@
             "actualQueryCost": 20,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1958,
+              "currentlyAvailable": 1952,
               "restoreRate": 100
             }
           }

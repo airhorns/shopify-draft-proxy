@@ -29,6 +29,22 @@ const productMediaValidationDownstreamReadQuery = await readFile(
   'config/parity-requests/products/product-media-validation-downstream-read.graphql',
   'utf8',
 );
+const reorderProductCreateMutation = await readFile(
+  'config/parity-requests/products/productReorderMedia-product-create.graphql',
+  'utf8',
+);
+const reorderCreateMediaMutation = await readFile(
+  'config/parity-requests/products/productCreateMedia-parity-plan.graphql',
+  'utf8',
+);
+const reorderMediaMutation = await readFile(
+  'config/parity-requests/products/productReorderMedia-parity.graphql',
+  'utf8',
+);
+const reorderMediaDownstreamReadQuery = await readFile(
+  'config/parity-requests/products/productReorderMedia-downstream-read.graphql',
+  'utf8',
+);
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -437,6 +453,34 @@ function buildCreateMediaVariables(productId) {
   };
 }
 
+function buildReorderCreateMediaVariables(productId) {
+  return {
+    productId,
+    media: [
+      {
+        mediaContentType: 'IMAGE',
+        originalSource: 'https://placehold.co/610x410/png',
+        alt: 'Reorder front',
+      },
+      {
+        mediaContentType: 'IMAGE',
+        originalSource: 'https://placehold.co/620x420/png',
+        alt: 'Reorder side',
+      },
+      {
+        mediaContentType: 'IMAGE',
+        originalSource: 'https://placehold.co/630x430/png',
+        alt: 'Reorder back',
+      },
+      {
+        mediaContentType: 'IMAGE',
+        originalSource: 'https://placehold.co/640x440/png',
+        alt: 'Reorder detail',
+      },
+    ],
+  };
+}
+
 async function recordValidationScenario(name, query, variables, downstreamProductId = null) {
   const response = await runGraphqlRaw(query, variables);
   const scenario = {
@@ -463,6 +507,34 @@ async function waitForReadyMedia(productId, mediaId) {
   }
 
   throw new Error(`Timed out waiting for media ${mediaId} to become READY.`);
+}
+
+async function waitForReadyMediaIds(productId, mediaIds) {
+  for (let attempt = 0; attempt < 24; attempt += 1) {
+    const payload = await runGraphql(reorderMediaDownstreamReadQuery, { id: productId });
+    const nodes = payload.data?.product?.media?.nodes ?? [];
+    if (
+      mediaIds.every((mediaId) => nodes.some((candidate) => candidate?.id === mediaId && candidate?.status === 'READY'))
+    ) {
+      return payload;
+    }
+    await sleep(5000);
+  }
+
+  throw new Error(`Timed out waiting for reorder media ${mediaIds.join(', ')} to become READY.`);
+}
+
+async function waitForMediaOrder(productId, expectedMediaIds) {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const payload = await runGraphql(reorderMediaDownstreamReadQuery, { id: productId });
+    const actualMediaIds = payload.data?.product?.media?.nodes?.map((candidate) => candidate?.id).filter(Boolean) ?? [];
+    if (JSON.stringify(actualMediaIds) === JSON.stringify(expectedMediaIds)) {
+      return payload;
+    }
+    await sleep(1000);
+  }
+
+  throw new Error(`Timed out waiting for product ${productId} media order ${expectedMediaIds.join(', ')}.`);
 }
 
 function expectSameUserErrors(pathLabel, userErrors, mediaUserErrors) {
@@ -517,6 +589,7 @@ const runId = `${Date.now()}`;
 const createProductVariables = buildCreateProductVariables(runId);
 let productId = null;
 let mediaId = null;
+let reorderProductId = null;
 
 try {
   const createProductResponse = await runGraphql(createProductMutation, createProductVariables);
@@ -738,6 +811,69 @@ try {
   expectNoUserErrors('productDeleteMedia', deleteMediaResponse.data?.productDeleteMedia?.mediaUserErrors);
   const postDeleteRead = await runGraphql(mediaReadQuery, { id: productId });
 
+  const reorderProductCreateVariables = {
+    product: {
+      title: `Hermes Product Media Reorder Conformance ${runId}`,
+      status: 'DRAFT',
+    },
+  };
+  const reorderProductCreateResponse = await runGraphql(reorderProductCreateMutation, reorderProductCreateVariables);
+  expectNoUserErrors('productCreate (media reorder)', reorderProductCreateResponse.data?.productCreate?.userErrors);
+  reorderProductId = reorderProductCreateResponse.data?.productCreate?.product?.id ?? null;
+  if (!reorderProductId) {
+    throw new Error('Product media reorder capture did not return a product id.');
+  }
+
+  const reorderCreateMediaVariables = buildReorderCreateMediaVariables(reorderProductId);
+  const reorderCreateMediaResponse = await runGraphql(reorderCreateMediaMutation, reorderCreateMediaVariables);
+  expectNoUserErrors(
+    'productCreateMedia (media reorder)',
+    reorderCreateMediaResponse.data?.productCreateMedia?.mediaUserErrors,
+  );
+  const reorderMediaIds =
+    reorderCreateMediaResponse.data?.productCreateMedia?.media?.map((media) => media?.id).filter(Boolean) ?? [];
+  if (reorderMediaIds.length !== 4) {
+    throw new Error(`Product media reorder capture expected four media ids, got ${reorderMediaIds.length}.`);
+  }
+  const reorderReadyRead = await waitForReadyMediaIds(reorderProductId, reorderMediaIds);
+
+  const singleMoveVariables = {
+    id: reorderProductId,
+    moves: [{ id: reorderMediaIds[3], newPosition: '1' }],
+  };
+  const singleMoveResponse = await runGraphql(reorderMediaMutation, singleMoveVariables);
+  expectNoUserErrors(
+    'productReorderMedia (single move)',
+    singleMoveResponse.data?.productReorderMedia?.mediaUserErrors,
+  );
+  const singleMoveDownstreamRead = await waitForMediaOrder(reorderProductId, [
+    reorderMediaIds[0],
+    reorderMediaIds[3],
+    reorderMediaIds[1],
+    reorderMediaIds[2],
+  ]);
+
+  const orderedMovesVariables = {
+    id: reorderProductId,
+    moves: [
+      { id: reorderMediaIds[1], newPosition: '0' },
+      { id: reorderMediaIds[3], newPosition: '3' },
+      { id: reorderMediaIds[1], newPosition: '2' },
+      { id: reorderMediaIds[1], newPosition: '2' },
+    ],
+  };
+  const orderedMovesResponse = await runGraphql(reorderMediaMutation, orderedMovesVariables);
+  expectNoUserErrors(
+    'productReorderMedia (ordered moves)',
+    orderedMovesResponse.data?.productReorderMedia?.mediaUserErrors,
+  );
+  const orderedMovesDownstreamRead = await waitForMediaOrder(reorderProductId, [
+    reorderMediaIds[0],
+    reorderMediaIds[2],
+    reorderMediaIds[1],
+    reorderMediaIds[3],
+  ]);
+
   const captures = {
     'product-media-validation-branches.json': {
       capturedAt: new Date().toISOString(),
@@ -864,6 +1000,39 @@ try {
       },
       downstreamRead: postDeleteRead,
     },
+    'product-reorder-media-parity.json': {
+      capturedAt: new Date().toISOString(),
+      storeDomain,
+      apiVersion,
+      setup: {
+        productCreate: {
+          variables: reorderProductCreateVariables,
+          response: reorderProductCreateResponse,
+        },
+        productCreateMedia: {
+          variables: reorderCreateMediaVariables,
+          response: reorderCreateMediaResponse,
+        },
+        readyRead: reorderReadyRead,
+      },
+      singleMove: {
+        mutation: {
+          variables: singleMoveVariables,
+          response: singleMoveResponse,
+        },
+        downstreamRead: singleMoveDownstreamRead,
+      },
+      orderedMoves: {
+        mutation: {
+          variables: orderedMovesVariables,
+          response: orderedMovesResponse,
+        },
+        downstreamRead: orderedMovesDownstreamRead,
+      },
+      upstreamCalls: [],
+      notes:
+        'Creates a disposable product and four ready image media items, captures one move over the complete list, then captures repeated and same-position moves applied sequentially in request order.',
+    },
   };
 
   for (const [filename, payload] of Object.entries(captures)) {
@@ -915,6 +1084,14 @@ try {
   if (productId) {
     try {
       await runGraphql(deleteProductMutation, { input: { id: productId } });
+    } catch {
+      // Best-effort cleanup only.
+    }
+  }
+
+  if (reorderProductId) {
+    try {
+      await runGraphql(deleteProductMutation, { input: { id: reorderProductId } });
     } catch {
       // Best-effort cleanup only.
     }

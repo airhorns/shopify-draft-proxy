@@ -1590,6 +1590,7 @@ fn product_variant_inventory_item_field(
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
     Ok(product_variant_record(proxy, invocation)
+        .filter(|variant| is_shopify_gid_of_type(&variant.inventory_item.id, "InventoryItem"))
         .map(|variant| {
             let variant = proxy.variant_with_inventory_levels(&variant);
             product_variant_state_json(&variant)["inventoryItem"].clone()
@@ -2282,7 +2283,9 @@ impl DraftProxy {
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
-        if self.config.read_mode == ReadMode::Snapshot {
+        if self.config.read_mode == ReadMode::Snapshot
+            && invocation.root_name != "productCreateMedia"
+        {
             return resolver_http_error_outcome(
                 400,
                 format!(
@@ -2317,11 +2320,31 @@ impl DraftProxy {
                 invocation.response_key,
             );
         };
-        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
-            invocation.root_name,
-            "products",
-            Vec::new(),
-        ))
+        let has_errors = ["userErrors", "mediaUserErrors"].iter().any(|key| {
+            payload
+                .get(key)
+                .and_then(Value::as_array)
+                .is_some_and(|errors| !errors.is_empty())
+        });
+        let has_effect = payload
+            .get("media")
+            .and_then(Value::as_array)
+            .is_some_and(|media| !media.is_empty())
+            || payload
+                .get("deletedMediaIds")
+                .and_then(Value::as_array)
+                .is_some_and(|ids| !ids.is_empty())
+            || payload.get("job").is_some_and(Value::is_object);
+        let outcome = ResolverOutcome::value(payload);
+        if has_errors && !has_effect {
+            outcome
+        } else {
+            outcome.with_log_draft(LogDraft::staged(
+                invocation.root_name,
+                "products",
+                Vec::new(),
+            ))
+        }
     }
 
     /// productCreateMedia stages newly uploaded media on a product. Each media
@@ -2565,7 +2588,7 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
         let product_id = resolved_string_field(arguments, "id")?;
-        let mut moves = resolved_object_list_field(arguments, "moves");
+        let moves = resolved_object_list_field(arguments, "moves");
 
         // Reorder operates on media that already exists on the product. If the
         // product has not been staged locally yet, hydrate it from upstream so
@@ -2578,22 +2601,28 @@ impl DraftProxy {
             ));
         }
 
-        moves.sort_by_key(|media_move| {
-            resolved_string_field(media_move, "newPosition")
+        let mut media = self.product_known_media(&product_id);
+        for media_move in moves {
+            let Some(id) = resolved_string_field(&media_move, "id") else {
+                continue;
+            };
+            let new_position = resolved_string_field(&media_move, "newPosition")
                 .and_then(|position| position.parse::<usize>().ok())
-                .unwrap_or(usize::MAX)
-        });
-        let move_ids = moves
-            .iter()
-            .filter_map(|media_move| resolved_string_field(media_move, "id"))
-            .collect::<Vec<_>>();
-        for id in &move_ids {
-            self.store.staged.media_ready_on_read.remove(id);
+                .or_else(|| {
+                    resolved_int_field(&media_move, "newPosition")
+                        .map(|position| position.max(0) as usize)
+                })
+                .unwrap_or(0);
+            let Some(current_position) = media
+                .iter()
+                .position(|node| node.get("id").and_then(Value::as_str) == Some(id.as_str()))
+            else {
+                continue;
+            };
+            let node = media.remove(current_position);
+            media.insert(new_position.min(media.len()), node);
+            self.store.staged.media_ready_on_read.remove(&id);
         }
-        let media = move_ids
-            .iter()
-            .map(|id| self.product_reorder_media_node(&product_id, id))
-            .collect();
         self.stage_product_media_nodes(&product_id, media);
         Some(json!({
             "job": {
@@ -2674,44 +2703,14 @@ impl DraftProxy {
         if self.store.product_staged_or_base(product_id).is_some() {
             return true;
         }
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return false;
+        }
         self.hydrate_product_nodes_for_observation_with_request(
             request,
             vec![product_id.to_string()],
         );
         self.store.product_staged_or_base(product_id).is_some()
-    }
-
-    /// Build a reordered media node. Alt text is preserved from any media
-    /// already staged/observed for this product so the proxy honours real
-    /// asset metadata instead of hardcoding GID-specific captions.
-    fn product_reorder_media_node(&self, product_id: &str, id: &str) -> Value {
-        let known = self
-            .store
-            .product_staged_or_base(product_id)
-            .and_then(|product| {
-                product
-                    .media
-                    .into_iter()
-                    .find(|node| node.get("id").and_then(Value::as_str) == Some(id))
-            });
-        let mut node = known.unwrap_or_else(|| {
-            let alt = self
-                .store
-                .product_staged_or_base(product_id)
-                .and_then(|product| {
-                    product.media.iter().find_map(|node| {
-                        if node.get("id").and_then(Value::as_str) == Some(id) {
-                            node.get("alt").and_then(Value::as_str).map(str::to_string)
-                        } else {
-                            None
-                        }
-                    })
-                })
-                .unwrap_or_default();
-            product_media_node_with_type(id, &alt, "IMAGE", "PROCESSING", None, None)
-        });
-        node["status"] = json!("PROCESSING");
-        node
     }
 }
 
@@ -3675,7 +3674,7 @@ fn product_variant_state_from_json_parts(
             .and_then(|item| item.get("id"))
             .and_then(Value::as_str)
             .map(str::to_string)
-            .unwrap_or_else(|| shopify_gid("InventoryItem", resource_id_tail(&id))),
+            .unwrap_or_default(),
         ProductVariantInventoryItemMode::Required => {
             inventory_item?.get("id")?.as_str()?.to_string()
         }
@@ -4556,28 +4555,72 @@ pub(in crate::proxy) fn product_category_input_id(
 }
 
 impl DraftProxy {
-    /// Resolve a taxonomy category GID to a stable local category object. In live-hybrid
-    /// mode, prefer Shopify's taxonomy node data through the upstream/cassette read path.
-    /// When that source is unavailable, derive a deterministic fallback from the input
-    /// GID tail instead of collapsing valid-but-unknown taxonomy IDs to null.
-    pub(in crate::proxy) fn product_category_value_for_input(
+    pub(in crate::proxy) fn product_category_for_mutation_input(
+        &self,
+        request: &Request,
+        input: &BTreeMap<String, ResolvedValue>,
+        response_key: &str,
+        root_location: SourceLocation,
+    ) -> Result<Option<Value>, ResolverOutcome<Value>> {
+        let Some(category_id) = product_category_input_id(input) else {
+            return Ok(None);
+        };
+        match self.product_category_resolution_for_input(request, &category_id) {
+            ProductCategoryResolution::Found(category) => Ok(Some(category)),
+            ProductCategoryResolution::Malformed | ProductCategoryResolution::VerifiedAbsent => {
+                Err(graphql_error_outcome(
+                    vec![invalid_product_taxonomy_node_id_error(
+                        response_key,
+                        root_location,
+                    )],
+                    response_key,
+                ))
+            }
+            ProductCategoryResolution::Indeterminate => {
+                Err(indeterminate_product_taxonomy_category_outcome())
+            }
+        }
+    }
+
+    /// Resolve product category input from authoritative effective state or Shopify's
+    /// taxonomy node read. A well-formed GID proves only the resource type, never that the
+    /// category exists or that its path encodes hierarchy metadata.
+    pub(in crate::proxy) fn product_category_resolution_for_input(
         &self,
         request: &Request,
         id: &str,
-    ) -> Option<Value> {
-        let tail = taxonomy_category_tail(id)?;
-        if self.config.read_mode == ReadMode::LiveHybrid
-            && shopify_gid_tail_for_type(id, "TaxonomyCategory").is_some()
-        {
-            if let Some(category) = self.hydrate_taxonomy_category_value(request, id) {
-                return Some(category);
-            }
+    ) -> ProductCategoryResolution {
+        if !is_shopify_gid_of_type(id, "TaxonomyCategory") {
+            return ProductCategoryResolution::Malformed;
         }
 
-        Some(derived_product_category_value(id, tail))
+        if let Some(category) = self.product_category_value_from_effective_state(id) {
+            return ProductCategoryResolution::Found(category);
+        }
+
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return ProductCategoryResolution::Indeterminate;
+        }
+
+        self.hydrate_taxonomy_category_value(request, id)
     }
 
-    fn hydrate_taxonomy_category_value(&self, request: &Request, id: &str) -> Option<Value> {
+    fn product_category_value_from_effective_state(&self, id: &str) -> Option<Value> {
+        self.store
+            .products
+            .staged
+            .records
+            .values()
+            .chain(self.store.products.base.records.values())
+            .filter_map(|product| product.extra_fields.get("category"))
+            .find_map(|category| authoritative_product_category_value(category, id))
+    }
+
+    fn hydrate_taxonomy_category_value(
+        &self,
+        request: &Request,
+        id: &str,
+    ) -> ProductCategoryResolution {
         let response = self.upstream_post(
             request,
             json!({
@@ -4586,112 +4629,67 @@ impl DraftProxy {
                 "variables": { "id": id }
             }),
         );
-        if response.status != 200 || response.body.get("errors").is_some() {
-            return None;
+        if !(200..300).contains(&response.status)
+            || response
+                .body
+                .get("errors")
+                .and_then(Value::as_array)
+                .is_some_and(|errors| !errors.is_empty())
+        {
+            return ProductCategoryResolution::Indeterminate;
         }
-        let node = response.body.pointer("/data/node")?;
-        if node.get("__typename").and_then(Value::as_str) != Some("TaxonomyCategory") {
-            return None;
+        let Some(node) = response.body.pointer("/data/node") else {
+            return ProductCategoryResolution::Indeterminate;
+        };
+        if node.is_null() {
+            return ProductCategoryResolution::VerifiedAbsent;
         }
 
-        let fallback = taxonomy_category_tail(id)
-            .map(|tail| derived_product_category_value(id, tail))
-            .unwrap_or_else(|| json!({ "id": id, "fullName": null }));
-        Some(json!({
-            "id": id,
-            "fullName": category_field_or_fallback(node, &fallback, "fullName"),
-            "name": category_field_or_fallback(node, &fallback, "name"),
-            "isLeaf": category_field_or_fallback(node, &fallback, "isLeaf"),
-            "level": category_field_or_fallback(node, &fallback, "level"),
-            "parentId": category_field_or_fallback(node, &fallback, "parentId"),
-        }))
+        authoritative_product_category_value(node, id)
+            .map(ProductCategoryResolution::Found)
+            .unwrap_or(ProductCategoryResolution::Indeterminate)
     }
 }
 
-fn category_field_or_fallback(node: &Value, fallback: &Value, field: &str) -> Value {
-    node.get(field)
-        .filter(|value| !value.is_null())
-        .cloned()
-        .unwrap_or_else(|| fallback.get(field).cloned().unwrap_or(Value::Null))
+#[derive(Debug, Clone, PartialEq)]
+pub(in crate::proxy) enum ProductCategoryResolution {
+    Found(Value),
+    VerifiedAbsent,
+    Malformed,
+    Indeterminate,
 }
 
-fn taxonomy_category_tail(id: &str) -> Option<&str> {
-    let tail = shopify_gid_tail_for_type(id, "TaxonomyCategory")?;
-    let tail = tail.split('?').next().unwrap_or(tail);
-    if taxonomy_category_tail_is_valid(tail) {
-        Some(tail)
-    } else {
-        None
-    }
-}
-
-fn taxonomy_category_tail_is_valid(tail: &str) -> bool {
-    let segments: Vec<&str> = tail
-        .split('-')
-        .filter(|segment| !segment.is_empty())
-        .collect();
-    if segments.is_empty() {
-        return false;
-    }
-    if !segments[0]
-        .chars()
-        .all(|character| character.is_ascii_lowercase())
+fn authoritative_product_category_value(category: &Value, requested_id: &str) -> Option<Value> {
+    if category.get("__typename").is_some()
+        && category.get("__typename").and_then(Value::as_str) != Some("TaxonomyCategory")
     {
-        return false;
+        return None;
     }
-    segments[1..]
-        .iter()
-        .all(|segment| segment.chars().all(|character| character.is_ascii_digit()))
-}
+    if category.get("id").and_then(Value::as_str) != Some(requested_id) {
+        return None;
+    }
+    let name = category.get("name")?.as_str()?;
+    let full_name = category.get("fullName")?.as_str()?;
+    let is_leaf = category.get("isLeaf")?.as_bool()?;
+    let level = category.get("level")?.as_u64()?;
+    let parent_id = category.get("parentId")?;
+    if !parent_id.is_null() && parent_id.as_str().is_none() {
+        return None;
+    }
 
-fn derived_product_category_value(id: &str, tail: &str) -> Value {
-    let segments: Vec<&str> = tail
-        .split('-')
-        .filter(|segment| !segment.is_empty())
-        .collect();
-    let labels = segments
-        .iter()
-        .map(|segment| taxonomy_category_tail_label(segment))
-        .collect::<Vec<_>>();
-    let name = labels.last().cloned().unwrap_or_default();
-    let full_name = labels.join(" > ");
-    let parent_id = if segments.len() > 1 {
-        let parent_tail = segments[..segments.len() - 1].join("-");
-        Value::String(shopify_gid("TaxonomyCategory", parent_tail))
-    } else {
-        Value::Null
-    };
-
-    json!({
-        "id": id,
+    Some(json!({
+        "id": requested_id,
         "fullName": full_name,
         "name": name,
-        "isLeaf": true,
-        "level": segments.len(),
+        "isLeaf": is_leaf,
+        "level": level,
         "parentId": parent_id
-    })
+    }))
 }
 
-fn taxonomy_category_tail_label(segment: &str) -> String {
-    if segment.chars().all(|character| character.is_ascii_digit()) {
-        return segment.to_string();
-    }
-
-    segment
-        .split('_')
-        .flat_map(|part| part.split_whitespace())
-        .filter(|part| !part.is_empty())
-        .map(|part| {
-            let mut chars = part.chars();
-            match chars.next() {
-                Some(first) => {
-                    first.to_ascii_uppercase().to_string() + &chars.as_str().to_ascii_lowercase()
-                }
-                None => String::new(),
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
+pub(in crate::proxy) fn indeterminate_product_taxonomy_category_outcome() -> ResolverOutcome<Value>
+{
+    ResolverOutcome::error("Unable to verify product taxonomy category")
 }
 
 pub(in crate::proxy) fn invalid_product_taxonomy_node_id_error(
@@ -5255,6 +5253,23 @@ pub(in crate::proxy) fn variant_media_ids_from_json(value: &Value) -> Vec<String
 #[cfg(test)]
 mod product_variant_connection_tests {
     use super::*;
+
+    #[test]
+    fn observed_variant_without_inventory_item_does_not_invent_cross_resource_identity() {
+        let variant = product_variant_state_from_observed_json(&json!({
+            "id": "gid://shopify/ProductVariant/424242",
+            "product": { "id": "gid://shopify/Product/1" },
+            "title": "Partially observed variant",
+            "price": "10.00",
+        }))
+        .expect("partially observed variant should normalize");
+
+        assert_eq!(variant.inventory_item.id, "");
+        assert_ne!(
+            variant.inventory_item.id,
+            "gid://shopify/InventoryItem/424242"
+        );
+    }
 
     #[test]
     fn staged_variant_overlays_its_observed_connection_position() {

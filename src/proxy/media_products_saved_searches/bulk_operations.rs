@@ -829,7 +829,7 @@ impl DraftProxy {
         }
     }
 
-    fn observe_bulk_operation_value(&mut self, operation: &Value) {
+    pub(in crate::proxy) fn observe_bulk_operation_value(&mut self, operation: &Value) {
         self.observe_bulk_operation_value_with_cursor(operation, None);
     }
 
@@ -882,6 +882,10 @@ impl DraftProxy {
             &self.store.staged.bulk_operations,
             id,
         )
+    }
+
+    pub(in crate::proxy) fn bulk_operation_node_value_by_id(&self, id: &str) -> Option<Value> {
+        self.bulk_operation_by_id(id).cloned()
     }
 
     fn effective_bulk_operations(&self) -> Vec<Value> {

@@ -22,6 +22,20 @@ type SegmentNode = {
   name: string;
 };
 
+type RecordedUpstreamCall = {
+  method: 'POST';
+  path: string;
+  apiSurface: 'admin';
+  apiVersion: string;
+  operationName: string;
+  query: string;
+  variables: Record<string, unknown>;
+  response: {
+    status: number;
+    body: unknown;
+  };
+};
+
 const SEGMENT_LIMIT = 6000;
 const CHUNK_SIZE = 25;
 const SETUP_CHUNKS = SEGMENT_LIMIT / CHUNK_SIZE;
@@ -40,6 +54,12 @@ const setupDocumentPath = path.join(
 );
 const suffixDocumentPath = path.join('config', 'parity-requests', 'segments', 'segment-name-suffix-duplicate.graphql');
 const specPath = path.join('config', 'parity-specs', 'segments', 'segment-name-suffix-and-limit.json');
+const authoritativeLimitSpecPath = path.join(
+  'config',
+  'parity-specs',
+  'segments',
+  'segment-authoritative-limit-prerequisite.json',
+);
 let adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 let graphqlClient = createAdminGraphqlClient({
   adminOrigin,
@@ -241,6 +261,9 @@ const limitDocument = `mutation SegmentCreateLimitValidation($name: String!, $qu
 }
 `;
 
+const limitPrerequisiteDocument =
+  'query SegmentAuthoritativePrerequisites($name0: String!) {\n  count: segmentsCount(limit: 6000) { count precision }\n  name0: segments(first: 101, query: $name0) {\n    nodes { id name query creationDate lastEditDate }\n    pageInfo { hasNextPage }\n  }\n}';
+
 const segmentCatalogQuery = `query SegmentCatalogForLimitSetup($first: Int!, $after: String) {
   segments(first: $first, after: $after) {
     nodes {
@@ -415,6 +438,7 @@ function buildSpec() {
     assertionKinds: ['payload-shape', 'user-errors-parity', 'mutation-read-after-write'],
     liveCaptureFiles: [outputPath],
     runtimeTestFiles: ['tests/graphql_routes/products_saved_searches.rs'],
+    proxyConfig: { readMode: 'snapshot' },
     proxyRequest: {
       documentPath: setupDocumentPath,
       variablesCapturePath: '$.cases[0].request.variables',
@@ -463,9 +487,42 @@ function buildSpec() {
   };
 }
 
+function buildAuthoritativeLimitSpec() {
+  const limitCaseIndex = SETUP_CHUNKS;
+  return {
+    scenarioId: 'segment-authoritative-limit-prerequisite',
+    operationNames: ['segmentCreate'],
+    scenarioStatus: 'captured',
+    assertionKinds: ['mutation-first-hydration', 'payload-shape', 'user-errors-parity'],
+    liveCaptureFiles: [outputPath],
+    runtimeTestFiles: ['tests/graphql_routes/segments.rs'],
+    proxyConfig: { readMode: 'live-hybrid' },
+    proxyRequest: {
+      apiVersion,
+      documentPath: 'config/parity-requests/segments/segment-create-limit-validation.graphql',
+      variablesCapturePath: `$.cases[${limitCaseIndex}].request.variables`,
+    },
+    comparisonMode: 'captured-vs-proxy-request',
+    notes:
+      'Live Shopify evidence that a fresh LiveHybrid proxy obtains an authoritative segmentsCount(limit: 6000) threshold before rejecting segmentCreate at the store limit.',
+    comparison: {
+      mode: 'strict-json',
+      expectedDifferences: [],
+      targets: [
+        {
+          name: 'segment-limit-authoritative-count-probe',
+          capturePath: `$.cases[${limitCaseIndex}].response.payload.data.segmentCreate`,
+          proxyPath: '$.data.segmentCreate',
+        },
+      ],
+    },
+  };
+}
+
 const setupDocument = buildSetupDocument();
 const cases: CapturedCase[] = [];
 const createdIds: string[] = [];
+let limitPrerequisiteCall: RecordedUpstreamCall | null = null;
 
 try {
   const existingSegments = await listSegments();
@@ -486,12 +543,46 @@ try {
     console.log(`Captured segment limit setup chunk ${chunkIndex + 1}/${SETUP_CHUNKS}`);
   }
 
+  const overflowName = `${LIMIT_SETUP_PREFIX} ${marker} overflow`;
+  const limitPrerequisiteVariables = { name0: `name:"${overflowName}"` };
+  const limitPrerequisiteResponse = await runGraphqlWithRetry(
+    limitPrerequisiteDocument,
+    limitPrerequisiteVariables,
+    'segment authoritative limit prerequisite',
+  );
+  assertGraphqlOk(limitPrerequisiteResponse, 'segment authoritative limit prerequisite');
+  const prerequisiteCount = readPath(limitPrerequisiteResponse.payload, ['data', 'count', 'count']);
+  const prerequisiteHasNextPage = readPath(limitPrerequisiteResponse.payload, [
+    'data',
+    'name0',
+    'pageInfo',
+    'hasNextPage',
+  ]);
+  if (prerequisiteCount !== SEGMENT_LIMIT || prerequisiteHasNextPage !== false) {
+    throw new Error(
+      `segment authoritative limit prerequisite was incomplete: ${JSON.stringify(limitPrerequisiteResponse.payload, null, 2)}`,
+    );
+  }
+  limitPrerequisiteCall = {
+    method: 'POST',
+    path: `/admin/api/${apiVersion}/graphql.json`,
+    apiSurface: 'admin',
+    apiVersion,
+    operationName: 'SegmentAuthoritativePrerequisites',
+    query: limitPrerequisiteDocument,
+    variables: limitPrerequisiteVariables,
+    response: {
+      status: limitPrerequisiteResponse.status,
+      body: limitPrerequisiteResponse.payload,
+    },
+  };
+
   await captureCase(
     cases,
     'segmentLimitReached',
     limitDocument,
     {
-      name: `${LIMIT_SETUP_PREFIX} ${marker} overflow`,
+      name: overflowName,
       query: 'number_of_orders >= 1',
     },
     assertLimitReached,
@@ -540,9 +631,13 @@ try {
 await mkdir(outputDir, { recursive: true });
 await mkdir(path.dirname(setupDocumentPath), { recursive: true });
 await mkdir(path.dirname(specPath), { recursive: true });
+if (limitPrerequisiteCall === null) {
+  throw new Error('segment authoritative limit prerequisite was not captured');
+}
 await writeFile(setupDocumentPath, setupDocument, 'utf8');
 await writeFile(suffixDocumentPath, suffixDocument, 'utf8');
 await writeFile(specPath, `${JSON.stringify(buildSpec(), null, 2)}\n`, 'utf8');
+await writeFile(authoritativeLimitSpecPath, `${JSON.stringify(buildAuthoritativeLimitSpec(), null, 2)}\n`, 'utf8');
 await writeFile(
   outputPath,
   `${JSON.stringify(
@@ -556,7 +651,7 @@ await writeFile(
         'Live Shopify evidence that segmentCreate at the 6000 segment cap returns field:null and message `Segment limit reached. Delete an existing segment to create more.`.',
         'The script clears existing segments in the disposable conformance shop before capture, creates 6000 setup segments through public segmentCreate mutations, captures the overflow branch, deletes those setup segments, captures suffix probes, then deletes every suffix probe segment it created.',
       ],
-      upstreamCalls: [],
+      upstreamCalls: [limitPrerequisiteCall],
     },
     null,
     2,
@@ -565,5 +660,6 @@ await writeFile(
 );
 console.log(`Wrote ${outputPath}`);
 console.log(`Wrote ${specPath}`);
+console.log(`Wrote ${authoritativeLimitSpecPath}`);
 console.log(`Wrote ${setupDocumentPath}`);
 console.log(`Wrote ${suffixDocumentPath}`);
