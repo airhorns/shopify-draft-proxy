@@ -30,7 +30,7 @@
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "fulfillment-constraint-rule-deterministic-user-errors",
+        "name": "fulfillment-constraint-rule-create-update-delete-no-stage-user-errors",
         "capturePath": "$.errorShape.response.payload.data",
         "proxyPath": "$.data"
       },
@@ -60,7 +60,7 @@
         ]
       },
       {
-        "name": "fulfillment-constraint-rules-empty-read",
+        "name": "fulfillment-constraint-rule-errors-no-stage-readback",
         "capturePath": "$.readEmpty.response.payload.data",
         "proxyPath": "$.data",
         "proxyRequest": {
@@ -71,5 +71,5 @@
       }
     ]
   },
-  "notes": "Live Shopify 2026-04 evidence for fulfillmentConstraintRuleCreate missing identifier, multiple identifiers, empty deliveryMethodTypes, unknown functionId/functionHandle, fulfillmentConstraintRuleDelete unknown id, and an empty fulfillmentConstraintRules read. The same capture records that live introspection exposes only fulfillmentConstraintRules, not a singular fulfillmentConstraintRule(id:) root. The current conformance app has no released fulfillment-constraint Function, so success-path, wrong-API-type, and read-after-created-rule live capture require releasing a purchase.fulfillment-constraint-rule.run or cart.fulfillment-constraints.generate.run Function with the required read/write fulfillment constraint scopes."
+  "notes": "Live Shopify 2026-04 evidence for fulfillmentConstraintRuleCreate missing identifier, multiple identifiers, empty deliveryMethodTypes, unknown functionId/functionHandle, fulfillmentConstraintRuleUpdate/Delete unknown ids, and the unchanged empty fulfillmentConstraintRules read after those rejected writes. The same capture records that live introspection exposes only fulfillmentConstraintRules, not a singular fulfillmentConstraintRule(id:) root. The current conformance app has no released fulfillment-constraint Function, so success-path, wrong-API-type, and read-after-created-rule live capture require releasing a purchase.fulfillment-constraint-rule.run or cart.fulfillment-constraints.generate.run Function with the required read/write fulfillment constraint scopes."
 }

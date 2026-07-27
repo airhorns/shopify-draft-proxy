@@ -861,9 +861,12 @@ pub(in crate::proxy) fn product_field_resolver_registrations() -> Vec<FieldResol
         "requiresComponents",
         "selectedOptions",
         "sellableOnlineQuantity",
+        "showUnitPrice",
         "sku",
+        "taxCode",
         "taxable",
         "title",
+        "unitPriceMeasurement",
     ] {
         registrations.push(FieldResolverRegistration::property(
             ApiSurface::Admin,
@@ -1259,8 +1262,10 @@ impl DraftProxy {
                 "seo".to_string(),
                 product.extra_fields.get("seo").cloned().unwrap_or_else(|| {
                     json!({
-                        "title": product.seo_title,
-                        "description": product.seo_description,
+                        "title": (!product.seo_title.is_empty())
+                            .then(|| product.seo_title.clone()),
+                        "description": (!product.seo_description.is_empty())
+                            .then(|| product.seo_description.clone()),
                     })
                 }),
             ),
@@ -1590,6 +1595,7 @@ fn product_variant_inventory_item_field(
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
     Ok(product_variant_record(proxy, invocation)
+        .filter(|variant| is_shopify_gid_of_type(&variant.inventory_item.id, "InventoryItem"))
         .map(|variant| {
             let variant = proxy.variant_with_inventory_levels(&variant);
             product_variant_state_json(&variant)["inventoryItem"].clone()
@@ -1958,13 +1964,43 @@ pub(in crate::proxy) const COLLECTION_REORDER_PRODUCTS_COLLECTION_HYDRATE_QUERY:
     "../../config/parity-requests/products/collectionReorderProducts-collection-hydrate.graphql"
 );
 
-// The generic observation query above does not select product `options`, which the
-// productOptionsReorder graph needs. This options-aware node hydrate selects the
-// option/optionValue graph (and variants) and is forwarded only by the reorder
-// owner-hydrate path. Kept as a shared `.graphql` doc so re-recorded cassettes match
-// the emitted forward byte-for-byte.
-pub(in crate::proxy) const PRODUCT_OPTIONS_HYDRATE_NODES_QUERY: &str =
-    include_str!("../../config/parity-requests/products/product-options-hydrate-nodes.graphql");
+pub(in crate::proxy) const PRODUCT_MUTATION_PREFLIGHT_HYDRATE_QUERY: &str = include_str!(
+    "../../config/parity-requests/products/product-mutation-preflight-hydrate.graphql"
+);
+
+const PRODUCT_OBSERVED_FIELDS_FIELD: &str = "__shopifyDraftProxyObservedFields";
+const PRODUCT_COMPLETE_RELATIONSHIPS_FIELD: &str = "__shopifyDraftProxyCompleteRelationships";
+pub(in crate::proxy) const PRODUCT_MUTATION_HYDRATION_COMPLETE_FIELD: &str =
+    "__shopifyDraftProxyMutationHydrationComplete";
+const PRODUCT_MUTATION_REQUIRED_FIELDS: &[&str] = &[
+    "id",
+    "legacyResourceId",
+    "createdAt",
+    "updatedAt",
+    "title",
+    "handle",
+    "status",
+    "publishedAt",
+    "descriptionHtml",
+    "vendor",
+    "productType",
+    "tags",
+    "templateSuffix",
+    "totalInventory",
+    "tracksInventory",
+    "onlineStorePreviewUrl",
+    "requiresSellingPlan",
+    "isGiftCard",
+    "giftCardTemplateSuffix",
+    "seo",
+    "category",
+    "options",
+    "variants",
+    "media",
+    "collections",
+];
+const PRODUCT_MUTATION_REQUIRED_RELATIONSHIPS: &[&str] =
+    &["options", "variants", "media", "collections"];
 
 // Publication-membership hydrate forwarded the first time the local publication
 // engine publishes a publishable resource (product / collection) it has never
@@ -2008,44 +2044,104 @@ pub(in crate::proxy) fn merge_observed_product(
     mut existing: ProductRecord,
     observed: ProductRecord,
 ) -> ProductRecord {
-    existing.title = observed.title;
-    existing.handle = observed.handle;
-    existing.status = observed.status;
-    existing.created_at = observed.created_at;
-    existing.updated_at = observed.updated_at;
-    existing.description_html = observed.description_html;
-    existing.vendor = observed.vendor;
-    existing.product_type = observed.product_type;
-    existing.tags = observed.tags;
-    existing.template_suffix = observed.template_suffix;
-    existing.seo_title = observed.seo_title;
-    existing.seo_description = observed.seo_description;
-    existing.total_inventory = observed.total_inventory;
-    existing.tracks_inventory = observed.tracks_inventory;
-    if !observed.media.is_empty() {
-        existing.media = observed.media;
+    let existing_observed_fields = product_observed_fields(&existing);
+    let observed_fields = product_observed_fields(&observed);
+    let existing_is_authoritative = existing_observed_fields.is_none();
+    let observed_has = |field: &str| {
+        observed_fields
+            .as_ref()
+            .is_none_or(|fields| fields.contains(field))
+    };
+    let merge_scalar = |field: &str| !existing_is_authoritative && observed_has(field);
+
+    if merge_scalar("title") {
+        existing.title = observed.title.clone();
     }
-    if !observed.variants.is_empty() {
-        existing.variants = observed
-            .variants
-            .into_iter()
-            .filter_map(|variant| {
-                let observed_id = variant.get("id").and_then(Value::as_str);
-                let Some(id) = observed_id else {
-                    return Some(variant);
-                };
-                existing
-                    .variants
-                    .iter()
-                    .find(|existing| existing.get("id").and_then(Value::as_str) == Some(id))
-                    .map(|existing| shallow_merged_object(existing.clone(), variant))
-            })
-            .collect();
+    if merge_scalar("handle") {
+        existing.handle = observed.handle.clone();
     }
-    for collection in observed.collections {
-        upsert_minimal_collection(&mut existing.collections, &collection);
+    if merge_scalar("status") {
+        existing.status = observed.status.clone();
     }
-    existing.extra_fields.extend(observed.extra_fields);
+    if merge_scalar("createdAt") {
+        existing.created_at = observed.created_at.clone();
+    }
+    if merge_scalar("updatedAt") {
+        existing.updated_at = observed.updated_at.clone();
+    }
+    if merge_scalar("descriptionHtml") {
+        existing.description_html = observed.description_html.clone();
+    }
+    if merge_scalar("vendor") {
+        existing.vendor = observed.vendor.clone();
+    }
+    if merge_scalar("productType") {
+        existing.product_type = observed.product_type.clone();
+    }
+    if merge_scalar("tags") {
+        existing.tags = observed.tags.clone();
+    }
+    if merge_scalar("templateSuffix") {
+        existing.template_suffix = observed.template_suffix.clone();
+    }
+    if merge_scalar("seo") {
+        existing.seo_title = observed.seo_title.clone();
+        existing.seo_description = observed.seo_description.clone();
+    }
+    if merge_scalar("totalInventory") {
+        existing.total_inventory = observed.total_inventory;
+    }
+    if merge_scalar("tracksInventory") {
+        existing.tracks_inventory = observed.tracks_inventory;
+    }
+
+    if !existing_is_authoritative && observed_has("media") {
+        merge_observed_product_nodes(
+            &mut existing.media,
+            observed.media.clone(),
+            product_relationship_is_complete(&observed, "media"),
+        );
+    }
+    if !existing_is_authoritative && observed_has("variants") {
+        merge_observed_product_nodes(
+            &mut existing.variants,
+            observed.variants.clone(),
+            product_relationship_is_complete(&observed, "variants"),
+        );
+    }
+    if !existing_is_authoritative && observed_has("collections") {
+        if product_relationship_is_complete(&observed, "collections") {
+            existing.collections = observed.collections.clone();
+        } else {
+            for collection in &observed.collections {
+                upsert_minimal_collection(&mut existing.collections, collection);
+            }
+        }
+    }
+
+    if !existing_is_authoritative {
+        for (key, value) in &observed.extra_fields {
+            if matches!(
+                key.as_str(),
+                PRODUCT_OBSERVED_FIELDS_FIELD | PRODUCT_COMPLETE_RELATIONSHIPS_FIELD
+            ) {
+                continue;
+            }
+            if observed_has(key) {
+                existing.extra_fields.insert(key.clone(), value.clone());
+            }
+        }
+        let mut merged_fields = existing_observed_fields.unwrap_or_default();
+        merged_fields.extend(observed_fields.unwrap_or_default());
+        set_product_metadata_set(&mut existing, PRODUCT_OBSERVED_FIELDS_FIELD, merged_fields);
+        let mut complete_relationships = product_complete_relationships(&existing);
+        complete_relationships.extend(product_complete_relationships(&observed));
+        set_product_metadata_set(
+            &mut existing,
+            PRODUCT_COMPLETE_RELATIONSHIPS_FIELD,
+            complete_relationships,
+        );
+    }
     existing.collections.sort_by(|left, right| {
         let left_title = left
             .get("title")
@@ -2058,6 +2154,78 @@ pub(in crate::proxy) fn merge_observed_product(
         left_title.cmp(right_title)
     });
     existing
+}
+
+fn merge_observed_product_nodes(
+    existing: &mut Vec<Value>,
+    observed: Vec<Value>,
+    relationship_complete: bool,
+) {
+    if relationship_complete {
+        *existing = observed;
+        return;
+    }
+    for observed_node in observed {
+        let observed_id = observed_node.get("id").and_then(Value::as_str);
+        if let Some(existing_node) = observed_id.and_then(|id| {
+            existing
+                .iter_mut()
+                .find(|node| node.get("id").and_then(Value::as_str) == Some(id))
+        }) {
+            *existing_node = shallow_merged_object(existing_node.clone(), observed_node);
+        } else {
+            existing.push(observed_node);
+        }
+    }
+}
+
+fn product_metadata_set(product: &ProductRecord, field: &str) -> Option<BTreeSet<String>> {
+    product.extra_fields.get(field).map(|value| {
+        value
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .map(str::to_string)
+            .collect()
+    })
+}
+
+fn set_product_metadata_set(product: &mut ProductRecord, field: &str, values: BTreeSet<String>) {
+    product.extra_fields.insert(
+        field.to_string(),
+        Value::Array(values.into_iter().map(Value::String).collect()),
+    );
+}
+
+fn product_observed_fields(product: &ProductRecord) -> Option<BTreeSet<String>> {
+    product_metadata_set(product, PRODUCT_OBSERVED_FIELDS_FIELD)
+}
+
+fn product_complete_relationships(product: &ProductRecord) -> BTreeSet<String> {
+    product_metadata_set(product, PRODUCT_COMPLETE_RELATIONSHIPS_FIELD).unwrap_or_default()
+}
+
+fn product_relationship_is_complete(product: &ProductRecord, relationship: &str) -> bool {
+    product_observed_fields(product).is_none()
+        || product_complete_relationships(product).contains(relationship)
+}
+
+pub(in crate::proxy) fn product_mutation_hydration_complete(product: &ProductRecord) -> bool {
+    let Some(observed_fields) = product_observed_fields(product) else {
+        return true;
+    };
+    product
+        .extra_fields
+        .get(PRODUCT_MUTATION_HYDRATION_COMPLETE_FIELD)
+        .and_then(Value::as_bool)
+        == Some(true)
+        && PRODUCT_MUTATION_REQUIRED_FIELDS
+            .iter()
+            .all(|field| observed_fields.contains(*field))
+        && PRODUCT_MUTATION_REQUIRED_RELATIONSHIPS
+            .iter()
+            .all(|relationship| product_relationship_is_complete(product, relationship))
 }
 
 pub(in crate::proxy) fn product_summary_json(product: &ProductRecord) -> Value {
@@ -2282,7 +2450,9 @@ impl DraftProxy {
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
-        if self.config.read_mode == ReadMode::Snapshot {
+        if self.config.read_mode == ReadMode::Snapshot
+            && invocation.root_name != "productCreateMedia"
+        {
             return resolver_http_error_outcome(
                 400,
                 format!(
@@ -2317,11 +2487,31 @@ impl DraftProxy {
                 invocation.response_key,
             );
         };
-        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
-            invocation.root_name,
-            "products",
-            Vec::new(),
-        ))
+        let has_errors = ["userErrors", "mediaUserErrors"].iter().any(|key| {
+            payload
+                .get(key)
+                .and_then(Value::as_array)
+                .is_some_and(|errors| !errors.is_empty())
+        });
+        let has_effect = payload
+            .get("media")
+            .and_then(Value::as_array)
+            .is_some_and(|media| !media.is_empty())
+            || payload
+                .get("deletedMediaIds")
+                .and_then(Value::as_array)
+                .is_some_and(|ids| !ids.is_empty())
+            || payload.get("job").is_some_and(Value::is_object);
+        let outcome = ResolverOutcome::value(payload);
+        if has_errors && !has_effect {
+            outcome
+        } else {
+            outcome.with_log_draft(LogDraft::staged(
+                invocation.root_name,
+                "products",
+                Vec::new(),
+            ))
+        }
     }
 
     /// productCreateMedia stages newly uploaded media on a product. Each media
@@ -2565,7 +2755,7 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
         let product_id = resolved_string_field(arguments, "id")?;
-        let mut moves = resolved_object_list_field(arguments, "moves");
+        let moves = resolved_object_list_field(arguments, "moves");
 
         // Reorder operates on media that already exists on the product. If the
         // product has not been staged locally yet, hydrate it from upstream so
@@ -2578,22 +2768,28 @@ impl DraftProxy {
             ));
         }
 
-        moves.sort_by_key(|media_move| {
-            resolved_string_field(media_move, "newPosition")
+        let mut media = self.product_known_media(&product_id);
+        for media_move in moves {
+            let Some(id) = resolved_string_field(&media_move, "id") else {
+                continue;
+            };
+            let new_position = resolved_string_field(&media_move, "newPosition")
                 .and_then(|position| position.parse::<usize>().ok())
-                .unwrap_or(usize::MAX)
-        });
-        let move_ids = moves
-            .iter()
-            .filter_map(|media_move| resolved_string_field(media_move, "id"))
-            .collect::<Vec<_>>();
-        for id in &move_ids {
-            self.store.staged.media_ready_on_read.remove(id);
+                .or_else(|| {
+                    resolved_int_field(&media_move, "newPosition")
+                        .map(|position| position.max(0) as usize)
+                })
+                .unwrap_or(0);
+            let Some(current_position) = media
+                .iter()
+                .position(|node| node.get("id").and_then(Value::as_str) == Some(id.as_str()))
+            else {
+                continue;
+            };
+            let node = media.remove(current_position);
+            media.insert(new_position.min(media.len()), node);
+            self.store.staged.media_ready_on_read.remove(&id);
         }
-        let media = move_ids
-            .iter()
-            .map(|id| self.product_reorder_media_node(&product_id, id))
-            .collect();
         self.stage_product_media_nodes(&product_id, media);
         Some(json!({
             "job": {
@@ -2674,44 +2870,14 @@ impl DraftProxy {
         if self.store.product_staged_or_base(product_id).is_some() {
             return true;
         }
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return false;
+        }
         self.hydrate_product_nodes_for_observation_with_request(
             request,
             vec![product_id.to_string()],
         );
         self.store.product_staged_or_base(product_id).is_some()
-    }
-
-    /// Build a reordered media node. Alt text is preserved from any media
-    /// already staged/observed for this product so the proxy honours real
-    /// asset metadata instead of hardcoding GID-specific captions.
-    fn product_reorder_media_node(&self, product_id: &str, id: &str) -> Value {
-        let known = self
-            .store
-            .product_staged_or_base(product_id)
-            .and_then(|product| {
-                product
-                    .media
-                    .into_iter()
-                    .find(|node| node.get("id").and_then(Value::as_str) == Some(id))
-            });
-        let mut node = known.unwrap_or_else(|| {
-            let alt = self
-                .store
-                .product_staged_or_base(product_id)
-                .and_then(|product| {
-                    product.media.iter().find_map(|node| {
-                        if node.get("id").and_then(Value::as_str) == Some(id) {
-                            node.get("alt").and_then(Value::as_str).map(str::to_string)
-                        } else {
-                            None
-                        }
-                    })
-                })
-                .unwrap_or_default();
-            product_media_node_with_type(id, &alt, "IMAGE", "PROCESSING", None, None)
-        });
-        node["status"] = json!("PROCESSING");
-        node
     }
 }
 
@@ -3675,7 +3841,7 @@ fn product_variant_state_from_json_parts(
             .and_then(|item| item.get("id"))
             .and_then(Value::as_str)
             .map(str::to_string)
-            .unwrap_or_else(|| shopify_gid("InventoryItem", resource_id_tail(&id))),
+            .unwrap_or_default(),
         ProductVariantInventoryItemMode::Required => {
             inventory_item?.get("id")?.as_str()?.to_string()
         }
@@ -3781,6 +3947,7 @@ pub(in crate::proxy) fn product_state_map_from_json(
 
 pub(in crate::proxy) fn product_state_from_json(value: &Value) -> Option<ProductRecord> {
     let id = value.get("id")?.as_str()?.to_string();
+    let is_serialized_state = value.get("extraFields").is_some_and(Value::is_object);
     let created_at = value
         .get("createdAt")
         .and_then(Value::as_str)
@@ -3796,6 +3963,44 @@ pub(in crate::proxy) fn product_state_from_json(value: &Value) -> Option<Product
         for (key, observed) in state_extra_fields {
             extra_fields.insert(key.clone(), observed.clone());
         }
+    }
+    if !is_serialized_state && !extra_fields.contains_key(PRODUCT_OBSERVED_FIELDS_FIELD) {
+        let observed_fields = value
+            .as_object()
+            .into_iter()
+            .flatten()
+            .map(|(field, _)| field.clone())
+            .filter(|field| !matches!(field.as_str(), "__typename" | "extraFields"))
+            .collect::<BTreeSet<_>>();
+        extra_fields.insert(
+            PRODUCT_OBSERVED_FIELDS_FIELD.to_string(),
+            Value::Array(observed_fields.into_iter().map(Value::String).collect()),
+        );
+    }
+    if !is_serialized_state && !extra_fields.contains_key(PRODUCT_COMPLETE_RELATIONSHIPS_FIELD) {
+        let mut complete_relationships = BTreeSet::new();
+        if value.get("options").is_some() {
+            complete_relationships.insert("options".to_string());
+        }
+        for relationship in ["variants", "media", "collections"] {
+            if value
+                .get(relationship)
+                .and_then(|connection| connection.pointer("/pageInfo/hasNextPage"))
+                .and_then(Value::as_bool)
+                == Some(false)
+            {
+                complete_relationships.insert(relationship.to_string());
+            }
+        }
+        extra_fields.insert(
+            PRODUCT_COMPLETE_RELATIONSHIPS_FIELD.to_string(),
+            Value::Array(
+                complete_relationships
+                    .into_iter()
+                    .map(Value::String)
+                    .collect(),
+            ),
+        );
     }
     Some(ProductRecord {
         id,
@@ -5254,6 +5459,101 @@ pub(in crate::proxy) fn variant_media_ids_from_json(value: &Value) -> Vec<String
 #[cfg(test)]
 mod product_variant_connection_tests {
     use super::*;
+
+    #[test]
+    fn partial_product_observation_updates_only_selected_fields_and_relationship_nodes() {
+        let existing = product_state_from_json(&json!({
+            "id": "gid://shopify/Product/1",
+            "title": "Original title",
+            "handle": "original-title",
+            "status": "ACTIVE",
+            "vendor": "Preserved vendor",
+            "tags": ["preserved"],
+            "createdAt": "2024-01-01T00:00:00Z",
+            "updatedAt": "2024-01-02T00:00:00Z",
+            "seo": { "title": "Preserved SEO", "description": "Preserved description" },
+            "media": {
+                "nodes": [{ "id": "gid://shopify/MediaImage/1", "alt": "Preserved media" }],
+                "pageInfo": { "hasNextPage": false }
+            },
+            "variants": {
+                "nodes": [
+                    { "id": "gid://shopify/ProductVariant/1", "title": "First" },
+                    { "id": "gid://shopify/ProductVariant/2", "title": "Second" }
+                ],
+                "pageInfo": { "hasNextPage": false }
+            }
+        }))
+        .expect("existing product should normalize");
+        let observed = product_state_from_json(&json!({
+            "id": "gid://shopify/Product/1",
+            "title": "Observed title",
+            "variants": {
+                "nodes": [
+                    { "id": "gid://shopify/ProductVariant/1", "title": "Observed first" }
+                ]
+            }
+        }))
+        .expect("partial product should normalize");
+
+        let merged = merge_observed_product(existing, observed);
+
+        assert_eq!(merged.title, "Observed title");
+        assert_eq!(merged.vendor, "Preserved vendor");
+        assert_eq!(merged.tags, vec!["preserved"]);
+        assert_eq!(merged.seo_title, "Preserved SEO");
+        assert_eq!(merged.media.len(), 1);
+        assert_eq!(merged.variants.len(), 2);
+        assert_eq!(merged.variants[0]["title"], json!("Observed first"));
+        assert_eq!(merged.variants[1]["title"], json!("Second"));
+    }
+
+    #[test]
+    fn authoritative_product_state_round_trip_stays_mutation_complete() {
+        let product = ProductRecord {
+            id: "gid://shopify/Product/1".to_string(),
+            title: "Local product".to_string(),
+            ..ProductRecord::default()
+        };
+
+        let restored = product_state_from_json(&product_state_json(&product))
+            .expect("serialized product state should normalize");
+
+        assert!(product_observed_fields(&restored).is_none());
+        assert!(product_mutation_hydration_complete(&restored));
+    }
+
+    #[test]
+    fn ordinary_complete_connections_do_not_claim_mutation_hydration_authority() {
+        let observed = product_state_from_json(&json!({
+            "id": "gid://shopify/Product/1",
+            "title": "Observed product",
+            "options": [],
+            "variants": { "nodes": [], "pageInfo": { "hasNextPage": false } },
+            "media": { "nodes": [], "pageInfo": { "hasNextPage": false } },
+            "collections": { "nodes": [], "pageInfo": { "hasNextPage": false } }
+        }))
+        .expect("observed product should normalize");
+
+        assert!(!product_mutation_hydration_complete(&observed));
+    }
+
+    #[test]
+    fn observed_variant_without_inventory_item_does_not_invent_cross_resource_identity() {
+        let variant = product_variant_state_from_observed_json(&json!({
+            "id": "gid://shopify/ProductVariant/424242",
+            "product": { "id": "gid://shopify/Product/1" },
+            "title": "Partially observed variant",
+            "price": "10.00",
+        }))
+        .expect("partially observed variant should normalize");
+
+        assert_eq!(variant.inventory_item.id, "");
+        assert_ne!(
+            variant.inventory_item.id,
+            "gid://shopify/InventoryItem/424242"
+        );
+    }
 
     #[test]
     fn staged_variant_overlays_its_observed_connection_position() {

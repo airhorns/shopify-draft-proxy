@@ -208,6 +208,7 @@ pub(in crate::proxy) fn delivery_customization_record(
     api_client_id: Option<&str>,
     resolved_function: Option<&Value>,
     timestamp: &str,
+    allocate_metafield_id: &mut impl FnMut() -> String,
 ) -> Value {
     let function_id = resolved_string_field(input, "functionId");
     let function_handle = resolved_string_field(input, "functionHandle");
@@ -235,7 +236,13 @@ pub(in crate::proxy) fn delivery_customization_record(
     });
     delivery_customization_set_metafields(
         &mut record,
-        delivery_customization_metafields(id, input, api_client_id, timestamp, None),
+        delivery_customization_metafields(
+            input,
+            api_client_id,
+            timestamp,
+            None,
+            allocate_metafield_id,
+        ),
     );
     record
 }
@@ -254,16 +261,15 @@ fn delivery_customization_minimal_function(
 }
 
 pub(in crate::proxy) fn delivery_customization_metafields(
-    customization_id: &str,
     input: &BTreeMap<String, ResolvedValue>,
     api_client_id: Option<&str>,
     timestamp: &str,
     existing_record: Option<&Value>,
+    allocate_metafield_id: &mut impl FnMut() -> String,
 ) -> Vec<Value> {
     resolved_object_list_field(input, "metafields")
         .into_iter()
-        .enumerate()
-        .map(|(index, metafield)| {
+        .map(|metafield| {
             let namespace = resolved_string_field(&metafield, "namespace")
                 .map(|namespace| canonical_app_metafield_namespace(Some(&namespace), api_client_id))
                 .unwrap_or_else(|| canonical_app_metafield_namespace(None, api_client_id));
@@ -276,16 +282,7 @@ pub(in crate::proxy) fn delivery_customization_metafields(
                         .and_then(|metafield| metafield.get("id").and_then(Value::as_str))
                         .map(str::to_string)
                 })
-                .unwrap_or_else(|| {
-                    shopify_gid(
-                        "Metafield",
-                        format!(
-                            "delivery-customization-{}-{}",
-                            resource_id_tail(customization_id),
-                            index + 1
-                        ),
-                    )
-                });
+                .unwrap_or_else(&mut *allocate_metafield_id);
             let created_at = existing_metafield
                 .and_then(|metafield| metafield.get("createdAt").and_then(Value::as_str))
                 .unwrap_or(timestamp);
@@ -788,8 +785,7 @@ impl DraftProxy {
             }
         }
 
-        let id = shopify_gid("DeliveryCustomization", self.next_synthetic_id);
-        self.next_synthetic_id += 1;
+        let id = self.next_synthetic_gid("DeliveryCustomization");
         let timestamp = self.next_mutation_timestamp();
         let record = delivery_customization_record(
             &id,
@@ -797,6 +793,7 @@ impl DraftProxy {
             api_client_id,
             Some(&resolved_function),
             &timestamp,
+            &mut || self.next_synthetic_gid("Metafield"),
         );
         self.store
             .staged
@@ -984,11 +981,11 @@ impl DraftProxy {
         if input.contains_key("metafields") {
             let timestamp = self.next_mutation_timestamp();
             let metafields = delivery_customization_metafields(
-                &id,
                 &input,
                 api_client_id,
                 &timestamp,
                 Some(&updated),
+                &mut || self.next_synthetic_gid("Metafield"),
             );
             delivery_customization_set_metafields(&mut updated, metafields);
             updated["updatedAt"] = json!(timestamp);

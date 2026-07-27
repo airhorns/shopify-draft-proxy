@@ -927,11 +927,19 @@ impl DraftProxy {
         let summary = self.discount_summary_for_input(typename, input);
         let now_epoch = self.current_epoch_seconds();
         let timestamp = self.next_mutation_timestamp();
+        let metafield_ids = match input.get("metafields") {
+            Some(ResolvedValue::List(metafields)) => metafields
+                .iter()
+                .map(|_| self.next_synthetic_gid("Metafield"))
+                .collect(),
+            _ => Vec::new(),
+        };
         DiscountRecordBuildContext {
             shop_currency_code,
             summary,
             timestamp,
             now_epoch,
+            metafield_ids,
         }
     }
 
@@ -3679,6 +3687,7 @@ struct DiscountRecordBuildContext {
     summary: String,
     timestamp: String,
     now_epoch: i64,
+    metafield_ids: Vec<String>,
 }
 
 fn discount_input_path_present(input: &BTreeMap<String, ResolvedValue>, path: &[&str]) -> bool {
@@ -3884,7 +3893,7 @@ fn discount_record_from_input(
         "appliesOnSubscription": applies_on_subscription,
         "codes": codes,
         "codesCount": count_object(codes.as_array().map(Vec::len).unwrap_or(0)),
-        "metafields": discount_metafields_from_input(input, timestamp)
+        "metafields": discount_metafields_from_input(input, timestamp, &context.metafield_ids)
             .or_else(|| existing.map(|record| record["metafields"].clone()))
             .unwrap_or_else(|| json!([])),
         "summary": summary
@@ -4895,6 +4904,7 @@ fn discount_maximum_shipping_price_from_input(
 fn discount_metafields_from_input(
     input: &BTreeMap<String, ResolvedValue>,
     timestamp: &str,
+    metafield_ids: &[String],
 ) -> Option<Value> {
     match input.get("metafields") {
         Some(ResolvedValue::List(metafields)) => Some(Value::Array(
@@ -4903,7 +4913,7 @@ fn discount_metafields_from_input(
                 .enumerate()
                 .filter_map(|(index, value)| match value {
                     ResolvedValue::Object(metafield) => Some(json!({
-                        "id": synthetic_shopify_gid("Metafield", format!("discount-app-{index}")),
+                        "id": metafield_ids.get(index).cloned().unwrap_or_default(),
                         "namespace": resolved_string_field(metafield, "namespace").unwrap_or_default(),
                         "key": resolved_string_field(metafield, "key").unwrap_or_default(),
                         "type": resolved_string_field(metafield, "type").unwrap_or_default(),
