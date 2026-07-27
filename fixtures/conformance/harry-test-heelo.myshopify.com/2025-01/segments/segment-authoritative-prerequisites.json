@@ -1,0 +1,573 @@
+{
+  "capturedAt": "2026-07-20T12:31:35.602Z",
+  "scenarioId": "segment-authoritative-prerequisites",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "proxyVariables": {
+    "nameCreate": {
+      "name": "Authoritative Segment segmentauthoritativemrt7eklfczwy3a",
+      "query": "customer_tags CONTAINS 'segmentauthoritativemrt7eklfczwy3a-duplicate'"
+    },
+    "validJobCreate": {
+      "input": {
+        "segmentId": "gid://shopify/Segment/653780189490"
+      }
+    },
+    "invalidJobCreate": {
+      "input": {
+        "segmentId": "gid://shopify/Segment/9999991784550689475"
+      }
+    },
+    "jobPoll": {
+      "id": "gid://shopify/CustomerSegmentMembersQuery/f2108659-8436-11f1-ac34-8afb0729093c"
+    }
+  },
+  "setup": {
+    "setupCreate": {
+      "operationName": "SegmentAuthoritativeSetupCreate",
+      "query": "mutation SegmentAuthoritativeNameCreate($name: String!, $query: String!) {\n  segmentCreate(name: $name, query: $query) {\n    segment {\n      id\n      name\n      query\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "name": "Authoritative Segment segmentauthoritativemrt7eklfczwy3a",
+        "query": "customer_tags CONTAINS 'segmentauthoritativemrt7eklfczwy3a'"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "segmentCreate": {
+              "segment": {
+                "id": "gid://shopify/Segment/653780189490",
+                "name": "Authoritative Segment segmentauthoritativemrt7eklfczwy3a",
+                "query": "customer_tags CONTAINS 'segmentauthoritativemrt7eklfczwy3a'"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "createPrerequisites": {
+    "operationName": "SegmentAuthoritativePrerequisites",
+    "query": "query SegmentAuthoritativePrerequisites($name0: String!) {\n  count: segmentsCount(limit: 6000) { count precision }\n  name0: segments(first: 101, query: $name0) {\n    nodes { id name query creationDate lastEditDate }\n    pageInfo { hasNextPage }\n  }\n}",
+    "variables": {
+      "name0": "name:\"Authoritative Segment segmentauthoritativemrt7eklfczwy3a\""
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "count": {
+            "count": 1,
+            "precision": "EXACT"
+          },
+          "name0": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Segment/653780189490",
+                "name": "Authoritative Segment segmentauthoritativemrt7eklfczwy3a",
+                "query": "customer_tags CONTAINS 'segmentauthoritativemrt7eklfczwy3a'",
+                "creationDate": "2026-07-20T12:31:29Z",
+                "lastEditDate": "2026-07-20T12:31:29Z"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 21,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "liveNameCreate": {
+    "operationName": "SegmentAuthoritativeNameCreate",
+    "query": "mutation SegmentAuthoritativeNameCreate($name: String!, $query: String!) {\n  segmentCreate(name: $name, query: $query) {\n    segment {\n      id\n      name\n      query\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "name": "Authoritative Segment segmentauthoritativemrt7eklfczwy3a",
+      "query": "customer_tags CONTAINS 'segmentauthoritativemrt7eklfczwy3a-duplicate'"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "segmentCreate": {
+            "segment": {
+              "id": "gid://shopify/Segment/653780255026",
+              "name": "Authoritative Segment segmentauthoritativemrt7eklfczwy3a (2)",
+              "query": "customer_tags CONTAINS 'segmentauthoritativemrt7eklfczwy3a-duplicate'"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "validSegmentHydrate": {
+    "operationName": "SegmentMutationTargetHydrate",
+    "query": "query SegmentMutationTargetHydrate($id: ID!) {\n  segment(id: $id) {\n    id\n    name\n    query\n    creationDate\n    lastEditDate\n  }\n}",
+    "variables": {
+      "id": "gid://shopify/Segment/653780189490"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "segment": {
+            "id": "gid://shopify/Segment/653780189490",
+            "name": "Authoritative Segment segmentauthoritativemrt7eklfczwy3a",
+            "query": "customer_tags CONTAINS 'segmentauthoritativemrt7eklfczwy3a'",
+            "creationDate": "2026-07-20T12:31:29Z",
+            "lastEditDate": "2026-07-20T12:31:29Z"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "liveValidJobCreate": {
+    "operationName": "CustomerSegmentMembersQueryAuthoritativeSegmentId",
+    "query": "mutation CustomerSegmentMembersQueryAuthoritativeSegmentId($input: CustomerSegmentMembersQueryInput!) {\n  customerSegmentMembersQueryCreate(input: $input) {\n    customerSegmentMembersQuery {\n      id\n      currentCount\n      done\n    }\n    userErrors {\n      field\n      code\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "input": {
+        "segmentId": "gid://shopify/Segment/653780189490"
+      }
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "customerSegmentMembersQueryCreate": {
+            "customerSegmentMembersQuery": {
+              "id": "gid://shopify/CustomerSegmentMembersQuery/f2108659-8436-11f1-ac34-8afb0729093c",
+              "currentCount": 0,
+              "done": false
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "invalidSegmentHydrate": {
+    "operationName": "SegmentMutationTargetHydrate",
+    "query": "query SegmentMutationTargetHydrate($id: ID!) {\n  segment(id: $id) {\n    id\n    name\n    query\n    creationDate\n    lastEditDate\n  }\n}",
+    "variables": {
+      "id": "gid://shopify/Segment/9999991784550689475"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "errors": [
+          {
+            "message": "Segment does not exist",
+            "locations": [
+              {
+                "line": 2,
+                "column": 3
+              }
+            ],
+            "extensions": {
+              "code": "NOT_FOUND"
+            },
+            "path": ["segment"]
+          }
+        ],
+        "data": {
+          "segment": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "liveInvalidJobCreate": {
+    "operationName": "CustomerSegmentMembersQueryAuthoritativeSegmentId",
+    "query": "mutation CustomerSegmentMembersQueryAuthoritativeSegmentId($input: CustomerSegmentMembersQueryInput!) {\n  customerSegmentMembersQueryCreate(input: $input) {\n    customerSegmentMembersQuery {\n      id\n      currentCount\n      done\n    }\n    userErrors {\n      field\n      code\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "input": {
+        "segmentId": "gid://shopify/Segment/9999991784550689475"
+      }
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "customerSegmentMembersQueryCreate": {
+            "customerSegmentMembersQuery": null,
+            "userErrors": [
+              {
+                "field": null,
+                "code": "INVALID",
+                "message": "Invalid segment ID."
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "memberJobHydrate": {
+    "operationName": "CustomerSegmentMembersQueryHydrate",
+    "query": "query CustomerSegmentMembersQueryHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on CustomerSegmentMembersQuery {\n      id\n      currentCount\n      done\n    }\n  }\n}",
+    "variables": {
+      "ids": ["gid://shopify/CustomerSegmentMembersQuery/f2108659-8436-11f1-ac34-8afb0729093c"]
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "nodes": [
+            {
+              "id": "gid://shopify/CustomerSegmentMembersQuery/f2108659-8436-11f1-ac34-8afb0729093c",
+              "currentCount": 0,
+              "done": false
+            }
+          ]
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "liveJobPoll": {
+    "operationName": "CustomerSegmentMembersQueryAuthoritativePoll",
+    "query": "query CustomerSegmentMembersQueryAuthoritativePoll($id: ID!) {\n  customerSegmentMembersQuery(id: $id) {\n    id\n    currentCount\n    done\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/CustomerSegmentMembersQuery/f2108659-8436-11f1-ac34-8afb0729093c"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "customerSegmentMembersQuery": {
+            "id": "gid://shopify/CustomerSegmentMembersQuery/f2108659-8436-11f1-ac34-8afb0729093c",
+            "currentCount": 0,
+            "done": false
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "duplicate": {
+      "query": "#graphql\nmutation SegmentAuthoritativePrerequisitesCleanup($id: ID!) {\n  segmentDelete(id: $id) {\n    deletedSegmentId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Segment/653780255026"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "segmentDelete": {
+              "deletedSegmentId": "gid://shopify/Segment/653780255026",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "persisted": {
+      "query": "#graphql\nmutation SegmentAuthoritativePrerequisitesCleanup($id: ID!) {\n  segmentDelete(id: $id) {\n    deletedSegmentId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Segment/653780189490"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "segmentDelete": {
+              "deletedSegmentId": "gid://shopify/Segment/653780189490",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "method": "POST",
+      "path": "/admin/api/2025-01/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "operationName": "SegmentAuthoritativePrerequisites",
+      "variables": {
+        "name0": "name:\"Authoritative Segment segmentauthoritativemrt7eklfczwy3a\""
+      },
+      "query": "query SegmentAuthoritativePrerequisites($name0: String!) {\n  count: segmentsCount(limit: 6000) { count precision }\n  name0: segments(first: 101, query: $name0) {\n    nodes { id name query creationDate lastEditDate }\n    pageInfo { hasNextPage }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "count": {
+              "count": 1,
+              "precision": "EXACT"
+            },
+            "name0": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Segment/653780189490",
+                  "name": "Authoritative Segment segmentauthoritativemrt7eklfczwy3a",
+                  "query": "customer_tags CONTAINS 'segmentauthoritativemrt7eklfczwy3a'",
+                  "creationDate": "2026-07-20T12:31:29Z",
+                  "lastEditDate": "2026-07-20T12:31:29Z"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 21,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2025-01/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "operationName": "SegmentMutationTargetHydrate",
+      "variables": {
+        "id": "gid://shopify/Segment/653780189490"
+      },
+      "query": "query SegmentMutationTargetHydrate($id: ID!) {\n  segment(id: $id) {\n    id\n    name\n    query\n    creationDate\n    lastEditDate\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "segment": {
+              "id": "gid://shopify/Segment/653780189490",
+              "name": "Authoritative Segment segmentauthoritativemrt7eklfczwy3a",
+              "query": "customer_tags CONTAINS 'segmentauthoritativemrt7eklfczwy3a'",
+              "creationDate": "2026-07-20T12:31:29Z",
+              "lastEditDate": "2026-07-20T12:31:29Z"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2025-01/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "operationName": "SegmentMutationTargetHydrate",
+      "variables": {
+        "id": "gid://shopify/Segment/9999991784550689475"
+      },
+      "query": "query SegmentMutationTargetHydrate($id: ID!) {\n  segment(id: $id) {\n    id\n    name\n    query\n    creationDate\n    lastEditDate\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Segment does not exist",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "NOT_FOUND"
+              },
+              "path": ["segment"]
+            }
+          ],
+          "data": {
+            "segment": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2025-01/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "operationName": "CustomerSegmentMembersQueryHydrate",
+      "variables": {
+        "ids": ["gid://shopify/CustomerSegmentMembersQuery/f2108659-8436-11f1-ac34-8afb0729093c"]
+      },
+      "query": "query CustomerSegmentMembersQueryHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on CustomerSegmentMembersQuery {\n      id\n      currentCount\n      done\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CustomerSegmentMembersQuery/f2108659-8436-11f1-ac34-8afb0729093c",
+                "currentCount": 0,
+                "done": false
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": [
+    "Live Shopify evidence for a cold persisted-name segmentCreate collision, valid and invalid cold segmentId member-query jobs, and cold persisted member-job polling.",
+    "Every upstreamCalls entry is the exact query-only GraphQL document and variables sent to Shopify by this registered capture script."
+  ]
+}

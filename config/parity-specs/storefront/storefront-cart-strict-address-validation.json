@@ -1,0 +1,318 @@
+{
+  "scenarioId": "storefront-cart-strict-address-validation",
+  "operationNames": ["cartCreate", "cartDeliveryAddressesAdd"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "local-staging-no-upstream-write"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/storefront/storefront-cart-strict-address-validation.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/storefront.rs"],
+  "proxyRequest": {
+    "apiSurface": "storefront",
+    "documentPath": "config/parity-requests/storefront/storefront-cart-strict-address-create.graphql",
+    "operationName": "StorefrontCartStrictAddressCreate",
+    "variablesCapturePath": "$.strictAddressCartCreate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "targets": [
+      {
+        "name": "strict-address-cart-create",
+        "capturePath": "$.strictAddressCartCreate.response.body.data.cartCreate.userErrors",
+        "proxyPath": "$.data.cartCreate.userErrors"
+      },
+      {
+        "name": "strict-australian-address-cart-create",
+        "capturePath": "$.strictAustralianAddressCartCreate.response.body.data.cartCreate.userErrors",
+        "proxyPath": "$.data.cartCreate.userErrors",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-strict-address-create.graphql",
+          "operationName": "StorefrontCartStrictAddressCreate",
+          "variablesCapturePath": "$.strictAustralianAddressCartCreate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "strict-country-requirements-matrix-01",
+        "capturePath": "$.strictCountryRequirementsMatrix01.response.body.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyPath": "$.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-strict-address-add.graphql",
+          "operationName": "StorefrontCartStrictAddressAdd",
+          "variables": {
+            "cartId": { "fromPrimaryProxyPath": "$.data.cartCreate.cart.id" },
+            "addresses": { "fromCapturePath": "$.strictCountryRequirementsMatrix01.variables.addresses" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "strict-country-requirements-matrix-02",
+        "capturePath": "$.strictCountryRequirementsMatrix02.response.body.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyPath": "$.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-strict-address-add.graphql",
+          "operationName": "StorefrontCartStrictAddressAdd",
+          "variables": {
+            "cartId": { "fromPrimaryProxyPath": "$.data.cartCreate.cart.id" },
+            "addresses": { "fromCapturePath": "$.strictCountryRequirementsMatrix02.variables.addresses" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "strict-country-requirements-matrix-03",
+        "capturePath": "$.strictCountryRequirementsMatrix03.response.body.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyPath": "$.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-strict-address-add.graphql",
+          "operationName": "StorefrontCartStrictAddressAdd",
+          "variables": {
+            "cartId": { "fromPrimaryProxyPath": "$.data.cartCreate.cart.id" },
+            "addresses": { "fromCapturePath": "$.strictCountryRequirementsMatrix03.variables.addresses" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "strict-country-requirements-matrix-04",
+        "capturePath": "$.strictCountryRequirementsMatrix04.response.body.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyPath": "$.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-strict-address-add.graphql",
+          "operationName": "StorefrontCartStrictAddressAdd",
+          "variables": {
+            "cartId": { "fromPrimaryProxyPath": "$.data.cartCreate.cart.id" },
+            "addresses": { "fromCapturePath": "$.strictCountryRequirementsMatrix04.variables.addresses" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "strict-country-requirements-matrix-05",
+        "capturePath": "$.strictCountryRequirementsMatrix05.response.body.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyPath": "$.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-strict-address-add.graphql",
+          "operationName": "StorefrontCartStrictAddressAdd",
+          "variables": {
+            "cartId": { "fromPrimaryProxyPath": "$.data.cartCreate.cart.id" },
+            "addresses": { "fromCapturePath": "$.strictCountryRequirementsMatrix05.variables.addresses" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "strict-country-requirements-matrix-06",
+        "capturePath": "$.strictCountryRequirementsMatrix06.response.body.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyPath": "$.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-strict-address-add.graphql",
+          "operationName": "StorefrontCartStrictAddressAdd",
+          "variables": {
+            "cartId": { "fromPrimaryProxyPath": "$.data.cartCreate.cart.id" },
+            "addresses": { "fromCapturePath": "$.strictCountryRequirementsMatrix06.variables.addresses" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "strict-country-requirements-matrix-07",
+        "capturePath": "$.strictCountryRequirementsMatrix07.response.body.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyPath": "$.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-strict-address-add.graphql",
+          "operationName": "StorefrontCartStrictAddressAdd",
+          "variables": {
+            "cartId": { "fromPrimaryProxyPath": "$.data.cartCreate.cart.id" },
+            "addresses": { "fromCapturePath": "$.strictCountryRequirementsMatrix07.variables.addresses" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "strict-country-requirements-matrix-08",
+        "capturePath": "$.strictCountryRequirementsMatrix08.response.body.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyPath": "$.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-strict-address-add.graphql",
+          "operationName": "StorefrontCartStrictAddressAdd",
+          "variables": {
+            "cartId": { "fromPrimaryProxyPath": "$.data.cartCreate.cart.id" },
+            "addresses": { "fromCapturePath": "$.strictCountryRequirementsMatrix08.variables.addresses" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "strict-country-requirements-matrix-09",
+        "capturePath": "$.strictCountryRequirementsMatrix09.response.body.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyPath": "$.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-strict-address-add.graphql",
+          "operationName": "StorefrontCartStrictAddressAdd",
+          "variables": {
+            "cartId": { "fromPrimaryProxyPath": "$.data.cartCreate.cart.id" },
+            "addresses": { "fromCapturePath": "$.strictCountryRequirementsMatrix09.variables.addresses" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "strict-country-requirements-matrix-10",
+        "capturePath": "$.strictCountryRequirementsMatrix10.response.body.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyPath": "$.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-strict-address-add.graphql",
+          "operationName": "StorefrontCartStrictAddressAdd",
+          "variables": {
+            "cartId": { "fromPrimaryProxyPath": "$.data.cartCreate.cart.id" },
+            "addresses": { "fromCapturePath": "$.strictCountryRequirementsMatrix10.variables.addresses" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "strict-country-requirements-matrix-11",
+        "capturePath": "$.strictCountryRequirementsMatrix11.response.body.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyPath": "$.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-strict-address-add.graphql",
+          "operationName": "StorefrontCartStrictAddressAdd",
+          "variables": {
+            "cartId": { "fromPrimaryProxyPath": "$.data.cartCreate.cart.id" },
+            "addresses": { "fromCapturePath": "$.strictCountryRequirementsMatrix11.variables.addresses" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "strict-country-requirements-matrix-12",
+        "capturePath": "$.strictCountryRequirementsMatrix12.response.body.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyPath": "$.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-strict-address-add.graphql",
+          "operationName": "StorefrontCartStrictAddressAdd",
+          "variables": {
+            "cartId": { "fromPrimaryProxyPath": "$.data.cartCreate.cart.id" },
+            "addresses": { "fromCapturePath": "$.strictCountryRequirementsMatrix12.variables.addresses" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "strict-country-requirements-matrix-13",
+        "capturePath": "$.strictCountryRequirementsMatrix13.response.body.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyPath": "$.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-strict-address-add.graphql",
+          "operationName": "StorefrontCartStrictAddressAdd",
+          "variables": {
+            "cartId": { "fromPrimaryProxyPath": "$.data.cartCreate.cart.id" },
+            "addresses": { "fromCapturePath": "$.strictCountryRequirementsMatrix13.variables.addresses" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "strict-australia-required-fields-order",
+        "capturePath": "$.strictAustraliaRequiredFields.response.body.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyPath": "$.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-strict-address-add.graphql",
+          "operationName": "StorefrontCartStrictAddressAdd",
+          "variables": {
+            "cartId": {
+              "fromProxyResponse": "strict-australian-address-cart-create",
+              "path": "$.data.cartCreate.cart.id"
+            },
+            "addresses": { "fromCapturePath": "$.strictAustraliaRequiredFields.variables.addresses" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "strict-australia-postal-zone-normalizations",
+        "capturePath": "$.strictAustraliaPostalZoneNormalizations.response.body.data.cartDeliveryAddressesAdd.cart.delivery.addresses",
+        "proxyPath": "$.data.cartDeliveryAddressesAdd.cart.delivery.addresses",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-strict-address-add.graphql",
+          "operationName": "StorefrontCartStrictAddressAdd",
+          "variables": {
+            "cartId": {
+              "fromProxyResponse": "strict-australian-address-cart-create",
+              "path": "$.data.cartCreate.cart.id"
+            },
+            "addresses": { "fromCapturePath": "$.strictAustraliaPostalZoneNormalizations.variables.addresses" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "strict-emirates-no-postal-required-fields-order",
+        "capturePath": "$.strictEmiratesRequiredFields.response.body.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyPath": "$.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-strict-address-add.graphql",
+          "operationName": "StorefrontCartStrictAddressAdd",
+          "variables": {
+            "cartId": { "fromPrimaryProxyPath": "$.data.cartCreate.cart.id" },
+            "addresses": { "fromCapturePath": "$.strictEmiratesRequiredFields.variables.addresses" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "strict-emirates-invalid-zone",
+        "capturePath": "$.strictEmiratesInvalidZone.response.body.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyPath": "$.data.cartDeliveryAddressesAdd.userErrors",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-strict-address-add.graphql",
+          "operationName": "StorefrontCartStrictAddressAdd",
+          "variables": {
+            "cartId": { "fromPrimaryProxyPath": "$.data.cartCreate.cart.id" },
+            "addresses": { "fromCapturePath": "$.strictEmiratesInvalidZone.variables.addresses" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "strict-emirates-valid-zone-catalog-without-postal",
+        "capturePath": "$.strictEmiratesValidZoneCatalogWithoutPostal.response.body.data.cartDeliveryAddressesAdd.cart.delivery.addresses",
+        "proxyPath": "$.data.cartDeliveryAddressesAdd.cart.delivery.addresses",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-strict-address-add.graphql",
+          "operationName": "StorefrontCartStrictAddressAdd",
+          "variables": {
+            "cartId": { "fromPrimaryProxyPath": "$.data.cartCreate.cart.id" },
+            "addresses": { "fromCapturePath": "$.strictEmiratesValidZoneCatalogWithoutPostal.variables.addresses" }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ],
+    "expectedDifferences": []
+  },
+  "notes": "Captured Storefront API 2026-04 STRICT cart delivery-address requirements across every CountryCode, plus Australian postal-driven zone normalization and United Arab Emirates no-postal and zone-validation branches."
+}

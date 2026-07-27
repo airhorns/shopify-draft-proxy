@@ -1,0 +1,620 @@
+{
+  "capturedAt": "2026-07-19T16:54:24.863Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "notes": [
+    "Live Shopify evidence for mutation-first savedSearchUpdate and savedSearchDelete against arbitrary persisted PRODUCT saved searches plus an ID-specific missing target.",
+    "The existing update changes only name and proves Shopify preserves the target query, search terms, filters, resource type, and identity. Node/list reads capture downstream update and delete materialization.",
+    "Persistent disposable targets are restored/recreated during cleanup so parity cassette recording can hydrate real targets without runtime Shopify writes."
+  ],
+  "updateExisting": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-mutation-first-update.graphql",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/SavedSearch/4088490230066",
+        "name": "Mutation hydration updated"
+      }
+    },
+    "response": {
+      "data": {
+        "savedSearchUpdate": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4088490230066",
+            "legacyResourceId": "4088490230066",
+            "name": "Mutation hydration updated",
+            "query": "tag:hydrationupdate",
+            "resourceType": "PRODUCT",
+            "searchTerms": "",
+            "filters": [
+              {
+                "key": "tag",
+                "value": "hydrationupdate"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "nodeAfterUpdate": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-mutation-first-node-read.graphql",
+    "variables": {
+      "id": "gid://shopify/SavedSearch/4088490230066"
+    },
+    "response": {
+      "data": {
+        "node": {
+          "id": "gid://shopify/SavedSearch/4088490230066",
+          "legacyResourceId": "4088490230066",
+          "name": "Mutation hydration updated",
+          "query": "tag:hydrationupdate",
+          "resourceType": "PRODUCT",
+          "searchTerms": "",
+          "filters": [
+            {
+              "key": "tag",
+              "value": "hydrationupdate"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 2,
+          "actualQueryCost": 2,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1998,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "listAfterUpdate": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-mutation-first-list-read.graphql",
+    "variables": {},
+    "response": {
+      "data": {
+        "productSavedSearches": {
+          "nodes": [
+            {
+              "id": "gid://shopify/SavedSearch/4088490230066",
+              "legacyResourceId": "4088490230066",
+              "name": "Mutation hydration updated",
+              "query": "tag:hydrationupdate",
+              "resourceType": "PRODUCT",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "tag",
+                  "value": "hydrationupdate"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/4088493375794",
+              "legacyResourceId": "4088493375794",
+              "name": "Mutation hydration delete",
+              "query": "tag:hydrationdelete",
+              "resourceType": "PRODUCT",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "tag",
+                  "value": "hydrationdelete"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 24,
+          "actualQueryCost": 2,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1998,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "deleteExisting": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-mutation-first-delete.graphql",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/SavedSearch/4088493375794"
+      }
+    },
+    "response": {
+      "data": {
+        "savedSearchDelete": {
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/4088493375794",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "nodeAfterDelete": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-mutation-first-node-read.graphql",
+    "variables": {
+      "id": "gid://shopify/SavedSearch/4088493375794"
+    },
+    "response": {
+      "data": {
+        "node": null
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 2,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1999,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "listAfterDelete": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-mutation-first-list-read.graphql",
+    "variables": {},
+    "response": {
+      "data": {
+        "productSavedSearches": {
+          "nodes": [
+            {
+              "id": "gid://shopify/SavedSearch/4088490230066",
+              "legacyResourceId": "4088490230066",
+              "name": "Mutation hydration updated",
+              "query": "tag:hydrationupdate",
+              "resourceType": "PRODUCT",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "tag",
+                  "value": "hydrationupdate"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 24,
+          "actualQueryCost": 2,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1998,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "updateMissing": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-mutation-first-update.graphql",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/SavedSearch/1784480063884999",
+        "name": "Missing mutation target"
+      }
+    },
+    "response": {
+      "data": {
+        "savedSearchUpdate": {
+          "savedSearch": null,
+          "userErrors": [
+            {
+              "field": ["input", "id"],
+              "message": "Saved Search does not exist"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "deleteMissing": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-mutation-first-delete.graphql",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/SavedSearch/1784480063884999"
+      }
+    },
+    "response": {
+      "data": {
+        "savedSearchDelete": {
+          "deletedSavedSearchId": null,
+          "userErrors": [
+            {
+              "field": ["input", "id"],
+              "message": "Saved Search does not exist"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "SavedSearchMutationTargetHydrate",
+      "variables": {
+        "id": "gid://shopify/SavedSearch/4088490230066"
+      },
+      "query": "query SavedSearchMutationTargetHydrate($id: ID!) {\n  node(id: $id) {\n    __typename\n    ... on SavedSearch {\n      id\n      legacyResourceId\n      name\n      query\n      resourceType\n      searchTerms\n      filters {\n        key\n        value\n      }\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "node": {
+              "__typename": "SavedSearch",
+              "id": "gid://shopify/SavedSearch/4088490230066",
+              "legacyResourceId": "4088490230066",
+              "name": "Mutation hydration update",
+              "query": "tag:hydrationupdate",
+              "resourceType": "PRODUCT",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "tag",
+                  "value": "hydrationupdate"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "SavedSearchConnectionBaseline",
+      "variables": {
+        "first": 250,
+        "after": null
+      },
+      "query": "query SavedSearchConnectionBaseline($first: Int!, $after: String) {\n  savedSearchBaseline: productSavedSearches(first: $first, after: $after) {\n    edges { cursor node { id name query resourceType } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "savedSearchBaseline": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0MDg4NDkwMjMwMDY2LCJsYXN0X3ZhbHVlIjoiNDA4ODQ5MDIzMDA2NiJ9",
+                  "node": {
+                    "id": "gid://shopify/SavedSearch/4088490230066",
+                    "name": "Mutation hydration update",
+                    "query": "tag:hydrationupdate",
+                    "resourceType": "PRODUCT"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0MDg4NTEzMDAzODI2LCJsYXN0X3ZhbHVlIjoiNDA4ODUxMzAwMzgyNiJ9",
+                  "node": {
+                    "id": "gid://shopify/SavedSearch/4088513003826",
+                    "name": "Mutation hydration delete",
+                    "query": "tag:hydrationdelete",
+                    "resourceType": "PRODUCT"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo0MDg4NDkwMjMwMDY2LCJsYXN0X3ZhbHVlIjoiNDA4ODQ5MDIzMDA2NiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo0MDg4NTEzMDAzODI2LCJsYXN0X3ZhbHVlIjoiNDA4ODUxMzAwMzgyNiJ9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "SavedSearchMutationTargetHydrate",
+      "variables": {
+        "id": "gid://shopify/SavedSearch/4088513003826"
+      },
+      "query": "query SavedSearchMutationTargetHydrate($id: ID!) {\n  node(id: $id) {\n    __typename\n    ... on SavedSearch {\n      id\n      legacyResourceId\n      name\n      query\n      resourceType\n      searchTerms\n      filters {\n        key\n        value\n      }\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "node": {
+              "__typename": "SavedSearch",
+              "id": "gid://shopify/SavedSearch/4088513003826",
+              "legacyResourceId": "4088513003826",
+              "name": "Mutation hydration delete",
+              "query": "tag:hydrationdelete",
+              "resourceType": "PRODUCT",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "tag",
+                  "value": "hydrationdelete"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "SavedSearchConnectionBaseline",
+      "variables": {
+        "first": 250,
+        "after": null
+      },
+      "query": "query SavedSearchConnectionBaseline($first: Int!, $after: String) {\n  savedSearchBaseline: productSavedSearches(first: $first, after: $after) {\n    edges { cursor node { id name query resourceType } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "savedSearchBaseline": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0MDg4NDkwMjMwMDY2LCJsYXN0X3ZhbHVlIjoiNDA4ODQ5MDIzMDA2NiJ9",
+                  "node": {
+                    "id": "gid://shopify/SavedSearch/4088490230066",
+                    "name": "Mutation hydration update",
+                    "query": "tag:hydrationupdate",
+                    "resourceType": "PRODUCT"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0MDg4NTEzMDAzODI2LCJsYXN0X3ZhbHVlIjoiNDA4ODUxMzAwMzgyNiJ9",
+                  "node": {
+                    "id": "gid://shopify/SavedSearch/4088513003826",
+                    "name": "Mutation hydration delete",
+                    "query": "tag:hydrationdelete",
+                    "resourceType": "PRODUCT"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo0MDg4NDkwMjMwMDY2LCJsYXN0X3ZhbHVlIjoiNDA4ODQ5MDIzMDA2NiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo0MDg4NTEzMDAzODI2LCJsYXN0X3ZhbHVlIjoiNDA4ODUxMzAwMzgyNiJ9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "SavedSearchMutationTargetHydrate",
+      "variables": {
+        "id": "gid://shopify/SavedSearch/1784480063884999"
+      },
+      "query": "query SavedSearchMutationTargetHydrate($id: ID!) {\n  node(id: $id) {\n    __typename\n    ... on SavedSearch {\n      id\n      legacyResourceId\n      name\n      query\n      resourceType\n      searchTerms\n      filters {\n        key\n        value\n      }\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "node": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "SavedSearchMutationTargetHydrate",
+      "variables": {
+        "id": "gid://shopify/SavedSearch/1784480063884999"
+      },
+      "query": "query SavedSearchMutationTargetHydrate($id: ID!) {\n  node(id: $id) {\n    __typename\n    ... on SavedSearch {\n      id\n      legacyResourceId\n      name\n      query\n      resourceType\n      searchTerms\n      filters {\n        key\n        value\n      }\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "node": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": {
+    "restoreUpdate": {
+      "data": {
+        "savedSearchUpdate": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4088490230066",
+            "legacyResourceId": "4088490230066",
+            "name": "Mutation hydration update",
+            "query": "tag:hydrationupdate",
+            "resourceType": "PRODUCT",
+            "searchTerms": "",
+            "filters": [
+              {
+                "key": "tag",
+                "value": "hydrationupdate"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "recreateDelete": {
+      "data": {
+        "savedSearchCreate": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4088513003826",
+            "legacyResourceId": "4088513003826",
+            "name": "Mutation hydration delete",
+            "query": "tag:hydrationdelete",
+            "resourceType": "PRODUCT",
+            "searchTerms": "",
+            "filters": [
+              {
+                "key": "tag",
+                "value": "hydrationdelete"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

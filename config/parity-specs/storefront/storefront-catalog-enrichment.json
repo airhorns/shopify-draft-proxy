@@ -826,7 +826,7 @@
         ]
       },
       {
-        "name": "storefront-enrichment-country-language-context-whole-payload",
+        "name": "storefront-enrichment-eur-country-language-context-whole-payload",
         "capturePath": "$.setup.countryContextRead.response.body.data",
         "proxyPath": "$.data",
         "proxyRequest": {
