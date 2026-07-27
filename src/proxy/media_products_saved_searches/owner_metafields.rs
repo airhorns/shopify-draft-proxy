@@ -2705,11 +2705,16 @@ mod tests {
                 .into_iter()
                 .map(|(resource_type, index)| {
                     let value = format!("before-{resource_type}");
+                    let submitted_value = if stale_market_digest && resource_type == "Market" {
+                        format!("after-{resource_type}")
+                    } else {
+                        value
+                    };
                     json!({
                         "ownerId": shopify_gid(resource_type, index),
                         "namespace": "custom",
                         "key": "owner_state",
-                        "value": value,
+                        "value": submitted_value,
                         "compareDigest": if stale_market_digest && resource_type == "Market" {
                             "stale-digest".to_string()
                         } else {
