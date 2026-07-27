@@ -28,7 +28,9 @@ The Python package under `python/` is also a thin embedding surface: it builds a
    - interpret the mutation into a domain command
    - apply the command to local staged state
    - synthesize a Shopify-like response
-   - append a replay-ready entry to the mutation log
+   - append a replay-ready entry only when the domain handler reports an
+     effective staged transition; validation-only failures and successful
+     no-stage no-ops do not enter commit replay
 2. **unsupported mutation**
    - proxy through to Shopify unchanged when `unsupportedMutationMode` is `passthrough`
    - reject with a 400 GraphQL error envelope before upstream transport when `unsupportedMutationMode` is `reject`

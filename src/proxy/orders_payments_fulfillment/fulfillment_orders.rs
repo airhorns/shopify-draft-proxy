@@ -8,6 +8,13 @@ struct FulfillmentOrderMutationContext<'a> {
     arguments: &'a BTreeMap<String, ResolvedValue>,
 }
 
+#[derive(Clone)]
+struct ResolvedFulfillmentCreateGroup {
+    fulfillment_order: Value,
+    order: Value,
+    order_id: String,
+}
+
 fn fulfillment_order_action_values(actions: &[&str]) -> Value {
     Value::Array(
         actions
@@ -382,6 +389,31 @@ pub(in crate::proxy) fn fulfillment_group_line_items(
         .collect()
 }
 
+pub(in crate::proxy) fn combined_fulfillment_group_line_items(
+    order: &Value,
+    groups: &[BTreeMap<String, ResolvedValue>],
+) -> Vec<Value> {
+    let mut combined = Vec::<Value>::new();
+    for line in groups
+        .iter()
+        .flat_map(|group| fulfillment_group_line_items(order, group))
+    {
+        let line_item_id = line["lineItem"]["id"].as_str();
+        if let Some(existing) = line_item_id.and_then(|line_item_id| {
+            combined
+                .iter_mut()
+                .find(|existing| existing["lineItem"]["id"].as_str() == Some(line_item_id))
+        }) {
+            existing["quantity"] = json!(
+                existing["quantity"].as_i64().unwrap_or(0) + line["quantity"].as_i64().unwrap_or(0)
+            );
+        } else {
+            combined.push(line);
+        }
+    }
+    combined
+}
+
 pub(in crate::proxy) fn fulfillment_create_closed_order_error(fulfillment_order_id: &str) -> Value {
     user_error_omit_code(
         ["fulfillment"],
@@ -397,6 +429,14 @@ pub(in crate::proxy) fn fulfillment_create_invalid_quantity_error() -> Value {
     user_error_omit_code(
         ["fulfillment"],
         "Invalid fulfillment order line item quantity requested.",
+        None,
+    )
+}
+
+pub(in crate::proxy) fn fulfillment_create_missing_line_item_error() -> Value {
+    user_error_omit_code(
+        ["fulfillment"],
+        "Fulfillment order line item does not exist.",
         None,
     )
 }
@@ -417,6 +457,74 @@ pub(in crate::proxy) fn fulfillment_create_non_positive_quantity_error(
         "Quantity must be greater than 0",
         None,
     )
+}
+
+pub(in crate::proxy) fn fulfillment_create_non_positive_quantity_precondition(
+    groups: &[BTreeMap<String, ResolvedValue>],
+) -> Option<Value> {
+    for (group_index, group) in groups.iter().enumerate() {
+        for (line_index, requested) in
+            resolved_object_list_field(group, "fulfillmentOrderLineItems")
+                .iter()
+                .enumerate()
+        {
+            if resolved_int_field(requested, "quantity").unwrap_or(0) <= 0 {
+                return Some(fulfillment_create_non_positive_quantity_error(
+                    group_index,
+                    line_index,
+                ));
+            }
+        }
+    }
+    None
+}
+
+fn unique_resource_id_tails<'a>(ids: impl IntoIterator<Item = &'a str>) -> Vec<String> {
+    let mut unique = Vec::new();
+    for id in ids {
+        let tail = resource_id_tail(id);
+        if !unique.iter().any(|existing| existing == tail) {
+            unique.push(tail.to_string());
+        }
+    }
+    unique.sort_unstable_by(|left, right| {
+        left.parse::<u128>()
+            .ok()
+            .zip(right.parse::<u128>().ok())
+            .map_or_else(|| left.cmp(right), |(left, right)| left.cmp(&right))
+    });
+    unique
+}
+
+fn fulfillment_create_group_relationship_error(
+    groups: &[ResolvedFulfillmentCreateGroup],
+) -> Option<Value> {
+    let order_ids = unique_resource_id_tails(groups.iter().map(|group| group.order_id.as_str()));
+    if order_ids.len() > 1 {
+        return Some(user_error_omit_code(
+            ["fulfillment"],
+            &format!(
+                "All fulfillment orders must belong to the same order. Multiple orders with ids [{}] were found.",
+                order_ids.join(", ")
+            ),
+            None,
+        ));
+    }
+
+    let location_ids = unique_resource_id_tails(groups.iter().filter_map(|group| {
+        group.fulfillment_order["assignedLocation"]["location"]["id"].as_str()
+    }));
+    if location_ids.len() > 1 {
+        return Some(user_error_omit_code(
+            ["fulfillment"],
+            &format!(
+                "All fulfillment orders must be assigned to a single location. Multiple locations with ids [{}] were found.",
+                location_ids.join(", ")
+            ),
+            None,
+        ));
+    }
+    None
 }
 
 pub(in crate::proxy) fn fulfillment_create_precondition_error(
@@ -453,7 +561,7 @@ pub(in crate::proxy) fn fulfillment_create_precondition_error(
                 .iter()
                 .find(|line| line["id"].as_str() == Some(requested_id.as_str()))
             else {
-                return Some(fulfillment_create_invalid_quantity_error());
+                return Some(fulfillment_create_missing_line_item_error());
             };
             let remaining = line["remainingQuantity"].as_i64().unwrap_or(0);
             if requested_quantity <= 0 {
@@ -1007,7 +1115,38 @@ impl DraftProxy {
         user_error(field, message, Some(code))
     }
 
+    fn stage_fulfillment_order_batch_transactionally(
+        &mut self,
+        stage: impl FnOnce(&mut Self) -> Value,
+    ) -> Value {
+        let mut transaction = self.clone();
+        let payload = stage(&mut transaction);
+        let succeeded = payload
+            .get("userErrors")
+            .and_then(Value::as_array)
+            .is_some_and(Vec::is_empty);
+        if succeeded {
+            *self = transaction;
+        }
+        payload
+    }
+
     pub(super) fn stage_fulfillment_order_split(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_field: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        self.stage_fulfillment_order_batch_transactionally(|transaction| {
+            transaction.stage_fulfillment_order_split_transaction(
+                request, query, variables, root_field, arguments,
+            )
+        })
+    }
+
+    fn stage_fulfillment_order_split_transaction(
         &mut self,
         request: &Request,
         query: &str,
@@ -1213,7 +1352,28 @@ impl DraftProxy {
         root_field: &str,
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
+        self.stage_fulfillment_order_batch_transactionally(|transaction| {
+            transaction.stage_fulfillment_order_merge_transaction(
+                request, query, variables, root_field, arguments,
+            )
+        })
+    }
+
+    fn stage_fulfillment_order_merge_transaction(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_field: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
         let merge_inputs = resolved_object_list_field(arguments, "fulfillmentOrderMergeInputs");
+        let fulfillment_order_ids = merge_inputs
+            .iter()
+            .flat_map(|input| resolved_object_list_field(input, "mergeIntents"))
+            .filter_map(|intent| resolved_string_field(&intent, "fulfillmentOrderId"))
+            .collect::<Vec<_>>();
+        self.hydrate_orders_for_fulfillment_order_merge(&fulfillment_order_ids, request);
         let mut merge_results = Vec::new();
         let mut staged_ids = Vec::new();
         let assigned_location = self.default_fulfillment_assigned_location();
@@ -1225,7 +1385,7 @@ impl DraftProxy {
             };
             let target_id =
                 resolved_string_field(first_intent, "fulfillmentOrderId").unwrap_or_default();
-            let Some(order_id) = self.order_id_for_fulfillment_order(&target_id, request) else {
+            let Some(order_id) = self.staged_order_id_for_fulfillment_order(&target_id) else {
                 return self.fulfillment_order_not_found_payload(root_field);
             };
             let Some(mut order) = self.store.staged.orders.get(&order_id).cloned() else {
@@ -1481,6 +1641,104 @@ impl DraftProxy {
         })
     }
 
+    fn local_fulfillment_create_group(
+        &self,
+        fulfillment_order_id: &str,
+    ) -> Option<ResolvedFulfillmentCreateGroup> {
+        self.store.effective_orders().into_iter().find_map(|order| {
+            let order_id = order.get("id").and_then(Value::as_str)?.to_string();
+            let fulfillment_order = fulfillment_order_nodes(&order)?
+                .iter()
+                .find(|node| node["id"].as_str() == Some(fulfillment_order_id))?
+                .clone();
+            Some(ResolvedFulfillmentCreateGroup {
+                fulfillment_order,
+                order,
+                order_id,
+            })
+        })
+    }
+
+    fn hydrate_fulfillment_create_group_read_only(
+        &self,
+        fulfillment_order_id: &str,
+        request: &Request,
+    ) -> Option<ResolvedFulfillmentCreateGroup> {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return None;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": ORDERS_FULFILLMENT_ORDER_HYDRATE_QUERY,
+                "variables": { "id": fulfillment_order_id }
+            }),
+        );
+        if !response_is_success(&response) {
+            return None;
+        }
+        let fulfillment_order = response.body["data"]["fulfillmentOrder"].clone();
+        if !fulfillment_order.is_object() {
+            return None;
+        }
+        let order = fulfillment_order.get("order")?.clone();
+        let order_id = order.get("id").and_then(Value::as_str)?.to_string();
+        Some(ResolvedFulfillmentCreateGroup {
+            fulfillment_order,
+            order,
+            order_id,
+        })
+    }
+
+    fn resolve_fulfillment_create_group_read_only(
+        &self,
+        fulfillment_order_id: &str,
+        request: &Request,
+    ) -> Option<ResolvedFulfillmentCreateGroup> {
+        self.local_fulfillment_create_group(fulfillment_order_id)
+            .or_else(|| {
+                self.hydrate_fulfillment_create_group_read_only(fulfillment_order_id, request)
+            })
+    }
+
+    fn fulfillment_create_order_from_resolved_groups(
+        &self,
+        groups: &[ResolvedFulfillmentCreateGroup],
+    ) -> Option<Value> {
+        let order_id = groups.first()?.order_id.as_str();
+        let mut order = self
+            .store
+            .effective_orders()
+            .into_iter()
+            .find(|order| order["id"].as_str() == Some(order_id))
+            .or_else(|| {
+                groups
+                    .iter()
+                    .find(|group| group.order_id == order_id)
+                    .map(|group| group.order.clone())
+            })?;
+        normalize_hydrated_order(&mut order);
+        let assigned_location = self.default_fulfillment_assigned_location();
+        let nodes = fulfillment_order_nodes_mut(&mut order)?;
+        for group in groups {
+            let mut fulfillment_order = group.fulfillment_order.clone();
+            if let Some(object) = fulfillment_order.as_object_mut() {
+                object.remove("order");
+            }
+            normalize_fulfillment_order_record(&mut fulfillment_order, assigned_location.as_ref());
+            let fulfillment_order_id = fulfillment_order["id"].as_str()?;
+            if let Some(index) = nodes
+                .iter()
+                .position(|node| node["id"].as_str() == Some(fulfillment_order_id))
+            {
+                nodes[index] = fulfillment_order;
+            } else {
+                nodes.push(fulfillment_order);
+            }
+        }
+        Some(order)
+    }
+
     pub(super) fn staged_fulfillment_payload(
         &mut self,
         request: &Request,
@@ -1498,15 +1756,55 @@ impl DraftProxy {
                 "Line items by fulfillment order must be specified",
             );
         };
-        let Some(fulfillment_order_id) = resolved_string_field(first_group, "fulfillmentOrderId")
-        else {
+        if resolved_string_field(first_group, "fulfillmentOrderId").is_none() {
             return Self::staged_fulfillment_error_payload("Fulfillment order must be specified");
-        };
-        let Some(order_id) = self.order_id_for_fulfillment_order(&fulfillment_order_id, request)
+        }
+        if let Some(error) = fulfillment_create_non_positive_quantity_precondition(&groups) {
+            return json!({
+                "fulfillment": Value::Null,
+                "userErrors": [error]
+            });
+        }
+
+        let mut resolution_cache =
+            BTreeMap::<String, Option<ResolvedFulfillmentCreateGroup>>::new();
+        let mut resolved_groups = Vec::with_capacity(groups.len());
+        let mut missing_group = false;
+        for group in &groups {
+            let Some(fulfillment_order_id) = resolved_string_field(group, "fulfillmentOrderId")
+            else {
+                missing_group = true;
+                continue;
+            };
+            let resolved = if let Some(cached) = resolution_cache.get(&fulfillment_order_id) {
+                cached.clone()
+            } else {
+                let resolved =
+                    self.resolve_fulfillment_create_group_read_only(&fulfillment_order_id, request);
+                resolution_cache.insert(fulfillment_order_id, resolved.clone());
+                resolved
+            };
+            if let Some(resolved) = resolved {
+                resolved_groups.push(resolved);
+            } else {
+                missing_group = true;
+            }
+        }
+        if missing_group || resolved_groups.len() != groups.len() {
+            return Self::staged_fulfillment_not_found_payload();
+        }
+        if let Some(error) = fulfillment_create_group_relationship_error(&resolved_groups) {
+            return json!({
+                "fulfillment": Value::Null,
+                "userErrors": [error]
+            });
+        }
+        let Some(order_before) =
+            self.fulfillment_create_order_from_resolved_groups(&resolved_groups)
         else {
             return Self::staged_fulfillment_not_found_payload();
         };
-        let Some(order_before) = self.store.staged.orders.get(&order_id).cloned() else {
+        let Some(order_id) = order_before["id"].as_str().map(ToString::to_string) else {
             return Self::staged_fulfillment_not_found_payload();
         };
         if let Some(error) = fulfillment_create_precondition_error(&order_before, &groups) {
@@ -1520,10 +1818,7 @@ impl DraftProxy {
             .map(|tracking| fulfillment_tracking_info(&tracking))
             .unwrap_or_default();
         let fulfillment_id = self.next_proxy_synthetic_gid("Fulfillment");
-        let fulfillment_line_items = groups
-            .iter()
-            .flat_map(|group| fulfillment_group_line_items(&order_before, group))
-            .collect::<Vec<_>>();
+        let fulfillment_line_items = combined_fulfillment_group_line_items(&order_before, &groups);
         let fulfillment_sequence = order_before["fulfillments"]
             .as_array()
             .map_or(1, |fulfillments| fulfillments.len() + 1);
@@ -1547,13 +1842,7 @@ impl DraftProxy {
                 .collect::<Vec<_>>()
         });
 
-        let mut order = self
-            .store
-            .staged
-            .orders
-            .get(&order_id)
-            .cloned()
-            .unwrap_or(Value::Null);
+        let mut order = order_before;
         for group in groups {
             let group_id = resolved_string_field(&group, "fulfillmentOrderId").unwrap_or_default();
             let requested_line_items =

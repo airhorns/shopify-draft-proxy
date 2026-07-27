@@ -1,0 +1,22 @@
+query SegmentMutationFirstDeleteRead($id: ID!, $name: String!) {
+  detail: segment(id: $id) {
+    id
+    name
+    query
+    creationDate
+    lastEditDate
+  }
+  list: segments(first: 10, query: $name) {
+    nodes {
+      id
+      name
+      query
+      creationDate
+      lastEditDate
+    }
+  }
+  count: segmentsCount {
+    count
+    precision
+  }
+}

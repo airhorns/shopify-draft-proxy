@@ -1481,10 +1481,23 @@ fn metafields_delete_live_hybrid_staged_value_does_not_passthrough() {
     let mut proxy =
         configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
             captured_bodies.lock().unwrap().push(request.body.clone());
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            let nodes = body["variables"]["ids"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|id| {
+                    json!({
+                        "__typename": "Product",
+                        "id": id,
+                        "metafield0": Value::Null
+                    })
+                })
+                .collect::<Vec<_>>();
             Response {
                 status: 200,
                 headers: Default::default(),
-                body: json!({"data": {"nodes": []}}),
+                body: json!({"data": {"nodes": nodes}}),
             }
         });
 
@@ -1543,6 +1556,151 @@ fn metafields_delete_live_hybrid_staged_value_does_not_passthrough() {
 }
 
 #[test]
+fn generic_product_domain_metafields_set_accepts_idempotent_malformed_digest_atomically() {
+    let mut proxy = configured_proxy(
+        ReadMode::Snapshot,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
+    );
+    let owner_id = "gid://shopify/Product/987654398";
+
+    let initial = proxy.process_request(json_graphql_request(
+        r#"
+        mutation IdempotentMalformedDigestSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key type value compareDigest }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [{"ownerId": owner_id, "namespace": "custom", "key": "material", "type": "single_line_text_field", "value": "Wool"}]}),
+    ));
+    assert_eq!(
+        initial.body["data"]["metafieldsSet"]["userErrors"],
+        json!([])
+    );
+    let digest = initial.body["data"]["metafieldsSet"]["metafields"][0]["compareDigest"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+
+    let rejected_batch = proxy.process_request(json_graphql_request(
+        r#"
+        mutation IdempotentMalformedDigestSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key type value compareDigest }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [
+            {"ownerId": owner_id, "namespace": "custom", "key": "material", "type": "single_line_text_field", "value": "Wool", "compareDigest": "not-a-hex-digest"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "flag", "type": "boolean", "value": "yes"}
+        ]}),
+    ));
+    assert_eq!(
+        rejected_batch.body["data"]["metafieldsSet"]["metafields"],
+        json!([])
+    );
+    assert_eq!(
+        rejected_batch.body["data"]["metafieldsSet"]["userErrors"],
+        json!([{
+            "field": ["metafields", "1", "value"],
+            "message": "Value must be true or false.",
+            "code": "INVALID_VALUE",
+            "elementIndex": null
+        }])
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+
+    let after_rejected_batch = proxy.process_request(json_graphql_request(
+        r#"
+        query IdempotentMalformedDigestRead($id: ID!) {
+          product(id: $id) {
+            material: metafield(namespace: "custom", key: "material") { value compareDigest }
+            flag: metafield(namespace: "custom", key: "flag") { value }
+          }
+        }
+        "#,
+        json!({"id": owner_id}),
+    ));
+    assert_eq!(
+        after_rejected_batch.body["data"]["product"]["material"],
+        json!({"value": "Wool", "compareDigest": digest})
+    );
+    assert_eq!(
+        after_rejected_batch.body["data"]["product"]["flag"],
+        Value::Null
+    );
+
+    let accepted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation IdempotentMalformedDigestSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key type value compareDigest }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [{"ownerId": owner_id, "namespace": "custom", "key": "material", "type": "single_line_text_field", "value": "Wool", "compareDigest": "not-a-hex-digest"}]}),
+    ));
+    assert_eq!(
+        accepted.body["data"]["metafieldsSet"],
+        json!({
+            "metafields": [{
+                "namespace": "custom",
+                "key": "material",
+                "type": "single_line_text_field",
+                "value": "Wool",
+                "compareDigest": digest
+            }],
+            "userErrors": []
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 2);
+
+    let rejected_change = proxy.process_request(json_graphql_request(
+        r#"
+        mutation IdempotentMalformedDigestSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key type value compareDigest }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [{"ownerId": owner_id, "namespace": "custom", "key": "material", "type": "single_line_text_field", "value": "Silk", "compareDigest": "not-a-hex-digest"}]}),
+    ));
+    assert_eq!(
+        rejected_change.body["data"]["metafieldsSet"],
+        json!({
+            "metafields": [],
+            "userErrors": [{
+                "field": ["metafields", "0"],
+                "message": "The resource has been updated since it was loaded. Try again with an updated `compareDigest` value.",
+                "code": "STALE_OBJECT",
+                "elementIndex": null
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 2);
+
+    let after_rejected_change = proxy.process_request(json_graphql_request(
+        r#"
+        query IdempotentMalformedDigestRead($id: ID!) {
+          product(id: $id) {
+            material: metafield(namespace: "custom", key: "material") { value compareDigest }
+          }
+        }
+        "#,
+        json!({"id": owner_id}),
+    ));
+    assert_eq!(
+        after_rejected_change.body["data"]["product"]["material"],
+        json!({"value": "Wool", "compareDigest": digest})
+    );
+}
+
+#[test]
 fn generic_product_domain_metafields_set_validates_cas_and_atomicity() {
     let mut proxy = configured_proxy(
         ReadMode::Snapshot,
@@ -1580,7 +1738,7 @@ fn generic_product_domain_metafields_set_validates_cas_and_atomicity() {
         }
         "#,
         json!({"metafields": [
-            {"ownerId": owner_id, "namespace": "custom", "key": "material", "type": "single_line_text_field", "value": "Silk", "compareDigest": "stale"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "material", "type": "single_line_text_field", "value": "Silk", "compareDigest": "0000000000000000000000000000000000000000000000000000000000000000"},
             {"ownerId": owner_id, "namespace": "custom", "key": "flag", "type": "boolean", "value": "yes"}
         ]}),
     ));
@@ -1676,7 +1834,7 @@ fn generic_product_domain_metafields_set_rejects_compare_digest_without_current_
           }
         }
         "#,
-        json!({"metafields": [{"ownerId": owner_id, "namespace": "custom", "key": "missing", "type": "single_line_text_field", "value": "New", "compareDigest": "no-current-row"}]}),
+        json!({"metafields": [{"ownerId": owner_id, "namespace": "custom", "key": "missing", "type": "single_line_text_field", "value": "New", "compareDigest": "0000000000000000000000000000000000000000000000000000000000000000"}]}),
     ));
     assert_eq!(
         invalid_compare_digest.body["data"]["metafieldsSet"]["metafields"],
@@ -1690,6 +1848,7 @@ fn generic_product_domain_metafields_set_rejects_compare_digest_without_current_
         invalid_compare_digest.body["data"]["metafieldsSet"]["userErrors"][0]["field"],
         json!(["metafields", "0"])
     );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -10431,6 +10590,8 @@ fn market_localizations_register_remove_current_runtime_helpers_stage_and_valida
     // so the engine *computes* every downstream validation/staging result rather
     // than recognizing a magic synthetic id (which the de-cheating refactor
     // deliberately removed).
+    let replayed = Arc::new(Mutex::new(Vec::<String>::new()));
+    let replayed_for_transport = Arc::clone(&replayed);
     let resource_id = "gid://shopify/Metafield/localizable";
     let mut proxy =
         configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
@@ -10462,6 +10623,14 @@ fn market_localizations_register_remove_current_runtime_helpers_stage_and_valida
                         }
                     }
                 }),
+            }
+        })
+        .with_commit_transport(move |request| {
+            replayed_for_transport.lock().unwrap().push(request.body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": {} }),
             }
         });
     let register_query = r#"
@@ -10519,6 +10688,7 @@ fn market_localizations_register_remove_current_runtime_helpers_stage_and_valida
         json!({"resourceId": resource_id, "marketId": "gid://shopify/Market/ca"}),
     ));
     assert_eq!(preflight.status, 200);
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 
     let too_many = (1..=101)
         .map(|index| {
@@ -10628,6 +10798,11 @@ fn market_localizations_register_remove_current_runtime_helpers_stage_and_valida
         money_remove_after_rejection.body["data"]["marketLocalizationsRemove"],
         json!({"marketLocalizations": null, "userErrors": []})
     );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"],
+        json!([]),
+        "failed and no-stage market-localization mutations must not enter commit replay"
+    );
 
     let register = proxy.process_request(json_graphql_request(
         register_query,
@@ -10642,6 +10817,11 @@ fn market_localizations_register_remove_current_runtime_helpers_stage_and_valida
             ],
             "userErrors": []
         })
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        1,
+        "successful market-localization registration must log once"
     );
 
     let read_after_register = proxy.process_request(json_graphql_request(
@@ -10677,6 +10857,11 @@ fn market_localizations_register_remove_current_runtime_helpers_stage_and_valida
             json!({"marketLocalizations": null, "userErrors": []})
         );
     }
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        1,
+        "captured successful market-localization no-ops must not enter commit replay"
+    );
 
     let remove_title = proxy.process_request(json_graphql_request(
         remove_query,
@@ -10722,6 +10907,18 @@ fn market_localizations_register_remove_current_runtime_helpers_stage_and_valida
         read_after_remove.body["data"]["marketLocalizableResource"]["marketLocalizations"],
         json!([])
     );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        3,
+        "only register and two effective removes should enter commit replay"
+    );
+    let commit = proxy.process_request(request_with_body("POST", "/__meta/commit", ""));
+    assert_eq!(commit.body["committed"], json!(3));
+    let replayed = replayed.lock().unwrap();
+    assert_eq!(replayed.len(), 3);
+    assert!(replayed[0].contains("RustMarketLocalizationsLocalRuntimeRegister"));
+    assert!(replayed[1].contains("RustMarketLocalizationsLocalRuntimeRemove"));
+    assert!(replayed[2].contains("RustMarketLocalizationsLocalRuntimeRemove"));
 }
 
 #[test]

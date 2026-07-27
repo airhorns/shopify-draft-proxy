@@ -1,0 +1,322 @@
+{
+  "scenarioId": "order-payment-transaction-cold-hydration",
+  "operationNames": ["node", "order", "orderCreate", "orderCapture", "transactionVoid"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity",
+    "cold-hydration-parity",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/order-payment-transaction-cold-hydration.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/order-capture-validation-order-capture.graphql",
+    "variablesCapturePath": "$.flows.capture.success.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "cold-capture-success",
+        "capturePath": "$.flows.capture.success.response.payload.data.orderCapture",
+        "proxyPath": "$.data.orderCapture",
+        "selectedPaths": [
+          "$.transaction.kind",
+          "$.transaction.status",
+          "$.transaction.gateway",
+          "$.transaction.amountSet",
+          "$.transaction.parentTransaction.kind",
+          "$.transaction.parentTransaction.status",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "cold-capture-downstream-read",
+        "capturePath": "$.flows.capture.readAfter.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.displayFinancialStatus",
+          "$.capturable",
+          "$.totalCapturableSet",
+          "$.totalOutstandingSet",
+          "$.totalReceivedSet",
+          "$.netPaymentSet",
+          "$.paymentGatewayNames",
+          "$.transactions[0].kind",
+          "$.transactions[0].status",
+          "$.transactions[0].gateway",
+          "$.transactions[0].amountSet",
+          "$.transactions[1].kind",
+          "$.transactions[1].status",
+          "$.transactions[1].gateway",
+          "$.transactions[1].amountSet",
+          "$.transactions[1].parentTransaction.kind",
+          "$.transactions[1].parentTransaction.status"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/order-payment-transaction-void-read.graphql",
+          "variablesCapturePath": "$.flows.capture.readAfter.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cold-capture-already-captured",
+        "capturePath": "$.flows.capture.alreadyCaptured.response.payload.data.orderCapture",
+        "proxyPath": "$.data.orderCapture",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/order-capture-validation-order-capture.graphql",
+          "variablesCapturePath": "$.flows.capture.alreadyCaptured.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cold-capture-wrong-parent-kind",
+        "capturePath": "$.flows.capture.wrongParentKind.response.payload.data.orderCapture",
+        "proxyPath": "$.data.orderCapture",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/order-capture-validation-order-capture.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromCapturePath": "$.flows.capture.success.variables.input.id"
+              },
+              "parentTransactionId": {
+                "fromProxyResponse": "cold-capture-success",
+                "path": "$.data.orderCapture.transaction.id"
+              },
+              "amount": "1.00"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "warm-capture-order-read",
+        "capturePath": "$.flows.capture.hydrate.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/order-payment-transaction-hydrate-by-order.graphql",
+          "variablesCapturePath": "$.flows.capture.hydrate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "warm-capture-success",
+        "capturePath": "$.flows.capture.success.response.payload.data.orderCapture",
+        "proxyPath": "$.data.orderCapture",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.transaction.kind",
+          "$.transaction.status",
+          "$.transaction.gateway",
+          "$.transaction.amountSet",
+          "$.transaction.parentTransaction.kind",
+          "$.transaction.parentTransaction.status",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/order-capture-validation-order-capture.graphql",
+          "variablesCapturePath": "$.flows.capture.success.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "warm-capture-downstream-read",
+        "capturePath": "$.flows.capture.readAfter.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.displayFinancialStatus",
+          "$.capturable",
+          "$.totalCapturableSet",
+          "$.totalOutstandingSet",
+          "$.totalReceivedSet",
+          "$.netPaymentSet",
+          "$.paymentGatewayNames",
+          "$.transactions[0].kind",
+          "$.transactions[0].status",
+          "$.transactions[0].gateway",
+          "$.transactions[0].amountSet",
+          "$.transactions[1].kind",
+          "$.transactions[1].status",
+          "$.transactions[1].gateway",
+          "$.transactions[1].amountSet",
+          "$.transactions[1].parentTransaction.kind",
+          "$.transactions[1].parentTransaction.status"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/order-payment-transaction-void-read.graphql",
+          "variablesCapturePath": "$.flows.capture.readAfter.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cold-void-success",
+        "capturePath": "$.flows.void.success.response.payload.data.transactionVoid",
+        "proxyPath": "$.data.transactionVoid",
+        "isolatedProxy": true,
+        "selectedPaths": [
+          "$.transaction.kind",
+          "$.transaction.status",
+          "$.transaction.gateway",
+          "$.transaction.amountSet",
+          "$.transaction.parentTransaction.kind",
+          "$.transaction.parentTransaction.status",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/order-payment-transaction-void.graphql",
+          "variablesCapturePath": "$.flows.void.success.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cold-void-downstream-read",
+        "capturePath": "$.flows.void.readAfter.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.displayFinancialStatus",
+          "$.capturable",
+          "$.totalCapturableSet",
+          "$.totalOutstandingSet",
+          "$.totalReceivedSet",
+          "$.netPaymentSet",
+          "$.paymentGatewayNames",
+          "$.transactions[0].kind",
+          "$.transactions[0].status",
+          "$.transactions[0].gateway",
+          "$.transactions[0].amountSet",
+          "$.transactions[1].kind",
+          "$.transactions[1].status",
+          "$.transactions[1].gateway",
+          "$.transactions[1].amountSet",
+          "$.transactions[1].parentTransaction.kind",
+          "$.transactions[1].parentTransaction.status"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/order-payment-transaction-void-read.graphql",
+          "variablesCapturePath": "$.flows.void.readAfter.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cold-void-already-voided",
+        "capturePath": "$.flows.void.alreadyVoided.response.payload.data.transactionVoid",
+        "proxyPath": "$.data.transactionVoid",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/order-payment-transaction-void.graphql",
+          "variablesCapturePath": "$.flows.void.alreadyVoided.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "warm-void-order-read",
+        "capturePath": "$.flows.void.orderHydrate.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/order-payment-transaction-hydrate-by-order.graphql",
+          "variablesCapturePath": "$.flows.void.orderHydrate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "warm-void-success",
+        "capturePath": "$.flows.void.success.response.payload.data.transactionVoid",
+        "proxyPath": "$.data.transactionVoid",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.transaction.kind",
+          "$.transaction.status",
+          "$.transaction.gateway",
+          "$.transaction.amountSet",
+          "$.transaction.parentTransaction.kind",
+          "$.transaction.parentTransaction.status",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/order-payment-transaction-void.graphql",
+          "variablesCapturePath": "$.flows.void.success.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "warm-void-downstream-read",
+        "capturePath": "$.flows.void.readAfter.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.displayFinancialStatus",
+          "$.capturable",
+          "$.totalCapturableSet",
+          "$.totalOutstandingSet",
+          "$.totalReceivedSet",
+          "$.netPaymentSet",
+          "$.paymentGatewayNames",
+          "$.transactions[0].kind",
+          "$.transactions[0].status",
+          "$.transactions[0].gateway",
+          "$.transactions[0].amountSet",
+          "$.transactions[1].kind",
+          "$.transactions[1].status",
+          "$.transactions[1].gateway",
+          "$.transactions[1].amountSet",
+          "$.transactions[1].parentTransaction.kind",
+          "$.transactions[1].parentTransaction.status"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/order-payment-transaction-void-read.graphql",
+          "variablesCapturePath": "$.flows.void.readAfter.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cold-void-failed-authorization",
+        "capturePath": "$.flows.failedAuthorization.void.response.payload.data.transactionVoid",
+        "proxyPath": "$.data.transactionVoid",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/order-payment-transaction-void.graphql",
+          "variablesCapturePath": "$.flows.failedAuthorization.void.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cold-capture-confirmed-missing",
+        "capturePath": "$.flows.confirmedMissing.capture.response.payload.data.orderCapture",
+        "proxyPath": "$.data.orderCapture",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/order-capture-validation-order-capture.graphql",
+          "variablesCapturePath": "$.flows.confirmedMissing.capture.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cold-void-confirmed-missing",
+        "capturePath": "$.flows.confirmedMissing.void.response.payload.data.transactionVoid",
+        "proxyPath": "$.data.transactionVoid",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/order-payment-transaction-void.graphql",
+          "variablesCapturePath": "$.flows.confirmedMissing.void.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live 2026-04 Admin GraphQL evidence for one successful manual authorization capture and one successful manual authorization void, each replayed against the proxy from clean state both mutation-first and after the exact public order hydrate read. The same fixture captures confirmed missing resources, an unsuccessful authorization, already-captured and already-voided repeats, and a non-authorization capture parent. Amount, currency, and provider-specific capture guards remain mapped to order_capture_validation and order_capture_final_capture_unsupported_gateway. The exact order(id:) and node(id:) hydrate documents in upstreamCalls are queries only; the caller's supported mutation documents are never cassette inputs."
+}

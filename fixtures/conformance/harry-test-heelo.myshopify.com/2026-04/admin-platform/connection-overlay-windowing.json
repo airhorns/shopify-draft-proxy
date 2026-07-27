@@ -3,7 +3,7 @@
     "source": "live-shopify-admin-graphql",
     "storeDomain": "harry-test-heelo.myshopify.com",
     "apiVersion": "2026-04",
-    "capturedAt": "2026-07-19T13:31:33.484Z",
+    "capturedAt": "2026-07-20T21:56:35.335Z",
     "scenario": "connection-overlay-windowing"
   },
   "savedSearchCreate": {
@@ -12,13 +12,13 @@
       "variables": {
         "first": {
           "resourceType": "PRODUCT",
-          "name": "Connection overlay mrru3sm3 A",
-          "query": "title:mrru3sm3-a"
+          "name": "Connection overlay mrtrl494 A",
+          "query": "title:mrtrl494-a"
         },
         "second": {
           "resourceType": "PRODUCT",
-          "name": "Connection overlay mrru3sm3 B",
-          "query": "title:mrru3sm3-b"
+          "name": "Connection overlay mrtrl494 B",
+          "query": "title:mrtrl494-b"
         }
       }
     },
@@ -27,15 +27,15 @@
       "data": {
         "first": {
           "savedSearch": {
-            "id": "gid://shopify/SavedSearch/4088431280434",
-            "name": "Connection overlay mrru3sm3 A"
+            "id": "gid://shopify/SavedSearch/4089167151410",
+            "name": "Connection overlay mrtrl494 A"
           },
           "userErrors": []
         },
         "second": {
           "savedSearch": {
-            "id": "gid://shopify/SavedSearch/4088431313202",
-            "name": "Connection overlay mrru3sm3 B"
+            "id": "gid://shopify/SavedSearch/4089167184178",
+            "name": "Connection overlay mrtrl494 B"
           },
           "userErrors": []
         }
@@ -59,15 +59,15 @@
       "variables": {
         "files": [
           {
-            "alt": "Connection overlay mrru3sm3 A",
+            "alt": "Connection overlay mrtrl494 A",
             "contentType": "FILE",
-            "filename": "connection-overlay-mrru3sm3-a.pdf",
+            "filename": "connection-overlay-mrtrl494-a.pdf",
             "originalSource": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
           },
           {
-            "alt": "Connection overlay mrru3sm3 B",
+            "alt": "Connection overlay mrtrl494 B",
             "contentType": "FILE",
-            "filename": "connection-overlay-mrru3sm3-b.pdf",
+            "filename": "connection-overlay-mrtrl494-b.pdf",
             "originalSource": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
           }
         ]
@@ -80,13 +80,13 @@
           "files": [
             {
               "__typename": "GenericFile",
-              "id": "gid://shopify/GenericFile/44070613221682",
-              "alt": "Connection overlay mrru3sm3 A"
+              "id": "gid://shopify/GenericFile/44077510230322",
+              "alt": "Connection overlay mrtrl494 A"
             },
             {
               "__typename": "GenericFile",
-              "id": "gid://shopify/GenericFile/44070613254450",
-              "alt": "Connection overlay mrru3sm3 B"
+              "id": "gid://shopify/GenericFile/44077510263090",
+              "alt": "Connection overlay mrtrl494 B"
             }
           ],
           "userErrors": []
@@ -98,7 +98,7 @@
           "actualQueryCost": 20,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1974,
+            "currentlyAvailable": 1973,
             "restoreRate": 100
           }
         }
@@ -110,14 +110,14 @@
       "query": "mutation ConnectionOverlaySellingPlanGroupCreate(\n  $first: SellingPlanGroupInput!\n  $second: SellingPlanGroupInput!\n) {\n  first: sellingPlanGroupCreate(input: $first) {\n    sellingPlanGroup { id name merchantCode }\n    userErrors { field message code }\n  }\n  second: sellingPlanGroupCreate(input: $second) {\n    sellingPlanGroup { id name merchantCode }\n    userErrors { field message code }\n  }\n}\n",
       "variables": {
         "first": {
-          "name": "connection-overlay-mrru3sm3-a",
-          "merchantCode": "connection-overlay-mrru3sm3-a",
+          "name": "connection-overlay-mrtrl494-a",
+          "merchantCode": "connection-overlay-mrtrl494-a",
           "description": "Disposable connection overlay pagination evidence",
           "options": ["Delivery frequency"],
           "position": 1,
           "sellingPlansToCreate": [
             {
-              "name": "connection-overlay-mrru3sm3-a monthly",
+              "name": "connection-overlay-mrtrl494-a monthly",
               "description": "Monthly delivery",
               "options": ["Monthly"],
               "position": 1,
@@ -143,14 +143,14 @@
           ]
         },
         "second": {
-          "name": "connection-overlay-mrru3sm3-b",
-          "merchantCode": "connection-overlay-mrru3sm3-b",
+          "name": "connection-overlay-mrtrl494-b",
+          "merchantCode": "connection-overlay-mrtrl494-b",
           "description": "Disposable connection overlay pagination evidence",
           "options": ["Delivery frequency"],
           "position": 1,
           "sellingPlansToCreate": [
             {
-              "name": "connection-overlay-mrru3sm3-b monthly",
+              "name": "connection-overlay-mrtrl494-b monthly",
               "description": "Monthly delivery",
               "options": ["Monthly"],
               "position": 1,
@@ -182,17 +182,17 @@
       "data": {
         "first": {
           "sellingPlanGroup": {
-            "id": "gid://shopify/SellingPlanGroup/3159032114",
-            "name": "connection-overlay-mrru3sm3-a",
-            "merchantCode": "connection-overlay-mrru3sm3-a"
+            "id": "gid://shopify/SellingPlanGroup/3161129266",
+            "name": "connection-overlay-mrtrl494-a",
+            "merchantCode": "connection-overlay-mrtrl494-a"
           },
           "userErrors": []
         },
         "second": {
           "sellingPlanGroup": {
-            "id": "gid://shopify/SellingPlanGroup/3159064882",
-            "name": "connection-overlay-mrru3sm3-b",
-            "merchantCode": "connection-overlay-mrru3sm3-b"
+            "id": "gid://shopify/SellingPlanGroup/3161162034",
+            "name": "connection-overlay-mrtrl494-b",
+            "merchantCode": "connection-overlay-mrtrl494-b"
           },
           "userErrors": []
         }
@@ -203,7 +203,7 @@
           "actualQueryCost": 20,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1970,
+            "currentlyAvailable": 1969,
             "restoreRate": 100
           }
         }
@@ -214,8 +214,8 @@
     "request": {
       "query": "query ConnectionOverlayFullRead($fileQuery: String!, $groupQuery: String!) {\n  saved: productSavedSearches(first: 10) {\n    edges { cursor node { id name } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n  savedReverse: productSavedSearches(first: 1, reverse: true) {\n    edges { cursor node { id name } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n  files: files(first: 10, query: $fileQuery, sortKey: ID) {\n    edges { cursor node { __typename id alt } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n  filesReverse: files(first: 1, query: $fileQuery, sortKey: ID, reverse: true) {\n    edges { cursor node { __typename id alt } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n  groups: sellingPlanGroups(first: 10, query: $groupQuery, sortKey: ID) {\n    edges { cursor node { id name merchantCode } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n  groupsReverse: sellingPlanGroups(first: 1, query: $groupQuery, sortKey: ID, reverse: true) {\n    edges { cursor node { id name merchantCode } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
       "variables": {
-        "fileQuery": "filename:connection-overlay-mrru3sm3*",
-        "groupQuery": "name:connection-overlay-mrru3sm3*"
+        "fileQuery": "filename:connection-overlay-mrtrl494*",
+        "groupQuery": "name:connection-overlay-mrtrl494*"
       }
     },
     "status": 200,
@@ -224,130 +224,130 @@
         "saved": {
           "edges": [
             {
-              "cursor": "eyJsYXN0X2lkIjo0MDg4NDMxMjgwNDM0LCJsYXN0X3ZhbHVlIjoiNDA4ODQzMTI4MDQzNCJ9",
+              "cursor": "eyJsYXN0X2lkIjo0MDg5MTY3MTUxNDEwLCJsYXN0X3ZhbHVlIjoiNDA4OTE2NzE1MTQxMCJ9",
               "node": {
-                "id": "gid://shopify/SavedSearch/4088431280434",
-                "name": "Connection overlay mrru3sm3 A"
+                "id": "gid://shopify/SavedSearch/4089167151410",
+                "name": "Connection overlay mrtrl494 A"
               }
             },
             {
-              "cursor": "eyJsYXN0X2lkIjo0MDg4NDMxMzEzMjAyLCJsYXN0X3ZhbHVlIjoiNDA4ODQzMTMxMzIwMiJ9",
+              "cursor": "eyJsYXN0X2lkIjo0MDg5MTY3MTg0MTc4LCJsYXN0X3ZhbHVlIjoiNDA4OTE2NzE4NDE3OCJ9",
               "node": {
-                "id": "gid://shopify/SavedSearch/4088431313202",
-                "name": "Connection overlay mrru3sm3 B"
+                "id": "gid://shopify/SavedSearch/4089167184178",
+                "name": "Connection overlay mrtrl494 B"
               }
             }
           ],
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjo0MDg4NDMxMjgwNDM0LCJsYXN0X3ZhbHVlIjoiNDA4ODQzMTI4MDQzNCJ9",
-            "endCursor": "eyJsYXN0X2lkIjo0MDg4NDMxMzEzMjAyLCJsYXN0X3ZhbHVlIjoiNDA4ODQzMTMxMzIwMiJ9"
+            "startCursor": "eyJsYXN0X2lkIjo0MDg5MTY3MTUxNDEwLCJsYXN0X3ZhbHVlIjoiNDA4OTE2NzE1MTQxMCJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDg5MTY3MTg0MTc4LCJsYXN0X3ZhbHVlIjoiNDA4OTE2NzE4NDE3OCJ9"
           }
         },
         "savedReverse": {
           "edges": [
             {
-              "cursor": "eyJsYXN0X2lkIjo0MDg4NDMxMzEzMjAyLCJsYXN0X3ZhbHVlIjoiNDA4ODQzMTMxMzIwMiJ9",
+              "cursor": "eyJsYXN0X2lkIjo0MDg5MTY3MTg0MTc4LCJsYXN0X3ZhbHVlIjoiNDA4OTE2NzE4NDE3OCJ9",
               "node": {
-                "id": "gid://shopify/SavedSearch/4088431313202",
-                "name": "Connection overlay mrru3sm3 B"
+                "id": "gid://shopify/SavedSearch/4089167184178",
+                "name": "Connection overlay mrtrl494 B"
               }
             }
           ],
           "pageInfo": {
             "hasNextPage": true,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjo0MDg4NDMxMzEzMjAyLCJsYXN0X3ZhbHVlIjoiNDA4ODQzMTMxMzIwMiJ9",
-            "endCursor": "eyJsYXN0X2lkIjo0MDg4NDMxMzEzMjAyLCJsYXN0X3ZhbHVlIjoiNDA4ODQzMTMxMzIwMiJ9"
+            "startCursor": "eyJsYXN0X2lkIjo0MDg5MTY3MTg0MTc4LCJsYXN0X3ZhbHVlIjoiNDA4OTE2NzE4NDE3OCJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDg5MTY3MTg0MTc4LCJsYXN0X3ZhbHVlIjoiNDA4OTE2NzE4NDE3OCJ9"
           }
         },
         "files": {
           "edges": [
             {
-              "cursor": "eyJsYXN0X2lkIjo0NDA3MDYxMzIyMTY4MiwibGFzdF92YWx1ZSI6NDQwNzA2MTMyMjE2ODJ9",
+              "cursor": "eyJsYXN0X2lkIjo0NDA3NzUxMDIzMDMyMiwibGFzdF92YWx1ZSI6NDQwNzc1MTAyMzAzMjJ9",
               "node": {
                 "__typename": "GenericFile",
-                "id": "gid://shopify/GenericFile/44070613221682",
-                "alt": "Connection overlay mrru3sm3 A"
+                "id": "gid://shopify/GenericFile/44077510230322",
+                "alt": "Connection overlay mrtrl494 A"
               }
             },
             {
-              "cursor": "eyJsYXN0X2lkIjo0NDA3MDYxMzI1NDQ1MCwibGFzdF92YWx1ZSI6NDQwNzA2MTMyNTQ0NTB9",
+              "cursor": "eyJsYXN0X2lkIjo0NDA3NzUxMDI2MzA5MCwibGFzdF92YWx1ZSI6NDQwNzc1MTAyNjMwOTB9",
               "node": {
                 "__typename": "GenericFile",
-                "id": "gid://shopify/GenericFile/44070613254450",
-                "alt": "Connection overlay mrru3sm3 B"
+                "id": "gid://shopify/GenericFile/44077510263090",
+                "alt": "Connection overlay mrtrl494 B"
               }
             }
           ],
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjo0NDA3MDYxMzIyMTY4MiwibGFzdF92YWx1ZSI6NDQwNzA2MTMyMjE2ODJ9",
-            "endCursor": "eyJsYXN0X2lkIjo0NDA3MDYxMzI1NDQ1MCwibGFzdF92YWx1ZSI6NDQwNzA2MTMyNTQ0NTB9"
+            "startCursor": "eyJsYXN0X2lkIjo0NDA3NzUxMDIzMDMyMiwibGFzdF92YWx1ZSI6NDQwNzc1MTAyMzAzMjJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0NDA3NzUxMDI2MzA5MCwibGFzdF92YWx1ZSI6NDQwNzc1MTAyNjMwOTB9"
           }
         },
         "filesReverse": {
           "edges": [
             {
-              "cursor": "eyJsYXN0X2lkIjo0NDA3MDYxMzI1NDQ1MCwibGFzdF92YWx1ZSI6NDQwNzA2MTMyNTQ0NTB9",
+              "cursor": "eyJsYXN0X2lkIjo0NDA3NzUxMDI2MzA5MCwibGFzdF92YWx1ZSI6NDQwNzc1MTAyNjMwOTB9",
               "node": {
                 "__typename": "GenericFile",
-                "id": "gid://shopify/GenericFile/44070613254450",
-                "alt": "Connection overlay mrru3sm3 B"
+                "id": "gid://shopify/GenericFile/44077510263090",
+                "alt": "Connection overlay mrtrl494 B"
               }
             }
           ],
           "pageInfo": {
             "hasNextPage": true,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjo0NDA3MDYxMzI1NDQ1MCwibGFzdF92YWx1ZSI6NDQwNzA2MTMyNTQ0NTB9",
-            "endCursor": "eyJsYXN0X2lkIjo0NDA3MDYxMzI1NDQ1MCwibGFzdF92YWx1ZSI6NDQwNzA2MTMyNTQ0NTB9"
+            "startCursor": "eyJsYXN0X2lkIjo0NDA3NzUxMDI2MzA5MCwibGFzdF92YWx1ZSI6NDQwNzc1MTAyNjMwOTB9",
+            "endCursor": "eyJsYXN0X2lkIjo0NDA3NzUxMDI2MzA5MCwibGFzdF92YWx1ZSI6NDQwNzc1MTAyNjMwOTB9"
           }
         },
         "groups": {
           "edges": [
             {
-              "cursor": "eyJsYXN0X2lkIjozMTU5MDMyMTE0LCJsYXN0X3ZhbHVlIjozMTU5MDMyMTE0fQ==",
+              "cursor": "eyJsYXN0X2lkIjozMTYxMTI5MjY2LCJsYXN0X3ZhbHVlIjozMTYxMTI5MjY2fQ==",
               "node": {
-                "id": "gid://shopify/SellingPlanGroup/3159032114",
-                "name": "connection-overlay-mrru3sm3-a",
-                "merchantCode": "connection-overlay-mrru3sm3-a"
+                "id": "gid://shopify/SellingPlanGroup/3161129266",
+                "name": "connection-overlay-mrtrl494-a",
+                "merchantCode": "connection-overlay-mrtrl494-a"
               }
             },
             {
-              "cursor": "eyJsYXN0X2lkIjozMTU5MDY0ODgyLCJsYXN0X3ZhbHVlIjozMTU5MDY0ODgyfQ==",
+              "cursor": "eyJsYXN0X2lkIjozMTYxMTYyMDM0LCJsYXN0X3ZhbHVlIjozMTYxMTYyMDM0fQ==",
               "node": {
-                "id": "gid://shopify/SellingPlanGroup/3159064882",
-                "name": "connection-overlay-mrru3sm3-b",
-                "merchantCode": "connection-overlay-mrru3sm3-b"
+                "id": "gid://shopify/SellingPlanGroup/3161162034",
+                "name": "connection-overlay-mrtrl494-b",
+                "merchantCode": "connection-overlay-mrtrl494-b"
               }
             }
           ],
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjozMTU5MDMyMTE0LCJsYXN0X3ZhbHVlIjozMTU5MDMyMTE0fQ==",
-            "endCursor": "eyJsYXN0X2lkIjozMTU5MDY0ODgyLCJsYXN0X3ZhbHVlIjozMTU5MDY0ODgyfQ=="
+            "startCursor": "eyJsYXN0X2lkIjozMTYxMTI5MjY2LCJsYXN0X3ZhbHVlIjozMTYxMTI5MjY2fQ==",
+            "endCursor": "eyJsYXN0X2lkIjozMTYxMTYyMDM0LCJsYXN0X3ZhbHVlIjozMTYxMTYyMDM0fQ=="
           }
         },
         "groupsReverse": {
           "edges": [
             {
-              "cursor": "eyJsYXN0X2lkIjozMTU5MDY0ODgyLCJsYXN0X3ZhbHVlIjozMTU5MDY0ODgyfQ==",
+              "cursor": "eyJsYXN0X2lkIjozMTYxMTYyMDM0LCJsYXN0X3ZhbHVlIjozMTYxMTYyMDM0fQ==",
               "node": {
-                "id": "gid://shopify/SellingPlanGroup/3159064882",
-                "name": "connection-overlay-mrru3sm3-b",
-                "merchantCode": "connection-overlay-mrru3sm3-b"
+                "id": "gid://shopify/SellingPlanGroup/3161162034",
+                "name": "connection-overlay-mrtrl494-b",
+                "merchantCode": "connection-overlay-mrtrl494-b"
               }
             }
           ],
           "pageInfo": {
             "hasNextPage": true,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjozMTU5MDY0ODgyLCJsYXN0X3ZhbHVlIjozMTU5MDY0ODgyfQ==",
-            "endCursor": "eyJsYXN0X2lkIjozMTU5MDY0ODgyLCJsYXN0X3ZhbHVlIjozMTU5MDY0ODgyfQ=="
+            "startCursor": "eyJsYXN0X2lkIjozMTYxMTYyMDM0LCJsYXN0X3ZhbHVlIjozMTYxMTYyMDM0fQ==",
+            "endCursor": "eyJsYXN0X2lkIjozMTYxMTYyMDM0LCJsYXN0X3ZhbHVlIjozMTYxMTYyMDM0fQ=="
           }
         }
       },
@@ -368,11 +368,11 @@
     "request": {
       "query": "query ConnectionOverlayAfterRead(\n  $savedAfter: String!\n  $fileAfter: String!\n  $groupAfter: String!\n  $fileQuery: String!\n  $groupQuery: String!\n) {\n  saved: productSavedSearches(first: 1, after: $savedAfter) {\n    edges { cursor node { id name } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n  files: files(first: 1, after: $fileAfter, query: $fileQuery, sortKey: ID) {\n    edges { cursor node { __typename id alt } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n  groups: sellingPlanGroups(first: 1, after: $groupAfter, query: $groupQuery, sortKey: ID) {\n    edges { cursor node { id name merchantCode } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
       "variables": {
-        "savedAfter": "eyJsYXN0X2lkIjo0MDg4NDMxMjgwNDM0LCJsYXN0X3ZhbHVlIjoiNDA4ODQzMTI4MDQzNCJ9",
-        "fileAfter": "eyJsYXN0X2lkIjo0NDA3MDYxMzIyMTY4MiwibGFzdF92YWx1ZSI6NDQwNzA2MTMyMjE2ODJ9",
-        "groupAfter": "eyJsYXN0X2lkIjozMTU5MDMyMTE0LCJsYXN0X3ZhbHVlIjozMTU5MDMyMTE0fQ==",
-        "fileQuery": "filename:connection-overlay-mrru3sm3*",
-        "groupQuery": "name:connection-overlay-mrru3sm3*"
+        "savedAfter": "eyJsYXN0X2lkIjo0MDg5MTY3MTUxNDEwLCJsYXN0X3ZhbHVlIjoiNDA4OTE2NzE1MTQxMCJ9",
+        "fileAfter": "eyJsYXN0X2lkIjo0NDA3NzUxMDIzMDMyMiwibGFzdF92YWx1ZSI6NDQwNzc1MTAyMzAzMjJ9",
+        "groupAfter": "eyJsYXN0X2lkIjozMTYxMTI5MjY2LCJsYXN0X3ZhbHVlIjozMTYxMTI5MjY2fQ==",
+        "fileQuery": "filename:connection-overlay-mrtrl494*",
+        "groupQuery": "name:connection-overlay-mrtrl494*"
       }
     },
     "status": 200,
@@ -381,54 +381,54 @@
         "saved": {
           "edges": [
             {
-              "cursor": "eyJsYXN0X2lkIjo0MDg4NDMxMzEzMjAyLCJsYXN0X3ZhbHVlIjoiNDA4ODQzMTMxMzIwMiJ9",
+              "cursor": "eyJsYXN0X2lkIjo0MDg5MTY3MTg0MTc4LCJsYXN0X3ZhbHVlIjoiNDA4OTE2NzE4NDE3OCJ9",
               "node": {
-                "id": "gid://shopify/SavedSearch/4088431313202",
-                "name": "Connection overlay mrru3sm3 B"
+                "id": "gid://shopify/SavedSearch/4089167184178",
+                "name": "Connection overlay mrtrl494 B"
               }
             }
           ],
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": true,
-            "startCursor": "eyJsYXN0X2lkIjo0MDg4NDMxMzEzMjAyLCJsYXN0X3ZhbHVlIjoiNDA4ODQzMTMxMzIwMiJ9",
-            "endCursor": "eyJsYXN0X2lkIjo0MDg4NDMxMzEzMjAyLCJsYXN0X3ZhbHVlIjoiNDA4ODQzMTMxMzIwMiJ9"
+            "startCursor": "eyJsYXN0X2lkIjo0MDg5MTY3MTg0MTc4LCJsYXN0X3ZhbHVlIjoiNDA4OTE2NzE4NDE3OCJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDg5MTY3MTg0MTc4LCJsYXN0X3ZhbHVlIjoiNDA4OTE2NzE4NDE3OCJ9"
           }
         },
         "files": {
           "edges": [
             {
-              "cursor": "eyJsYXN0X2lkIjo0NDA3MDYxMzI1NDQ1MCwibGFzdF92YWx1ZSI6NDQwNzA2MTMyNTQ0NTB9",
+              "cursor": "eyJsYXN0X2lkIjo0NDA3NzUxMDI2MzA5MCwibGFzdF92YWx1ZSI6NDQwNzc1MTAyNjMwOTB9",
               "node": {
                 "__typename": "GenericFile",
-                "id": "gid://shopify/GenericFile/44070613254450",
-                "alt": "Connection overlay mrru3sm3 B"
+                "id": "gid://shopify/GenericFile/44077510263090",
+                "alt": "Connection overlay mrtrl494 B"
               }
             }
           ],
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": true,
-            "startCursor": "eyJsYXN0X2lkIjo0NDA3MDYxMzI1NDQ1MCwibGFzdF92YWx1ZSI6NDQwNzA2MTMyNTQ0NTB9",
-            "endCursor": "eyJsYXN0X2lkIjo0NDA3MDYxMzI1NDQ1MCwibGFzdF92YWx1ZSI6NDQwNzA2MTMyNTQ0NTB9"
+            "startCursor": "eyJsYXN0X2lkIjo0NDA3NzUxMDI2MzA5MCwibGFzdF92YWx1ZSI6NDQwNzc1MTAyNjMwOTB9",
+            "endCursor": "eyJsYXN0X2lkIjo0NDA3NzUxMDI2MzA5MCwibGFzdF92YWx1ZSI6NDQwNzc1MTAyNjMwOTB9"
           }
         },
         "groups": {
           "edges": [
             {
-              "cursor": "eyJsYXN0X2lkIjozMTU5MDY0ODgyLCJsYXN0X3ZhbHVlIjozMTU5MDY0ODgyfQ==",
+              "cursor": "eyJsYXN0X2lkIjozMTYxMTYyMDM0LCJsYXN0X3ZhbHVlIjozMTYxMTYyMDM0fQ==",
               "node": {
-                "id": "gid://shopify/SellingPlanGroup/3159064882",
-                "name": "connection-overlay-mrru3sm3-b",
-                "merchantCode": "connection-overlay-mrru3sm3-b"
+                "id": "gid://shopify/SellingPlanGroup/3161162034",
+                "name": "connection-overlay-mrtrl494-b",
+                "merchantCode": "connection-overlay-mrtrl494-b"
               }
             }
           ],
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": true,
-            "startCursor": "eyJsYXN0X2lkIjozMTU5MDY0ODgyLCJsYXN0X3ZhbHVlIjozMTU5MDY0ODgyfQ==",
-            "endCursor": "eyJsYXN0X2lkIjozMTU5MDY0ODgyLCJsYXN0X3ZhbHVlIjozMTU5MDY0ODgyfQ=="
+            "startCursor": "eyJsYXN0X2lkIjozMTYxMTYyMDM0LCJsYXN0X3ZhbHVlIjozMTYxMTYyMDM0fQ==",
+            "endCursor": "eyJsYXN0X2lkIjozMTYxMTYyMDM0LCJsYXN0X3ZhbHVlIjozMTYxMTYyMDM0fQ=="
           }
         }
       },
@@ -438,7 +438,7 @@
           "actualQueryCost": 9,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1982,
+            "currentlyAvailable": 1983,
             "restoreRate": 100
           }
         }
@@ -449,11 +449,11 @@
     "request": {
       "query": "query ConnectionOverlayBeforeRead(\n  $savedBefore: String!\n  $fileBefore: String!\n  $groupBefore: String!\n  $fileQuery: String!\n  $groupQuery: String!\n) {\n  saved: productSavedSearches(last: 1, before: $savedBefore) {\n    edges { cursor node { id name } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n  files: files(last: 1, before: $fileBefore, query: $fileQuery, sortKey: ID) {\n    edges { cursor node { __typename id alt } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n  groups: sellingPlanGroups(last: 1, before: $groupBefore, query: $groupQuery, sortKey: ID) {\n    edges { cursor node { id name merchantCode } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
       "variables": {
-        "savedBefore": "eyJsYXN0X2lkIjo0MDg4NDMxMzEzMjAyLCJsYXN0X3ZhbHVlIjoiNDA4ODQzMTMxMzIwMiJ9",
-        "fileBefore": "eyJsYXN0X2lkIjo0NDA3MDYxMzI1NDQ1MCwibGFzdF92YWx1ZSI6NDQwNzA2MTMyNTQ0NTB9",
-        "groupBefore": "eyJsYXN0X2lkIjozMTU5MDY0ODgyLCJsYXN0X3ZhbHVlIjozMTU5MDY0ODgyfQ==",
-        "fileQuery": "filename:connection-overlay-mrru3sm3*",
-        "groupQuery": "name:connection-overlay-mrru3sm3*"
+        "savedBefore": "eyJsYXN0X2lkIjo0MDg5MTY3MTg0MTc4LCJsYXN0X3ZhbHVlIjoiNDA4OTE2NzE4NDE3OCJ9",
+        "fileBefore": "eyJsYXN0X2lkIjo0NDA3NzUxMDI2MzA5MCwibGFzdF92YWx1ZSI6NDQwNzc1MTAyNjMwOTB9",
+        "groupBefore": "eyJsYXN0X2lkIjozMTYxMTYyMDM0LCJsYXN0X3ZhbHVlIjozMTYxMTYyMDM0fQ==",
+        "fileQuery": "filename:connection-overlay-mrtrl494*",
+        "groupQuery": "name:connection-overlay-mrtrl494*"
       }
     },
     "status": 200,
@@ -462,54 +462,54 @@
         "saved": {
           "edges": [
             {
-              "cursor": "eyJsYXN0X2lkIjo0MDg4NDMxMjgwNDM0LCJsYXN0X3ZhbHVlIjoiNDA4ODQzMTI4MDQzNCJ9",
+              "cursor": "eyJsYXN0X2lkIjo0MDg5MTY3MTUxNDEwLCJsYXN0X3ZhbHVlIjoiNDA4OTE2NzE1MTQxMCJ9",
               "node": {
-                "id": "gid://shopify/SavedSearch/4088431280434",
-                "name": "Connection overlay mrru3sm3 A"
+                "id": "gid://shopify/SavedSearch/4089167151410",
+                "name": "Connection overlay mrtrl494 A"
               }
             }
           ],
           "pageInfo": {
             "hasNextPage": true,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjo0MDg4NDMxMjgwNDM0LCJsYXN0X3ZhbHVlIjoiNDA4ODQzMTI4MDQzNCJ9",
-            "endCursor": "eyJsYXN0X2lkIjo0MDg4NDMxMjgwNDM0LCJsYXN0X3ZhbHVlIjoiNDA4ODQzMTI4MDQzNCJ9"
+            "startCursor": "eyJsYXN0X2lkIjo0MDg5MTY3MTUxNDEwLCJsYXN0X3ZhbHVlIjoiNDA4OTE2NzE1MTQxMCJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDg5MTY3MTUxNDEwLCJsYXN0X3ZhbHVlIjoiNDA4OTE2NzE1MTQxMCJ9"
           }
         },
         "files": {
           "edges": [
             {
-              "cursor": "eyJsYXN0X2lkIjo0NDA3MDYxMzIyMTY4MiwibGFzdF92YWx1ZSI6NDQwNzA2MTMyMjE2ODJ9",
+              "cursor": "eyJsYXN0X2lkIjo0NDA3NzUxMDIzMDMyMiwibGFzdF92YWx1ZSI6NDQwNzc1MTAyMzAzMjJ9",
               "node": {
                 "__typename": "GenericFile",
-                "id": "gid://shopify/GenericFile/44070613221682",
-                "alt": "Connection overlay mrru3sm3 A"
+                "id": "gid://shopify/GenericFile/44077510230322",
+                "alt": "Connection overlay mrtrl494 A"
               }
             }
           ],
           "pageInfo": {
             "hasNextPage": true,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjo0NDA3MDYxMzIyMTY4MiwibGFzdF92YWx1ZSI6NDQwNzA2MTMyMjE2ODJ9",
-            "endCursor": "eyJsYXN0X2lkIjo0NDA3MDYxMzIyMTY4MiwibGFzdF92YWx1ZSI6NDQwNzA2MTMyMjE2ODJ9"
+            "startCursor": "eyJsYXN0X2lkIjo0NDA3NzUxMDIzMDMyMiwibGFzdF92YWx1ZSI6NDQwNzc1MTAyMzAzMjJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0NDA3NzUxMDIzMDMyMiwibGFzdF92YWx1ZSI6NDQwNzc1MTAyMzAzMjJ9"
           }
         },
         "groups": {
           "edges": [
             {
-              "cursor": "eyJsYXN0X2lkIjozMTU5MDMyMTE0LCJsYXN0X3ZhbHVlIjozMTU5MDMyMTE0fQ==",
+              "cursor": "eyJsYXN0X2lkIjozMTYxMTI5MjY2LCJsYXN0X3ZhbHVlIjozMTYxMTI5MjY2fQ==",
               "node": {
-                "id": "gid://shopify/SellingPlanGroup/3159032114",
-                "name": "connection-overlay-mrru3sm3-a",
-                "merchantCode": "connection-overlay-mrru3sm3-a"
+                "id": "gid://shopify/SellingPlanGroup/3161129266",
+                "name": "connection-overlay-mrtrl494-a",
+                "merchantCode": "connection-overlay-mrtrl494-a"
               }
             }
           ],
           "pageInfo": {
             "hasNextPage": true,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjozMTU5MDMyMTE0LCJsYXN0X3ZhbHVlIjozMTU5MDMyMTE0fQ==",
-            "endCursor": "eyJsYXN0X2lkIjozMTU5MDMyMTE0LCJsYXN0X3ZhbHVlIjozMTU5MDMyMTE0fQ=="
+            "startCursor": "eyJsYXN0X2lkIjozMTYxMTI5MjY2LCJsYXN0X3ZhbHVlIjozMTYxMTI5MjY2fQ==",
+            "endCursor": "eyJsYXN0X2lkIjozMTYxMTI5MjY2LCJsYXN0X3ZhbHVlIjozMTYxMTI5MjY2fQ=="
           }
         }
       },
@@ -519,7 +519,7 @@
           "actualQueryCost": 9,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1987,
+            "currentlyAvailable": 1986,
             "restoreRate": 100
           }
         }
@@ -531,25 +531,25 @@
       "query": "mutation ConnectionOverlayDelete(\n  $savedSearch: SavedSearchDeleteInput!\n  $fileIds: [ID!]!\n  $sellingPlanGroupId: ID!\n) {\n  savedSearchDelete(input: $savedSearch) {\n    deletedSavedSearchId\n    userErrors { field message }\n  }\n  fileDelete(fileIds: $fileIds) {\n    deletedFileIds\n    userErrors { field message code }\n  }\n  sellingPlanGroupDelete(id: $sellingPlanGroupId) {\n    deletedSellingPlanGroupId\n    userErrors { field message code }\n  }\n}\n",
       "variables": {
         "savedSearch": {
-          "id": "gid://shopify/SavedSearch/4088431313202"
+          "id": "gid://shopify/SavedSearch/4089167184178"
         },
-        "fileIds": ["gid://shopify/GenericFile/44070613254450"],
-        "sellingPlanGroupId": "gid://shopify/SellingPlanGroup/3159064882"
+        "fileIds": ["gid://shopify/GenericFile/44077510263090"],
+        "sellingPlanGroupId": "gid://shopify/SellingPlanGroup/3161162034"
       }
     },
     "status": 200,
     "response": {
       "data": {
         "savedSearchDelete": {
-          "deletedSavedSearchId": "gid://shopify/SavedSearch/4088431313202",
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/4089167184178",
           "userErrors": []
         },
         "fileDelete": {
-          "deletedFileIds": ["gid://shopify/GenericFile/44070613254450"],
+          "deletedFileIds": ["gid://shopify/GenericFile/44077510263090"],
           "userErrors": []
         },
         "sellingPlanGroupDelete": {
-          "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3159064882",
+          "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3161162034",
           "userErrors": []
         }
       },
@@ -559,7 +559,7 @@
           "actualQueryCost": 30,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1970,
+            "currentlyAvailable": 1968,
             "restoreRate": 100
           }
         }
@@ -570,8 +570,8 @@
     "request": {
       "query": "query ConnectionOverlayAfterDeleteRead($fileQuery: String!, $groupQuery: String!) {\n  saved: productSavedSearches(first: 10) {\n    edges { cursor node { id name } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n  files: files(first: 10, query: $fileQuery, sortKey: ID) {\n    edges { cursor node { __typename id alt } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n  groups: sellingPlanGroups(first: 10, query: $groupQuery, sortKey: ID) {\n    edges { cursor node { id name merchantCode } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
       "variables": {
-        "fileQuery": "filename:connection-overlay-mrru3sm3*",
-        "groupQuery": "name:connection-overlay-mrru3sm3*"
+        "fileQuery": "filename:connection-overlay-mrtrl494*",
+        "groupQuery": "name:connection-overlay-mrtrl494*"
       }
     },
     "status": 200,
@@ -580,54 +580,54 @@
         "saved": {
           "edges": [
             {
-              "cursor": "eyJsYXN0X2lkIjo0MDg4NDMxMjgwNDM0LCJsYXN0X3ZhbHVlIjoiNDA4ODQzMTI4MDQzNCJ9",
+              "cursor": "eyJsYXN0X2lkIjo0MDg5MTY3MTUxNDEwLCJsYXN0X3ZhbHVlIjoiNDA4OTE2NzE1MTQxMCJ9",
               "node": {
-                "id": "gid://shopify/SavedSearch/4088431280434",
-                "name": "Connection overlay mrru3sm3 A"
+                "id": "gid://shopify/SavedSearch/4089167151410",
+                "name": "Connection overlay mrtrl494 A"
               }
             }
           ],
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjo0MDg4NDMxMjgwNDM0LCJsYXN0X3ZhbHVlIjoiNDA4ODQzMTI4MDQzNCJ9",
-            "endCursor": "eyJsYXN0X2lkIjo0MDg4NDMxMjgwNDM0LCJsYXN0X3ZhbHVlIjoiNDA4ODQzMTI4MDQzNCJ9"
+            "startCursor": "eyJsYXN0X2lkIjo0MDg5MTY3MTUxNDEwLCJsYXN0X3ZhbHVlIjoiNDA4OTE2NzE1MTQxMCJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDg5MTY3MTUxNDEwLCJsYXN0X3ZhbHVlIjoiNDA4OTE2NzE1MTQxMCJ9"
           }
         },
         "files": {
           "edges": [
             {
-              "cursor": "eyJsYXN0X2lkIjo0NDA3MDYxMzIyMTY4MiwibGFzdF92YWx1ZSI6NDQwNzA2MTMyMjE2ODJ9",
+              "cursor": "eyJsYXN0X2lkIjo0NDA3NzUxMDIzMDMyMiwibGFzdF92YWx1ZSI6NDQwNzc1MTAyMzAzMjJ9",
               "node": {
                 "__typename": "GenericFile",
-                "id": "gid://shopify/GenericFile/44070613221682",
-                "alt": "Connection overlay mrru3sm3 A"
+                "id": "gid://shopify/GenericFile/44077510230322",
+                "alt": "Connection overlay mrtrl494 A"
               }
             }
           ],
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjo0NDA3MDYxMzIyMTY4MiwibGFzdF92YWx1ZSI6NDQwNzA2MTMyMjE2ODJ9",
-            "endCursor": "eyJsYXN0X2lkIjo0NDA3MDYxMzIyMTY4MiwibGFzdF92YWx1ZSI6NDQwNzA2MTMyMjE2ODJ9"
+            "startCursor": "eyJsYXN0X2lkIjo0NDA3NzUxMDIzMDMyMiwibGFzdF92YWx1ZSI6NDQwNzc1MTAyMzAzMjJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0NDA3NzUxMDIzMDMyMiwibGFzdF92YWx1ZSI6NDQwNzc1MTAyMzAzMjJ9"
           }
         },
         "groups": {
           "edges": [
             {
-              "cursor": "eyJsYXN0X2lkIjozMTU5MDMyMTE0LCJsYXN0X3ZhbHVlIjozMTU5MDMyMTE0fQ==",
+              "cursor": "eyJsYXN0X2lkIjozMTYxMTI5MjY2LCJsYXN0X3ZhbHVlIjozMTYxMTI5MjY2fQ==",
               "node": {
-                "id": "gid://shopify/SellingPlanGroup/3159032114",
-                "name": "connection-overlay-mrru3sm3-a",
-                "merchantCode": "connection-overlay-mrru3sm3-a"
+                "id": "gid://shopify/SellingPlanGroup/3161129266",
+                "name": "connection-overlay-mrtrl494-a",
+                "merchantCode": "connection-overlay-mrtrl494-a"
               }
             }
           ],
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjozMTU5MDMyMTE0LCJsYXN0X3ZhbHVlIjozMTU5MDMyMTE0fQ==",
-            "endCursor": "eyJsYXN0X2lkIjozMTU5MDMyMTE0LCJsYXN0X3ZhbHVlIjozMTU5MDMyMTE0fQ=="
+            "startCursor": "eyJsYXN0X2lkIjozMTYxMTI5MjY2LCJsYXN0X3ZhbHVlIjozMTYxMTI5MjY2fQ==",
+            "endCursor": "eyJsYXN0X2lkIjozMTYxMTI5MjY2LCJsYXN0X3ZhbHVlIjozMTYxMTI5MjY2fQ=="
           }
         }
       },
@@ -637,7 +637,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1986,
+            "currentlyAvailable": 1987,
             "restoreRate": 100
           }
         }
@@ -691,7 +691,7 @@
           "variables": {
             "first": 250,
             "after": null,
-            "query": "filename:connection-overlay-mrru3sm3*",
+            "query": "filename:connection-overlay-mrtrl494*",
             "sortKey": "ID"
           }
         },
@@ -723,21 +723,24 @@
       }
     },
     {
-      "operationName": "SellingPlanGroupsConnectionBaseline",
+      "operationName": "SellingPlanGroupsConnectionWindow",
       "capture": {
         "request": {
-          "query": "\nquery SellingPlanGroupsConnectionBaseline(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: SellingPlanGroupSortKeys\n) {\n  sellingPlanGroupsBaseline: sellingPlanGroups(\n    first: $first\n    after: $after\n    query: $query\n    sortKey: $sortKey\n  ) {\n    edges { cursor node { id } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
+          "query": "\nquery SellingPlanGroupsConnectionWindow(\n  $first: Int\n  $after: String\n  $last: Int\n  $before: String\n  $query: String\n  $sortKey: SellingPlanGroupSortKeys\n  $reverse: Boolean!\n) {\n  sellingPlanGroupsWindow: sellingPlanGroups(\n    first: $first\n    after: $after\n    last: $last\n    before: $before\n    query: $query\n    sortKey: $sortKey\n    reverse: $reverse\n  ) {\n    edges {\n      cursor\n      node {\n        __typename\n        id\n        appId\n        name\n        merchantCode\n        description\n        options\n        position\n        createdAt\n        productsCount { count precision }\n        productVariantsCount { count precision }\n        sellingPlans(first: 31) {\n          edges {\n            cursor\n            node {\n              __typename\n              id\n              name\n              description\n              options\n              position\n              category\n              createdAt\n              billingPolicy {\n                __typename\n                ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }\n              }\n              deliveryPolicy {\n                __typename\n                ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }\n              }\n              inventoryPolicy { reserve }\n              pricingPolicies {\n                __typename\n                ... on SellingPlanFixedPricingPolicy {\n                  adjustmentType\n                  adjustmentValue {\n                    __typename\n                    ... on SellingPlanPricingPolicyPercentageValue { percentage }\n                    ... on MoneyV2 { amount currencyCode }\n                  }\n                }\n                ... on SellingPlanRecurringPricingPolicy {\n                  afterCycle\n                  createdAt\n                  adjustmentType\n                  adjustmentValue {\n                    __typename\n                    ... on SellingPlanPricingPolicyPercentageValue { percentage }\n                    ... on MoneyV2 { amount currencyCode }\n                  }\n                }\n              }\n            }\n          }\n          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
           "variables": {
-            "first": 250,
+            "first": 12,
             "after": null,
-            "query": "name:connection-overlay-mrru3sm3*",
-            "sortKey": "ID"
+            "last": null,
+            "before": null,
+            "query": "name:connection-overlay-mrtrl494*",
+            "sortKey": "ID",
+            "reverse": false
           }
         },
         "status": 200,
         "response": {
           "data": {
-            "sellingPlanGroupsBaseline": {
+            "sellingPlanGroupsWindow": {
               "edges": [],
               "pageInfo": {
                 "hasNextPage": false,
@@ -749,7 +752,7 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 13,
+              "requestedQueryCost": 166,
               "actualQueryCost": 2,
               "throttleStatus": {
                 "maximumAvailable": 2000,
@@ -806,7 +809,7 @@
           "variables": {
             "first": 250,
             "after": null,
-            "query": "filename:connection-overlay-mrru3sm3*",
+            "query": "filename:connection-overlay-mrtrl494*",
             "sortKey": "ID"
           }
         },
@@ -838,21 +841,24 @@
       }
     },
     {
-      "operationName": "SellingPlanGroupsConnectionBaseline",
+      "operationName": "SellingPlanGroupsConnectionWindow",
       "capture": {
         "request": {
-          "query": "\nquery SellingPlanGroupsConnectionBaseline(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: SellingPlanGroupSortKeys\n) {\n  sellingPlanGroupsBaseline: sellingPlanGroups(\n    first: $first\n    after: $after\n    query: $query\n    sortKey: $sortKey\n  ) {\n    edges { cursor node { id } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
+          "query": "\nquery SellingPlanGroupsConnectionWindow(\n  $first: Int\n  $after: String\n  $last: Int\n  $before: String\n  $query: String\n  $sortKey: SellingPlanGroupSortKeys\n  $reverse: Boolean!\n) {\n  sellingPlanGroupsWindow: sellingPlanGroups(\n    first: $first\n    after: $after\n    last: $last\n    before: $before\n    query: $query\n    sortKey: $sortKey\n    reverse: $reverse\n  ) {\n    edges {\n      cursor\n      node {\n        __typename\n        id\n        appId\n        name\n        merchantCode\n        description\n        options\n        position\n        createdAt\n        productsCount { count precision }\n        productVariantsCount { count precision }\n        sellingPlans(first: 31) {\n          edges {\n            cursor\n            node {\n              __typename\n              id\n              name\n              description\n              options\n              position\n              category\n              createdAt\n              billingPolicy {\n                __typename\n                ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }\n              }\n              deliveryPolicy {\n                __typename\n                ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }\n              }\n              inventoryPolicy { reserve }\n              pricingPolicies {\n                __typename\n                ... on SellingPlanFixedPricingPolicy {\n                  adjustmentType\n                  adjustmentValue {\n                    __typename\n                    ... on SellingPlanPricingPolicyPercentageValue { percentage }\n                    ... on MoneyV2 { amount currencyCode }\n                  }\n                }\n                ... on SellingPlanRecurringPricingPolicy {\n                  afterCycle\n                  createdAt\n                  adjustmentType\n                  adjustmentValue {\n                    __typename\n                    ... on SellingPlanPricingPolicyPercentageValue { percentage }\n                    ... on MoneyV2 { amount currencyCode }\n                  }\n                }\n              }\n            }\n          }\n          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
           "variables": {
-            "first": 250,
+            "first": 3,
             "after": null,
-            "query": "name:connection-overlay-mrru3sm3*",
-            "sortKey": "ID"
+            "last": null,
+            "before": null,
+            "query": "name:connection-overlay-mrtrl494*",
+            "sortKey": "ID",
+            "reverse": true
           }
         },
         "status": 200,
         "response": {
           "data": {
-            "sellingPlanGroupsBaseline": {
+            "sellingPlanGroupsWindow": {
               "edges": [],
               "pageInfo": {
                 "hasNextPage": false,
@@ -864,7 +870,7 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 13,
+              "requestedQueryCost": 84,
               "actualQueryCost": 2,
               "throttleStatus": {
                 "maximumAvailable": 2000,
@@ -921,7 +927,7 @@
           "variables": {
             "first": 250,
             "after": null,
-            "query": "filename:connection-overlay-mrru3sm3*",
+            "query": "filename:connection-overlay-mrtrl494*",
             "sortKey": "ID"
           }
         },
@@ -953,21 +959,24 @@
       }
     },
     {
-      "operationName": "SellingPlanGroupsConnectionBaseline",
+      "operationName": "SellingPlanGroupsConnectionWindow",
       "capture": {
         "request": {
-          "query": "\nquery SellingPlanGroupsConnectionBaseline(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: SellingPlanGroupSortKeys\n) {\n  sellingPlanGroupsBaseline: sellingPlanGroups(\n    first: $first\n    after: $after\n    query: $query\n    sortKey: $sortKey\n  ) {\n    edges { cursor node { id } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
+          "query": "\nquery SellingPlanGroupsConnectionWindow(\n  $first: Int\n  $after: String\n  $last: Int\n  $before: String\n  $query: String\n  $sortKey: SellingPlanGroupSortKeys\n  $reverse: Boolean!\n) {\n  sellingPlanGroupsWindow: sellingPlanGroups(\n    first: $first\n    after: $after\n    last: $last\n    before: $before\n    query: $query\n    sortKey: $sortKey\n    reverse: $reverse\n  ) {\n    edges {\n      cursor\n      node {\n        __typename\n        id\n        appId\n        name\n        merchantCode\n        description\n        options\n        position\n        createdAt\n        productsCount { count precision }\n        productVariantsCount { count precision }\n        sellingPlans(first: 31) {\n          edges {\n            cursor\n            node {\n              __typename\n              id\n              name\n              description\n              options\n              position\n              category\n              createdAt\n              billingPolicy {\n                __typename\n                ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }\n              }\n              deliveryPolicy {\n                __typename\n                ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }\n              }\n              inventoryPolicy { reserve }\n              pricingPolicies {\n                __typename\n                ... on SellingPlanFixedPricingPolicy {\n                  adjustmentType\n                  adjustmentValue {\n                    __typename\n                    ... on SellingPlanPricingPolicyPercentageValue { percentage }\n                    ... on MoneyV2 { amount currencyCode }\n                  }\n                }\n                ... on SellingPlanRecurringPricingPolicy {\n                  afterCycle\n                  createdAt\n                  adjustmentType\n                  adjustmentValue {\n                    __typename\n                    ... on SellingPlanPricingPolicyPercentageValue { percentage }\n                    ... on MoneyV2 { amount currencyCode }\n                  }\n                }\n              }\n            }\n          }\n          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
           "variables": {
-            "first": 250,
+            "first": 3,
             "after": null,
-            "query": "name:connection-overlay-mrru3sm3*",
-            "sortKey": "ID"
+            "last": null,
+            "before": null,
+            "query": "name:connection-overlay-mrtrl494*",
+            "sortKey": "ID",
+            "reverse": false
           }
         },
         "status": 200,
         "response": {
           "data": {
-            "sellingPlanGroupsBaseline": {
+            "sellingPlanGroupsWindow": {
               "edges": [],
               "pageInfo": {
                 "hasNextPage": false,
@@ -979,7 +988,7 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 13,
+              "requestedQueryCost": 84,
               "actualQueryCost": 2,
               "throttleStatus": {
                 "maximumAvailable": 2000,
@@ -1036,7 +1045,7 @@
           "variables": {
             "first": 250,
             "after": null,
-            "query": "filename:connection-overlay-mrru3sm3*",
+            "query": "filename:connection-overlay-mrtrl494*",
             "sortKey": "ID"
           }
         },
@@ -1068,21 +1077,24 @@
       }
     },
     {
-      "operationName": "SellingPlanGroupsConnectionBaseline",
+      "operationName": "SellingPlanGroupsConnectionWindow",
       "capture": {
         "request": {
-          "query": "\nquery SellingPlanGroupsConnectionBaseline(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: SellingPlanGroupSortKeys\n) {\n  sellingPlanGroupsBaseline: sellingPlanGroups(\n    first: $first\n    after: $after\n    query: $query\n    sortKey: $sortKey\n  ) {\n    edges { cursor node { id } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
+          "query": "\nquery SellingPlanGroupsConnectionWindow(\n  $first: Int\n  $after: String\n  $last: Int\n  $before: String\n  $query: String\n  $sortKey: SellingPlanGroupSortKeys\n  $reverse: Boolean!\n) {\n  sellingPlanGroupsWindow: sellingPlanGroups(\n    first: $first\n    after: $after\n    last: $last\n    before: $before\n    query: $query\n    sortKey: $sortKey\n    reverse: $reverse\n  ) {\n    edges {\n      cursor\n      node {\n        __typename\n        id\n        appId\n        name\n        merchantCode\n        description\n        options\n        position\n        createdAt\n        productsCount { count precision }\n        productVariantsCount { count precision }\n        sellingPlans(first: 31) {\n          edges {\n            cursor\n            node {\n              __typename\n              id\n              name\n              description\n              options\n              position\n              category\n              createdAt\n              billingPolicy {\n                __typename\n                ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }\n              }\n              deliveryPolicy {\n                __typename\n                ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }\n              }\n              inventoryPolicy { reserve }\n              pricingPolicies {\n                __typename\n                ... on SellingPlanFixedPricingPolicy {\n                  adjustmentType\n                  adjustmentValue {\n                    __typename\n                    ... on SellingPlanPricingPolicyPercentageValue { percentage }\n                    ... on MoneyV2 { amount currencyCode }\n                  }\n                }\n                ... on SellingPlanRecurringPricingPolicy {\n                  afterCycle\n                  createdAt\n                  adjustmentType\n                  adjustmentValue {\n                    __typename\n                    ... on SellingPlanPricingPolicyPercentageValue { percentage }\n                    ... on MoneyV2 { amount currencyCode }\n                  }\n                }\n              }\n            }\n          }\n          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
           "variables": {
-            "first": 250,
+            "first": 3,
             "after": null,
-            "query": "name:connection-overlay-mrru3sm3*",
-            "sortKey": "ID"
+            "last": null,
+            "before": null,
+            "query": "name:connection-overlay-mrtrl494*",
+            "sortKey": "ID",
+            "reverse": false
           }
         },
         "status": 200,
         "response": {
           "data": {
-            "sellingPlanGroupsBaseline": {
+            "sellingPlanGroupsWindow": {
               "edges": [],
               "pageInfo": {
                 "hasNextPage": false,
@@ -1094,7 +1106,7 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 13,
+              "requestedQueryCost": 84,
               "actualQueryCost": 2,
               "throttleStatus": {
                 "maximumAvailable": 2000,
@@ -1151,7 +1163,7 @@
           "variables": {
             "first": 250,
             "after": null,
-            "query": "filename:connection-overlay-mrru3sm3*",
+            "query": "filename:connection-overlay-mrtrl494*",
             "sortKey": "ID"
           }
         },
@@ -1183,21 +1195,24 @@
       }
     },
     {
-      "operationName": "SellingPlanGroupsConnectionBaseline",
+      "operationName": "SellingPlanGroupsConnectionWindow",
       "capture": {
         "request": {
-          "query": "\nquery SellingPlanGroupsConnectionBaseline(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: SellingPlanGroupSortKeys\n) {\n  sellingPlanGroupsBaseline: sellingPlanGroups(\n    first: $first\n    after: $after\n    query: $query\n    sortKey: $sortKey\n  ) {\n    edges { cursor node { id } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
+          "query": "\nquery SellingPlanGroupsConnectionWindow(\n  $first: Int\n  $after: String\n  $last: Int\n  $before: String\n  $query: String\n  $sortKey: SellingPlanGroupSortKeys\n  $reverse: Boolean!\n) {\n  sellingPlanGroupsWindow: sellingPlanGroups(\n    first: $first\n    after: $after\n    last: $last\n    before: $before\n    query: $query\n    sortKey: $sortKey\n    reverse: $reverse\n  ) {\n    edges {\n      cursor\n      node {\n        __typename\n        id\n        appId\n        name\n        merchantCode\n        description\n        options\n        position\n        createdAt\n        productsCount { count precision }\n        productVariantsCount { count precision }\n        sellingPlans(first: 31) {\n          edges {\n            cursor\n            node {\n              __typename\n              id\n              name\n              description\n              options\n              position\n              category\n              createdAt\n              billingPolicy {\n                __typename\n                ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }\n              }\n              deliveryPolicy {\n                __typename\n                ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }\n              }\n              inventoryPolicy { reserve }\n              pricingPolicies {\n                __typename\n                ... on SellingPlanFixedPricingPolicy {\n                  adjustmentType\n                  adjustmentValue {\n                    __typename\n                    ... on SellingPlanPricingPolicyPercentageValue { percentage }\n                    ... on MoneyV2 { amount currencyCode }\n                  }\n                }\n                ... on SellingPlanRecurringPricingPolicy {\n                  afterCycle\n                  createdAt\n                  adjustmentType\n                  adjustmentValue {\n                    __typename\n                    ... on SellingPlanPricingPolicyPercentageValue { percentage }\n                    ... on MoneyV2 { amount currencyCode }\n                  }\n                }\n              }\n            }\n          }\n          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
           "variables": {
-            "first": 250,
+            "first": 12,
             "after": null,
-            "query": "name:connection-overlay-mrru3sm3*",
-            "sortKey": "ID"
+            "last": null,
+            "before": null,
+            "query": "name:connection-overlay-mrtrl494*",
+            "sortKey": "ID",
+            "reverse": false
           }
         },
         "status": 200,
         "response": {
           "data": {
-            "sellingPlanGroupsBaseline": {
+            "sellingPlanGroupsWindow": {
               "edges": [],
               "pageInfo": {
                 "hasNextPage": false,
@@ -1209,7 +1224,7 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 13,
+              "requestedQueryCost": 166,
               "actualQueryCost": 2,
               "throttleStatus": {
                 "maximumAvailable": 2000,
@@ -1263,7 +1278,7 @@
       "variables": {
         "first": 250,
         "after": null,
-        "query": "filename:connection-overlay-mrru3sm3*",
+        "query": "filename:connection-overlay-mrtrl494*",
         "sortKey": "ID"
       },
       "query": "\nquery MediaFilesConnectionBaseline(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: FileSortKeys\n) {\n  filesBaseline: files(first: $first, after: $after, query: $query, sortKey: $sortKey) {\n    edges {\n      cursor\n      node {\n        __typename\n        id\n        alt\n        createdAt\n        updatedAt\n        fileStatus\n        ... on MediaImage {\n          image { url width height }\n          preview { image { url width height } }\n        }\n        ... on GenericFile { url }\n        ... on Video {\n          preview { image { url width height } }\n          sources { url mimeType format height width }\n        }\n        ... on ExternalVideo {\n          embeddedUrl\n          host\n          originUrl\n          preview { image { url width height } }\n        }\n        ... on Model3d {\n          preview { image { url width height } }\n          sources { url mimeType format filesize }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
@@ -1296,19 +1311,22 @@
       }
     },
     {
-      "operationName": "SellingPlanGroupsConnectionBaseline",
+      "operationName": "SellingPlanGroupsConnectionWindow",
       "variables": {
-        "first": 250,
+        "first": 12,
         "after": null,
-        "query": "name:connection-overlay-mrru3sm3*",
-        "sortKey": "ID"
+        "last": null,
+        "before": null,
+        "query": "name:connection-overlay-mrtrl494*",
+        "sortKey": "ID",
+        "reverse": false
       },
-      "query": "\nquery SellingPlanGroupsConnectionBaseline(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: SellingPlanGroupSortKeys\n) {\n  sellingPlanGroupsBaseline: sellingPlanGroups(\n    first: $first\n    after: $after\n    query: $query\n    sortKey: $sortKey\n  ) {\n    edges { cursor node { id } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
+      "query": "\nquery SellingPlanGroupsConnectionWindow(\n  $first: Int\n  $after: String\n  $last: Int\n  $before: String\n  $query: String\n  $sortKey: SellingPlanGroupSortKeys\n  $reverse: Boolean!\n) {\n  sellingPlanGroupsWindow: sellingPlanGroups(\n    first: $first\n    after: $after\n    last: $last\n    before: $before\n    query: $query\n    sortKey: $sortKey\n    reverse: $reverse\n  ) {\n    edges {\n      cursor\n      node {\n        __typename\n        id\n        appId\n        name\n        merchantCode\n        description\n        options\n        position\n        createdAt\n        productsCount { count precision }\n        productVariantsCount { count precision }\n        sellingPlans(first: 31) {\n          edges {\n            cursor\n            node {\n              __typename\n              id\n              name\n              description\n              options\n              position\n              category\n              createdAt\n              billingPolicy {\n                __typename\n                ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }\n              }\n              deliveryPolicy {\n                __typename\n                ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }\n              }\n              inventoryPolicy { reserve }\n              pricingPolicies {\n                __typename\n                ... on SellingPlanFixedPricingPolicy {\n                  adjustmentType\n                  adjustmentValue {\n                    __typename\n                    ... on SellingPlanPricingPolicyPercentageValue { percentage }\n                    ... on MoneyV2 { amount currencyCode }\n                  }\n                }\n                ... on SellingPlanRecurringPricingPolicy {\n                  afterCycle\n                  createdAt\n                  adjustmentType\n                  adjustmentValue {\n                    __typename\n                    ... on SellingPlanPricingPolicyPercentageValue { percentage }\n                    ... on MoneyV2 { amount currencyCode }\n                  }\n                }\n              }\n            }\n          }\n          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "sellingPlanGroupsBaseline": {
+            "sellingPlanGroupsWindow": {
               "edges": [],
               "pageInfo": {
                 "hasNextPage": false,
@@ -1320,7 +1338,7 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 13,
+              "requestedQueryCost": 166,
               "actualQueryCost": 2,
               "throttleStatus": {
                 "maximumAvailable": 2000,
@@ -1372,7 +1390,7 @@
       "variables": {
         "first": 250,
         "after": null,
-        "query": "filename:connection-overlay-mrru3sm3*",
+        "query": "filename:connection-overlay-mrtrl494*",
         "sortKey": "ID"
       },
       "query": "\nquery MediaFilesConnectionBaseline(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: FileSortKeys\n) {\n  filesBaseline: files(first: $first, after: $after, query: $query, sortKey: $sortKey) {\n    edges {\n      cursor\n      node {\n        __typename\n        id\n        alt\n        createdAt\n        updatedAt\n        fileStatus\n        ... on MediaImage {\n          image { url width height }\n          preview { image { url width height } }\n        }\n        ... on GenericFile { url }\n        ... on Video {\n          preview { image { url width height } }\n          sources { url mimeType format height width }\n        }\n        ... on ExternalVideo {\n          embeddedUrl\n          host\n          originUrl\n          preview { image { url width height } }\n        }\n        ... on Model3d {\n          preview { image { url width height } }\n          sources { url mimeType format filesize }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
@@ -1405,19 +1423,22 @@
       }
     },
     {
-      "operationName": "SellingPlanGroupsConnectionBaseline",
+      "operationName": "SellingPlanGroupsConnectionWindow",
       "variables": {
-        "first": 250,
+        "first": 3,
         "after": null,
-        "query": "name:connection-overlay-mrru3sm3*",
-        "sortKey": "ID"
+        "last": null,
+        "before": null,
+        "query": "name:connection-overlay-mrtrl494*",
+        "sortKey": "ID",
+        "reverse": true
       },
-      "query": "\nquery SellingPlanGroupsConnectionBaseline(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: SellingPlanGroupSortKeys\n) {\n  sellingPlanGroupsBaseline: sellingPlanGroups(\n    first: $first\n    after: $after\n    query: $query\n    sortKey: $sortKey\n  ) {\n    edges { cursor node { id } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
+      "query": "\nquery SellingPlanGroupsConnectionWindow(\n  $first: Int\n  $after: String\n  $last: Int\n  $before: String\n  $query: String\n  $sortKey: SellingPlanGroupSortKeys\n  $reverse: Boolean!\n) {\n  sellingPlanGroupsWindow: sellingPlanGroups(\n    first: $first\n    after: $after\n    last: $last\n    before: $before\n    query: $query\n    sortKey: $sortKey\n    reverse: $reverse\n  ) {\n    edges {\n      cursor\n      node {\n        __typename\n        id\n        appId\n        name\n        merchantCode\n        description\n        options\n        position\n        createdAt\n        productsCount { count precision }\n        productVariantsCount { count precision }\n        sellingPlans(first: 31) {\n          edges {\n            cursor\n            node {\n              __typename\n              id\n              name\n              description\n              options\n              position\n              category\n              createdAt\n              billingPolicy {\n                __typename\n                ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }\n              }\n              deliveryPolicy {\n                __typename\n                ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }\n              }\n              inventoryPolicy { reserve }\n              pricingPolicies {\n                __typename\n                ... on SellingPlanFixedPricingPolicy {\n                  adjustmentType\n                  adjustmentValue {\n                    __typename\n                    ... on SellingPlanPricingPolicyPercentageValue { percentage }\n                    ... on MoneyV2 { amount currencyCode }\n                  }\n                }\n                ... on SellingPlanRecurringPricingPolicy {\n                  afterCycle\n                  createdAt\n                  adjustmentType\n                  adjustmentValue {\n                    __typename\n                    ... on SellingPlanPricingPolicyPercentageValue { percentage }\n                    ... on MoneyV2 { amount currencyCode }\n                  }\n                }\n              }\n            }\n          }\n          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "sellingPlanGroupsBaseline": {
+            "sellingPlanGroupsWindow": {
               "edges": [],
               "pageInfo": {
                 "hasNextPage": false,
@@ -1429,7 +1450,7 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 13,
+              "requestedQueryCost": 84,
               "actualQueryCost": 2,
               "throttleStatus": {
                 "maximumAvailable": 2000,
@@ -1481,7 +1502,7 @@
       "variables": {
         "first": 250,
         "after": null,
-        "query": "filename:connection-overlay-mrru3sm3*",
+        "query": "filename:connection-overlay-mrtrl494*",
         "sortKey": "ID"
       },
       "query": "\nquery MediaFilesConnectionBaseline(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: FileSortKeys\n) {\n  filesBaseline: files(first: $first, after: $after, query: $query, sortKey: $sortKey) {\n    edges {\n      cursor\n      node {\n        __typename\n        id\n        alt\n        createdAt\n        updatedAt\n        fileStatus\n        ... on MediaImage {\n          image { url width height }\n          preview { image { url width height } }\n        }\n        ... on GenericFile { url }\n        ... on Video {\n          preview { image { url width height } }\n          sources { url mimeType format height width }\n        }\n        ... on ExternalVideo {\n          embeddedUrl\n          host\n          originUrl\n          preview { image { url width height } }\n        }\n        ... on Model3d {\n          preview { image { url width height } }\n          sources { url mimeType format filesize }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
@@ -1514,19 +1535,22 @@
       }
     },
     {
-      "operationName": "SellingPlanGroupsConnectionBaseline",
+      "operationName": "SellingPlanGroupsConnectionWindow",
       "variables": {
-        "first": 250,
+        "first": 3,
         "after": null,
-        "query": "name:connection-overlay-mrru3sm3*",
-        "sortKey": "ID"
+        "last": null,
+        "before": null,
+        "query": "name:connection-overlay-mrtrl494*",
+        "sortKey": "ID",
+        "reverse": false
       },
-      "query": "\nquery SellingPlanGroupsConnectionBaseline(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: SellingPlanGroupSortKeys\n) {\n  sellingPlanGroupsBaseline: sellingPlanGroups(\n    first: $first\n    after: $after\n    query: $query\n    sortKey: $sortKey\n  ) {\n    edges { cursor node { id } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
+      "query": "\nquery SellingPlanGroupsConnectionWindow(\n  $first: Int\n  $after: String\n  $last: Int\n  $before: String\n  $query: String\n  $sortKey: SellingPlanGroupSortKeys\n  $reverse: Boolean!\n) {\n  sellingPlanGroupsWindow: sellingPlanGroups(\n    first: $first\n    after: $after\n    last: $last\n    before: $before\n    query: $query\n    sortKey: $sortKey\n    reverse: $reverse\n  ) {\n    edges {\n      cursor\n      node {\n        __typename\n        id\n        appId\n        name\n        merchantCode\n        description\n        options\n        position\n        createdAt\n        productsCount { count precision }\n        productVariantsCount { count precision }\n        sellingPlans(first: 31) {\n          edges {\n            cursor\n            node {\n              __typename\n              id\n              name\n              description\n              options\n              position\n              category\n              createdAt\n              billingPolicy {\n                __typename\n                ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }\n              }\n              deliveryPolicy {\n                __typename\n                ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }\n              }\n              inventoryPolicy { reserve }\n              pricingPolicies {\n                __typename\n                ... on SellingPlanFixedPricingPolicy {\n                  adjustmentType\n                  adjustmentValue {\n                    __typename\n                    ... on SellingPlanPricingPolicyPercentageValue { percentage }\n                    ... on MoneyV2 { amount currencyCode }\n                  }\n                }\n                ... on SellingPlanRecurringPricingPolicy {\n                  afterCycle\n                  createdAt\n                  adjustmentType\n                  adjustmentValue {\n                    __typename\n                    ... on SellingPlanPricingPolicyPercentageValue { percentage }\n                    ... on MoneyV2 { amount currencyCode }\n                  }\n                }\n              }\n            }\n          }\n          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "sellingPlanGroupsBaseline": {
+            "sellingPlanGroupsWindow": {
               "edges": [],
               "pageInfo": {
                 "hasNextPage": false,
@@ -1538,7 +1562,7 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 13,
+              "requestedQueryCost": 84,
               "actualQueryCost": 2,
               "throttleStatus": {
                 "maximumAvailable": 2000,
@@ -1590,7 +1614,7 @@
       "variables": {
         "first": 250,
         "after": null,
-        "query": "filename:connection-overlay-mrru3sm3*",
+        "query": "filename:connection-overlay-mrtrl494*",
         "sortKey": "ID"
       },
       "query": "\nquery MediaFilesConnectionBaseline(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: FileSortKeys\n) {\n  filesBaseline: files(first: $first, after: $after, query: $query, sortKey: $sortKey) {\n    edges {\n      cursor\n      node {\n        __typename\n        id\n        alt\n        createdAt\n        updatedAt\n        fileStatus\n        ... on MediaImage {\n          image { url width height }\n          preview { image { url width height } }\n        }\n        ... on GenericFile { url }\n        ... on Video {\n          preview { image { url width height } }\n          sources { url mimeType format height width }\n        }\n        ... on ExternalVideo {\n          embeddedUrl\n          host\n          originUrl\n          preview { image { url width height } }\n        }\n        ... on Model3d {\n          preview { image { url width height } }\n          sources { url mimeType format filesize }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
@@ -1623,19 +1647,22 @@
       }
     },
     {
-      "operationName": "SellingPlanGroupsConnectionBaseline",
+      "operationName": "SellingPlanGroupsConnectionWindow",
       "variables": {
-        "first": 250,
+        "first": 3,
         "after": null,
-        "query": "name:connection-overlay-mrru3sm3*",
-        "sortKey": "ID"
+        "last": null,
+        "before": null,
+        "query": "name:connection-overlay-mrtrl494*",
+        "sortKey": "ID",
+        "reverse": false
       },
-      "query": "\nquery SellingPlanGroupsConnectionBaseline(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: SellingPlanGroupSortKeys\n) {\n  sellingPlanGroupsBaseline: sellingPlanGroups(\n    first: $first\n    after: $after\n    query: $query\n    sortKey: $sortKey\n  ) {\n    edges { cursor node { id } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
+      "query": "\nquery SellingPlanGroupsConnectionWindow(\n  $first: Int\n  $after: String\n  $last: Int\n  $before: String\n  $query: String\n  $sortKey: SellingPlanGroupSortKeys\n  $reverse: Boolean!\n) {\n  sellingPlanGroupsWindow: sellingPlanGroups(\n    first: $first\n    after: $after\n    last: $last\n    before: $before\n    query: $query\n    sortKey: $sortKey\n    reverse: $reverse\n  ) {\n    edges {\n      cursor\n      node {\n        __typename\n        id\n        appId\n        name\n        merchantCode\n        description\n        options\n        position\n        createdAt\n        productsCount { count precision }\n        productVariantsCount { count precision }\n        sellingPlans(first: 31) {\n          edges {\n            cursor\n            node {\n              __typename\n              id\n              name\n              description\n              options\n              position\n              category\n              createdAt\n              billingPolicy {\n                __typename\n                ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }\n              }\n              deliveryPolicy {\n                __typename\n                ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }\n              }\n              inventoryPolicy { reserve }\n              pricingPolicies {\n                __typename\n                ... on SellingPlanFixedPricingPolicy {\n                  adjustmentType\n                  adjustmentValue {\n                    __typename\n                    ... on SellingPlanPricingPolicyPercentageValue { percentage }\n                    ... on MoneyV2 { amount currencyCode }\n                  }\n                }\n                ... on SellingPlanRecurringPricingPolicy {\n                  afterCycle\n                  createdAt\n                  adjustmentType\n                  adjustmentValue {\n                    __typename\n                    ... on SellingPlanPricingPolicyPercentageValue { percentage }\n                    ... on MoneyV2 { amount currencyCode }\n                  }\n                }\n              }\n            }\n          }\n          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "sellingPlanGroupsBaseline": {
+            "sellingPlanGroupsWindow": {
               "edges": [],
               "pageInfo": {
                 "hasNextPage": false,
@@ -1647,7 +1674,7 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 13,
+              "requestedQueryCost": 84,
               "actualQueryCost": 2,
               "throttleStatus": {
                 "maximumAvailable": 2000,
@@ -1699,7 +1726,7 @@
       "variables": {
         "first": 250,
         "after": null,
-        "query": "filename:connection-overlay-mrru3sm3*",
+        "query": "filename:connection-overlay-mrtrl494*",
         "sortKey": "ID"
       },
       "query": "\nquery MediaFilesConnectionBaseline(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: FileSortKeys\n) {\n  filesBaseline: files(first: $first, after: $after, query: $query, sortKey: $sortKey) {\n    edges {\n      cursor\n      node {\n        __typename\n        id\n        alt\n        createdAt\n        updatedAt\n        fileStatus\n        ... on MediaImage {\n          image { url width height }\n          preview { image { url width height } }\n        }\n        ... on GenericFile { url }\n        ... on Video {\n          preview { image { url width height } }\n          sources { url mimeType format height width }\n        }\n        ... on ExternalVideo {\n          embeddedUrl\n          host\n          originUrl\n          preview { image { url width height } }\n        }\n        ... on Model3d {\n          preview { image { url width height } }\n          sources { url mimeType format filesize }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
@@ -1732,19 +1759,22 @@
       }
     },
     {
-      "operationName": "SellingPlanGroupsConnectionBaseline",
+      "operationName": "SellingPlanGroupsConnectionWindow",
       "variables": {
-        "first": 250,
+        "first": 12,
         "after": null,
-        "query": "name:connection-overlay-mrru3sm3*",
-        "sortKey": "ID"
+        "last": null,
+        "before": null,
+        "query": "name:connection-overlay-mrtrl494*",
+        "sortKey": "ID",
+        "reverse": false
       },
-      "query": "\nquery SellingPlanGroupsConnectionBaseline(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: SellingPlanGroupSortKeys\n) {\n  sellingPlanGroupsBaseline: sellingPlanGroups(\n    first: $first\n    after: $after\n    query: $query\n    sortKey: $sortKey\n  ) {\n    edges { cursor node { id } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
+      "query": "\nquery SellingPlanGroupsConnectionWindow(\n  $first: Int\n  $after: String\n  $last: Int\n  $before: String\n  $query: String\n  $sortKey: SellingPlanGroupSortKeys\n  $reverse: Boolean!\n) {\n  sellingPlanGroupsWindow: sellingPlanGroups(\n    first: $first\n    after: $after\n    last: $last\n    before: $before\n    query: $query\n    sortKey: $sortKey\n    reverse: $reverse\n  ) {\n    edges {\n      cursor\n      node {\n        __typename\n        id\n        appId\n        name\n        merchantCode\n        description\n        options\n        position\n        createdAt\n        productsCount { count precision }\n        productVariantsCount { count precision }\n        sellingPlans(first: 31) {\n          edges {\n            cursor\n            node {\n              __typename\n              id\n              name\n              description\n              options\n              position\n              category\n              createdAt\n              billingPolicy {\n                __typename\n                ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }\n              }\n              deliveryPolicy {\n                __typename\n                ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }\n              }\n              inventoryPolicy { reserve }\n              pricingPolicies {\n                __typename\n                ... on SellingPlanFixedPricingPolicy {\n                  adjustmentType\n                  adjustmentValue {\n                    __typename\n                    ... on SellingPlanPricingPolicyPercentageValue { percentage }\n                    ... on MoneyV2 { amount currencyCode }\n                  }\n                }\n                ... on SellingPlanRecurringPricingPolicy {\n                  afterCycle\n                  createdAt\n                  adjustmentType\n                  adjustmentValue {\n                    __typename\n                    ... on SellingPlanPricingPolicyPercentageValue { percentage }\n                    ... on MoneyV2 { amount currencyCode }\n                  }\n                }\n              }\n            }\n          }\n          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "sellingPlanGroupsBaseline": {
+            "sellingPlanGroupsWindow": {
               "edges": [],
               "pageInfo": {
                 "hasNextPage": false,
@@ -1756,7 +1786,7 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 13,
+              "requestedQueryCost": 166,
               "actualQueryCost": 2,
               "throttleStatus": {
                 "maximumAvailable": 2000,

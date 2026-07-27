@@ -500,13 +500,23 @@ impl DraftProxy {
         ) {
             return self.price_list_mutation_outcome(&field, request, query, variables);
         }
-        let value = if matches!(
+        if matches!(
             root_name,
             "marketLocalizationsRegister" | "marketLocalizationsRemove"
         ) {
             self.market_localization_mutation_preflight(variables, request);
-            self.market_localization_mutation_value(&field)
-        } else if matches!(
+            let result = self.market_localization_mutation_value(&field);
+            let mut outcome = ResolverOutcome::value(result.value);
+            if result.staged {
+                outcome = outcome.with_log_draft(LogDraft::staged(
+                    root_name,
+                    "markets",
+                    vec![response_key.to_string()],
+                ));
+            }
+            return outcome;
+        }
+        let value = if matches!(
             root_name,
             "catalogCreate" | "catalogUpdate" | "catalogDelete" | "catalogContextUpdate"
         ) {
@@ -515,18 +525,6 @@ impl DraftProxy {
             self.market_mutation_target_preflight(&field, request);
             self.market_create_mutation_data(&field, request, query, variables)
         };
-        if matches!(
-            root_name,
-            "marketLocalizationsRegister" | "marketLocalizationsRemove"
-        ) {
-            self.record_mutation_log_entry(
-                request,
-                query,
-                variables,
-                root_name,
-                vec![response_key.to_string()],
-            );
-        }
         ResolverOutcome::value(value)
     }
 

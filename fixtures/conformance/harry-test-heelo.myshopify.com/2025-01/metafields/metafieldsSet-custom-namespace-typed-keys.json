@@ -1,12 +1,12 @@
 {
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
-  "capturedAt": "2026-06-25T13:35:52.030Z",
+  "capturedAt": "2026-07-19T14:48:08.165Z",
   "setupProduct": {
     "query": "#graphql\n  mutation CustomNamespaceTypedKeysProductCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product { id title }\n      userErrors { field message }\n    }\n  }\n",
     "variables": {
       "product": {
-        "title": "Hermes Custom Typed Metafields 1782394551264"
+        "title": "Hermes Custom Typed Metafields 1784472487441"
       }
     },
     "status": 200,
@@ -14,8 +14,8 @@
       "data": {
         "productCreate": {
           "product": {
-            "id": "gid://shopify/Product/10221225574706",
-            "title": "Hermes Custom Typed Metafields 1782394551264"
+            "id": "gid://shopify/Product/10243937304882",
+            "title": "Hermes Custom Typed Metafields 1784472487441"
           },
           "userErrors": []
         }
@@ -38,21 +38,21 @@
     "variables": {
       "metafields": [
         {
-          "ownerId": "gid://shopify/Product/10221225574706",
+          "ownerId": "gid://shopify/Product/10243937304882",
           "namespace": "custom",
           "key": "json",
           "type": "json",
-          "value": "{\"a\":1,\"run\":\"1782394551264\"}"
+          "value": "{\"a\":1,\"run\":\"1784472487441\"}"
         },
         {
-          "ownerId": "gid://shopify/Product/10221225574706",
+          "ownerId": "gid://shopify/Product/10243937304882",
           "namespace": "custom",
           "key": "rating",
           "type": "rating",
           "value": "{\"scale_min\":\"1.0\",\"scale_max\":\"5.0\",\"value\":\"4.5\"}"
         },
         {
-          "ownerId": "gid://shopify/Product/10221225574706",
+          "ownerId": "gid://shopify/Product/10243937304882",
           "namespace": "custom",
           "key": "money",
           "type": "money",
@@ -66,22 +66,22 @@
         "metafieldsSet": {
           "metafields": [
             {
-              "id": "gid://shopify/Metafield/44541619306802",
+              "id": "gid://shopify/Metafield/45214300274994",
               "namespace": "custom",
               "key": "json",
               "type": "json",
-              "value": "{\"a\":1,\"run\":\"1782394551264\"}",
+              "value": "{\"a\":1,\"run\":\"1784472487441\"}",
               "jsonValue": {
                 "a": 1,
-                "run": "1782394551264"
+                "run": "1784472487441"
               },
-              "compareDigest": "498d744d8afc8fbeb8952608b74c08cedf48b0aba953578e2340ae48908ac7e8",
-              "createdAt": "2026-06-25T13:35:51Z",
-              "updatedAt": "2026-06-25T13:35:51Z",
+              "compareDigest": "e544d06fabe89c56f4c74535c171c475e109d61fe907b681fccfc87b6a1a14c7",
+              "createdAt": "2026-07-19T14:48:08Z",
+              "updatedAt": "2026-07-19T14:48:08Z",
               "ownerType": "PRODUCT"
             },
             {
-              "id": "gid://shopify/Metafield/44541619339570",
+              "id": "gid://shopify/Metafield/45214300307762",
               "namespace": "custom",
               "key": "rating",
               "type": "rating",
@@ -92,12 +92,12 @@
                 "value": "4.5"
               },
               "compareDigest": "baffaec93ea7749c8970e30b33adb9e73cad7d3f6efb8aee82928168abb85e3e",
-              "createdAt": "2026-06-25T13:35:51Z",
-              "updatedAt": "2026-06-25T13:35:51Z",
+              "createdAt": "2026-07-19T14:48:08Z",
+              "updatedAt": "2026-07-19T14:48:08Z",
               "ownerType": "PRODUCT"
             },
             {
-              "id": "gid://shopify/Metafield/44541619372338",
+              "id": "gid://shopify/Metafield/45214300340530",
               "namespace": "custom",
               "key": "money",
               "type": "money",
@@ -107,8 +107,8 @@
                 "currency_code": "CAD"
               },
               "compareDigest": "741d8b1bf7034db81f55eda0260f3f8056d196192467ff4b9a124a19a394662b",
-              "createdAt": "2026-06-25T13:35:51Z",
-              "updatedAt": "2026-06-25T13:35:51Z",
+              "createdAt": "2026-07-19T14:48:08Z",
+              "updatedAt": "2026-07-19T14:48:08Z",
               "ownerType": "PRODUCT"
             }
           ],
@@ -131,30 +131,30 @@
   "readAfterSet": {
     "query": "query CustomNamespaceTypedKeysRead($id: ID!) {\n  product(id: $id) {\n    id\n    jsonField: metafield(namespace: \"custom\", key: \"json\") {\n      id\n      namespace\n      key\n      type\n      value\n      jsonValue\n      compareDigest\n      createdAt\n      updatedAt\n      ownerType\n    }\n    ratingField: metafield(namespace: \"custom\", key: \"rating\") {\n      id\n      namespace\n      key\n      type\n      value\n      jsonValue\n      compareDigest\n      createdAt\n      updatedAt\n      ownerType\n    }\n    moneyField: metafield(namespace: \"custom\", key: \"money\") {\n      id\n      namespace\n      key\n      type\n      value\n      jsonValue\n      compareDigest\n      createdAt\n      updatedAt\n      ownerType\n    }\n    metafields(first: 10, namespace: \"custom\") {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        jsonValue\n        compareDigest\n        createdAt\n        updatedAt\n        ownerType\n      }\n    }\n  }\n}\n",
     "variables": {
-      "id": "gid://shopify/Product/10221225574706"
+      "id": "gid://shopify/Product/10243937304882"
     },
     "status": 200,
     "response": {
       "data": {
         "product": {
-          "id": "gid://shopify/Product/10221225574706",
+          "id": "gid://shopify/Product/10243937304882",
           "jsonField": {
-            "id": "gid://shopify/Metafield/44541619306802",
+            "id": "gid://shopify/Metafield/45214300274994",
             "namespace": "custom",
             "key": "json",
             "type": "json",
-            "value": "{\"a\":1,\"run\":\"1782394551264\"}",
+            "value": "{\"a\":1,\"run\":\"1784472487441\"}",
             "jsonValue": {
               "a": 1,
-              "run": "1782394551264"
+              "run": "1784472487441"
             },
-            "compareDigest": "498d744d8afc8fbeb8952608b74c08cedf48b0aba953578e2340ae48908ac7e8",
-            "createdAt": "2026-06-25T13:35:51Z",
-            "updatedAt": "2026-06-25T13:35:51Z",
+            "compareDigest": "e544d06fabe89c56f4c74535c171c475e109d61fe907b681fccfc87b6a1a14c7",
+            "createdAt": "2026-07-19T14:48:08Z",
+            "updatedAt": "2026-07-19T14:48:08Z",
             "ownerType": "PRODUCT"
           },
           "ratingField": {
-            "id": "gid://shopify/Metafield/44541619339570",
+            "id": "gid://shopify/Metafield/45214300307762",
             "namespace": "custom",
             "key": "rating",
             "type": "rating",
@@ -165,12 +165,12 @@
               "value": "4.5"
             },
             "compareDigest": "baffaec93ea7749c8970e30b33adb9e73cad7d3f6efb8aee82928168abb85e3e",
-            "createdAt": "2026-06-25T13:35:51Z",
-            "updatedAt": "2026-06-25T13:35:51Z",
+            "createdAt": "2026-07-19T14:48:08Z",
+            "updatedAt": "2026-07-19T14:48:08Z",
             "ownerType": "PRODUCT"
           },
           "moneyField": {
-            "id": "gid://shopify/Metafield/44541619372338",
+            "id": "gid://shopify/Metafield/45214300340530",
             "namespace": "custom",
             "key": "money",
             "type": "money",
@@ -180,29 +180,29 @@
               "currency_code": "CAD"
             },
             "compareDigest": "741d8b1bf7034db81f55eda0260f3f8056d196192467ff4b9a124a19a394662b",
-            "createdAt": "2026-06-25T13:35:51Z",
-            "updatedAt": "2026-06-25T13:35:51Z",
+            "createdAt": "2026-07-19T14:48:08Z",
+            "updatedAt": "2026-07-19T14:48:08Z",
             "ownerType": "PRODUCT"
           },
           "metafields": {
             "nodes": [
               {
-                "id": "gid://shopify/Metafield/44541619306802",
+                "id": "gid://shopify/Metafield/45214300274994",
                 "namespace": "custom",
                 "key": "json",
                 "type": "json",
-                "value": "{\"a\":1,\"run\":\"1782394551264\"}",
+                "value": "{\"a\":1,\"run\":\"1784472487441\"}",
                 "jsonValue": {
                   "a": 1,
-                  "run": "1782394551264"
+                  "run": "1784472487441"
                 },
-                "compareDigest": "498d744d8afc8fbeb8952608b74c08cedf48b0aba953578e2340ae48908ac7e8",
-                "createdAt": "2026-06-25T13:35:51Z",
-                "updatedAt": "2026-06-25T13:35:51Z",
+                "compareDigest": "e544d06fabe89c56f4c74535c171c475e109d61fe907b681fccfc87b6a1a14c7",
+                "createdAt": "2026-07-19T14:48:08Z",
+                "updatedAt": "2026-07-19T14:48:08Z",
                 "ownerType": "PRODUCT"
               },
               {
-                "id": "gid://shopify/Metafield/44541619339570",
+                "id": "gid://shopify/Metafield/45214300307762",
                 "namespace": "custom",
                 "key": "rating",
                 "type": "rating",
@@ -213,12 +213,12 @@
                   "value": "4.5"
                 },
                 "compareDigest": "baffaec93ea7749c8970e30b33adb9e73cad7d3f6efb8aee82928168abb85e3e",
-                "createdAt": "2026-06-25T13:35:51Z",
-                "updatedAt": "2026-06-25T13:35:51Z",
+                "createdAt": "2026-07-19T14:48:08Z",
+                "updatedAt": "2026-07-19T14:48:08Z",
                 "ownerType": "PRODUCT"
               },
               {
-                "id": "gid://shopify/Metafield/44541619372338",
+                "id": "gid://shopify/Metafield/45214300340530",
                 "namespace": "custom",
                 "key": "money",
                 "type": "money",
@@ -228,8 +228,8 @@
                   "currency_code": "CAD"
                 },
                 "compareDigest": "741d8b1bf7034db81f55eda0260f3f8056d196192467ff4b9a124a19a394662b",
-                "createdAt": "2026-06-25T13:35:51Z",
-                "updatedAt": "2026-06-25T13:35:51Z",
+                "createdAt": "2026-07-19T14:48:08Z",
+                "updatedAt": "2026-07-19T14:48:08Z",
                 "ownerType": "PRODUCT"
               }
             ]
@@ -249,35 +249,103 @@
       }
     }
   },
-  "cleanup": [
+  "cleanup": [],
+  "upstreamCalls": [
     {
-      "query": "#graphql\n  mutation CustomNamespaceTypedKeysProductDelete($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors { field message }\n    }\n  }\n",
+      "method": "POST",
+      "path": "/admin/api/2025-01/graphql.json",
+      "apiSurface": "admin",
+      "query": "query OwnerMetafieldsHydrateNodes($ids: [ID!]!, $metafield0Namespace: String!, $metafield0Key: String!, $metafield1Namespace: String!, $metafield1Key: String!, $metafield2Namespace: String!, $metafield2Key: String!) { nodes(ids: $ids) { __typename id ... on HasMetafields { metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } metafield1: metafield(namespace: $metafield1Namespace, key: $metafield1Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } metafield2: metafield(namespace: $metafield2Namespace, key: $metafield2Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } } ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt  } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } } ... on Collection { id title handle } ... on Customer { id displayName email } ... on Order { id name } ... on Company { id name } ... on Page { id title } ... on Article { id title } } }",
+      "operationName": "OwnerMetafieldsHydrateNodes",
       "variables": {
-        "input": {
-          "id": "gid://shopify/Product/10221225574706"
-        }
+        "ids": ["gid://shopify/Product/10243937304882"],
+        "metafield0Key": "json",
+        "metafield0Namespace": "custom",
+        "metafield1Key": "rating",
+        "metafield1Namespace": "custom",
+        "metafield2Key": "money",
+        "metafield2Namespace": "custom"
       },
-      "status": 200,
       "response": {
-        "data": {
-          "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10221225574706",
-            "userErrors": []
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 10,
-            "actualQueryCost": 10,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
-              "restoreRate": 100
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10243937304882",
+                "metafield0": {
+                  "id": "gid://shopify/Metafield/45214300274994",
+                  "namespace": "custom",
+                  "key": "json",
+                  "type": "json",
+                  "value": "{\"a\":1,\"run\":\"1784472487441\"}",
+                  "jsonValue": {
+                    "a": 1,
+                    "run": "1784472487441"
+                  },
+                  "compareDigest": "e544d06fabe89c56f4c74535c171c475e109d61fe907b681fccfc87b6a1a14c7",
+                  "createdAt": "2026-07-19T14:48:08Z",
+                  "updatedAt": "2026-07-19T14:48:08Z",
+                  "ownerType": "PRODUCT",
+                  "definition": null
+                },
+                "metafield1": {
+                  "id": "gid://shopify/Metafield/45214300307762",
+                  "namespace": "custom",
+                  "key": "rating",
+                  "type": "rating",
+                  "value": "{\"scale_min\":\"1.0\",\"scale_max\":\"5.0\",\"value\":\"4.5\"}",
+                  "jsonValue": {
+                    "scale_min": "1.0",
+                    "scale_max": "5.0",
+                    "value": "4.5"
+                  },
+                  "compareDigest": "baffaec93ea7749c8970e30b33adb9e73cad7d3f6efb8aee82928168abb85e3e",
+                  "createdAt": "2026-07-19T14:48:08Z",
+                  "updatedAt": "2026-07-19T14:48:08Z",
+                  "ownerType": "PRODUCT",
+                  "definition": null
+                },
+                "metafield2": {
+                  "id": "gid://shopify/Metafield/45214300340530",
+                  "namespace": "custom",
+                  "key": "money",
+                  "type": "money",
+                  "value": "{\"amount\":\"12.34\",\"currency_code\":\"CAD\"}",
+                  "jsonValue": {
+                    "amount": "12.34",
+                    "currency_code": "CAD"
+                  },
+                  "compareDigest": "741d8b1bf7034db81f55eda0260f3f8056d196192467ff4b9a124a19a394662b",
+                  "createdAt": "2026-07-19T14:48:08Z",
+                  "updatedAt": "2026-07-19T14:48:08Z",
+                  "ownerType": "PRODUCT",
+                  "definition": null
+                },
+                "title": "Hermes Custom Typed Metafields 1784472487441",
+                "handle": "hermes-custom-typed-metafields-1784472487441",
+                "status": "ACTIVE",
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "createdAt": "2026-07-19T14:48:07Z",
+                "updatedAt": "2026-07-19T14:48:09Z"
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 8,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1992,
+                "restoreRate": 100
+              }
             }
           }
         }
       }
     }
-  ],
-  "upstreamCalls": []
+  ]
 }

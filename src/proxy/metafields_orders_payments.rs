@@ -787,6 +787,7 @@ fn metafields_set_input_shape_error(
     index: usize,
     input: &BTreeMap<String, ResolvedValue>,
     has_effective_type: bool,
+    owner_supported: bool,
     api_client_id: Option<&str>,
 ) -> Option<Value> {
     let index = index.to_string();
@@ -803,7 +804,7 @@ fn metafields_set_input_shape_error(
     }
     let namespace = canonical_app_metafield_namespace(raw_namespace.as_deref(), api_client_id);
     let key = resolved_string_field(input, "key").unwrap_or_default();
-    if shopify_gid_resource_type(&owner_id).is_none() {
+    if shopify_gid_resource_type(&owner_id).is_none() || !owner_supported {
         Some(metafields_set_path_user_error(
             vec!["metafields", &index, "ownerId"],
             "INVALID",
@@ -1100,6 +1101,10 @@ impl DraftProxy {
             let owner_type = owner_type_from_gid(&owner_id);
             self.owner_metafield_definition(&owner_type, &namespace, &key)
                 .and_then(|definition| definition["type"]["name"].as_str().map(str::to_string))
+                .or_else(|| {
+                    self.owner_metafield(&owner_id, &namespace, &key)
+                        .and_then(|metafield| metafield["type"].as_str().map(str::to_string))
+                })
         })
     }
 
@@ -1135,6 +1140,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn metafields_set_input_errors<F>(
         &self,
+        request: &Request,
         inputs: &[BTreeMap<String, ResolvedValue>],
         api_client_id: Option<&str>,
         mut reference_exists: F,
@@ -1159,6 +1165,9 @@ impl DraftProxy {
                 index,
                 input,
                 metafield_type.is_some(),
+                resolved_string_field(input, "ownerId").is_some_and(|owner_id| {
+                    self.owner_metafield_owner_supported(request, &owner_id)
+                }),
                 api_client_id,
             ) {
                 errors.push(error);

@@ -3995,6 +3995,29 @@ fn order_create_inventory_decrement_uses_staged_default_location() {
     let mut proxy = inventory_seed_proxy();
     let (variant_id, inventory_item_id) = create_inventory_test_item(&mut proxy, "DEFAULT-LOC");
     let location_id = add_inventory_test_location(&mut proxy, "Primary Fulfillment");
+    let seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedDefaultLocationInventory($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {
+            "name": "available",
+            "reason": "correction",
+            "quantities": [{
+                "inventoryItemId": inventory_item_id,
+                "locationId": location_id,
+                "quantity": 0,
+                "changeFromQuantity": null
+            }]
+        }}),
+    ));
+    assert_eq!(
+        seed.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
 
     let order = proxy.process_request(json_graphql_request(
         r#"
@@ -4049,6 +4072,371 @@ fn order_create_inventory_decrement_uses_staged_default_location() {
             {"name": "on_hand", "quantity": 0}
         ])
     );
+}
+
+#[test]
+fn order_create_does_not_derive_inventory_item_identity_from_an_unresolved_variant_tail() {
+    let mut proxy = inventory_seed_proxy();
+    let first_location_id = add_inventory_test_location(&mut proxy, "Unresolved primary");
+    let second_location_id = add_inventory_test_location(&mut proxy, "Unresolved secondary");
+    assert_ne!(first_location_id, second_location_id);
+
+    let order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OrderCreateUnresolvedVariantInventory($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id lineItems(first: 5) { nodes { variant { id } quantity } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "unresolved-variant-inventory@example.com",
+                "currency": "USD",
+                "lineItems": [{
+                    "variantId": "gid://shopify/ProductVariant/424242",
+                    "quantity": 2,
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        order.body["data"]["orderCreate"],
+        json!({
+            "order": Value::Null,
+            "userErrors": [
+                {"field": ["order"], "message": "Order Line items is invalid"},
+                {"field": ["order", "lineItems"], "message": "Line items Name can't be blank"},
+                {"field": ["order", "lineItems"], "message": "Line items Title can't be blank"}
+            ]
+        })
+    );
+
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]["inventoryLevels"],
+        Value::Null,
+        "an unresolved ProductVariant must not create an InventoryItem with the same numeric tail"
+    );
+}
+
+fn order_create_inventory_preflight_variant(
+    variant_id: &str,
+    inventory_item_id: &str,
+    levels: &[(&str, &str, i64, i64)],
+) -> Value {
+    let inventory_quantity = levels
+        .iter()
+        .map(|(_, _, available, _)| *available)
+        .sum::<i64>();
+    json!({
+        "__typename": "ProductVariant",
+        "id": variant_id,
+        "title": "Default Title",
+        "sku": "COLD-ORDER",
+        "barcode": Value::Null,
+        "price": "10.00",
+        "compareAtPrice": Value::Null,
+        "taxable": true,
+        "inventoryPolicy": "DENY",
+        "inventoryQuantity": inventory_quantity,
+        "selectedOptions": [{"name": "Title", "value": "Default Title"}],
+        "product": {
+            "id": "gid://shopify/Product/700001",
+            "title": "Cold order product",
+            "handle": "cold-order-product",
+            "status": "ACTIVE",
+            "totalInventory": 0,
+            "tracksInventory": true
+        },
+        "inventoryItem": {
+            "id": inventory_item_id,
+            "tracked": true,
+            "requiresShipping": true,
+            "countryCodeOfOrigin": Value::Null,
+            "provinceCodeOfOrigin": Value::Null,
+            "harmonizedSystemCode": Value::Null,
+            "measurement": {"weight": {"value": 0.0, "unit": "KILOGRAMS"}},
+            "inventoryLevels": {
+                "nodes": levels
+                    .iter()
+                    .enumerate()
+                    .map(|(index, (location_id, location_name, available, on_hand))| json!({
+                        "id": format!(
+                            "gid://shopify/InventoryLevel/{}?inventory_item_id={}",
+                            800001 + index,
+                            inventory_item_id.rsplit('/').next().unwrap()
+                        ),
+                        "location": {"id": location_id, "name": location_name},
+                        "quantities": [
+                            {"name": "available", "quantity": available, "updatedAt": Value::Null},
+                            {"name": "on_hand", "quantity": on_hand, "updatedAt": Value::Null}
+                        ]
+                    }))
+                    .collect::<Vec<_>>()
+            }
+        }
+    })
+}
+
+#[test]
+fn order_create_hydrates_distinct_variant_inventory_identity_and_decrements_stocked_location() {
+    let variant_id = "gid://shopify/ProductVariant/700101";
+    let inventory_item_id = "gid://shopify/InventoryItem/900909";
+    let default_location_id = "gid://shopify/Location/710001";
+    let origin_location_id = "gid://shopify/Location/710002";
+    let destination_location_id = "gid://shopify/Location/710003";
+    assert_ne!(
+        variant_id.rsplit('/').next(),
+        inventory_item_id.rsplit('/').next()
+    );
+    let variant = order_create_inventory_preflight_variant(
+        variant_id,
+        inventory_item_id,
+        &[
+            (default_location_id, "Default", 0, 0),
+            (origin_location_id, "Origin", 5, 5),
+            (destination_location_id, "Destination", 0, 0),
+        ],
+    );
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_calls = Arc::clone(&upstream_calls);
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            upstream_calls.lock().unwrap().push(body.clone());
+            assert_eq!(
+                body["query"],
+                json!(include_str!(
+                    "../../config/parity-requests/orders/order-create-inventory-preflight.graphql"
+                )
+                .trim_end())
+            );
+            assert_eq!(
+                body["operationName"],
+                json!("OrdersOrderCreateInventoryPreflight")
+            );
+            assert_eq!(body["variables"]["ids"], json!([variant_id]));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({"data": {"nodes": [variant.clone()]}}),
+            }
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ColdVariantOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
+          orderCreate(order: $order, options: $options) {
+            order { id lineItems(first: 5) { nodes { quantity variant { id } } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "cold-order@example.com",
+                "currency": "USD",
+                "lineItems": [{
+                    "variantId": variant_id,
+                    "quantity": 2,
+                    "priceSet": {"shopMoney": {"amount": "10.00", "currencyCode": "USD"}}
+                }]
+            },
+            "options": {"inventoryBehaviour": "DECREMENT_IGNORING_POLICY"}
+        }),
+    ));
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    assert_eq!(
+        create.body["data"]["orderCreate"]["order"]["lineItems"]["nodes"][0]["variant"]["id"],
+        json!(variant_id)
+    );
+
+    let inventory = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadColdOrderInventory($id: ID!) {
+          inventoryItem(id: $id) {
+            variant { id inventoryQuantity }
+            inventoryLevels(first: 10) {
+              nodes {
+                location { id }
+                quantities(names: ["available", "on_hand"]) { name quantity }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"id": inventory_item_id}),
+    ));
+    assert_eq!(
+        inventory.body["data"]["inventoryItem"],
+        json!({
+            "variant": {"id": variant_id, "inventoryQuantity": 3},
+            "inventoryLevels": {"nodes": [
+                {"location": {"id": default_location_id}, "quantities": [
+                    {"name": "available", "quantity": 0},
+                    {"name": "on_hand", "quantity": 0}
+                ]},
+                {"location": {"id": origin_location_id}, "quantities": [
+                    {"name": "available", "quantity": 3},
+                    {"name": "on_hand", "quantity": 5}
+                ]},
+                {"location": {"id": destination_location_id}, "quantities": [
+                    {"name": "available", "quantity": 0},
+                    {"name": "on_hand", "quantity": 0}
+                ]}
+            ]}
+        })
+    );
+
+    let product = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadColdOrderProduct($id: ID!) {
+          product(id: $id) {
+            totalInventory
+            variants(first: 5) {
+              nodes { id inventoryQuantity inventoryItem { id } }
+            }
+          }
+        }
+        "#,
+        json!({"id": "gid://shopify/Product/700001"}),
+    ));
+    assert_eq!(
+        product.body["data"]["product"],
+        json!({
+            "totalInventory": 0,
+            "variants": {"nodes": [{
+                "id": variant_id,
+                "inventoryQuantity": 3,
+                "inventoryItem": {"id": inventory_item_id}
+            }]}
+        })
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn order_create_mixed_resolved_and_unresolved_variants_applies_no_inventory_effects() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![inventory_activation_base_product()]);
+    let (variant_id, inventory_item_id) = create_inventory_test_item(&mut proxy, "ATOMIC-ORDER");
+    let default_location_id = add_inventory_test_location(&mut proxy, "Atomic default");
+    let origin_location_id = add_inventory_test_location(&mut proxy, "Atomic origin");
+    let destination_location_id = add_inventory_test_location(&mut proxy, "Atomic destination");
+    assert_ne!(default_location_id, origin_location_id);
+    assert_ne!(origin_location_id, destination_location_id);
+    let seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedAtomicOrderInventory($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) { userErrors { field message } }
+        }
+        "#,
+        json!({"input": {
+            "name": "available",
+            "reason": "correction",
+            "quantities": [{
+                "inventoryItemId": inventory_item_id,
+                "locationId": origin_location_id,
+                "quantity": 5,
+                "changeFromQuantity": null
+            }]
+        }}),
+    ));
+    assert_eq!(
+        seed.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+    let item_tail = inventory_item_id
+        .rsplit('/')
+        .next()
+        .unwrap()
+        .split('?')
+        .next()
+        .unwrap();
+    let unresolved_variant_id = format!("gid://shopify/ProductVariant/{item_tail}");
+    assert_ne!(variant_id, unresolved_variant_id);
+    let log_entries_before = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+    let orders_before = state_snapshot(&proxy)["stagedState"]["orders"].clone();
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    proxy = proxy.with_upstream_transport({
+        let upstream_calls = Arc::clone(&upstream_calls);
+        let unresolved_variant_id = unresolved_variant_id.clone();
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            upstream_calls.lock().unwrap().push(body.clone());
+            assert_eq!(
+                body["operationName"],
+                json!("OrdersOrderCreateInventoryPreflight")
+            );
+            assert_eq!(body["variables"]["ids"], json!([unresolved_variant_id]));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({"data": {"nodes": [Value::Null]}}),
+            }
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AtomicOrderCreate($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"order": {
+            "currency": "USD",
+            "lineItems": [
+                {"variantId": variant_id, "quantity": 2, "priceSet": {"shopMoney": {"amount": "10.00", "currencyCode": "USD"}}},
+                {"variantId": unresolved_variant_id, "quantity": 1, "priceSet": {"shopMoney": {"amount": "10.00", "currencyCode": "USD"}}}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        create.body["data"]["orderCreate"],
+        json!({
+            "order": Value::Null,
+            "userErrors": [
+                {"field": ["order"], "message": "Order Line items is invalid"},
+                {"field": ["order", "lineItems"], "message": "Line items Name can't be blank"},
+                {"field": ["order", "lineItems"], "message": "Line items Title can't be blank"}
+            ]
+        })
+    );
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]["orders"],
+        orders_before
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        log_entries_before
+    );
+
+    let inventory = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadAtomicOrderInventory($id: ID!) {
+          inventoryItem(id: $id) {
+            inventoryLevels(first: 10) {
+              nodes { location { id } quantities(names: ["available"]) { name quantity } }
+            }
+          }
+        }
+        "#,
+        json!({"id": inventory_item_id}),
+    ));
+    assert_eq!(
+        inventory.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"],
+        json!([{
+            "location": {"id": origin_location_id},
+            "quantities": [{"name": "available", "quantity": 5}]
+        }])
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
 }
 
 #[test]
@@ -15751,82 +16139,332 @@ fn metaobject_bulk_delete_ids_hydrates_multiple_cold_ids_with_bounded_upstream_r
 }
 
 #[test]
-fn metaobject_bulk_delete_ids_caps_hydrate_at_shopify_id_limit_without_paging() {
+fn metaobject_bulk_delete_rejects_251_ids_atomically_before_hydration() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|_| {
+        panic!("251 explicit IDs must fail before any upstream hydration")
+    });
+    let meta_type = "bulk_delete_id_limit";
+    create_metaobject_definition_for_test(
+        &mut proxy,
+        meta_type,
+        vec![json!({
+            "key": "title",
+            "name": "Title",
+            "type": "single_line_text_field",
+            "required": true
+        })],
+    );
+    let survivor =
+        create_metaobject_entry_for_test(&mut proxy, meta_type, "must-survive", "Must survive");
+    let survivor_id = survivor["id"].as_str().unwrap().to_string();
+    let mut ids = vec![survivor_id.clone()];
+    ids.extend(
+        (0..250).map(|index| format!("gid://shopify/Metaobject/{}", 9_000_000_000_000_u64 + index)),
+    );
+    let before_log = log_snapshot(&proxy);
+    let before_state = state_snapshot(&proxy);
+
+    let response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/metaobjects/metaobject-bulk-delete-edge-over-limit.graphql"
+        ),
+        json!({"ids": ids}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body["data"]["metaobjectBulkDelete"], Value::Null);
+    assert_eq!(
+        response.body["errors"],
+        json!([{
+            "message": "The input array size of 251 is greater than the maximum allowed of 250.",
+            "locations": [{"line": 2, "column": 3}],
+            "path": ["metaobjectBulkDelete", "where", "ids"],
+            "extensions": {"code": "MAX_INPUT_SIZE_EXCEEDED"}
+        }])
+    );
+    assert_eq!(log_snapshot(&proxy), before_log);
+    assert_eq!(state_snapshot(&proxy), before_state);
+}
+
+#[test]
+fn metaobject_bulk_delete_type_is_authoritative_beyond_first_hydrated_page() {
+    let meta_type = "bulk_delete_multi_page";
+    let first_id = "gid://shopify/Metaobject/30000";
+    let last_id = "gid://shopify/Metaobject/30250";
     let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
     let captured_requests = Arc::clone(&upstream_requests);
     let mut proxy =
         configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
             let body: Value =
                 serde_json::from_str(&request.body).expect("upstream body should be JSON");
-            let requested_ids = body["variables"]["ids"]
-                .as_array()
-                .cloned()
-                .expect("hydrate request should include ids");
-            let nodes = requested_ids
-                .iter()
-                .map(|id| {
-                    json!({
-                        "id": id,
-                        "__typename": "Metaobject",
-                        "handle": format!(
-                            "cap-{}",
-                            id.as_str().unwrap().rsplit('/').next().unwrap()
-                        ),
-                        "type": "bulk_delete_id_cap",
-                        "displayName": "Bulk delete ID cap",
-                        "createdAt": "2024-01-01T00:00:00Z",
-                        "updatedAt": "2024-01-01T00:00:00Z",
-                        "capabilities": {
-                            "publishable": {"status": "ACTIVE"},
-                            "onlineStore": {"templateSuffix": null}
-                        },
-                        "fields": []
+            let query = body["query"].as_str().unwrap_or_default();
+            captured_requests.lock().unwrap().push(body.clone());
+            let response_body = if query.contains("MetaobjectBulkDeleteHydrateByType") {
+                let nodes = (0..250)
+                    .map(|index| {
+                        json!({
+                            "id": format!("gid://shopify/Metaobject/{}", 30_000 + index),
+                            "handle": format!("page-one-{index}"),
+                            "type": "bulk_delete_multi_page",
+                            "displayName": format!("Page one {index}"),
+                            "createdAt": "2024-01-01T00:00:00Z",
+                            "updatedAt": "2024-01-01T00:00:00Z",
+                            "capabilities": {
+                                "publishable": {"status": "ACTIVE"},
+                                "onlineStore": {"templateSuffix": null}
+                            },
+                            "fields": []
+                        })
                     })
-                })
-                .collect::<Vec<_>>();
-            captured_requests.lock().unwrap().push(body);
+                    .collect::<Vec<_>>();
+                json!({"data": {
+                    "catalog": {"nodes": nodes},
+                    "definition": {
+                        "id": "gid://shopify/MetaobjectDefinition/30000",
+                        "type": "bulk_delete_multi_page",
+                        "name": "Bulk delete multi page",
+                        "description": null,
+                        "displayNameKey": "title",
+                        "access": {"admin": "PUBLIC_READ_WRITE", "storefront": "NONE"},
+                        "capabilities": {
+                            "publishable": {"enabled": false},
+                            "translatable": {"enabled": false},
+                            "renderable": {"enabled": false},
+                            "onlineStore": {"enabled": false}
+                        },
+                        "fieldDefinitions": [{
+                            "key": "title",
+                            "name": "Title",
+                            "description": null,
+                            "required": false,
+                            "type": {"name": "single_line_text_field", "category": "TEXT"},
+                            "validations": []
+                        }],
+                        "hasThumbnailField": false,
+                        "metaobjectsCount": 251,
+                        "standardTemplate": null,
+                        "createdAt": "2024-01-01T00:00:00Z",
+                        "updatedAt": "2024-01-01T00:00:00Z"
+                    }
+                }})
+            } else if query.contains("MetaobjectBulkDeleteBeyondFirstPageRead") {
+                json!({"data": {
+                    "first": {
+                        "id": "gid://shopify/Metaobject/30000",
+                        "handle": "page-one-0",
+                        "type": "bulk_delete_multi_page"
+                    },
+                    "last": {
+                        "id": "gid://shopify/Metaobject/30250",
+                        "handle": "page-two-last",
+                        "type": "bulk_delete_multi_page"
+                    },
+                    "catalog": {"nodes": [{
+                        "id": "gid://shopify/Metaobject/30250",
+                        "handle": "page-two-last",
+                        "type": "bulk_delete_multi_page"
+                    }]},
+                    "definition": {
+                        "id": "gid://shopify/MetaobjectDefinition/30000",
+                        "type": "bulk_delete_multi_page",
+                        "metaobjectsCount": 251
+                    }
+                }})
+            } else if query.contains("MetaobjectBulkDeletePostDeleteCreateRead") {
+                json!({"data": {
+                    "created": null,
+                    "catalog": {"nodes": [{
+                        "id": "gid://shopify/Metaobject/30250",
+                        "handle": "page-two-last",
+                        "type": "bulk_delete_multi_page"
+                    }]},
+                    "definition": {
+                        "id": "gid://shopify/MetaobjectDefinition/30000",
+                        "type": "bulk_delete_multi_page",
+                        "metaobjectsCount": 251
+                    }
+                }})
+            } else {
+                panic!("unexpected upstream request: {query}")
+            };
             Response {
                 status: 200,
                 headers: Default::default(),
-                body: json!({"data": {"nodes": nodes}}),
+                body: response_body,
             }
         });
-    let ids = (0..251)
-        .map(|index| format!("gid://shopify/Metaobject/{}", 20_000 + index))
-        .collect::<Vec<_>>();
-    let ids_literal = ids
-        .iter()
-        .map(|id| format!("\"{id}\""))
-        .collect::<Vec<_>>()
-        .join(", ");
-    let query = format!(
+
+    let deleted = proxy.process_request(json_graphql_request(
         r#"
-        mutation BulkDeleteIdsCap {{
-          metaobjectBulkDelete(where: {{ ids: [{ids_literal}] }}) {{
-            job {{ id done }}
-            userErrors {{ field message code elementKey elementIndex }}
-          }}
-        }}
-        "#
-    );
-
-    let response = proxy.process_request(json_graphql_request(&query, json!({})));
-
+        mutation BulkDeleteMultiPage($type: String!) {
+          metaobjectBulkDelete(where: { type: $type }) {
+            job { id done }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"type": meta_type}),
+    ));
     assert_eq!(
-        response.body["data"]["metaobjectBulkDelete"]["userErrors"],
+        deleted.body["data"]["metaobjectBulkDelete"]["userErrors"],
         json!([])
     );
-    let requests = upstream_requests.lock().unwrap();
-    assert_eq!(requests.len(), 1);
-    let hydrated_ids = requests[0]["variables"]["ids"].as_array().unwrap();
-    assert_eq!(hydrated_ids.len(), 250);
-    assert_eq!(hydrated_ids[0], json!("gid://shopify/Metaobject/20000"));
-    assert_eq!(hydrated_ids[249], json!("gid://shopify/Metaobject/20249"));
-    assert!(
-        hydrated_ids
-            .iter()
-            .all(|id| id.as_str() != Some("gid://shopify/Metaobject/20250")),
-        "IDs beyond Shopify's 250-ID cap should not be hydrated or paged"
+    assert_eq!(
+        deleted.body["data"]["metaobjectBulkDelete"]["job"]["done"],
+        json!(false)
+    );
+    let job_id = deleted.body["data"]["metaobjectBulkDelete"]["job"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MetaobjectBulkDeleteBeyondFirstPageRead(
+          $type: String!
+          $firstId: ID!
+          $lastId: ID!
+          $query: String!
+        ) {
+          first: metaobject(id: $firstId) { id handle type }
+          last: metaobject(id: $lastId) { id handle type }
+          catalog: metaobjects(type: $type, first: 10, query: $query) {
+            nodes { id handle type }
+          }
+          definition: metaobjectDefinitionByType(type: $type) {
+            id
+            type
+            metaobjectsCount
+          }
+        }
+        "#,
+        json!({
+            "type": meta_type,
+            "firstId": first_id,
+            "lastId": last_id,
+            "query": "handle:page-two-last"
+        }),
+    ));
+    assert_eq!(read.body["data"]["first"], Value::Null);
+    assert_eq!(read.body["data"]["last"], Value::Null);
+    assert_eq!(read.body["data"]["catalog"]["nodes"], json!([]));
+    assert_eq!(
+        read.body["data"]["definition"]["metaobjectsCount"],
+        json!(0)
+    );
+
+    let job_read = proxy.process_request(json_graphql_request(
+        r#"
+        query MetaobjectBulkDeleteJobRead($id: ID!) {
+          job(id: $id) { id done query { __typename } }
+        }
+        "#,
+        json!({"id": job_id}),
+    ));
+    assert_eq!(
+        job_read.body["data"]["job"],
+        json!({
+            "id": job_id,
+            "done": true,
+            "query": {"__typename": "QueryRoot"}
+        })
+    );
+
+    let created = create_metaobject_entry_for_test(
+        &mut proxy,
+        meta_type,
+        "created-after-type-delete",
+        "Created after type delete",
+    );
+    let created_id = created["id"].as_str().unwrap().to_string();
+    let post_create = proxy.process_request(json_graphql_request(
+        r#"
+        query MetaobjectBulkDeletePostDeleteCreateRead($type: String!, $id: ID!) {
+          created: metaobject(id: $id) { id handle type }
+          catalog: metaobjects(type: $type, first: 10) { nodes { id handle type } }
+          definition: metaobjectDefinitionByType(type: $type) { id type metaobjectsCount }
+        }
+        "#,
+        json!({"type": meta_type, "id": created_id}),
+    ));
+    assert_eq!(post_create.body["data"]["created"]["id"], json!(created_id));
+    assert_eq!(
+        post_create.body["data"]["catalog"]["nodes"],
+        json!([{
+            "id": created_id,
+            "handle": "created-after-type-delete",
+            "type": meta_type
+        }])
+    );
+    assert_eq!(
+        post_create.body["data"]["definition"]["metaobjectsCount"],
+        json!(1)
+    );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(
+        dump.body["state"]["stagedState"]["deletedMetaobjectTypes"],
+        json!([meta_type])
+    );
+    let mut restored = snapshot_proxy();
+    assert_eq!(
+        restored
+            .process_request(request_with_body(
+                "POST",
+                "/__meta/restore",
+                &dump.body.to_string()
+            ))
+            .status,
+        200
+    );
+    let restored_read = restored.process_request(json_graphql_request(
+        r#"
+        query RestoredTypeDelete(
+          $type: String!
+          $oldId: ID!
+          $createdId: ID!
+          $jobId: ID!
+        ) {
+          old: metaobject(id: $oldId) { id }
+          created: metaobject(id: $createdId) { id handle }
+          catalog: metaobjects(type: $type, first: 10) { nodes { id handle } }
+          definition: metaobjectDefinitionByType(type: $type) { metaobjectsCount }
+          job(id: $jobId) { id done query { __typename } }
+        }
+        "#,
+        json!({
+            "type": meta_type,
+            "oldId": last_id,
+            "createdId": created_id,
+            "jobId": job_id
+        }),
+    ));
+    assert_eq!(restored_read.body["data"]["old"], Value::Null);
+    assert_eq!(
+        restored_read.body["data"]["created"]["id"],
+        json!(created_id)
+    );
+    assert_eq!(
+        restored_read.body["data"]["catalog"]["nodes"],
+        json!([{"id": created_id, "handle": "created-after-type-delete"}])
+    );
+    assert_eq!(
+        restored_read.body["data"]["definition"]["metaobjectsCount"],
+        json!(1)
+    );
+    assert_eq!(
+        restored_read.body["data"]["job"],
+        json!({
+            "id": job_id,
+            "done": true,
+            "query": {"__typename": "QueryRoot"}
+        })
+    );
+
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        3,
+        "type delete should use one bounded hydrate plus one upstream read per downstream query"
     );
 }
 
@@ -16216,6 +16854,188 @@ fn media_file_create_poll_ready_then_update_succeeds() {
             "userErrors": []
         })
     );
+}
+
+#[test]
+fn media_file_update_mixed_batch_preserves_per_item_partial_success() {
+    let mut proxy = snapshot_proxy().with_upstream_transport(|request| {
+        panic!(
+            "supported file mutations and snapshot reads must stay local, got upstream request: {}",
+            request.body
+        )
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileMixedBatchSeed($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id alt fileStatus }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [
+            {
+                "alt": "Valid row before update",
+                "contentType": "IMAGE",
+                "filename": "mixed-valid.jpg",
+                "originalSource": "https://cdn.example.com/mixed-valid.jpg"
+            },
+            {
+                "alt": "Invalid row before update",
+                "contentType": "IMAGE",
+                "filename": "mixed-invalid.jpg",
+                "originalSource": "https://cdn.example.com/mixed-invalid.jpg"
+            }
+        ]}),
+    ));
+    assert_eq!(create.body["data"]["fileCreate"]["userErrors"], json!([]));
+    let valid_id = create.body["data"]["fileCreate"]["files"][0]["id"]
+        .as_str()
+        .expect("valid seed id")
+        .to_string();
+    let invalid_id = create.body["data"]["fileCreate"]["files"][1]["id"]
+        .as_str()
+        .expect("invalid seed id")
+        .to_string();
+
+    let ready = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileMixedBatchReadyPoll {
+          files(first: 10) { nodes { id alt fileStatus } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        ready.body["data"]["files"]["nodes"][0]["fileStatus"],
+        json!("READY")
+    );
+    assert_eq!(
+        ready.body["data"]["files"]["nodes"][1]["fileStatus"],
+        json!("READY")
+    );
+
+    let update_query = r#"
+        mutation MediaFileMixedBatchUpdate($files: [FileUpdateInput!]!) {
+          fileUpdate(files: $files) {
+            files { id alt fileStatus }
+            userErrors { field message code }
+          }
+        }
+        "#;
+    let atomic_conflict = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"files": [
+            {"id": valid_id, "alt": "Must remain unchanged"},
+            {
+                "id": invalid_id,
+                "originalSource": "https://cdn.example.com/mixed-source.jpg",
+                "previewImageSource": "https://cdn.example.com/mixed-preview.jpg"
+            }
+        ]}),
+    ));
+    assert_eq!(
+        atomic_conflict.body["data"]["fileUpdate"],
+        json!({
+            "files": [],
+            "userErrors": [
+                {
+                    "field": ["files", "1", "previewImageSource"],
+                    "message": "Cannot update the preview image and image at the same time because they are one and the same.",
+                    "code": "INVALID"
+                },
+                {
+                    "field": ["files", "1", "originalSource"],
+                    "message": "Cannot update the preview image and image at the same time because they are one and the same.",
+                    "code": "INVALID"
+                }
+            ]
+        })
+    );
+    let after_atomic_conflict = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileMixedBatchAtomicRead($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            id
+            ... on MediaImage { alt fileStatus }
+          }
+        }
+        "#,
+        json!({"ids": [valid_id, invalid_id]}),
+    ));
+    assert_eq!(
+        after_atomic_conflict.body["data"]["nodes"],
+        json!([
+            {"id": valid_id, "alt": "Valid row before update", "fileStatus": "READY"},
+            {"id": invalid_id, "alt": "Invalid row before update", "fileStatus": "READY"}
+        ])
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"files": [
+            {"id": valid_id, "alt": "Valid row after update"},
+            {"id": invalid_id, "alt": "x".repeat(513)}
+        ]}),
+    ));
+    assert_eq!(
+        update.body["data"]["fileUpdate"],
+        json!({
+            "files": [{
+                "id": valid_id,
+                "alt": "Valid row after update",
+                "fileStatus": "READY"
+            }],
+            "userErrors": [{
+                "field": ["files", "1", "alt"],
+                "message": "The alt value exceeds the maximum limit of 512 characters.",
+                "code": "ALT_VALUE_LIMIT_EXCEEDED"
+            }]
+        })
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileMixedBatchDownstream($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            id
+            __typename
+            ... on MediaImage { alt fileStatus }
+          }
+        }
+        "#,
+        json!({"ids": [valid_id, invalid_id]}),
+    ));
+    assert_eq!(
+        downstream.body["data"]["nodes"],
+        json!([
+            {
+                "id": valid_id,
+                "__typename": "MediaImage",
+                "alt": "Valid row after update",
+                "fileStatus": "READY"
+            },
+            {
+                "id": invalid_id,
+                "__typename": "MediaImage",
+                "alt": "Invalid row before update",
+                "fileStatus": "READY"
+            }
+        ])
+    );
+
+    let log = log_snapshot(&proxy);
+    let update_entries = log["entries"]
+        .as_array()
+        .expect("log entries")
+        .iter()
+        .filter(|entry| entry["interpreted"]["primaryRootField"] == json!("fileUpdate"))
+        .collect::<Vec<_>>();
+    assert_eq!(update_entries.len(), 1);
+    assert_eq!(update_entries[0]["operationName"], Value::Null);
+    assert_eq!(update_entries[0]["query"], json!(update_query));
+    assert_eq!(update_entries[0]["stagedResourceIds"], json!([valid_id]));
 }
 
 #[test]

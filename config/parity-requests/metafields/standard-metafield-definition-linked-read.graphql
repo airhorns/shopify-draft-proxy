@@ -1,0 +1,44 @@
+query StandardLinkedMetafieldDefinitionRead($materialId: ID!, $colorPatternId: ID!) {
+  materialById: metaobjectDefinition(id: $materialId) {
+    id
+    type
+    name
+    displayNameKey
+  }
+  materialByType: metaobjectDefinitionByType(type: "shopify--material") {
+    id
+    type
+    name
+    displayNameKey
+  }
+  materialNode: node(id: $materialId) {
+    __typename
+    ... on MetaobjectDefinition {
+      id
+      type
+      name
+      displayNameKey
+    }
+  }
+  colorPatternById: metaobjectDefinition(id: $colorPatternId) {
+    id
+    type
+    name
+    displayNameKey
+  }
+  colorPatternByType: metaobjectDefinitionByType(type: "shopify--color-pattern") {
+    id
+    type
+    name
+    displayNameKey
+  }
+  colorPatternNode: node(id: $colorPatternId) {
+    __typename
+    ... on MetaobjectDefinition {
+      id
+      type
+      name
+      displayNameKey
+    }
+  }
+}
