@@ -8,12 +8,26 @@ impl DraftProxy {
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         let input = resolved_object_field(&arguments, "input").unwrap_or_default();
         let in_transit = invocation.root_name == "inventoryShipmentCreateInTransit";
-        let transfer_id = resolved_string_field(&input, "inventoryTransferId")
-            .or_else(|| resolved_string_field(&input, "transferId"));
         let movement_id = resolved_string_field(&input, "movementId");
+        let transfer_id = resolved_string_field(&input, "inventoryTransferId")
+            .or_else(|| resolved_string_field(&input, "transferId"))
+            .or_else(|| {
+                movement_id
+                    .as_ref()
+                    .filter(|id| is_shopify_gid_of_type(id, "InventoryTransfer"))
+                    .cloned()
+            });
         let line_inputs = resolved_object_list_field(&input, "lineItems");
         let tracking = inventory_shipment_tracking_from_input(&input);
         let status = if in_transit { "IN_TRANSIT" } else { "DRAFT" };
+
+        if let Some(transfer_id) = transfer_id.as_deref() {
+            if let Err(outcome) =
+                self.hydrate_inventory_transfer_mutation_target(invocation.request, transfer_id)
+            {
+                return outcome;
+            }
+        }
 
         if let Some(errors) = self.inventory_shipment_create_validation_errors(
             &input,
@@ -28,14 +42,21 @@ impl DraftProxy {
         let id = self.next_proxy_synthetic_gid("InventoryShipment");
         let mut line_items = Vec::new();
         for line_input in line_inputs {
+            let inventory_item_id =
+                resolved_string_field(&line_input, "inventoryItemId").unwrap_or_default();
             line_items.push(InventoryShipmentLineItemRecord {
                 id: self.next_proxy_synthetic_gid("InventoryShipmentLineItem"),
-                inventory_item_id: resolved_string_field(&line_input, "inventoryItemId")
-                    .unwrap_or_default(),
+                inventory_item_id: inventory_item_id.clone(),
                 transfer_line_item_id: resolved_string_field(
                     &line_input,
                     "inventoryTransferLineItemId",
-                ),
+                )
+                .or_else(|| {
+                    self.inventory_shipment_transfer_line_item_id(
+                        transfer_id.as_deref(),
+                        &inventory_item_id,
+                    )
+                }),
                 quantity: resolved_int_field(&line_input, "quantity").unwrap_or(0),
                 accepted_quantity: 0,
                 rejected_quantity: 0,
@@ -45,11 +66,7 @@ impl DraftProxy {
             id: id.clone(),
             name: format!(
                 "#S{}",
-                self.store
-                    .staged
-                    .inventory_shipments
-                    .len()
-                    .saturating_add(1)
+                self.store.inventory_shipment_count().saturating_add(1)
             ),
             status: status.to_string(),
             transfer_id,
@@ -79,7 +96,12 @@ impl DraftProxy {
     ) -> ResolverOutcome<Value> {
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
-        let Some(mut record) = self.store.staged.inventory_shipments.get(&id).cloned() else {
+        if let Err(outcome) =
+            self.hydrate_inventory_shipment_mutation_target(invocation.request, &id)
+        {
+            return outcome;
+        }
+        let Some(mut record) = self.store.inventory_shipment_by_id(&id).cloned() else {
             return ResolverOutcome::value(self.inventory_shipment_missing_mutation_payload(
                 "inventoryShipment",
                 &[("addedItems", json!([]))],
@@ -99,14 +121,21 @@ impl DraftProxy {
         let destination_location_id = self.shipment_destination_location_id(&record);
         let mut added_items = Vec::new();
         for line_input in line_inputs {
+            let inventory_item_id =
+                resolved_string_field(&line_input, "inventoryItemId").unwrap_or_default();
             let line_item = InventoryShipmentLineItemRecord {
                 id: self.next_proxy_synthetic_gid("InventoryShipmentLineItem"),
-                inventory_item_id: resolved_string_field(&line_input, "inventoryItemId")
-                    .unwrap_or_default(),
+                inventory_item_id: inventory_item_id.clone(),
                 transfer_line_item_id: resolved_string_field(
                     &line_input,
                     "inventoryTransferLineItemId",
-                ),
+                )
+                .or_else(|| {
+                    self.inventory_shipment_transfer_line_item_id(
+                        record.transfer_id.as_deref(),
+                        &inventory_item_id,
+                    )
+                }),
                 quantity: resolved_int_field(&line_input, "quantity").unwrap_or(0),
                 accepted_quantity: 0,
                 rejected_quantity: 0,
@@ -146,13 +175,18 @@ impl DraftProxy {
     ) -> ResolverOutcome<Value> {
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
-        let Some(mut record) = self.store.staged.inventory_shipments.get(&id).cloned() else {
+        if let Err(outcome) =
+            self.hydrate_inventory_shipment_mutation_target(invocation.request, &id)
+        {
+            return outcome;
+        }
+        let Some(mut record) = self.store.inventory_shipment_by_id(&id).cloned() else {
             return ResolverOutcome::value(self.inventory_shipment_missing_mutation_payload(
                 "inventoryShipment",
                 &[("removedLineItemIds", json!([]))],
             ));
         };
-        let remove_ids = resolved_string_list_arg(&arguments, "shipmentLineItemIds");
+        let remove_ids = resolved_string_list_arg(&arguments, "lineItems");
         let was_in_transit = inventory_shipment_has_incoming(&record);
         let destination_location_id = self.shipment_destination_location_id(&record);
         let mut kept = Vec::new();
@@ -200,7 +234,12 @@ impl DraftProxy {
     ) -> ResolverOutcome<Value> {
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
-        let Some(mut record) = self.store.staged.inventory_shipments.get(&id).cloned() else {
+        if let Err(outcome) =
+            self.hydrate_inventory_shipment_mutation_target(invocation.request, &id)
+        {
+            return outcome;
+        }
+        let Some(mut record) = self.store.inventory_shipment_by_id(&id).cloned() else {
             return ResolverOutcome::value(self.inventory_shipment_missing_mutation_payload(
                 "shipment",
                 &[("updatedLineItems", json!([]))],
@@ -222,7 +261,7 @@ impl DraftProxy {
                         vec![inventory_shipment_user_error(
                             vec!["items", &index.to_string(), "shipmentLineItemId"],
                             "The specified inventory shipment line item could not be found.",
-                            "NOT_FOUND",
+                            "ITEM_NOT_FOUND",
                         )],
                         &[("updatedLineItems", json!([]))],
                     ),
@@ -263,7 +302,7 @@ impl DraftProxy {
                             vec![inventory_shipment_user_error(
                                 vec!["items", &index.to_string(), "quantity"],
                                 "Quantity exceeds the remaining quantity for the inventory transfer line item.",
-                                "QUANTITY_EXCEEDS_REMAINING",
+                                "INVALID_QUANTITY",
                             )],
                             &[("updatedLineItems", json!([]))],
                         ),
@@ -322,7 +361,12 @@ impl DraftProxy {
     ) -> ResolverOutcome<Value> {
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
-        let Some(mut record) = self.store.staged.inventory_shipments.get(&id).cloned() else {
+        if let Err(outcome) =
+            self.hydrate_inventory_shipment_mutation_target(invocation.request, &id)
+        {
+            return outcome;
+        }
+        let Some(mut record) = self.store.inventory_shipment_by_id(&id).cloned() else {
             return ResolverOutcome::value(
                 self.inventory_shipment_missing_mutation_payload("inventoryShipment", &[]),
             );
@@ -355,7 +399,12 @@ impl DraftProxy {
     ) -> ResolverOutcome<Value> {
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
-        let Some(mut record) = self.store.staged.inventory_shipments.get(&id).cloned() else {
+        if let Err(outcome) =
+            self.hydrate_inventory_shipment_mutation_target(invocation.request, &id)
+        {
+            return outcome;
+        }
+        let Some(mut record) = self.store.inventory_shipment_by_id(&id).cloned() else {
             return ResolverOutcome::value(
                 self.inventory_shipment_missing_mutation_payload("inventoryShipment", &[]),
             );
@@ -366,7 +415,7 @@ impl DraftProxy {
                 vec![inventory_shipment_user_error(
                     vec!["id"],
                     "Only draft shipments can be marked in transit.",
-                    "INVALID_STATE",
+                    "INVALID_SHIPMENT_STATUS",
                 )],
             ));
         }
@@ -390,7 +439,12 @@ impl DraftProxy {
     ) -> ResolverOutcome<Value> {
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
-        let Some(mut record) = self.store.staged.inventory_shipments.get(&id).cloned() else {
+        if let Err(outcome) =
+            self.hydrate_inventory_shipment_mutation_target(invocation.request, &id)
+        {
+            return outcome;
+        }
+        let Some(mut record) = self.store.inventory_shipment_by_id(&id).cloned() else {
             return ResolverOutcome::value(
                 self.inventory_shipment_missing_mutation_payload("inventoryShipment", &[]),
             );
@@ -401,7 +455,7 @@ impl DraftProxy {
                 vec![inventory_shipment_user_error(
                     vec!["id"],
                     "Only in-transit shipments can be received.",
-                    "INVALID_STATE",
+                    "INVALID_SHIPMENT_STATUS",
                 )],
             ));
         }
@@ -474,13 +528,18 @@ impl DraftProxy {
     ) -> ResolverOutcome<Value> {
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
-        let Some(record) = self.store.staged.inventory_shipments.remove(&id) else {
+        if let Err(outcome) =
+            self.hydrate_inventory_shipment_mutation_target(invocation.request, &id)
+        {
+            return outcome;
+        }
+        let Some(record) = self.store.inventory_shipment_by_id(&id).cloned() else {
             return ResolverOutcome::value(json!({
                 "id": Value::Null,
                 "userErrors": [inventory_shipment_user_error(
                     vec!["id"],
                     "The specified inventory shipment could not be found.",
-                    "NOT_FOUND",
+                    "SHIPMENT_NOT_FOUND",
                 )]
             }));
         };
@@ -488,6 +547,8 @@ impl DraftProxy {
             self.apply_shipment_incoming_delta(&record, -record.unreceived_quantity());
         }
         let deleted_id = record.id.clone();
+        self.store.staged.inventory_shipments.remove(&id);
+        self.store.staged.inventory_shipments.tombstone(id.clone());
         ResolverOutcome::value(json!({
             "id": id,
             "userErrors": []
@@ -512,39 +573,53 @@ impl DraftProxy {
             return Some(tracking_errors);
         }
         let transfer_id = transfer_id?;
-        let Some(transfer) = self.store.staged.inventory_transfers.get(transfer_id) else {
+        let Some(transfer) = self.store.inventory_transfer_by_id(transfer_id) else {
             return Some(vec![inventory_shipment_user_error(
                 vec!["transferId"],
                 "The specified inventory transfer could not be found.",
-                "NOT_FOUND",
+                "TRANSFER_NOT_FOUND",
             )]);
         };
         if !matches!(transfer.status.as_str(), "DRAFT" | "READY_TO_SHIP") {
             return Some(vec![inventory_shipment_user_error(
                 vec!["transferId"],
                 "Inventory shipments can only be created for open or ready to ship transfers.",
-                "INVALID_STATE",
+                "INVALID_TRANSFER_STATUS",
             )]);
         }
         let mut proposed_quantities_by_transfer_line = BTreeMap::new();
         for (index, line_input) in line_inputs.iter().enumerate() {
             let transfer_line_item_id =
                 resolved_string_field(line_input, "inventoryTransferLineItemId");
-            let matching_line = transfer_line_item_id.as_ref().and_then(|id| {
-                transfer
-                    .line_items
-                    .iter()
-                    .find(|line_item| line_item.id == *id)
-            });
-            if transfer_line_item_id.is_some() && matching_line.is_none() {
-                return Some(vec![inventory_shipment_user_error(
-                    vec![
-                        "lineItems",
-                        &index.to_string(),
+            let inventory_item_id =
+                resolved_string_field(line_input, "inventoryItemId").unwrap_or_default();
+            let matching_line = transfer_line_item_id
+                .as_ref()
+                .and_then(|id| {
+                    transfer
+                        .line_items
+                        .iter()
+                        .find(|line_item| line_item.id == *id)
+                })
+                .or_else(|| {
+                    transfer
+                        .line_items
+                        .iter()
+                        .find(|line_item| line_item.inventory_item_id == inventory_item_id)
+                });
+            if matching_line.is_none() {
+                let (field, message) = if transfer_line_item_id.is_some() {
+                    (
                         "inventoryTransferLineItemId",
-                    ],
-                    "The specified inventory transfer line item could not be found.",
-                    "NOT_FOUND",
+                        "The specified inventory transfer line item could not be found.",
+                    )
+                } else {
+                    ("inventoryItemId", "The inventory item could not be found.")
+                };
+                return Some(vec![inventory_shipment_user_error(
+                    vec!["lineItems", &index.to_string(), field],
+                    message,
+                    "ITEM_NOT_FOUND",
                 )]);
             }
             let quantity = resolved_int_field(line_input, "quantity").unwrap_or(0);
@@ -559,7 +634,7 @@ impl DraftProxy {
                     return Some(vec![inventory_shipment_user_error(
                         vec!["lineItems", &index.to_string(), "quantity"],
                         "Quantity exceeds the remaining quantity for the inventory transfer line item.",
-                        "QUANTITY_EXCEEDS_REMAINING",
+                        "INVALID_QUANTITY",
                     )]);
                 }
             }
@@ -574,32 +649,46 @@ impl DraftProxy {
         field_name: &'static str,
     ) -> Option<Vec<Value>> {
         let transfer_id = record.transfer_id.as_deref()?;
-        let Some(transfer) = self.store.staged.inventory_transfers.get(transfer_id) else {
+        let Some(transfer) = self.store.inventory_transfer_by_id(transfer_id) else {
             return Some(vec![inventory_shipment_user_error(
                 vec!["transferId"],
                 "The specified inventory transfer could not be found.",
-                "NOT_FOUND",
+                "ITEM_NOT_FOUND",
             )]);
         };
         let mut proposed_quantities_by_transfer_line = BTreeMap::new();
         for (index, line_input) in line_inputs.iter().enumerate() {
             let transfer_line_item_id =
                 resolved_string_field(line_input, "inventoryTransferLineItemId");
-            let matching_line = transfer_line_item_id.as_ref().and_then(|id| {
-                transfer
-                    .line_items
-                    .iter()
-                    .find(|line_item| line_item.id == *id)
-            });
-            if transfer_line_item_id.is_some() && matching_line.is_none() {
-                return Some(vec![inventory_shipment_user_error(
-                    vec![
-                        field_name,
-                        &index.to_string(),
+            let inventory_item_id =
+                resolved_string_field(line_input, "inventoryItemId").unwrap_or_default();
+            let matching_line = transfer_line_item_id
+                .as_ref()
+                .and_then(|id| {
+                    transfer
+                        .line_items
+                        .iter()
+                        .find(|line_item| line_item.id == *id)
+                })
+                .or_else(|| {
+                    transfer
+                        .line_items
+                        .iter()
+                        .find(|line_item| line_item.inventory_item_id == inventory_item_id)
+                });
+            if matching_line.is_none() {
+                let (field, message) = if transfer_line_item_id.is_some() {
+                    (
                         "inventoryTransferLineItemId",
-                    ],
-                    "The specified inventory transfer line item could not be found.",
-                    "NOT_FOUND",
+                        "The specified inventory transfer line item could not be found.",
+                    )
+                } else {
+                    ("inventoryItemId", "The inventory item could not be found.")
+                };
+                return Some(vec![inventory_shipment_user_error(
+                    vec![field_name, &index.to_string(), field],
+                    message,
+                    "ITEM_NOT_FOUND",
                 )]);
             }
             if let Some(transfer_line) = matching_line {
@@ -626,12 +715,28 @@ impl DraftProxy {
                     return Some(vec![inventory_shipment_user_error(
                         vec![field_name, &index.to_string(), "quantity"],
                         "Quantity exceeds the remaining quantity for the inventory transfer line item.",
-                        "QUANTITY_EXCEEDS_REMAINING",
+                        "INVALID_QUANTITY",
                     )]);
                 }
             }
         }
         None
+    }
+
+    fn inventory_shipment_transfer_line_item_id(
+        &self,
+        transfer_id: Option<&str>,
+        inventory_item_id: &str,
+    ) -> Option<String> {
+        self.store
+            .inventory_transfer_by_id(transfer_id?)
+            .and_then(|transfer| {
+                transfer
+                    .line_items
+                    .iter()
+                    .find(|line_item| line_item.inventory_item_id == inventory_item_id)
+            })
+            .map(|line_item| line_item.id.clone())
     }
 
     pub(super) fn remaining_transfer_line_quantity(
@@ -641,9 +746,7 @@ impl DraftProxy {
         excluding_shipment_id: Option<&str>,
     ) -> i64 {
         self.store
-            .staged
-            .inventory_transfers
-            .get(transfer_id)
+            .inventory_transfer_by_id(transfer_id)
             .and_then(|transfer| {
                 transfer
                     .line_items
@@ -703,9 +806,8 @@ impl DraftProxy {
         let mut picked = 0;
         for shipment in self
             .store
-            .staged
-            .inventory_shipments
-            .values()
+            .inventory_shipments()
+            .iter()
             .filter(|shipment| excluding_shipment_id != Some(shipment.id.as_str()))
             .filter(|shipment| self.shipment_belongs_to_transfer(shipment, transfer_id))
         {
@@ -785,7 +887,7 @@ impl DraftProxy {
             vec![inventory_shipment_user_error(
                 vec!["id"],
                 "The specified inventory shipment could not be found.",
-                "NOT_FOUND",
+                "SHIPMENT_NOT_FOUND",
             )],
             extra,
         )
@@ -793,18 +895,15 @@ impl DraftProxy {
 
     pub(super) fn inventory_shipment_value_by_id(&self, id: &str) -> Value {
         self.store
-            .staged
-            .inventory_shipments
-            .get(id)
+            .inventory_shipment_by_id(id)
             .map(|record| self.inventory_shipment_full_json(record))
             .unwrap_or(Value::Null)
     }
 
     pub(super) fn inventory_shipment_line_item_value_by_id(&self, id: &str) -> Value {
         self.store
-            .staged
-            .inventory_shipments
-            .values()
+            .inventory_shipments()
+            .iter()
             .find_map(|record| {
                 record
                     .line_items
@@ -815,7 +914,53 @@ impl DraftProxy {
             .unwrap_or(Value::Null)
     }
 
-    fn inventory_shipment_full_json(&self, record: &InventoryShipmentRecord) -> Value {
+    pub(super) fn observe_inventory_shipments_for_transfer(
+        &mut self,
+        transfer: &Value,
+        transfer_id: &str,
+    ) {
+        for shipment in connection_node_values(transfer.get("shipments")) {
+            self.observe_inventory_shipment_value(shipment, Some(transfer_id));
+        }
+    }
+
+    pub(super) fn observe_inventory_shipment_value(
+        &mut self,
+        value: &Value,
+        transfer_id: Option<&str>,
+    ) {
+        let Some(mut record) = inventory_shipment_record_from_json(value, transfer_id) else {
+            return;
+        };
+        if let Some(existing) = self.store.inventory_shipment_by_id(&record.id).cloned() {
+            if record.name.is_empty() {
+                record.name = existing.name;
+            }
+            if record.status.is_empty() {
+                record.status = existing.status;
+            }
+            if record.transfer_id.is_none() {
+                record.transfer_id = existing.transfer_id;
+            }
+            if record.movement_id.is_none() {
+                record.movement_id = existing.movement_id;
+            }
+            if value.get("tracking").is_none() {
+                record.tracking = existing.tracking;
+            }
+            if value.get("lineItems").is_none() {
+                record.line_items = existing.line_items;
+            }
+        }
+        for line_item in connection_node_values(value.get("lineItems")) {
+            if let Some(inventory_item) = line_item.get("inventoryItem") {
+                self.observe_inventory_item_node(inventory_item);
+            }
+        }
+        self.store.observe_base_inventory_shipment(record);
+    }
+
+    pub(super) fn inventory_shipment_full_json(&self, record: &InventoryShipmentRecord) -> Value {
         let line_items = record
             .line_items
             .iter()
@@ -959,11 +1104,89 @@ impl DraftProxy {
             .as_deref()
             .and_then(|transfer_id| {
                 self.store
-                    .staged
-                    .inventory_transfers
-                    .get(transfer_id)
+                    .inventory_transfer_by_id(transfer_id)
                     .map(|transfer| transfer.destination_location_id.clone())
             })
             .or_else(|| self.default_inventory_location_id())
+    }
+}
+
+fn inventory_shipment_record_from_json(
+    value: &Value,
+    transfer_id: Option<&str>,
+) -> Option<InventoryShipmentRecord> {
+    let id = value.get("id").and_then(Value::as_str)?;
+    if !is_shopify_gid_of_type(id, "InventoryShipment") {
+        return None;
+    }
+    Some(InventoryShipmentRecord {
+        id: id.to_string(),
+        name: value
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        status: value
+            .get("status")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        transfer_id: transfer_id.map(str::to_string),
+        movement_id: transfer_id.map(str::to_string),
+        tracking: value
+            .get("tracking")
+            .filter(|tracking| !tracking.is_null())
+            .map(inventory_shipment_tracking_from_json),
+        line_items: connection_node_values(value.get("lineItems"))
+            .into_iter()
+            .filter_map(inventory_shipment_line_item_record_from_json)
+            .collect(),
+    })
+}
+
+fn inventory_shipment_line_item_record_from_json(
+    value: &Value,
+) -> Option<InventoryShipmentLineItemRecord> {
+    Some(InventoryShipmentLineItemRecord {
+        id: value.get("id").and_then(Value::as_str)?.to_string(),
+        inventory_item_id: value
+            .pointer("/inventoryItem/id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        transfer_line_item_id: None,
+        quantity: value
+            .get("quantity")
+            .and_then(Value::as_i64)
+            .unwrap_or_default(),
+        accepted_quantity: value
+            .get("acceptedQuantity")
+            .and_then(Value::as_i64)
+            .unwrap_or_default(),
+        rejected_quantity: value
+            .get("rejectedQuantity")
+            .and_then(Value::as_i64)
+            .unwrap_or_default(),
+    })
+}
+
+fn inventory_shipment_tracking_from_json(value: &Value) -> InventoryShipmentTrackingRecord {
+    InventoryShipmentTrackingRecord {
+        tracking_number: value
+            .get("trackingNumber")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        company: value
+            .get("company")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        tracking_url: value
+            .get("trackingUrl")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        arrives_at: value
+            .get("arrivesAt")
+            .and_then(Value::as_str)
+            .map(str::to_string),
     }
 }

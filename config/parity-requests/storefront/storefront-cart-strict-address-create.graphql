@@ -1,0 +1,12 @@
+mutation StorefrontCartStrictAddressCreate($input: CartInput) {
+  cartCreate(input: $input) {
+    cart {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

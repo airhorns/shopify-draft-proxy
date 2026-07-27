@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-07-03T17:51:41.609Z",
+  "capturedAt": "2026-07-20T14:18:57.436Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "captureType": "shipping-settings-replayable-parity",
@@ -17,78 +17,6 @@
   "fulfillmentConstraintScopeBlockers": {
     "read": "Access denied for fulfillmentConstraintRules field. Required access: `read_fulfillment_constraint_rules` access scope.",
     "write": "Access denied for fulfillmentConstraintRuleCreate/Update/Delete fields. Required access: `write_fulfillment_constraint_rules` access scope."
-  },
-  "seed": {
-    "carrierServices": [
-      {
-        "id": "gid://shopify/DeliveryCarrierService/95194480946",
-        "name": "canada_post",
-        "formattedName": "Canada Post (Discounted rates from Shopify Shipping)",
-        "active": true,
-        "supportsServiceDiscovery": true
-      },
-      {
-        "id": "gid://shopify/DeliveryCarrierService/97859273010",
-        "name": "dhl_express",
-        "formattedName": "DHL Express (Discounted rates from Shopify Shipping)",
-        "active": true,
-        "supportsServiceDiscovery": true
-      },
-      {
-        "id": "gid://shopify/DeliveryCarrierService/102958072114",
-        "name": "fedex",
-        "formattedName": "FedEx (Discounted rates from Shopify Shipping)",
-        "active": true,
-        "supportsServiceDiscovery": true
-      },
-      {
-        "id": "gid://shopify/DeliveryCarrierService/95194513714",
-        "name": "purolator",
-        "formattedName": "Purolator (Discounted rates from Shopify Shipping)",
-        "active": true,
-        "supportsServiceDiscovery": true
-      },
-      {
-        "id": "gid://shopify/DeliveryCarrierService/102958432562",
-        "name": "ups_shipping",
-        "formattedName": "UPS® (Discounted rates from Shopify Shipping)",
-        "active": true,
-        "supportsServiceDiscovery": true
-      },
-      {
-        "id": "gid://shopify/DeliveryCarrierService/102958399794",
-        "name": "usps",
-        "formattedName": "USPS (Discounted rates from Shopify Shipping)",
-        "active": true,
-        "supportsServiceDiscovery": true
-      }
-    ],
-    "locations": [
-      {
-        "id": "gid://shopify/Location/106318430514",
-        "name": "Shop location",
-        "localPickupSettingsV2": null,
-        "isActive": true,
-        "isFulfillmentService": false,
-        "localPickupSettings": null
-      },
-      {
-        "id": "gid://shopify/Location/106318463282",
-        "name": "My Custom Location",
-        "localPickupSettingsV2": null,
-        "isActive": true,
-        "isFulfillmentService": false,
-        "localPickupSettings": null
-      },
-      {
-        "id": "gid://shopify/Location/106318496050",
-        "name": "Snow City Warehouse",
-        "localPickupSettingsV2": null,
-        "isActive": true,
-        "isFulfillmentService": false,
-        "localPickupSettings": null
-      }
-    ]
   },
   "captures": {
     "availability": {
@@ -221,6 +149,37 @@
         }
       }
     },
+    "beforePickupEnableHydrate": {
+      "query": "query ShippingLocationLocalPickupHydrate($id: ID!) { location(id: $id) { id name isActive isFulfillmentService localPickupSettingsV2 { pickupTime instructions } } }",
+      "variables": {
+        "id": "gid://shopify/Location/106318496050"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/106318496050",
+              "name": "Snow City Warehouse",
+              "isActive": true,
+              "isFulfillmentService": true,
+              "localPickupSettingsV2": null
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
     "customPickupTimeEnable": {
       "query": "#graphql\n  mutation ShippingLocalPickupEnable($localPickupSettings: DeliveryLocationLocalPickupEnableInput!) {\n    locationLocalPickupEnable(localPickupSettings: $localPickupSettings) {\n      localPickupSettings {\n        pickupTime\n        instructions\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
@@ -326,6 +285,40 @@
         }
       }
     },
+    "beforePickupDisableHydrate": {
+      "query": "query ShippingLocationLocalPickupHydrate($id: ID!) { location(id: $id) { id name isActive isFulfillmentService localPickupSettingsV2 { pickupTime instructions } } }",
+      "variables": {
+        "id": "gid://shopify/Location/106318496050"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/106318496050",
+              "name": "Snow City Warehouse",
+              "isActive": true,
+              "isFulfillmentService": true,
+              "localPickupSettingsV2": {
+                "pickupTime": "TWO_HOURS",
+                "instructions": "Parity pickup instructions"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
     "disable": {
       "query": "#graphql\n  mutation ShippingLocalPickupDisable($locationId: ID!) {\n    locationLocalPickupDisable(locationId: $locationId) {\n      locationId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
@@ -383,6 +376,31 @@
         }
       }
     },
+    "unknownLocationEnableHydrate": {
+      "query": "query ShippingLocationLocalPickupHydrate($id: ID!) { location(id: $id) { id name isActive isFulfillmentService localPickupSettingsV2 { pickupTime instructions } } }",
+      "variables": {
+        "id": "gid://shopify/Location/999999999999"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "location": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
     "unknownLocationEnable": {
       "query": "#graphql\n  mutation ShippingLocalPickupEnable($localPickupSettings: DeliveryLocationLocalPickupEnableInput!) {\n    locationLocalPickupEnable(localPickupSettings: $localPickupSettings) {\n      localPickupSettings {\n        pickupTime\n        instructions\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
@@ -420,6 +438,31 @@
         }
       }
     },
+    "unknownLocationDisableHydrate": {
+      "query": "query ShippingLocationLocalPickupHydrate($id: ID!) { location(id: $id) { id name isActive isFulfillmentService localPickupSettingsV2 { pickupTime instructions } } }",
+      "variables": {
+        "id": "gid://shopify/Location/999999999999"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "location": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
     "unknownLocationDisable": {
       "query": "#graphql\n  mutation ShippingLocalPickupDisable($locationId: ID!) {\n    locationLocalPickupDisable(locationId: $locationId) {\n      locationId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
@@ -446,7 +489,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1990,
                 "restoreRate": 100
               }
             }
@@ -501,7 +544,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1987,
+                "currentlyAvailable": 1989,
                 "restoreRate": 100
               }
             }
@@ -541,7 +584,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1985,
+                "currentlyAvailable": 1988,
                 "restoreRate": 100
               }
             }
@@ -581,7 +624,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1984,
+                "currentlyAvailable": 1988,
                 "restoreRate": 100
               }
             }
@@ -636,7 +679,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1983,
+                "currentlyAvailable": 1987,
                 "restoreRate": 100
               }
             }
@@ -676,7 +719,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1981,
+                "currentlyAvailable": 1985,
                 "restoreRate": 100
               }
             }
@@ -716,7 +759,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1979,
+                "currentlyAvailable": 1984,
                 "restoreRate": 100
               }
             }
@@ -780,6 +823,125 @@
     }
   },
   "upstreamCalls": [
+    {
+      "operationName": "ShippingLocationLocalPickupHydrate",
+      "variables": {
+        "id": "gid://shopify/Location/106318496050"
+      },
+      "query": "query ShippingLocationLocalPickupHydrate($id: ID!) { location(id: $id) { id name isActive isFulfillmentService localPickupSettingsV2 { pickupTime instructions } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/106318496050",
+              "name": "Snow City Warehouse",
+              "isActive": true,
+              "isFulfillmentService": true,
+              "localPickupSettingsV2": null
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingLocationLocalPickupHydrate",
+      "variables": {
+        "id": "gid://shopify/Location/106318496050"
+      },
+      "query": "query ShippingLocationLocalPickupHydrate($id: ID!) { location(id: $id) { id name isActive isFulfillmentService localPickupSettingsV2 { pickupTime instructions } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/106318496050",
+              "name": "Snow City Warehouse",
+              "isActive": true,
+              "isFulfillmentService": true,
+              "localPickupSettingsV2": {
+                "pickupTime": "TWO_HOURS",
+                "instructions": "Parity pickup instructions"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingLocationLocalPickupHydrate",
+      "variables": {
+        "id": "gid://shopify/Location/999999999999"
+      },
+      "query": "query ShippingLocationLocalPickupHydrate($id: ID!) { location(id: $id) { id name isActive isFulfillmentService localPickupSettingsV2 { pickupTime instructions } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "location": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingLocationLocalPickupHydrate",
+      "variables": {
+        "id": "gid://shopify/Location/999999999999"
+      },
+      "query": "query ShippingLocationLocalPickupHydrate($id: ID!) { location(id: $id) { id name isActive isFulfillmentService localPickupSettingsV2 { pickupTime instructions } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "location": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
     {
       "operationName": "ShippingPackageHydrate",
       "variables": {

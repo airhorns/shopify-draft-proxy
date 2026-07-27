@@ -117,6 +117,15 @@ inspection. Successful `locationDeactivate` calls with a
 destination in the modeled slice, merge same-name quantity rows when a
 destination level already exists, remove the source level from downstream
 inventory reads, and leave guard/userError branches without relocation.
+In LiveHybrid mode, mutation-first deactivation query-hydrates the source and
+submitted destination independently through the caller's Admin route and auth
+headers before making validation or relocation decisions. A confirmed missing
+destination returns `DESTINATION_LOCATION_NOT_SHOPIFY_MANAGED`; a confirmed
+inactive destination returns `DESTINATION_LOCATION_NOT_FOUND_OR_INACTIVE`;
+transport or GraphQL uncertainty stops without collapsing into either branch.
+Snapshot deactivation consults local state only. Hydrated location fields remain
+available through downstream source and destination reads after successful
+staging.
 Unknown source IDs return `location: null` with a `LOCATION_NOT_FOUND` userError
 and do not stage a synthetic location.
 Captured guard slices include same-destination rejection, inactive-destination

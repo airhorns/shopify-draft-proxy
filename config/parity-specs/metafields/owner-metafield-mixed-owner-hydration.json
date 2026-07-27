@@ -1,0 +1,132 @@
+{
+  "scenarioId": "owner-metafield-mixed-owner-hydration",
+  "operationNames": ["metafieldsSet", "metafieldsDelete", "location", "page", "article", "market"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "compare-digest",
+    "atomicity",
+    "downstream-read-parity",
+    "delete-tombstone"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/owner-metafield-mixed-owner-hydration.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafields/owner-metafield-mixed-owner-set.graphql",
+    "variablesCapturePath": "$.validSet.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify capture seeds definition-backed metafields on Location, Page, Article, and Market owners, then records one no-op mixed-owner CAS write using every current compareDigest. Strict targets verify hydrated metafield IDs, types, values, timestamps, definitions, and digests survive the valid write and public owner-root reads. A valid Market CAS update advances only that digest; the next mixed batch uses valid digests for the first three owners and the prior Market digest at index 3, proving stale error ordering and whole-batch atomicity before a mixed-owner delete and public-root absence read.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "valid-mixed-owner-cas-payload",
+        "capturePath": "$.validSet.response.data.metafieldsSet",
+        "proxyPath": "$.data.metafieldsSet"
+      },
+      {
+        "name": "location-page-article-market-read-after-valid-cas",
+        "capturePath": "$.readAfterValid.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/owner-metafield-mixed-owner-read.graphql",
+          "variablesCapturePath": "$.readAfterValid.variables"
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "valid-market-cas-update-payload",
+        "capturePath": "$.marketAdvanceSet.response.data.metafieldsSet",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/owner-metafield-mixed-owner-set.graphql",
+          "variablesCapturePath": "$.marketAdvanceSet.variables"
+        },
+        "proxyPath": "$.data.metafieldsSet",
+        "expectedDifferences": [
+          {
+            "path": "$.metafields[0].compareDigest",
+            "matcher": "any-string",
+            "reason": "Shopify returns an opaque digest for the changed value while the proxy computes a deterministic local digest."
+          },
+          {
+            "path": "$.metafields[0].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy execute the valid Market update at different times."
+          }
+        ]
+      },
+      {
+        "name": "location-page-article-market-read-after-market-update",
+        "capturePath": "$.readAfterMarketAdvance.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/owner-metafield-mixed-owner-read.graphql",
+          "variablesCapturePath": "$.readAfterMarketAdvance.variables"
+        },
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.market.metafield.compareDigest",
+            "matcher": "any-string",
+            "reason": "Shopify returns an opaque digest for the changed Market value while the proxy computes a deterministic local digest."
+          },
+          {
+            "path": "$.market.metafield.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy execute the valid Market update at different times."
+          }
+        ]
+      },
+      {
+        "name": "mixed-owner-stale-digest-error-order",
+        "capturePath": "$.staleSet.response.data.metafieldsSet",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/owner-metafield-mixed-owner-set.graphql",
+          "variablesCapturePath": "$.staleSet.variables"
+        },
+        "proxyPath": "$.data.metafieldsSet"
+      },
+      {
+        "name": "mixed-owner-stale-digest-atomic-read",
+        "capturePath": "$.readAfterStale.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/owner-metafield-mixed-owner-read.graphql",
+          "variablesCapturePath": "$.readAfterStale.variables"
+        },
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.market.metafield.compareDigest",
+            "matcher": "any-string",
+            "reason": "The rejected stale batch retains Shopify's opaque or the proxy's deterministic digest from the prior valid Market update."
+          },
+          {
+            "path": "$.market.metafield.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The rejected stale batch retains the prior valid Market update timestamp, produced at different execution times."
+          }
+        ]
+      },
+      {
+        "name": "mixed-owner-delete-payload",
+        "capturePath": "$.delete.response.data.metafieldsDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/owner-metafield-mixed-owner-delete.graphql",
+          "variablesCapturePath": "$.delete.variables"
+        },
+        "proxyPath": "$.data.metafieldsDelete"
+      },
+      {
+        "name": "location-page-article-market-read-after-delete",
+        "capturePath": "$.readAfterDelete.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/owner-metafield-mixed-owner-read.graphql",
+          "variablesCapturePath": "$.readAfterDelete.variables"
+        },
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}
