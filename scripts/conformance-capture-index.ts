@@ -1190,9 +1190,14 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}product-create-parity.json`,
       `${CAPTURE_ROOT}product-update-parity.json`,
+      `${CAPTURE_ROOT}product-update-blank-title-parity.json`,
+      `${CAPTURE_ROOT}product-update-too-long-handle-parity.json`,
       `${CAPTURE_ROOT}product-delete-parity.json`,
       'config/parity-specs/products/productCreate-blank-title-parity.json',
       'config/parity-specs/products/productCreate-parity-plan.json',
+      'config/parity-specs/products/productUpdate-parity-plan.json',
+      'config/parity-specs/products/productUpdate-blank-title-parity.json',
+      'config/parity-specs/products/productUpdate-too-long-handle-parity.json',
       'config/parity-specs/products/productDelete-parity-plan.json',
       'config/parity-specs/products/productDelete-inline-missing-id-parity.json',
       'config/parity-specs/products/productDelete-inline-null-id-parity.json',
@@ -2461,6 +2466,31 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-mutation-hydration',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-product-mutation-hydration-conformance.mts',
+    purpose:
+      'Narrow product, late-page variant, and option updates preserve rich product fields and complete child relationships after exact mutation preflight hydration.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-mutation-hydration-product-update.json`,
+      `${CAPTURE_ROOT}product-mutation-hydration-variant-update.json`,
+      `${CAPTURE_ROOT}product-mutation-hydration-option-update.json`,
+      'config/parity-specs/products/product-mutation-hydration-product-update.json',
+      'config/parity-specs/products/product-mutation-hydration-variant-update.json',
+      'config/parity-specs/products/product-mutation-hydration-option-update.json',
+      'config/parity-requests/products/product-mutation-preflight-hydrate.graphql',
+      'config/parity-requests/products/product-mutation-hydration-product-update.graphql',
+      'config/parity-requests/products/product-mutation-hydration-variant-update.graphql',
+      'config/parity-requests/products/product-mutation-hydration-option-update.graphql',
+      'config/parity-requests/products/product-mutation-hydration-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable rich product with external media, one collection, one option, and twelve variants; deletes the product and collection in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-variant-delete-position-compaction',
     scriptPath: 'scripts/capture-product-variant-delete-position-compaction-conformance.mts',
     purpose: 'Post-delete product variant position compaction for multi-id bulk delete readbacks.',
@@ -2487,6 +2517,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}product-variants-bulk-reorder-validation-resequence.json`,
+      `${CAPTURE_ROOT}product-variants-bulk-reorder-parity.json`,
+      'config/parity-specs/products/productVariantsBulkReorder-parity.json',
       'config/parity-specs/products/productVariantsBulkReorder-validation-resequence.json',
       'config/parity-requests/products/productVariantsBulkReorder-validation-resequence.graphql',
       'config/parity-requests/products/productVariantsBulkReorder-position-read.graphql',
@@ -3691,6 +3723,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}product-create-inventory-read-parity.json`,
       `${CAPTURE_ROOT}product-variants-bulk-create-inventory-read-parity.json`,
+      'config/parity-specs/products/productVariantsBulkCreate-inventory-read-parity.json',
     ],
     cleanupBehavior: 'Read-only capture; no cleanup expected.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -4049,6 +4082,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_products', 'write_products', 'write_purchase_options'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}product-relationship-roots.json`,
+      `${CAPTURE_ROOT}product-relationship-roots-mutation-preflight.json`,
       'config/parity-specs/products/product-relationship-roots-live-parity.json',
       'config/parity-specs/products/selling-plan-product-variant-associations.json',
       'config/parity-requests/products/product-options-hydrate-nodes.graphql',
@@ -10145,14 +10179,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-draft-order-calculate-validation-and-shipping-rates-conformance.ts',
     purpose:
-      'draftOrderCalculate validation branches and captured empty availableShippingRates behavior when no shipping address is present.',
-    requiredAuthScopes: ['read_draft_orders', 'write_draft_orders', 'read_products'],
+      'draftOrderCalculate validation, no-address/no-match, delivery-profile-backed fixed shipping rates, and rate-handle chaining into draftOrderCreate/draftOrderUpdate.',
+    requiredAuthScopes: [
+      'read_draft_orders',
+      'write_draft_orders',
+      'read_products',
+      'write_products',
+      'read_locations',
+      'read_shipping',
+      'write_shipping',
+      'delivery profile management access',
+    ],
     fixtureOutputs: [
       `${CAPTURE_ROOT}draftOrderCalculate-validation-and-shipping-rates.json`,
       'config/parity-specs/orders/draftOrderCalculate-validation-and-shipping-rates.json',
       'config/parity-requests/orders/draftOrderCalculate-validation-and-shipping-rates.graphql',
+      'config/parity-requests/orders/draftOrderCalculate-shipping-rate-create.graphql',
+      'config/parity-requests/orders/draftOrderCalculate-shipping-rate-update.graphql',
     ],
-    cleanupBehavior: 'Validation/calculate-only probes do not create merchant resources.',
+    cleanupBehavior:
+      'Creates a disposable product variant and delivery profile with two fixed US rates, chains captured handles through one draft order, then deletes the draft/product and removes the profile.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

@@ -2,16 +2,16 @@
   "preMutationRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/10213972148530",
+        "id": "gid://shopify/Product/10243941237042",
         "options": [
           {
-            "id": "gid://shopify/ProductOption/12769725153586",
+            "id": "gid://shopify/ProductOption/12804842488114",
             "name": "Title",
             "position": 1,
             "values": ["Default Title"],
             "optionValues": [
               {
-                "id": "gid://shopify/ProductOptionValue/8182642409778",
+                "id": "gid://shopify/ProductOptionValue/8322109735218",
                 "name": "Default Title",
                 "hasVariants": true
               }
@@ -21,7 +21,7 @@
         "variants": {
           "nodes": [
             {
-              "id": "gid://shopify/ProductVariant/51317775434034",
+              "id": "gid://shopify/ProductVariant/51488200655154",
               "title": "Default Title",
               "selectedOptions": [
                 {
@@ -48,7 +48,7 @@
   },
   "mutation": {
     "variables": {
-      "productId": "gid://shopify/Product/10213972148530",
+      "productId": "gid://shopify/Product/10243941237042",
       "options": [
         {
           "name": "Color",
@@ -77,34 +77,34 @@
       "data": {
         "productOptionsCreate": {
           "product": {
-            "id": "gid://shopify/Product/10213972148530",
+            "id": "gid://shopify/Product/10243941237042",
             "options": [
               {
-                "id": "gid://shopify/ProductOption/12769725186354",
+                "id": "gid://shopify/ProductOption/12804842520882",
                 "name": "Color",
                 "position": 1,
                 "values": ["Red"],
                 "optionValues": [
                   {
-                    "id": "gid://shopify/ProductOptionValue/8182642442546",
+                    "id": "gid://shopify/ProductOptionValue/8322109767986",
                     "name": "Red",
                     "hasVariants": true
                   },
                   {
-                    "id": "gid://shopify/ProductOptionValue/8182642475314",
+                    "id": "gid://shopify/ProductOptionValue/8322109800754",
                     "name": "Green",
                     "hasVariants": false
                   }
                 ]
               },
               {
-                "id": "gid://shopify/ProductOption/12769725219122",
+                "id": "gid://shopify/ProductOption/12804842553650",
                 "name": "Size",
                 "position": 2,
                 "values": ["Small"],
                 "optionValues": [
                   {
-                    "id": "gid://shopify/ProductOptionValue/8182642508082",
+                    "id": "gid://shopify/ProductOptionValue/8322109833522",
                     "name": "Small",
                     "hasVariants": true
                   }
@@ -114,7 +114,7 @@
             "variants": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ProductVariant/51317775434034",
+                  "id": "gid://shopify/ProductVariant/51488200655154",
                   "title": "Red / Small",
                   "selectedOptions": [
                     {
@@ -139,7 +139,7 @@
           "actualQueryCost": 16,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1984,
+            "currentlyAvailable": 1968,
             "restoreRate": 100
           }
         }
@@ -149,34 +149,34 @@
   "downstreamRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/10213972148530",
+        "id": "gid://shopify/Product/10243941237042",
         "options": [
           {
-            "id": "gid://shopify/ProductOption/12769725186354",
+            "id": "gid://shopify/ProductOption/12804842520882",
             "name": "Color",
             "position": 1,
             "values": ["Red"],
             "optionValues": [
               {
-                "id": "gid://shopify/ProductOptionValue/8182642442546",
+                "id": "gid://shopify/ProductOptionValue/8322109767986",
                 "name": "Red",
                 "hasVariants": true
               },
               {
-                "id": "gid://shopify/ProductOptionValue/8182642475314",
+                "id": "gid://shopify/ProductOptionValue/8322109800754",
                 "name": "Green",
                 "hasVariants": false
               }
             ]
           },
           {
-            "id": "gid://shopify/ProductOption/12769725219122",
+            "id": "gid://shopify/ProductOption/12804842553650",
             "name": "Size",
             "position": 2,
             "values": ["Small"],
             "optionValues": [
               {
-                "id": "gid://shopify/ProductOptionValue/8182642508082",
+                "id": "gid://shopify/ProductOptionValue/8322109833522",
                 "name": "Small",
                 "hasVariants": true
               }
@@ -186,7 +186,7 @@
         "variants": {
           "nodes": [
             {
-              "id": "gid://shopify/ProductVariant/51317775434034",
+              "id": "gid://shopify/ProductVariant/51488200655154",
               "title": "Red / Small",
               "selectedOptions": [
                 {
@@ -245,65 +245,213 @@
     {
       "operationName": "ProductOptionLifecycleHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10213972148530"]
+        "ids": ["gid://shopify/Product/10243941237042"]
       },
-      "query": "query ProductOptionLifecycleHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on Product {\n      id\n      options {\n        id\n        name\n        position\n        values\n        optionValues {\n          id\n          name\n          hasVariants\n        }\n      }\n      totalInventory\n      tracksInventory\n      variants(first: 110) {\n        nodes {\n          id\n          title\n          sku\n          barcode\n          price\n          inventoryQuantity\n          selectedOptions {\n            name\n            value\n          }\n          inventoryItem {\n            id\n            tracked\n            requiresShipping\n          }\n        }\n      }\n    }\n  }\n}",
+      "query": "query ProductOptionLifecycleHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on Product {\n      id\n      options {\n        id\n        name\n        position\n        values\n        optionValues {\n          id\n          name\n          hasVariants\n        }\n      }\n      totalInventory\n      tracksInventory\n      variants(first: 110) {\n        nodes {\n          id\n          title\n          sku\n          barcode\n          price\n          inventoryQuantity\n          selectedOptions {\n            name\n            value\n          }\n          inventoryItem {\n            id\n            tracked\n            requiresShipping\n          }\n        }\n      }\n    }\n  }\n}\n",
       "response": {
-        "data": {
-          "nodes": [
-            {
-              "id": "gid://shopify/Product/10213972148530",
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10243941237042",
+                "options": [
+                  {
+                    "id": "gid://shopify/ProductOption/12804842488114",
+                    "name": "Title",
+                    "position": 1,
+                    "values": ["Default Title"],
+                    "optionValues": [
+                      {
+                        "id": "gid://shopify/ProductOptionValue/8322109735218",
+                        "name": "Default Title",
+                        "hasVariants": true
+                      }
+                    ]
+                  }
+                ],
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51488200655154",
+                      "title": "Default Title",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Title",
+                          "value": "Default Title"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53593798574386",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 32,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ProductMutationPreflightHydrate",
+      "variables": {
+        "id": "gid://shopify/Product/10243941237042",
+        "variantsAfter": null,
+        "mediaAfter": null,
+        "collectionsAfter": null
+      },
+      "query": "query ProductMutationPreflightHydrate(\n  $id: ID!\n  $variantsAfter: String\n  $mediaAfter: String\n  $collectionsAfter: String\n) {\n  product(id: $id) {\n    __typename\n    id\n    legacyResourceId\n    createdAt\n    updatedAt\n    title\n    handle\n    status\n    publishedAt\n    descriptionHtml\n    vendor\n    productType\n    tags\n    templateSuffix\n    totalInventory\n    tracksInventory\n    onlineStorePreviewUrl\n    requiresSellingPlan\n    isGiftCard\n    giftCardTemplateSuffix\n    seo {\n      title\n      description\n    }\n    category {\n      id\n      name\n      fullName\n      isLeaf\n      level\n      parentId\n    }\n    options {\n      id\n      name\n      position\n      values\n      optionValues {\n        id\n        name\n        hasVariants\n      }\n    }\n    variants(first: 250, after: $variantsAfter) {\n      nodes {\n        id\n        title\n        sku\n        barcode\n        price\n        compareAtPrice\n        position\n        taxable\n        taxCode\n        inventoryPolicy\n        inventoryQuantity\n        requiresComponents\n        showUnitPrice\n        unitPriceMeasurement {\n          quantityValue\n          quantityUnit\n          referenceValue\n          referenceUnit\n        }\n        selectedOptions {\n          name\n          value\n        }\n        metafields(first: 250) {\n          nodes {\n            id\n            namespace\n            key\n            type\n            value\n            compareDigest\n            jsonValue\n            createdAt\n            updatedAt\n            ownerType\n          }\n        }\n        inventoryItem {\n          id\n          tracked\n          requiresShipping\n          countryCodeOfOrigin\n          provinceCodeOfOrigin\n          harmonizedSystemCode\n          measurement {\n            weight {\n              unit\n              value\n            }\n          }\n        }\n        media(first: 10) {\n          nodes {\n            id\n          }\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    media(first: 250, after: $mediaAfter) {\n      nodes {\n        __typename\n        id\n        alt\n        mediaContentType\n        status\n        preview {\n          image {\n            url\n            width\n            height\n          }\n        }\n        ... on MediaImage {\n          image {\n            url\n            width\n            height\n          }\n        }\n        ... on ExternalVideo {\n          embedUrl\n          host\n          originUrl\n        }\n        ... on Video {\n          duration\n          filename\n          originalSource {\n            fileSize\n            format\n            height\n            mimeType\n            url\n            width\n          }\n          sources {\n            fileSize\n            format\n            height\n            mimeType\n            url\n            width\n          }\n        }\n        ... on Model3d {\n          filename\n          originalSource {\n            filesize\n            format\n            mimeType\n            url\n          }\n          sources {\n            filesize\n            format\n            mimeType\n            url\n          }\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    collections(first: 250, after: $collectionsAfter) {\n      nodes {\n        id\n        title\n        handle\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "product": {
+              "__typename": "Product",
+              "id": "gid://shopify/Product/10243941237042",
+              "legacyResourceId": "10243941237042",
+              "createdAt": "2026-07-19T15:02:10Z",
+              "updatedAt": "2026-07-19T15:02:10Z",
+              "title": "Hermes Product Option Conformance 1784473329948",
+              "handle": "hermes-product-option-conformance-1784473329948",
+              "status": "DRAFT",
+              "publishedAt": null,
+              "descriptionHtml": "",
+              "vendor": "harry-test-heelo",
+              "productType": "",
+              "tags": [],
+              "templateSuffix": null,
+              "totalInventory": 0,
+              "tracksInventory": false,
+              "onlineStorePreviewUrl": "https://adwzshsg5sv0hlo4-92891250994.shopifypreview.com/products_preview?preview_key=15cf6992fc546d41c436fedfe75b5707&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0xOVQxNjowMjoxMC44MjJaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--8ddc0f8fef06295e5f7014530cc70c3f17bdccd1",
+              "requiresSellingPlan": false,
+              "isGiftCard": false,
+              "giftCardTemplateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              },
+              "category": null,
               "options": [
                 {
-                  "id": "gid://shopify/ProductOption/12769725153586",
+                  "id": "gid://shopify/ProductOption/12804842488114",
                   "name": "Title",
                   "position": 1,
                   "values": ["Default Title"],
                   "optionValues": [
                     {
-                      "id": "gid://shopify/ProductOptionValue/8182642409778",
+                      "id": "gid://shopify/ProductOptionValue/8322109735218",
                       "name": "Default Title",
                       "hasVariants": true
                     }
                   ]
                 }
               ],
-              "totalInventory": 0,
-              "tracksInventory": false,
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51317775434034",
+                    "id": "gid://shopify/ProductVariant/51488200655154",
                     "title": "Default Title",
                     "sku": null,
                     "barcode": null,
                     "price": "0.00",
+                    "compareAtPrice": null,
+                    "position": 1,
+                    "taxable": true,
+                    "taxCode": "",
+                    "inventoryPolicy": "DENY",
                     "inventoryQuantity": 0,
+                    "requiresComponents": false,
+                    "showUnitPrice": false,
+                    "unitPriceMeasurement": {
+                      "quantityValue": 0,
+                      "quantityUnit": null,
+                      "referenceValue": 0,
+                      "referenceUnit": null
+                    },
                     "selectedOptions": [
                       {
                         "name": "Title",
                         "value": "Default Title"
                       }
                     ],
+                    "metafields": {
+                      "nodes": []
+                    },
                     "inventoryItem": {
-                      "id": "gid://shopify/InventoryItem/53422240268594",
+                      "id": "gid://shopify/InventoryItem/53593798574386",
                       "tracked": false,
-                      "requiresShipping": true
+                      "requiresShipping": true,
+                      "countryCodeOfOrigin": null,
+                      "provinceCodeOfOrigin": null,
+                      "harmonizedSystemCode": null,
+                      "measurement": {
+                        "weight": {
+                          "unit": "KILOGRAMS",
+                          "value": 0
+                        }
+                      }
+                    },
+                    "media": {
+                      "nodes": []
                     }
                   }
-                ]
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo1MTQ4ODIwMDY1NTE1NCwibGFzdF92YWx1ZSI6IjEifQ==",
+                  "endCursor": "eyJsYXN0X2lkIjo1MTQ4ODIwMDY1NTE1NCwibGFzdF92YWx1ZSI6IjEifQ=="
+                }
+              },
+              "media": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "collections": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
               }
             }
-          ]
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 32,
-            "actualQueryCost": 6,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1994,
-              "restoreRate": 100
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 330,
+              "actualQueryCost": 36,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1964,
+                "restoreRate": 100
+              }
             }
           }
         }
