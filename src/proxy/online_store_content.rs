@@ -96,12 +96,10 @@ const ONLINE_STORE_BLOG_HANDLE_RESERVATION_HYDRATE_QUERY: &str = include_str!(
 const ONLINE_STORE_ARTICLE_HANDLE_RESERVATION_HYDRATE_QUERY: &str = include_str!(
     "../../config/parity-requests/online-store/online-store-article-handle-reservation-hydrate.graphql"
 );
-const ONLINE_STORE_ARTICLE_MUTATION_HYDRATE_QUERY: &str = include_str!(
-    "../../config/parity-requests/online-store/online-store-article-mutation-hydrate.graphql"
-);
-const ONLINE_STORE_BLOG_MUTATION_HYDRATE_QUERY: &str = include_str!(
-    "../../config/parity-requests/online-store/online-store-blog-mutation-hydrate.graphql"
-);
+const ONLINE_STORE_ARTICLE_MUTATION_HYDRATE_QUERY: &str =
+    include_str!("../runtime_graphql/online-store/online-store-article-mutation-hydrate.graphql");
+const ONLINE_STORE_BLOG_MUTATION_HYDRATE_QUERY: &str =
+    include_str!("../runtime_graphql/online-store/online-store-blog-mutation-hydrate.graphql");
 const BLOGS_COUNT_Q: &str = "query OnlineStoreBlogsCountHydrate { blogsCount { count precision } }";
 const PAGES_COUNT_Q: &str = "query OnlineStorePagesCountHydrate { pagesCount { count precision } }";
 

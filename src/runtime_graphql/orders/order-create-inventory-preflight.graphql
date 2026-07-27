@@ -1,0 +1,67 @@
+query OrdersOrderCreateInventoryPreflight($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    __typename
+    ... on ProductVariant {
+      id
+      title
+      sku
+      barcode
+      price
+      compareAtPrice
+      taxable
+      inventoryPolicy
+      inventoryQuantity
+      selectedOptions {
+        name
+        value
+      }
+      product {
+        id
+        title
+        handle
+        status
+        totalInventory
+        tracksInventory
+      }
+      inventoryItem {
+        id
+        tracked
+        requiresShipping
+        countryCodeOfOrigin
+        provinceCodeOfOrigin
+        harmonizedSystemCode
+        measurement {
+          weight {
+            value
+            unit
+          }
+        }
+        inventoryLevels(first: 250) {
+          nodes {
+            id
+            location {
+              id
+              name
+            }
+            quantities(
+              names: [
+                "available"
+                "on_hand"
+                "committed"
+                "incoming"
+                "reserved"
+                "damaged"
+                "quality_control"
+                "safety_stock"
+              ]
+            ) {
+              name
+              quantity
+              updatedAt
+            }
+          }
+        }
+      }
+    }
+  }
+}
