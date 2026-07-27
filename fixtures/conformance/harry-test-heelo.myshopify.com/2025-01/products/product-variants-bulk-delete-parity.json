@@ -2,55 +2,11 @@
   "mutation": {
     "variables": {
       "productId": "gid://shopify/Product/10243927867698",
-      "variants": [
-        {
-          "optionValues": [
-            {
-              "optionName": "Color",
-              "name": "Blue"
-            }
-          ],
-          "barcode": "2222222222222",
-          "price": "26.00",
-          "compareAtPrice": "30.00",
-          "taxable": false,
-          "taxCode": "P0000000",
-          "requiresComponents": true,
-          "showUnitPrice": true,
-          "unitPriceMeasurement": {
-            "quantityValue": 2.5,
-            "quantityUnit": "L",
-            "referenceValue": 1,
-            "referenceUnit": "L"
-          },
-          "inventoryItem": {
-            "sku": "HERMES-BULK-772608-BLUE",
-            "tracked": true,
-            "requiresShipping": false,
-            "countryCodeOfOrigin": "US",
-            "provinceCodeOfOrigin": "CA",
-            "harmonizedSystemCode": "1234.56",
-            "measurement": {
-              "weight": {
-                "value": 0.25,
-                "unit": "KILOGRAMS"
-              }
-            }
-          },
-          "metafields": [
-            {
-              "namespace": "specs",
-              "key": "bulkCreateTier",
-              "type": "single_line_text_field",
-              "value": "standard"
-            }
-          ]
-        }
-      ]
+      "variantsIds": ["gid://shopify/ProductVariant/51488122011954"]
     },
     "response": {
       "data": {
-        "productVariantsBulkCreate": {
+        "productVariantsBulkDelete": {
           "product": {
             "id": "gid://shopify/Product/10243927867698",
             "totalInventory": 0,
@@ -58,140 +14,30 @@
             "variants": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ProductVariant/51488122011954",
-                  "title": "Red",
-                  "sku": "HERMES-BULK-772608-RED",
-                  "barcode": "1111111111111",
-                  "price": "24.00",
-                  "compareAtPrice": "30.00",
-                  "taxable": false,
-                  "taxCode": "P0000000",
-                  "position": 1,
-                  "requiresComponents": true,
-                  "showUnitPrice": true,
-                  "unitPriceMeasurement": {
-                    "quantityValue": 1.5,
-                    "quantityUnit": "L",
-                    "referenceValue": 1,
-                    "referenceUnit": "L"
-                  },
-                  "inventoryQuantity": 0,
-                  "selectedOptions": [
-                    {
-                      "name": "Color",
-                      "value": "Red"
-                    }
-                  ],
-                  "inventoryItem": {
-                    "id": "gid://shopify/InventoryItem/53593718620466",
-                    "tracked": true,
-                    "requiresShipping": false,
-                    "countryCodeOfOrigin": "US",
-                    "provinceCodeOfOrigin": "CA",
-                    "harmonizedSystemCode": "123456",
-                    "measurement": {
-                      "weight": {
-                        "value": 0.5,
-                        "unit": "KILOGRAMS"
-                      }
-                    }
-                  }
-                },
-                {
                   "id": "gid://shopify/ProductVariant/51488122044722",
                   "title": "Blue",
                   "sku": "HERMES-BULK-772608-BLUE",
-                  "barcode": "2222222222222",
-                  "price": "26.00",
-                  "compareAtPrice": "30.00",
-                  "taxable": false,
-                  "taxCode": "P0000000",
-                  "position": 2,
-                  "requiresComponents": true,
-                  "showUnitPrice": true,
-                  "unitPriceMeasurement": {
-                    "quantityValue": 2.5,
-                    "quantityUnit": "L",
-                    "referenceValue": 1,
-                    "referenceUnit": "L"
-                  },
                   "inventoryQuantity": 0,
                   "selectedOptions": [
                     {
                       "name": "Color",
                       "value": "Blue"
                     }
-                  ],
-                  "inventoryItem": {
-                    "id": "gid://shopify/InventoryItem/53593718653234",
-                    "tracked": true,
-                    "requiresShipping": false,
-                    "countryCodeOfOrigin": "US",
-                    "provinceCodeOfOrigin": "CA",
-                    "harmonizedSystemCode": "123456",
-                    "measurement": {
-                      "weight": {
-                        "value": 0.25,
-                        "unit": "KILOGRAMS"
-                      }
-                    }
-                  }
+                  ]
                 }
               ]
             }
           },
-          "productVariants": [
-            {
-              "id": "gid://shopify/ProductVariant/51488122044722",
-              "title": "Blue",
-              "sku": "HERMES-BULK-772608-BLUE",
-              "barcode": "2222222222222",
-              "price": "26.00",
-              "compareAtPrice": "30.00",
-              "taxable": false,
-              "taxCode": "P0000000",
-              "position": 2,
-              "requiresComponents": true,
-              "showUnitPrice": true,
-              "unitPriceMeasurement": {
-                "quantityValue": 2.5,
-                "quantityUnit": "L",
-                "referenceValue": 1,
-                "referenceUnit": "L"
-              },
-              "inventoryQuantity": 0,
-              "selectedOptions": [
-                {
-                  "name": "Color",
-                  "value": "Blue"
-                }
-              ],
-              "inventoryItem": {
-                "id": "gid://shopify/InventoryItem/53593718653234",
-                "tracked": true,
-                "requiresShipping": false,
-                "countryCodeOfOrigin": "US",
-                "provinceCodeOfOrigin": "CA",
-                "harmonizedSystemCode": "123456",
-                "measurement": {
-                  "weight": {
-                    "value": 0.25,
-                    "unit": "KILOGRAMS"
-                  }
-                }
-              }
-            }
-          ],
           "userErrors": []
         }
       },
       "extensions": {
         "cost": {
-          "requestedQueryCost": 32,
-          "actualQueryCost": 32,
+          "requestedQueryCost": 20,
+          "actualQueryCost": 14,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1945,
+            "currentlyAvailable": 1954,
             "restoreRate": 100
           }
         }
@@ -201,121 +47,78 @@
   "downstreamRead": {
     "requestVariables": {
       "id": "gid://shopify/Product/10243927867698",
-      "query": "sku:HERMES-BULK-772608-BLUE"
+      "query": "sku:HERMES-BULK-772608-RED"
     },
-    "data": {
-      "product": {
-        "id": "gid://shopify/Product/10243927867698",
-        "totalInventory": 0,
-        "tracksInventory": true,
-        "variants": {
-          "nodes": [
-            {
-              "id": "gid://shopify/ProductVariant/51488122011954",
-              "title": "Red",
-              "sku": "HERMES-BULK-772608-RED",
-              "barcode": "1111111111111",
-              "price": "24.00",
-              "compareAtPrice": "30.00",
-              "taxable": false,
-              "taxCode": "P0000000",
-              "position": 1,
-              "requiresComponents": true,
-              "showUnitPrice": true,
-              "unitPriceMeasurement": {
-                "quantityValue": 1.5,
-                "quantityUnit": "L",
-                "referenceValue": 1,
-                "referenceUnit": "L"
-              },
-              "inventoryPolicy": "DENY",
-              "inventoryQuantity": 0,
-              "selectedOptions": [
-                {
-                  "name": "Color",
-                  "value": "Red"
-                }
-              ],
-              "metafield": null,
-              "inventoryItem": {
-                "id": "gid://shopify/InventoryItem/53593718620466",
-                "tracked": true,
-                "requiresShipping": false,
-                "countryCodeOfOrigin": "US",
-                "provinceCodeOfOrigin": "CA",
-                "harmonizedSystemCode": "123456",
-                "measurement": {
-                  "weight": {
-                    "value": 0.5,
-                    "unit": "KILOGRAMS"
+    "response": {
+      "data": {
+        "product": {
+          "id": "gid://shopify/Product/10243927867698",
+          "totalInventory": 0,
+          "tracksInventory": true,
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51488122044722",
+                "title": "Blue",
+                "sku": "HERMES-BULK-772608-BLUE",
+                "barcode": "2222222222222",
+                "price": "26.00",
+                "compareAtPrice": "30.00",
+                "taxable": false,
+                "taxCode": "P0000000",
+                "position": 1,
+                "requiresComponents": true,
+                "showUnitPrice": true,
+                "unitPriceMeasurement": {
+                  "quantityValue": 2.5,
+                  "quantityUnit": "L",
+                  "referenceValue": 1,
+                  "referenceUnit": "L"
+                },
+                "inventoryPolicy": "DENY",
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Blue"
+                  }
+                ],
+                "metafield": null,
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53593718653234",
+                  "tracked": true,
+                  "requiresShipping": false,
+                  "countryCodeOfOrigin": "US",
+                  "provinceCodeOfOrigin": "CA",
+                  "harmonizedSystemCode": "123456",
+                  "measurement": {
+                    "weight": {
+                      "value": 0.25,
+                      "unit": "KILOGRAMS"
+                    }
                   }
                 }
               }
-            },
-            {
-              "id": "gid://shopify/ProductVariant/51488122044722",
-              "title": "Blue",
-              "sku": "HERMES-BULK-772608-BLUE",
-              "barcode": "2222222222222",
-              "price": "26.00",
-              "compareAtPrice": "30.00",
-              "taxable": false,
-              "taxCode": "P0000000",
-              "position": 2,
-              "requiresComponents": true,
-              "showUnitPrice": true,
-              "unitPriceMeasurement": {
-                "quantityValue": 2.5,
-                "quantityUnit": "L",
-                "referenceValue": 1,
-                "referenceUnit": "L"
-              },
-              "inventoryPolicy": "DENY",
-              "inventoryQuantity": 0,
-              "selectedOptions": [
-                {
-                  "name": "Color",
-                  "value": "Blue"
-                }
-              ],
-              "metafield": {
-                "value": "standard",
-                "ownerType": "PRODUCTVARIANT"
-              },
-              "inventoryItem": {
-                "id": "gid://shopify/InventoryItem/53593718653234",
-                "tracked": true,
-                "requiresShipping": false,
-                "countryCodeOfOrigin": "US",
-                "provinceCodeOfOrigin": "CA",
-                "harmonizedSystemCode": "123456",
-                "measurement": {
-                  "weight": {
-                    "value": 0.25,
-                    "unit": "KILOGRAMS"
-                  }
-                }
-              }
-            }
-          ]
+            ]
+          }
+        },
+        "products": {
+          "nodes": []
+        },
+        "skuCount": {
+          "count": 0,
+          "precision": "EXACT"
         }
       },
-      "products": {
-        "nodes": []
-      },
-      "skuCount": {
-        "count": 0,
-        "precision": "EXACT"
-      }
-    },
-    "extensions": {
-      "cost": {
-        "requestedQueryCost": 39,
-        "actualQueryCost": 24,
-        "throttleStatus": {
-          "maximumAvailable": 2000,
-          "currentlyAvailable": 1968,
-          "restoreRate": 100
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 39,
+          "actualQueryCost": 22,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1971,
+            "restoreRate": 100
+          }
         }
       }
     }
@@ -339,7 +142,7 @@
               "id": "gid://shopify/Product/10243927867698",
               "legacyResourceId": "10243927867698",
               "createdAt": "2026-07-19T14:02:52Z",
-              "updatedAt": "2026-07-19T14:02:53Z",
+              "updatedAt": "2026-07-19T14:02:55Z",
               "title": "Hermes Variant Bulk Conformance 1784469772608",
               "handle": "hermes-variant-bulk-conformance-1784469772608",
               "status": "DRAFT",
@@ -351,7 +154,7 @@
               "templateSuffix": null,
               "totalInventory": 0,
               "tracksInventory": true,
-              "onlineStorePreviewUrl": "https://adwzshsg5sv0hlo4-92891250994.shopifypreview.com/products_preview?preview_key=c942bd102f7227f99ea32d7eb648aae7&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0xOVQxNTowMjo1NC44NTFaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--5062dbf2536f3e2e53a61f9c580819c5b0856d31",
+              "onlineStorePreviewUrl": "https://adwzshsg5sv0hlo4-92891250994.shopifypreview.com/products_preview?preview_key=c942bd102f7227f99ea32d7eb648aae7&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0xOVQxNTowMjo1NS42ODdaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--5eef473fc8a19f71e5dea2fea7f820c21738c3f6",
               "requiresSellingPlan": false,
               "isGiftCard": false,
               "giftCardTemplateSuffix": null,
@@ -365,7 +168,7 @@
                   "id": "gid://shopify/ProductOption/12804825448754",
                   "name": "Color",
                   "position": 1,
-                  "values": ["Red"],
+                  "values": ["Red", "Blue"],
                   "optionValues": [
                     {
                       "id": "gid://shopify/ProductOptionValue/8322044690738",
@@ -375,7 +178,7 @@
                     {
                       "id": "gid://shopify/ProductOptionValue/8322044723506",
                       "name": "Blue",
-                      "hasVariants": false
+                      "hasVariants": true
                     }
                   ]
                 }
@@ -453,13 +256,85 @@
                     "media": {
                       "nodes": []
                     }
+                  },
+                  {
+                    "id": "gid://shopify/ProductVariant/51488122044722",
+                    "title": "Blue",
+                    "sku": "HERMES-BULK-772608-BLUE",
+                    "barcode": "2222222222222",
+                    "price": "26.00",
+                    "compareAtPrice": "30.00",
+                    "position": 2,
+                    "taxable": false,
+                    "taxCode": "P0000000",
+                    "inventoryPolicy": "DENY",
+                    "inventoryQuantity": 0,
+                    "requiresComponents": true,
+                    "showUnitPrice": true,
+                    "unitPriceMeasurement": {
+                      "quantityValue": 2.5,
+                      "quantityUnit": "L",
+                      "referenceValue": 1,
+                      "referenceUnit": "L"
+                    },
+                    "selectedOptions": [
+                      {
+                        "name": "Color",
+                        "value": "Blue"
+                      }
+                    ],
+                    "metafields": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Metafield/45214086988082",
+                          "namespace": "global",
+                          "key": "harmonized_system_code",
+                          "type": "string",
+                          "value": "123456",
+                          "compareDigest": "7adb787627ad5ee341fa0ba46a956e78fd85c39e195119bb260d5181b4f1e4ba",
+                          "jsonValue": "123456",
+                          "createdAt": "2026-07-19T14:02:55Z",
+                          "updatedAt": "2026-07-19T14:02:55Z",
+                          "ownerType": "PRODUCTVARIANT"
+                        },
+                        {
+                          "id": "gid://shopify/Metafield/45214087020850",
+                          "namespace": "specs",
+                          "key": "bulkCreateTier",
+                          "type": "single_line_text_field",
+                          "value": "standard",
+                          "compareDigest": "edbe3125359300f396128a122164abc074d1ea5a1c47fecd0d1e863da46a3e74",
+                          "jsonValue": "standard",
+                          "createdAt": "2026-07-19T14:02:55Z",
+                          "updatedAt": "2026-07-19T14:02:55Z",
+                          "ownerType": "PRODUCTVARIANT"
+                        }
+                      ]
+                    },
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53593718653234",
+                      "tracked": true,
+                      "requiresShipping": false,
+                      "countryCodeOfOrigin": "US",
+                      "provinceCodeOfOrigin": "CA",
+                      "harmonizedSystemCode": "123456",
+                      "measurement": {
+                        "weight": {
+                          "unit": "KILOGRAMS",
+                          "value": 0.25
+                        }
+                      }
+                    },
+                    "media": {
+                      "nodes": []
+                    }
                   }
                 ],
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
                   "startCursor": "eyJsYXN0X2lkIjo1MTQ4ODEyMjAxMTk1NCwibGFzdF92YWx1ZSI6IjEifQ==",
-                  "endCursor": "eyJsYXN0X2lkIjo1MTQ4ODEyMjAxMTk1NCwibGFzdF92YWx1ZSI6IjEifQ=="
+                  "endCursor": "eyJsYXN0X2lkIjo1MTQ4ODEyMjA0NDcyMiwibGFzdF92YWx1ZSI6IjIifQ=="
                 }
               },
               "media": {
@@ -488,7 +363,7 @@
               "actualQueryCost": 36,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1958,
+                "currentlyAvailable": 1949,
                 "restoreRate": 100
               }
             }

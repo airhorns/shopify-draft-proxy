@@ -1,11 +1,12 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write capture status output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
+import { captureProductMutationPreflight } from './product-mutation-preflight-capture.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 type CaptureStep = {
@@ -25,12 +26,42 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
 });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
-const outputPath = path.join(outputDir, 'product-relationship-roots.json');
+const outputPath = path.join(outputDir, 'product-relationship-roots-mutation-preflight.json');
 const { runGraphqlRaw } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
 });
+
+const productsHydrateNodesQuery = await readFile(
+  'config/parity-requests/products/products-hydrate-nodes-observation.graphql',
+  'utf8',
+);
+const mediaProductHydrateQuery = `query MediaProductHydrate($id: ID!) {
+  product(id: $id) {
+    id
+    title
+    handle
+    status
+    media(first: 50) {
+      nodes {
+        id
+        alt
+        mediaContentType
+        status
+        preview { image { url width height } }
+        ... on MediaImage { image { url width height } }
+      }
+    }
+    variants(first: 50) {
+      nodes {
+        id
+        title
+        media(first: 10) { nodes { id } }
+      }
+    }
+  }
+}`;
 
 const productCreateMutation = `#graphql
   mutation ProductRelationshipCreateProduct($product: ProductCreateInput!) {
@@ -391,6 +422,24 @@ async function runRaw(label: string, query: string, variables: Record<string, un
   return { label, status: result.status, response: result.payload };
 }
 
+async function captureUpstreamCall(
+  operationName: string,
+  query: string,
+  variables: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const result = await runGraphqlRaw(query, variables);
+  readData(result, operationName);
+  return {
+    operationName,
+    variables,
+    query,
+    response: {
+      status: result.status,
+      body: result.payload,
+    },
+  };
+}
+
 function readMutationPayload(step: CaptureStep, root: string): Record<string, unknown> {
   return readObject(
     readObject(readObject(step.response, `${root}.response`)['data'], `${root}.response.data`)[root],
@@ -555,6 +604,9 @@ try {
     collectionId,
     productId: collectionProductOneId,
   });
+  const collectionMutationHydration = await captureUpstreamCall('ProductsHydrateNodes', productsHydrateNodesQuery, {
+    ids: [collectionId, collectionProductOneId, collectionProductTwoId].sort(),
+  });
   const collectionAddProductsV2 = await runStep('collectionAddProductsV2 success', collectionAddProductsV2Mutation, {
     id: collectionId,
     productIds: [collectionProductOneId, collectionProductTwoId],
@@ -588,6 +640,7 @@ try {
   const redValue = readOptionValueByName(colorOption, 'Red');
   const blueValue = readOptionValueByName(colorOption, 'Blue');
   const smallValue = readOptionValueByName(sizeOption, 'Small');
+  const optionMutationPreflight = await captureProductMutationPreflight(runGraphqlRaw, optionProductId);
   const productOptionsReorder = await runStep('productOptionsReorder success', productOptionsReorderMutation, {
     productId: optionProductId,
     options: [
@@ -627,6 +680,9 @@ try {
   const mediaReadyRead = await waitForReadyMedia(mediaProductId);
   const seedProductMedia = seedMediaFromRead(mediaProductId, mediaReadyRead);
   const mediaIds = seedProductMedia.map((media, index) => readId(media, `seed media ${index}`));
+  const mediaAppendHydration = await captureUpstreamCall('MediaProductHydrate', mediaProductHydrateQuery, {
+    id: mediaProductId,
+  });
   const productVariantAppendMedia = await runStep(
     'productVariantAppendMedia success',
     productVariantAppendMediaMutation,
@@ -635,6 +691,9 @@ try {
       variantMedia: [{ variantId: mediaVariantId, mediaIds: [mediaIds[1]] }],
     },
   );
+  const mediaDetachHydration = await captureUpstreamCall('MediaProductHydrate', mediaProductHydrateQuery, {
+    id: mediaProductId,
+  });
   const productVariantDetachMedia = await runStep(
     'productVariantDetachMedia success',
     productVariantDetachMediaMutation,
@@ -714,25 +773,14 @@ try {
     notes: [
       'Product relationship root captures replayed by the parity runner.',
       'The script creates disposable products, a collection, media, and a selling-plan group, then deletes them during cleanup.',
+      'The collection, productOptionsReorder, and variant-media targets record the exact production hydration reads used by the runtime.',
     ],
-    seedProducts: [
-      collectionProductOnePayload,
-      collectionProductTwoPayload,
-      preMutationProduct,
-      mediaProduct,
-      sellingProduct,
+    upstreamCalls: [
+      collectionMutationHydration,
+      ...optionMutationPreflight,
+      mediaAppendHydration,
+      mediaDetachHydration,
     ],
-    seedCollections: [
-      readObject(
-        readObject(
-          readObject(initialCollectionRead.response, 'initialCollectionRead.response')['data'],
-          'initialCollectionRead.data',
-        )['collection'],
-        'initialCollectionRead.collection',
-      ),
-    ],
-    seedProductMedia,
-    seedSellingPlanGroups: [sellingPlanGroup],
     mutation: collectionAddProductsV2,
     initialCollectionRead,
     collectionAddProductsV2,

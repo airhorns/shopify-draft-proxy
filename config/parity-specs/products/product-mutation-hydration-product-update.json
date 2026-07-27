@@ -1,0 +1,52 @@
+{
+  "scenarioId": "product-mutation-hydration-product-update",
+  "operationNames": ["productUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "mutation-no-write-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-mutation-hydration-product-update.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/product-mutation-hydration-product-update.graphql",
+    "apiVersion": "2025-01",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured narrow productUpdate against a Shopify product populated with vendor/type/tags/description/SEO, external media, collection membership, one option, and twelve variants. The exact production preflight query is recorded as the upstream cassette.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "narrow-update-preserves-rich-product-payload",
+        "capturePath": "$.mutation.response.data.productUpdate",
+        "proxyPath": "$.data.productUpdate",
+        "expectedDifferences": [
+          {
+            "path": "$.product.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local staged clock advances deterministically from the hydrated timestamp while Shopify records its server-side mutation time."
+          }
+        ]
+      },
+      {
+        "name": "read-after-narrow-update-preserves-rich-product-and-all-twelve-variants",
+        "capturePath": "$.downstreamRead.response.data.product",
+        "proxyPath": "$.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-mutation-hydration-read.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.downstreamRead.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local staged clock advances deterministically from the hydrated timestamp while Shopify records its server-side mutation time."
+          }
+        ]
+      }
+    ]
+  }
+}
