@@ -1,6 +1,6 @@
 {
   "scenarioId": "app-identity-installation-lookups",
-  "operationNames": ["app", "appByHandle", "appByKey", "appInstallation", "appInstallations"],
+  "operationNames": ["app", "appByHandle", "appByKey", "appInstallation"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "null-empty-behavior", "upstream-read-parity"],
   "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/apps/app-billing-access-read.json"],
@@ -39,18 +39,8 @@
           "variablesPath": "config/parity-requests/apps/app-installation-detail.variables.json",
           "apiVersion": "2025-01"
         }
-      },
-      {
-        "name": "installation-catalog-access-denied-blocker",
-        "capturePath": "$.appInstallationsAccessProbe.payload",
-        "proxyPath": "$",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/apps/app-installations-access-probe.graphql",
-          "variablesPath": "config/parity-requests/apps/app-installations-access-probe.variables.json",
-          "apiVersion": "2025-01"
-        }
       }
     ]
   },
-  "notes": "Captured Shopify lookup parity for app ID, handle, API key, installation ID, and missing singular values. The current credential still returns ACCESS_DENIED for appInstallations, so a non-empty catalog comparison remains explicitly blocked and no catalog payload is synthesized."
+  "notes": "Captured Shopify lookup parity for app ID, handle, API key, installation ID, and missing singular values. appInstallations remains unsupported: the live fixture retains the current credential’s ACCESS_DENIED response only as boundary evidence, not as catalog parity."
 }

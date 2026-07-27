@@ -402,7 +402,7 @@ const fixture = {
   appLookups,
   appInstallationDetail,
   appInstallationsAccessProbe,
-  upstreamCalls: [appLookups, appInstallationDetail, appInstallationsAccessProbe].map((recorded) => ({
+  upstreamCalls: [appLookups, appInstallationDetail].map((recorded) => ({
     method: 'POST',
     path: `/admin/api/${apiVersion}/graphql.json`,
     apiSurface: 'admin',
@@ -446,17 +446,6 @@ await writeFile(
   `${JSON.stringify(appInstallationDetail.variables ?? {}, null, 2)}\n`,
   'utf8',
 );
-await writeFile(
-  path.join(parityRequestDirectory, 'app-installations-access-probe.graphql'),
-  APP_INSTALLATIONS_ACCESS_PROBE_QUERY,
-  'utf8',
-);
-await writeFile(
-  path.join(parityRequestDirectory, 'app-installations-access-probe.variables.json'),
-  `${JSON.stringify(appInstallationsAccessProbe.variables ?? {}, null, 2)}\n`,
-  'utf8',
-);
-
 const paritySpecPath = path.join(
   process.cwd(),
   'config',
@@ -470,7 +459,7 @@ await writeFile(
   `${JSON.stringify(
     {
       scenarioId: 'app-identity-installation-lookups',
-      operationNames: ['app', 'appByHandle', 'appByKey', 'appInstallation', 'appInstallations'],
+      operationNames: ['app', 'appByHandle', 'appByKey', 'appInstallation'],
       scenarioStatus: 'captured',
       assertionKinds: ['payload-shape', 'null-empty-behavior', 'upstream-read-parity'],
       liveCaptureFiles: [`fixtures/conformance/${storeDomain}/${apiVersion}/apps/app-billing-access-read.json`],
@@ -510,20 +499,10 @@ await writeFile(
               apiVersion,
             },
           },
-          {
-            name: 'installation-catalog-access-denied-blocker',
-            capturePath: '$.appInstallationsAccessProbe.payload',
-            proxyPath: '$',
-            proxyRequest: {
-              documentPath: 'config/parity-requests/apps/app-installations-access-probe.graphql',
-              variablesPath: 'config/parity-requests/apps/app-installations-access-probe.variables.json',
-              apiVersion,
-            },
-          },
         ],
       },
       notes:
-        'Captured Shopify lookup parity for app ID, handle, API key, installation ID, and missing singular values. The current credential still returns ACCESS_DENIED for appInstallations, so a non-empty catalog comparison remains explicitly blocked and no catalog payload is synthesized.',
+        'Captured Shopify lookup parity for app ID, handle, API key, installation ID, and missing singular values. appInstallations remains unsupported: the live fixture retains the current credential’s ACCESS_DENIED response only as boundary evidence, not as catalog parity.',
     },
     null,
     2,

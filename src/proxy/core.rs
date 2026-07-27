@@ -531,7 +531,6 @@ impl DraftProxy {
                 "appInstallations": self.store.base.app_installations.records.clone(),
                 "appInstallationOrder": self.store.base.app_installations.order.clone(),
                 "currentAppIdsByRequestContext": self.store.base.current_app_ids_by_request_context.clone(),
-                "appInstallationCatalogScopes": self.store.base.app_installation_catalog_scopes.clone(),
                 "backupRegionAccessScopesByRequestContext": self.store.base.backup_region_access_scopes_by_request_context.clone(),
                 "shop": self.store.base.shop.clone(),
                 "storefrontShop": self.store.base.storefront_shop.clone(),
@@ -1649,10 +1648,6 @@ impl DraftProxy {
                     app_id.as_str().map(|app_id| (context, app_id.to_string()))
                 })
                 .collect();
-        self.store.base.app_installation_catalog_scopes = state["baseState"]
-            .get("appInstallationCatalogScopes")
-            .and_then(|value| serde_json::from_value(value.clone()).ok())
-            .unwrap_or_default();
         self.store
             .base
             .backup_region_access_scopes_by_request_context = state["baseState"]

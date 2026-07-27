@@ -182,66 +182,9 @@ impl DraftProxy {
                         }
                     }
                 }
-                "appInstallations" if value.is_object() => {
-                    self.observe_app_installation_connection(&root.arguments, value);
-                }
                 _ => {}
             }
         }
-    }
-
-    fn observe_app_installation_connection(
-        &mut self,
-        arguments: &BTreeMap<String, Value>,
-        connection: &Value,
-    ) {
-        let mut rows = observed_connection_rows(connection);
-        for row in &rows {
-            self.observe_app_installation(&row.node);
-        }
-        let reverse = arguments
-            .get("reverse")
-            .and_then(Value::as_bool)
-            .unwrap_or(false);
-        let complete = arguments.get("after").is_none_or(Value::is_null)
-            && arguments.get("before").is_none_or(Value::is_null)
-            && !connection
-                .pointer("/pageInfo/hasNextPage")
-                .and_then(Value::as_bool)
-                .unwrap_or(false)
-            && !connection
-                .pointer("/pageInfo/hasPreviousPage")
-                .and_then(Value::as_bool)
-                .unwrap_or(false);
-        let window = app_installation_catalog_window(&rows, connection);
-        let scope_key = app_installation_catalog_scope_key(arguments);
-        let window_key = app_installation_catalog_window_key(arguments);
-        if reverse {
-            rows.reverse();
-        }
-        let scope = self
-            .store
-            .base
-            .app_installation_catalog_scopes
-            .entry(scope_key)
-            .or_default();
-        if complete {
-            scope.installation_ids.clear();
-            scope.cursors.clear();
-        }
-        for row in rows {
-            let Some(id) = app_installation_id(&row.node) else {
-                continue;
-            };
-            if !scope.installation_ids.contains(&id) {
-                scope.installation_ids.push(id.clone());
-            }
-            if let Some(cursor) = row.cursor {
-                scope.cursors.insert(id, cursor);
-            }
-        }
-        scope.complete |= complete;
-        scope.windows.insert(window_key, window);
     }
 
     pub(super) fn ensure_current_app_installation(&mut self, request: &Request) -> String {
@@ -394,7 +337,6 @@ impl DraftProxy {
                     }),
                 None => self.current_app_installation_root_value(invocation.request),
             },
-            "appInstallations" => self.app_installations_connection_value(&invocation.arguments),
             root => json!({ "unsupportedAppIdentityRoot": root }),
         }
     }
@@ -569,84 +511,6 @@ impl DraftProxy {
             .collect()
     }
 
-    fn app_installations_connection_value(&self, arguments: &BTreeMap<String, Value>) -> Value {
-        let scope_key = app_installation_catalog_scope_key(arguments);
-        let Some(scope) = self
-            .store
-            .base
-            .app_installation_catalog_scopes
-            .get(&scope_key)
-        else {
-            return connection_json(Vec::new());
-        };
-        let resolved_arguments = resolved_arguments_from_json(arguments);
-        if scope.complete {
-            let mut rows = scope
-                .installation_ids
-                .iter()
-                .filter_map(|id| {
-                    self.effective_app_installation_value_by_id(id)
-                        .map(|installation| {
-                            (
-                                installation,
-                                scope.cursors.get(id).cloned().unwrap_or_else(|| id.clone()),
-                            )
-                        })
-                })
-                .collect::<Vec<_>>();
-            if arguments
-                .get("reverse")
-                .and_then(Value::as_bool)
-                .unwrap_or(false)
-            {
-                rows.reverse();
-            }
-            let (rows, page_info) =
-                connection_window(&rows, &resolved_arguments, |row| row.1.clone());
-            let nodes = rows.iter().map(|row| row.0.clone()).collect::<Vec<_>>();
-            return connection_json_with_cursor(nodes, |index, _| rows[index].1.clone(), page_info);
-        }
-        let Some(window) = scope
-            .windows
-            .get(&app_installation_catalog_window_key(arguments))
-        else {
-            return connection_json(Vec::new());
-        };
-        let rows = window
-            .installation_ids
-            .iter()
-            .filter_map(|id| {
-                self.effective_app_installation_value_by_id(id)
-                    .map(|installation| {
-                        (
-                            installation,
-                            window
-                                .cursors
-                                .get(id)
-                                .cloned()
-                                .unwrap_or_else(|| id.clone()),
-                        )
-                    })
-            })
-            .collect::<Vec<_>>();
-        let nodes = rows.iter().map(|row| row.0.clone()).collect::<Vec<_>>();
-        let page_info = connection_page_info(
-            window
-                .page_info
-                .get("hasNextPage")
-                .and_then(Value::as_bool)
-                .unwrap_or(false),
-            window
-                .page_info
-                .get("hasPreviousPage")
-                .and_then(Value::as_bool)
-                .unwrap_or(false),
-            rows.first().map(|row| row.1.clone()),
-            rows.last().map(|row| row.1.clone()),
-        );
-        connection_json_with_cursor(nodes, |index, _| rows[index].1.clone(), page_info)
-    }
-
     pub(in crate::proxy) fn find_staged_app_usage_record(&self, id: &str) -> Option<Value> {
         self.store
             .staged
@@ -749,62 +613,4 @@ impl DraftProxy {
             "userErrors": user_errors,
         }))
     }
-}
-
-fn app_installation_catalog_scope_key(arguments: &BTreeMap<String, Value>) -> String {
-    format!(
-        "category={}|privacy={}|sortKey={}",
-        app_installation_argument_token(arguments, "category", "ALL"),
-        app_installation_argument_token(arguments, "privacy", "PUBLIC"),
-        app_installation_argument_token(arguments, "sortKey", "INSTALLED_AT")
-    )
-}
-
-fn app_installation_catalog_window_key(arguments: &BTreeMap<String, Value>) -> String {
-    format!(
-        "first={}|after={}|last={}|before={}|reverse={}",
-        app_installation_argument_token(arguments, "first", "null"),
-        app_installation_argument_token(arguments, "after", "null"),
-        app_installation_argument_token(arguments, "last", "null"),
-        app_installation_argument_token(arguments, "before", "null"),
-        app_installation_argument_token(arguments, "reverse", "false")
-    )
-}
-
-fn app_installation_argument_token(
-    arguments: &BTreeMap<String, Value>,
-    name: &str,
-    default: &str,
-) -> String {
-    arguments
-        .get(name)
-        .filter(|value| !value.is_null())
-        .map(|value| match value {
-            Value::String(value) => value.clone(),
-            _ => value.to_string(),
-        })
-        .unwrap_or_else(|| default.to_string())
-}
-
-fn app_installation_catalog_window(
-    rows: &[ObservedConnectionRow],
-    connection: &Value,
-) -> AppInstallationCatalogWindow {
-    let mut window = AppInstallationCatalogWindow {
-        page_info: connection
-            .get("pageInfo")
-            .cloned()
-            .unwrap_or_else(empty_page_info),
-        ..Default::default()
-    };
-    for row in rows {
-        let Some(id) = app_installation_id(&row.node) else {
-            continue;
-        };
-        window.installation_ids.push(id.clone());
-        if let Some(cursor) = &row.cursor {
-            window.cursors.insert(id, cursor.clone());
-        }
-    }
-    window
 }

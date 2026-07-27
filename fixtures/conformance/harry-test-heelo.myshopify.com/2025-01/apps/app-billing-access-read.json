@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-07-20T17:02:40.760Z",
+  "capturedAt": "2026-07-27T21:39:52.998Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "notes": [
@@ -1298,7 +1298,7 @@
           "actualQueryCost": 16,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1979,
+            "currentlyAvailable": 1978,
             "restoreRate": 100
           }
         }
@@ -1705,7 +1705,7 @@
           "actualQueryCost": 7,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1985,
+            "currentlyAvailable": 1984,
             "restoreRate": 100
           }
         }
@@ -2540,7 +2540,7 @@
               "actualQueryCost": 7,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1985,
+                "currentlyAvailable": 1984,
                 "restoreRate": 100
               }
             }
@@ -2932,48 +2932,6 @@
               "throttleStatus": {
                 "maximumAvailable": 2000,
                 "currentlyAvailable": 1992,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "method": "POST",
-      "path": "/admin/api/2025-01/graphql.json",
-      "apiSurface": "admin",
-      "query": "#graphql\n  query AppInstallationsAccessProbe($first: Int!) {\n    appInstallations(first: $first) {\n      nodes {\n        id\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n",
-      "variables": {
-        "first": 5
-      },
-      "response": {
-        "status": 200,
-        "body": {
-          "errors": [
-            {
-              "message": "access denied",
-              "locations": [
-                {
-                  "line": 3,
-                  "column": 5
-                }
-              ],
-              "extensions": {
-                "code": "ACCESS_DENIED",
-                "documentation": "https://shopify.dev/api/usage/access-scopes"
-              },
-              "path": ["appInstallations"]
-            }
-          ],
-          "data": null,
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 5,
-              "actualQueryCost": 2,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1998,
                 "restoreRate": 100
               }
             }

@@ -20,7 +20,7 @@ Arbitrary identity and installation lookups:
 - `appByKey(apiKey:)`
 - `appInstallation(id:)`
 
-Locally implemented multi-installation catalog:
+Registry-only / unsupported catalog:
 
 - `appInstallations(...)`
 
@@ -39,13 +39,13 @@ Mutation roots:
 
 ### Local behavior
 
-The app domain uses one normalized, instance-owned graph for observed app identities, app installations, installation indexes, request-context associations, scoped catalog windows, and staged app effects. Access scopes, app subscriptions, subscription line items, one-time purchases, usage records, and delegated-token metadata remain linked to the owning app.
+The app domain uses one normalized, instance-owned graph for observed app identities, singular app installations, installation indexes, request-context associations, and staged app effects. Access scopes, app subscriptions, subscription line items, one-time purchases, usage records, and delegated-token metadata remain linked to the owning app.
 
 Current-installation behavior:
 
 - `currentAppInstallation` resolves the authenticated request context through the same effective graph as the other roots. LiveHybrid observations preserve Shopify's authoritative installation ID and nested app ID, handle, and API key across later local billing or access-scope effects.
-- Explicit `x-shopify-draft-proxy-api-client-id`, `x-shopify-draft-proxy-app-installation-id`, app metadata, and access-scope headers form request-owned context. Read-only context is ephemeral and does not populate the observed or staged catalog; successful local app mutations retain only the normalized context needed for their downstream reads.
-- A cold snapshot with no observed, staged, or explicit request context does not create a default app installation. Nullable singular lookups return `null`, and the installation connection is empty. Local app mutations can still allocate their documented synthetic current context.
+- Explicit `x-shopify-draft-proxy-api-client-id`, `x-shopify-draft-proxy-app-installation-id`, app metadata, and access-scope headers form request-owned context. Read-only context is ephemeral and does not populate the observed or staged graph; successful local app mutations retain only the normalized context needed for their downstream reads.
+- A cold snapshot with no observed, staged, or explicit request context does not create a default app installation. Nullable singular lookups return `null`. Local app mutations can still allocate their documented synthetic current context.
 - `currentAppInstallation.accessScopes` removes locally revoked optional scopes. Header-provided grants remain request-scoped; the local products grant is used only for the synthetic mutation context that preserves existing app-mutation behavior.
 - When a live caller selects installation identity without `accessScopes`, later supported local product-scope app mutations remain usable without fabricating scope rows in reads. A subsequently observed authoritative scope list replaces that identity-only compatibility state.
 
@@ -55,17 +55,17 @@ Arbitrary lookup behavior:
 - Cold LiveHybrid reads forward the complete caller document once and return Shopify's response unchanged while observing reusable identities. When staged effects are relevant, every selected app root reuses that same request-wide response and overlays only the affected normalized records.
 - Generic `node(id:)` / `nodes(ids:)` resolves `App` and `AppInstallation` from the same indexes and effective values as the singular roots. It also resolves locally staged `AppSubscription`, `AppPurchaseOneTime`, and `AppUsageRecord` records. Missing IDs return `null`; `AppSubscriptionLineItem` remains nested under `AppSubscription.lineItems`.
 
-Multi-installation catalog behavior:
+Multi-installation catalog boundary:
 
-- `appInstallations(...)` records membership separately for each `category`, `privacy`, and `sortKey` scope. Complete scopes support `first`/`last`, `after`/`before`, `reverse`, and cursor windows locally; partial scopes retain exact observed windows and do not treat the current installation or one page as the whole catalog.
-- Opaque Shopify edge cursors are stored with their observed rows. A staged access, billing, or uninstall effect overlays only rows in the requested observed window, preserves unrelated installations, and does not enumerate or hydrate the rest of the catalog.
-- Dump/restore round-trips observed apps, installations, request-context associations, scoped completeness, partial windows, and opaque cursors. Reset removes staged effects while preserving the observed base graph, matching other normalized resource stores. Raw Admin access tokens are never stored in the graph or meta state.
+- `appInstallations(...)` is not a local capability. LiveHybrid forwards the complete caller document unchanged and preserves Shopify rows and opaque cursors without observing them into the local graph; staged app effects are not overlaid onto this connection.
+- Snapshot mode returns the executable schema's empty connection shape for this unimplemented query root. It does not infer a catalog from the current installation or singular observations.
+- Dump/restore round-trips observed singular apps, installations, and request-context associations. Reset removes staged effects while preserving that observed base graph. Raw Admin access tokens are never stored in the graph or meta state.
 
 Supported mutations stage locally, append the original raw mutation request to the meta log for ordered commit replay, and synthesize Shopify-like payloads without sending runtime writes to Shopify.
 
 Billing behavior:
 
-- Billing payloads serialize `MoneyV2.amount` strings with Shopify Decimal-style formatting: whole numbers keep one trailing zero and fractional amounts drop superfluous trailing zeros. The same app-scoped staged values are read back through current, arbitrary installation, connection, `node(id:)`, and `nodes(ids:)` reads.
+- Billing payloads serialize `MoneyV2.amount` strings with Shopify Decimal-style formatting: whole numbers keep one trailing zero and fractional amounts drop superfluous trailing zeros. The same app-scoped staged values are read back through current and arbitrary installation roots plus `node(id:)` and `nodes(ids:)` reads.
 - `appPurchaseOneTimeCreate` stages an active one-time purchase with a unique synthetic ID, stores the input currency instead of forcing USD, computes missing-`returnUrl` error locations from the submitted document, and returns a confirmation URL derived from `returnUrl`.
 - `appSubscriptionCreate` stages a subscription with a unique synthetic ID, unique synthetic line-item IDs, usage/recurring line-item pricing details, trial days, a `currentPeriodEnd` derived from the synthetic app-domain clock plus `trialDays`, and a confirmation URL derived from `returnUrl`. Test subscriptions activate locally; non-test subscriptions remain pending.
 - `appSubscriptionCancel` stages cancellation only for cancellable subscription statuses. Non-cancellable and unknown subscriptions return Shopify-shaped userErrors without mutating local state.
@@ -97,5 +97,5 @@ Synthetic confirmation URLs append `shopify_draft_proxy_confirmation=1` to the d
 - The proxy does not perform real billing, merchant approval, app uninstall, app grant changes, or delegated-token changes during normal runtime.
 - Billing approval, charge activation, subscription proration, usage-charge billing, app-plan enforcement, and Shopify Core chargeability guards are not emulated beyond local staged state and validation evidence.
 - Live success-path captures for billing approval, uninstall, and app grant revocation require explicitly approved disposable credentials. Billing mutation success captures specifically require a disposable billing-capable app/store credential that can use Shopify's Billing API and safely approve test charges; the current custom-app conformance credential cannot exercise those success paths. Local billing lifecycle, uninstall cascade, and access-scope mutation branches are therefore runtime-test-backed rather than represented as captured parity evidence until a suitable live app credential exists.
-- The current conformance credential returns `ACCESS_DENIED` for `appInstallations(...)`. Local multi-installation windowing and overlay mechanics are runtime-test-backed, while a non-empty Shopify catalog comparison remains unavailable until a credential with that cross-installation grant can be captured. The proxy does not synthesize a Shopify catalog fixture to fill that evidence gap.
-- No listed app root is registry-only. Validation-only behavior is limited to guardrails that reject before staging and to runtime-test-backed coverage for branches that cannot be exercised safely against the current disposable app credential.
+- The current conformance credential returns `ACCESS_DENIED` for `appInstallations(...)`. That live result documents the unsupported boundary; it is not a successful catalog parity claim. No synthetic catalog fixture substitutes for a non-empty Shopify capture.
+- `appInstallations(...)` is the registry-only read root in this slice. Validation-only behavior is limited to guardrails that reject before staging and to runtime-test-backed coverage for branches that cannot be exercised safely against the current disposable app credential.

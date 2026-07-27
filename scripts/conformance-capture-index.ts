@@ -11291,7 +11291,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     domain: 'apps',
     captureId: 'app-billing',
     scriptPath: 'scripts/capture-app-billing-conformance.ts',
-    purpose: 'App billing/access read roots and blocker evidence.',
+    purpose: 'Singular app identity/installation reads and unsupported catalog boundary evidence.',
     requiredAuthScopes: ['app billing access for the installed app'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}app-billing-access-read.json`,
@@ -11300,8 +11300,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/apps/app-identity-lookups.variables.json',
       'config/parity-requests/apps/app-installation-detail.graphql',
       'config/parity-requests/apps/app-installation-detail.variables.json',
-      'config/parity-requests/apps/app-installations-access-probe.graphql',
-      'config/parity-requests/apps/app-installations-access-probe.variables.json',
     ],
     cleanupBehavior: 'Read-only capture; no billing mutation cleanup expected.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,

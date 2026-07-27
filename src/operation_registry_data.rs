@@ -75,7 +75,7 @@ pub(crate) fn default_registry_bindings() -> Vec<ExecutableRootRegistration> {
         entry!("appByHandle", Query, Apps, DraftProxy::app_identity_query_root, ["tests/graphql_routes/admin_app.rs"]),
         entry!("appByKey", Query, Apps, DraftProxy::app_identity_query_root, ["tests/graphql_routes/admin_app.rs"]),
         entry!("appInstallation", Query, Apps, DraftProxy::app_identity_query_root, ["tests/graphql_routes/admin_app.rs"]),
-        entry!("appInstallations", Query, Apps, DraftProxy::app_identity_query_root, ["tests/graphql_routes/admin_app.rs"]),
+        unimplemented_entry!("appInstallations", Query, Apps, []),
         entry!("currentAppInstallation", Query, Apps, DraftProxy::current_app_installation_root, ["tests/graphql_routes/admin_app.rs"]),
         entry!("appPurchaseOneTimeCreate", Mutation, Apps, DraftProxy::app_purchase_one_time_create, []),
         entry!("appSubscriptionCreate", Mutation, Apps, DraftProxy::app_subscription_create, []),
