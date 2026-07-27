@@ -11563,7 +11563,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-functions-authoritative-lifecycle-preflight-conformance.ts',
     purpose:
-      'validationCreate active-cap and cartTransformCreate registered-Function/global-cap precedence from complete live lifecycle catalogs.',
+      'validationCreate active-cap and cartTransformCreate registered-Function/global-cap precedence with threshold-width and exact authoritative reads.',
     requiredAuthScopes: [
       'read_validations and write_validations',
       'read_cart_transforms and write_cart_transforms',

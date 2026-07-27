@@ -11,6 +11,8 @@ struct FunctionRootInput {
     arguments: BTreeMap<String, ResolvedValue>,
 }
 
+const FUNCTION_ACTIVE_VALIDATION_LIMIT: usize = 25;
+
 enum FunctionTargetHydration {
     Found,
     Missing,
@@ -81,7 +83,7 @@ const FUNCTION_VALIDATIONS_HYDRATE_QUERY: &str = r#"query FunctionValidationsHyd
 }
 "#;
 const FUNCTION_VALIDATION_DECISION_PREFLIGHT_QUERY: &str = r#"query FunctionValidationDecisionPreflight($after: String) {
-  validations(first: 250, after: $after) {
+  validations(first: 25, after: $after) {
     nodes {
       id
       enabled
@@ -1074,7 +1076,7 @@ impl DraftProxy {
         request: &Request,
         exclude_id: Option<&str>,
     ) -> bool {
-        while self.effective_active_validation_count(exclude_id) < 25
+        while self.effective_active_validation_count(exclude_id) < FUNCTION_ACTIVE_VALIDATION_LIMIT
             && !self
                 .store
                 .base
@@ -1085,7 +1087,7 @@ impl DraftProxy {
                 break;
             }
         }
-        self.effective_active_validation_count(exclude_id) >= 25
+        self.effective_active_validation_count(exclude_id) >= FUNCTION_ACTIVE_VALIDATION_LIMIT
             || self
                 .store
                 .base
@@ -1283,6 +1285,11 @@ impl DraftProxy {
             .staged
             .deleted_function_fulfillment_constraint_rule_ids
             .contains(id)
+            || self
+                .store
+                .base
+                .function_fulfillment_constraint_rule_known_missing_ids
+                .contains(id)
         {
             return FunctionTargetHydration::Missing;
         }
@@ -1298,6 +1305,10 @@ impl DraftProxy {
             return FunctionTargetHydration::Unavailable;
         }
         if response.body["data"]["node"].is_null() {
+            self.store
+                .base
+                .function_fulfillment_constraint_rule_known_missing_ids
+                .insert(id.to_string());
             return FunctionTargetHydration::Missing;
         }
         let Some(rule) =
@@ -1409,6 +1420,10 @@ impl DraftProxy {
         let Some(id) = rule["id"].as_str().map(str::to_string) else {
             return;
         };
+        self.store
+            .base
+            .function_fulfillment_constraint_rule_known_missing_ids
+            .remove(&id);
         if let Some(function) = rule
             .get("function")
             .or_else(|| rule.get("shopifyFunction"))
@@ -2652,7 +2667,9 @@ impl DraftProxy {
                 errors,
             ));
         }
-        if enable && self.effective_active_validation_count(None) >= 25 {
+        if enable
+            && self.effective_active_validation_count(None) >= FUNCTION_ACTIVE_VALIDATION_LIMIT
+        {
             return LocalMutationResult::no_stage(maximum_active_validations_error());
         }
         let id = self.next_proxy_synthetic_gid("Validation");
@@ -2734,7 +2751,9 @@ impl DraftProxy {
                 VALIDATION_FUNCTION_PAYLOAD.payload_key,
             ));
         }
-        if next_enable && self.effective_active_validation_count(Some(&id)) >= 25 {
+        if next_enable
+            && self.effective_active_validation_count(Some(&id)) >= FUNCTION_ACTIVE_VALIDATION_LIMIT
+        {
             return LocalMutationResult::no_stage(maximum_active_validations_error());
         }
         if let Some(title) = resolved_string_field(input, "title") {
@@ -3276,6 +3295,10 @@ impl DraftProxy {
             .staged
             .function_fulfillment_constraint_rules_dirty = true;
         if let Some(id) = rule["id"].as_str() {
+            self.store
+                .base
+                .function_fulfillment_constraint_rule_known_missing_ids
+                .remove(id);
             self.store
                 .staged
                 .deleted_function_fulfillment_constraint_rule_ids

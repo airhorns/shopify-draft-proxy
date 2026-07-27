@@ -1,6 +1,6 @@
 {
   "scenarioId": "functions-fulfillment-constraint-rule-errors",
-  "capturedAt": "2026-07-19T18:25:22.117Z",
+  "capturedAt": "2026-07-27T14:18:59.648Z",
   "source": "live-shopify",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
@@ -5905,6 +5905,31 @@
       }
     }
   },
+  "missingHydrate": {
+    "query": "query FunctionFulfillmentConstraintRuleHydrateById($id: ID!) {\n  node(id: $id) {\n    ... on FulfillmentConstraintRule {\n      id\n      deliveryMethodTypes\n      function {\n        id\n        title\n        handle\n        apiType\n        description\n        appKey\n        app {\n          __typename\n          id\n          title\n          handle\n          apiKey\n        }\n      }\n      metafields(first: 100) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/FulfillmentConstraintRule/999999999999"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "node": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 14,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
   "errorShape": {
     "query": "mutation FulfillmentConstraintRuleErrorShape {\n  missing: fulfillmentConstraintRuleCreate(deliveryMethodTypes: [SHIPPING]) {\n    fulfillmentConstraintRule {\n      id\n    }\n    userErrors {\n      code\n      field\n      message\n    }\n  }\n  multiple: fulfillmentConstraintRuleCreate(\n    functionId: \"gid://shopify/ShopifyFunction/999999999999\"\n    functionHandle: \"definitely-missing-fulfillment-constraint\"\n    deliveryMethodTypes: [SHIPPING]\n  ) {\n    fulfillmentConstraintRule {\n      id\n    }\n    userErrors {\n      code\n      field\n      message\n    }\n  }\n  emptyDelivery: fulfillmentConstraintRuleCreate(\n    functionId: \"gid://shopify/ShopifyFunction/999999999999\"\n    deliveryMethodTypes: []\n  ) {\n    fulfillmentConstraintRule {\n      id\n    }\n    userErrors {\n      code\n      field\n      message\n    }\n  }\n  deleteUnknown: fulfillmentConstraintRuleDelete(id: \"gid://shopify/FulfillmentConstraintRule/999999999999\") {\n    success\n    userErrors {\n      code\n      field\n      message\n    }\n  }\n  updateUnknown: fulfillmentConstraintRuleUpdate(\n    id: \"gid://shopify/FulfillmentConstraintRule/999999999999\"\n    deliveryMethodTypes: [SHIPPING]\n  ) {\n    fulfillmentConstraintRule {\n      id\n    }\n    userErrors {\n      code\n      field\n      message\n    }\n  }\n}\n",
     "variables": {},
@@ -6034,7 +6059,7 @@
             "actualQueryCost": 20,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1952,
+              "currentlyAvailable": 1951,
               "restoreRate": 100
             }
           }

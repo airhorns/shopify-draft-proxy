@@ -547,6 +547,7 @@ struct BaseState {
     function_fulfillment_constraint_rules: BTreeMap<String, Value>,
     function_fulfillment_constraint_rule_order: Vec<String>,
     function_fulfillment_constraint_rules_catalog_hydrated: bool,
+    function_fulfillment_constraint_rule_known_missing_ids: BTreeSet<String>,
     metafield_definitions: BTreeMap<MetafieldDefinitionKey, Value>,
     metafield_definition_owner_catalogs: BTreeSet<String>,
     metafield_definition_namespaces: BTreeSet<(String, String)>,

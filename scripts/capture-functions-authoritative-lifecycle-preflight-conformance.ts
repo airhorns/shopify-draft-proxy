@@ -183,7 +183,7 @@ const preflightDocument = `mutation AuthoritativeLifecyclePreflight(
 `;
 
 const functionValidationDecisionPreflightDocument = `query FunctionValidationDecisionPreflight($after: String) {
-  validations(first: 250, after: $after) {
+  validations(first: 25, after: $after) {
     nodes {
       id
       enabled

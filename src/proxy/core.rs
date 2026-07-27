@@ -827,6 +827,20 @@ impl DraftProxy {
             snapshot["baseState"]["functionFulfillmentConstraintRulesCatalogHydrated"] =
                 json!(true);
         }
+        if !self
+            .store
+            .base
+            .function_fulfillment_constraint_rule_known_missing_ids
+            .is_empty()
+        {
+            snapshot["baseState"]["functionFulfillmentConstraintRuleKnownMissingIds"] = json!(self
+                .store
+                .base
+                .function_fulfillment_constraint_rule_known_missing_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
         if !self.store.staged.media_ready_on_read.is_empty() {
             snapshot["stagedState"]["mediaReadyOnReadIds"] = json!(self
                 .store
@@ -2156,6 +2170,11 @@ impl DraftProxy {
             ["functionFulfillmentConstraintRulesCatalogHydrated"]
             .as_bool()
             .unwrap_or(false);
+        self.store
+            .base
+            .function_fulfillment_constraint_rule_known_missing_ids = string_set_from_json(
+            state["baseState"].get("functionFulfillmentConstraintRuleKnownMissingIds"),
+        );
         self.store.base.metafield_definitions =
             metafield_definition_map_from_json(state["baseState"].get("metafieldDefinitions"));
         self.store.base.metafield_definition_owner_catalogs = state["baseState"]

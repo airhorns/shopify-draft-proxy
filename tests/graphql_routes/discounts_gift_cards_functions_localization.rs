@@ -6604,7 +6604,7 @@ fn functions_cold_reads_forward_and_hydrate_non_catalog_function_metadata() {
         assert!(validation_preflight["query"]
             .as_str()
             .unwrap_or_default()
-            .contains("validations(first: 250, after: $after)"));
+            .contains("validations(first: 25, after: $after)"));
         assert!(!validation_preflight["query"]
             .as_str()
             .unwrap_or_default()
@@ -7906,7 +7906,11 @@ fn functions_validation_create_uses_bounded_decision_preflight_after_partial_rea
         json!({ "after": null })
     );
     let decision_query = decision_preflights[0]["query"].as_str().unwrap_or_default();
-    assert!(decision_query.contains("validations(first: 250, after: $after)"));
+    assert!(decision_query.contains("validations(first: 25, after: $after)"));
+    assert!(
+        !decision_query.contains("first: 250"),
+        "the active-validation cap needs at most one threshold-width page at a time"
+    );
     assert!(decision_query.contains("enabled"));
     assert!(decision_query.contains("shopifyFunction {"));
     for forbidden_field in ["title", "blockOnFailure", "metafields"] {
@@ -7922,12 +7926,10 @@ fn functions_validation_create_uses_bounded_decision_preflight_after_partial_rea
         0,
         "mutation decisions must not open the full lifecycle catalog"
     );
-    let log = log_snapshot(&proxy);
-    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
     assert_eq!(
-        log["entries"][0]["rawBody"],
-        json!(serde_json::to_string(&json!({ "query": create_query, "variables": {} })).unwrap()),
-        "the locally handled rejection must retain its original commit body"
+        log_snapshot(&proxy)["entries"],
+        json!([]),
+        "the locally handled rejection must not enter commit replay"
     );
 }
 
@@ -8265,7 +8267,7 @@ fn functions_cart_transform_create_uses_targeted_reuse_and_existence_preflights(
         .find(|body| body["operationName"] == "FunctionValidationDecisionPreflight")
         .and_then(|body| body["query"].as_str())
         .unwrap_or_default();
-    assert!(validation_query.contains("validations(first: 250, after: $after)"));
+    assert!(validation_query.contains("validations(first: 25, after: $after)"));
     assert!(!validation_query.contains("metafields"));
     let cart_query = hits
         .iter()
@@ -8285,16 +8287,11 @@ fn functions_cart_transform_create_uses_targeted_reuse_and_existence_preflights(
             0
         );
     }
-    let log = log_snapshot(&proxy);
-    assert_eq!(log["entries"].as_array().unwrap().len(), 2);
-    assert!(log["entries"][0]["rawBody"]
-        .as_str()
-        .unwrap()
-        .contains("ReuseUnobservedValidationFunction"));
-    assert!(log["entries"][1]["rawBody"]
-        .as_str()
-        .unwrap()
-        .contains("CreateSecondCartTransform"));
+    assert_eq!(
+        log_snapshot(&proxy)["entries"],
+        json!([]),
+        "both rejected cart-transform creates must stay out of commit replay"
+    );
 }
 
 #[test]
@@ -9142,24 +9139,92 @@ fn functions_fulfillment_constraint_rule_not_found_uses_targeted_hydration() {
             }]
         })
     );
-    let update_hits = update_hits.lock().unwrap();
-    assert_eq!(update_hits.len(), 1);
+    let update_hits_guard = update_hits.lock().unwrap();
+    assert_eq!(update_hits_guard.len(), 1);
     assert_eq!(
-        update_hits[0]["operationName"],
+        update_hits_guard[0]["operationName"],
         json!("FunctionFulfillmentConstraintRuleHydrateById")
     );
-    assert_eq!(update_hits[0]["variables"], json!({ "id": missing_id }));
-    assert!(update_hits[0]["query"]
+    assert_eq!(
+        update_hits_guard[0]["variables"],
+        json!({ "id": missing_id })
+    );
+    assert!(update_hits_guard[0]["query"]
         .as_str()
         .unwrap_or_default()
         .contains("node(id: $id)"));
-    assert!(!update_hits[0]["query"]
+    assert!(!update_hits_guard[0]["query"]
         .as_str()
         .unwrap_or_default()
         .contains("fulfillmentConstraintRules"));
-    drop(update_hits);
+    drop(update_hits_guard);
     let update_log = log_snapshot(&update_proxy);
-    assert_eq!(update_log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(update_log["entries"], json!([]));
+
+    let cached_delete = update_proxy.process_request(json_graphql_request(
+        r#"mutation DeletePreviouslyMissingFulfillmentConstraintRule($id: ID!) {
+          fulfillmentConstraintRuleDelete(id: $id) {
+            success
+            userErrors { field message code }
+          }
+        }"#,
+        json!({ "id": missing_id }),
+    ));
+    assert_eq!(
+        cached_delete.body["data"]["fulfillmentConstraintRuleDelete"],
+        json!({
+            "success": false,
+            "userErrors": [{
+                "field": ["id"],
+                "message": format!("Could not find FulfillmentConstraintRule with id: {missing_id}"),
+                "code": "NOT_FOUND"
+            }]
+        })
+    );
+    assert_eq!(
+        update_hits.lock().unwrap().len(),
+        1,
+        "an authoritative null target lookup should be reused by later roots"
+    );
+    let dump = update_proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(
+        dump.body["state"]["baseState"]["functionFulfillmentConstraintRuleKnownMissingIds"],
+        json!([missing_id])
+    );
+    let restored_hits = Arc::new(Mutex::new(0usize));
+    let restored_hits_counter = Arc::clone(&restored_hits);
+    let mut restored_proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |_| {
+        *restored_hits_counter.lock().unwrap() += 1;
+        Response {
+            status: 500,
+            headers: Default::default(),
+            body: json!({ "errors": [{ "message": "known miss should not hydrate again" }] }),
+        }
+    });
+    let restore = restored_proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let restored_delete = restored_proxy.process_request(json_graphql_request(
+        r#"mutation DeleteRestoredMissingFulfillmentConstraintRule($id: ID!) {
+          fulfillmentConstraintRuleDelete(id: $id) {
+            success
+            userErrors { field message code }
+          }
+        }"#,
+        json!({ "id": missing_id }),
+    ));
+    assert_eq!(
+        restored_delete.body["data"]["fulfillmentConstraintRuleDelete"],
+        cached_delete.body["data"]["fulfillmentConstraintRuleDelete"]
+    );
+    assert_eq!(*restored_hits.lock().unwrap(), 0);
 
     let delete_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
     let mut delete_proxy =
@@ -9187,24 +9252,27 @@ fn functions_fulfillment_constraint_rule_not_found_uses_targeted_hydration() {
             }]
         })
     );
-    let delete_hits = delete_hits.lock().unwrap();
-    assert_eq!(delete_hits.len(), 1);
+    let delete_hits_guard = delete_hits.lock().unwrap();
+    assert_eq!(delete_hits_guard.len(), 1);
     assert_eq!(
-        delete_hits[0]["operationName"],
+        delete_hits_guard[0]["operationName"],
         json!("FunctionFulfillmentConstraintRuleHydrateById")
     );
-    assert_eq!(delete_hits[0]["variables"], json!({ "id": missing_id }));
-    assert!(delete_hits[0]["query"]
+    assert_eq!(
+        delete_hits_guard[0]["variables"],
+        json!({ "id": missing_id })
+    );
+    assert!(delete_hits_guard[0]["query"]
         .as_str()
         .unwrap_or_default()
         .contains("node(id: $id)"));
-    assert!(!delete_hits[0]["query"]
+    assert!(!delete_hits_guard[0]["query"]
         .as_str()
         .unwrap_or_default()
         .contains("fulfillmentConstraintRules"));
-    drop(delete_hits);
+    drop(delete_hits_guard);
     let delete_log = log_snapshot(&delete_proxy);
-    assert_eq!(delete_log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(delete_log["entries"], json!([]));
 }
 
 #[test]
@@ -9343,7 +9411,7 @@ fn functions_authoritative_preflight_failures_do_not_stage_or_claim_not_found() 
         let records = &staged["stagedState"][key];
         assert!(records.is_null() || records.as_object().is_some_and(serde_json::Map::is_empty));
     }
-    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 4);
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
