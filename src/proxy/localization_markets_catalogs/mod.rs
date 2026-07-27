@@ -491,9 +491,6 @@ fn apply_context_id_diff<ReadIds>(
     }
 }
 
-fn next_markets_catalogs_numeric_id(store: &Store, extra_len: usize) -> usize {
-    (store.staged.markets.len() * 2) + (store.staged.catalogs.len() * 2) + extra_len + 1
-}
 fn selected_catalog_error(
     _field: &MarketsRootInput,
     path: Vec<&str>,
@@ -824,22 +821,6 @@ fn record_gid(record: &Value, resource_type: &str) -> Option<String> {
             }
         })
         .map(str::to_string)
-}
-
-/// Next synthetic `MarketWebPresence` numeric id: one greater than the highest
-/// numeric id already staged. Deriving from the max (not the count) keeps a newly
-/// created presence sorting after any live baseline ids hydrated by the preflight,
-/// so a downstream `webPresences` read returns Shopify's id-ascending order. The
-/// live ids are equal-width integers, so the staged `BTreeMap` key order matches
-/// numeric order.
-fn next_web_presence_numeric_id(web_presences: &BTreeMap<String, Value>) -> u64 {
-    web_presences
-        .keys()
-        .map(|key| resource_id_path_tail(key.as_str()))
-        .filter_map(|numeric| numeric.parse::<u64>().ok())
-        .max()
-        .unwrap_or(0)
-        + 1
 }
 
 /// A market participates in backup-region coverage when it is enabled, of REGION

@@ -1,0 +1,47 @@
+#graphql
+query InventoryShipmentMutationHydrate($id: ID!, $after: String) {
+  inventoryShipment(id: $id) {
+    ...InventoryLifecycleShipment
+  }
+  inventoryTransfers(first: 5, after: $after, reverse: true) {
+    nodes {
+      id
+      shipments(first: 25) {
+        nodes {
+          id
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}
+
+fragment InventoryLifecycleShipment on InventoryShipment {
+  id
+  name
+  status
+  tracking {
+    trackingNumber
+    company
+    trackingUrl
+    arrivesAt
+  }
+  lineItems(first: 100) {
+    nodes {
+      id
+      quantity
+      acceptedQuantity
+      rejectedQuantity
+      unreceivedQuantity
+      inventoryItem {
+        id
+        sku
+        tracked
+        requiresShipping
+      }
+    }
+  }
+}
