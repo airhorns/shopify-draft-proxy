@@ -1,0 +1,13 @@
+query ProductVariantMediaValidationRead($variantId: ID!) {
+  productVariant(id: $variantId) {
+    id
+    media(first: 10) {
+      nodes {
+        id
+        alt
+        mediaContentType
+        status
+      }
+    }
+  }
+}

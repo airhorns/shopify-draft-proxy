@@ -1,0 +1,44 @@
+query B2BAssignCustomerAsContactColdReadback($companyId: ID!, $companyContactId: ID!, $customerId: ID!) {
+  company(id: $companyId) {
+    id
+    name
+    contacts(first: 5) {
+      nodes {
+        id
+        isMainContact
+        customer {
+          id
+          email
+        }
+      }
+    }
+  }
+  companyContact(id: $companyContactId) {
+    id
+    isMainContact
+    company {
+      id
+      name
+    }
+    customer {
+      id
+      email
+      firstName
+      lastName
+    }
+  }
+  customer(id: $customerId) {
+    id
+    email
+    firstName
+    lastName
+    companyContactProfiles {
+      id
+      isMainContact
+      company {
+        id
+        name
+      }
+    }
+  }
+}

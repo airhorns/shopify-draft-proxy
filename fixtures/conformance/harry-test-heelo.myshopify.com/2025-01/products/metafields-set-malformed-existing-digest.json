@@ -1,0 +1,255 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-07-20T04:30:08.071Z",
+  "setup": {
+    "productCreate": {
+      "request": {
+        "query": "mutation MetafieldsSetMalformedExistingProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "product": {
+            "title": "Malformed compareDigest mrsq7ie6"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "productCreate": {
+              "product": {
+                "id": "gid://shopify/Product/10244062183730",
+                "title": "Malformed compareDigest mrsq7ie6"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "initialSet": {
+      "request": {
+        "query": "mutation MetafieldsSetMalformedExistingMutation($metafields: [MetafieldsSetInput!]!) {\n  metafieldsSet(metafields: $metafields) {\n    metafields {\n      id\n      namespace\n      key\n      type\n      value\n      compareDigest\n    }\n    userErrors {\n      field\n      message\n      code\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10244062183730",
+              "namespace": "malformed_digest_mrsq7ie6",
+              "key": "existing_row",
+              "type": "single_line_text_field",
+              "value": "Before malformed digest"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "metafieldsSet": {
+              "metafields": [
+                {
+                  "id": "gid://shopify/Metafield/45221913329970",
+                  "namespace": "malformed_digest_mrsq7ie6",
+                  "key": "existing_row",
+                  "type": "single_line_text_field",
+                  "value": "Before malformed digest",
+                  "compareDigest": "e45fd008cea962c4da4686de891a80e71f14f96f44ffd7625174bd58d7e8cb76"
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "malformedExistingSet": {
+    "request": {
+      "query": "mutation MetafieldsSetMalformedExistingMutation($metafields: [MetafieldsSetInput!]!) {\n  metafieldsSet(metafields: $metafields) {\n    metafields {\n      id\n      namespace\n      key\n      type\n      value\n      compareDigest\n    }\n    userErrors {\n      field\n      message\n      code\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "metafields": [
+          {
+            "ownerId": "gid://shopify/Product/10244062183730",
+            "namespace": "malformed_digest_mrsq7ie6",
+            "key": "existing_row",
+            "type": "single_line_text_field",
+            "value": "Before malformed digest",
+            "compareDigest": "not-a-hex-digest"
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [
+              {
+                "id": "gid://shopify/Metafield/45221913329970",
+                "namespace": "malformed_digest_mrsq7ie6",
+                "key": "existing_row",
+                "type": "single_line_text_field",
+                "value": "Before malformed digest",
+                "compareDigest": "e45fd008cea962c4da4686de891a80e71f14f96f44ffd7625174bd58d7e8cb76"
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "malformedChangingSet": {
+    "request": {
+      "query": "mutation MetafieldsSetMalformedExistingMutation($metafields: [MetafieldsSetInput!]!) {\n  metafieldsSet(metafields: $metafields) {\n    metafields {\n      id\n      namespace\n      key\n      type\n      value\n      compareDigest\n    }\n    userErrors {\n      field\n      message\n      code\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "metafields": [
+          {
+            "ownerId": "gid://shopify/Product/10244062183730",
+            "namespace": "malformed_digest_mrsq7ie6",
+            "key": "existing_row",
+            "type": "single_line_text_field",
+            "value": "After malformed digest",
+            "compareDigest": "not-a-hex-digest"
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [],
+            "userErrors": [
+              {
+                "field": ["metafields", "0"],
+                "message": "The resource has been updated since it was loaded. Try again with an updated `compareDigest` value.",
+                "code": "STALE_OBJECT",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "request": {
+      "query": "query MetafieldsSetMalformedExistingDownstreamRead($id: ID!, $namespace: String!, $key: String!) {\n  product(id: $id) {\n    id\n    malformedDigest: metafield(namespace: $namespace, key: $key) {\n      id\n      namespace\n      key\n      type\n      value\n      compareDigest\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Product/10244062183730",
+        "namespace": "malformed_digest_mrsq7ie6",
+        "key": "existing_row"
+      }
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "product": {
+            "id": "gid://shopify/Product/10244062183730",
+            "malformedDigest": {
+              "id": "gid://shopify/Metafield/45221913329970",
+              "namespace": "malformed_digest_mrsq7ie6",
+              "key": "existing_row",
+              "type": "single_line_text_field",
+              "value": "Before malformed digest",
+              "compareDigest": "e45fd008cea962c4da4686de891a80e71f14f96f44ffd7625174bd58d7e8cb76"
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "request": {
+      "query": "#graphql\nmutation MetafieldsSetMalformedExistingProductDelete($input: ProductDeleteInput!) {\n  productDelete(input: $input) {\n    deletedProductId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Product/10244062183730"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10244062183730",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

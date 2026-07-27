@@ -1,0 +1,48 @@
+{
+  "scenarioId": "fulfillment-order-split-batch-atomicity",
+  "operationNames": ["fulfillmentOrderSplit"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-atomicity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-batch-atomicity.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/platform.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-batch-atomicity-orders.graphql",
+    "variablesCapturePath": "$.split.before.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "split-orders-before-failure",
+        "capturePath": "$.split.before.response.payload.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "split-valid-first-invalid-second-rejected",
+        "capturePath": "$.split.failure.response.payload.data.fulfillmentOrderSplit",
+        "proxyPath": "$.data.fulfillmentOrderSplit",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-split-batch-atomicity.graphql",
+          "variablesCapturePath": "$.split.failure.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "split-orders-unchanged-after-failure",
+        "capturePath": "$.split.after.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-batch-atomicity-orders.graphql",
+          "variablesCapturePath": "$.split.after.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL evidence that a valid first fulfillmentOrderSplit input followed by an invalid second input returns fulfillmentOrderSplits: null and leaves both owning orders unchanged. The replay hydrates both orders through the public order query and keeps the supported mutation local."
+}

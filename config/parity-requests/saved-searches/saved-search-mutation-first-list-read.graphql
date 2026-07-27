@@ -1,0 +1,16 @@
+query SavedSearchMutationFirstListRead {
+  productSavedSearches(first: 250) {
+    nodes {
+      id
+      legacyResourceId
+      name
+      query
+      resourceType
+      searchTerms
+      filters {
+        key
+        value
+      }
+    }
+  }
+}

@@ -6,6 +6,7 @@ import path from 'node:path';
 
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
+import { captureProductMutationPreflight } from './product-mutation-preflight-capture.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 type GraphqlVariables = Record<string, unknown>;
@@ -55,18 +56,17 @@ type CapturePayload = {
   };
   downstreamRead: GraphqlPayload<unknown>;
   setup?: Record<string, unknown>;
+  upstreamCalls?: unknown[];
 };
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
-const { runGraphql } = createAdminGraphqlClient({
+const { runGraphql, runGraphqlRaw } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
-}) as {
-  runGraphql: <TData>(query: string, variables?: GraphqlVariables) => Promise<GraphqlPayload<TData>>;
-};
+});
 
 function expectNoUserErrors(pathLabel: string, userErrors: UserError[] | null | undefined): void {
   if (Array.isArray(userErrors) && userErrors.length === 0) {
@@ -451,6 +451,7 @@ try {
   }
 
   const bulkCreateVariables = buildBulkCreateVariables(seedProductId, runId);
+  const bulkCreateHydration = await captureProductMutationPreflight(runGraphqlRaw, seedProductId);
   const bulkCreateResponse = await runGraphql<ProductVariantsBulkCreateData>(
     productVariantsBulkCreateMutation,
     bulkCreateVariables,
@@ -497,6 +498,7 @@ try {
         response: bulkCreateResponse,
       },
       downstreamRead: bulkCreateDownstreamRead,
+      upstreamCalls: bulkCreateHydration,
     },
   };
 

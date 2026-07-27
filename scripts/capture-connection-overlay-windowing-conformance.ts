@@ -115,20 +115,87 @@ query MediaFilesConnectionBaseline(
 }
 `;
 
-const sellingPlanGroupsBaselineDocument = `
-query SellingPlanGroupsConnectionBaseline(
-  $first: Int!
+const sellingPlanGroupsWindowDocument = `
+query SellingPlanGroupsConnectionWindow(
+  $first: Int
   $after: String
+  $last: Int
+  $before: String
   $query: String
   $sortKey: SellingPlanGroupSortKeys
+  $reverse: Boolean!
 ) {
-  sellingPlanGroupsBaseline: sellingPlanGroups(
+  sellingPlanGroupsWindow: sellingPlanGroups(
     first: $first
     after: $after
+    last: $last
+    before: $before
     query: $query
     sortKey: $sortKey
+    reverse: $reverse
   ) {
-    edges { cursor node { id } }
+    edges {
+      cursor
+      node {
+        __typename
+        id
+        appId
+        name
+        merchantCode
+        description
+        options
+        position
+        createdAt
+        productsCount { count precision }
+        productVariantsCount { count precision }
+        sellingPlans(first: 31) {
+          edges {
+            cursor
+            node {
+              __typename
+              id
+              name
+              description
+              options
+              position
+              category
+              createdAt
+              billingPolicy {
+                __typename
+                ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }
+              }
+              deliveryPolicy {
+                __typename
+                ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }
+              }
+              inventoryPolicy { reserve }
+              pricingPolicies {
+                __typename
+                ... on SellingPlanFixedPricingPolicy {
+                  adjustmentType
+                  adjustmentValue {
+                    __typename
+                    ... on SellingPlanPricingPolicyPercentageValue { percentage }
+                    ... on MoneyV2 { amount currencyCode }
+                  }
+                }
+                ... on SellingPlanRecurringPricingPolicy {
+                  afterCycle
+                  createdAt
+                  adjustmentType
+                  adjustmentValue {
+                    __typename
+                    ... on SellingPlanPricingPolicyPercentageValue { percentage }
+                    ... on MoneyV2 { amount currencyCode }
+                  }
+                }
+              }
+            }
+          }
+          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+        }
+      }
+    }
     pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
   }
 }
@@ -382,6 +449,53 @@ const cleanup: Array<{ label: string; response: unknown }> = [];
 try {
   await cleanupSavedSearches();
   const preCreateBaselines: Array<{ operationName: string; capture: Capture }> = [];
+  const sellingPlanGroupWindowVariables: JsonRecord[] = [
+    {
+      first: 12,
+      after: null,
+      last: null,
+      before: null,
+      query: groupQuery,
+      sortKey: 'ID',
+      reverse: false,
+    },
+    {
+      first: 3,
+      after: null,
+      last: null,
+      before: null,
+      query: groupQuery,
+      sortKey: 'ID',
+      reverse: true,
+    },
+    {
+      first: 3,
+      after: null,
+      last: null,
+      before: null,
+      query: groupQuery,
+      sortKey: 'ID',
+      reverse: false,
+    },
+    {
+      first: 3,
+      after: null,
+      last: null,
+      before: null,
+      query: groupQuery,
+      sortKey: 'ID',
+      reverse: false,
+    },
+    {
+      first: 12,
+      after: null,
+      last: null,
+      before: null,
+      query: groupQuery,
+      sortKey: 'ID',
+      reverse: false,
+    },
+  ];
   for (let round = 1; round <= 5; round += 1) {
     preCreateBaselines.push(
       {
@@ -401,11 +515,11 @@ try {
         ),
       },
       {
-        operationName: 'SellingPlanGroupsConnectionBaseline',
+        operationName: 'SellingPlanGroupsConnectionWindow',
         capture: await capture(
-          sellingPlanGroupsBaselineDocument,
-          { first: 250, after: null, query: groupQuery, sortKey: 'ID' },
-          `selling-plan-groups pre-create baseline ${round}`,
+          sellingPlanGroupsWindowDocument,
+          sellingPlanGroupWindowVariables[round - 1]!,
+          `selling-plan-groups bounded overlay window ${round}`,
         ),
       },
     );

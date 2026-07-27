@@ -349,9 +349,7 @@ impl DraftProxy {
     }
 
     fn next_shop_policy_id(&mut self) -> String {
-        let id = synthetic_shopify_gid("ShopPolicy", self.next_synthetic_id);
-        self.next_synthetic_id += 1;
-        id
+        self.next_proxy_synthetic_gid("ShopPolicy")
     }
 
     fn shop_policy_url_for_id(&self, id: &str) -> String {

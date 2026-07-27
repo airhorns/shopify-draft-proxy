@@ -1,32 +1,61 @@
 {
-  "capturedAt": "2026-04-25T21:54:43.609Z",
+  "capturedAt": "2026-07-19T15:50:20.152Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "setup": {
     "productCreate": {
-      "data": {
-        "productCreate": {
-          "product": {
-            "id": "gid://shopify/Product/10170568147250",
-            "title": "Hermes Media Reorder Conformance 1777154081659"
-          },
-          "userErrors": []
+      "variables": {
+        "product": {
+          "title": "Hermes Product Media Reorder Conformance 1784476199106",
+          "status": "DRAFT"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10243947102514",
+              "title": "Hermes Product Media Reorder Conformance 1784476199106"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
         }
       }
     },
     "productCreateMedia": {
       "variables": {
-        "productId": "gid://shopify/Product/10170568147250",
+        "productId": "gid://shopify/Product/10243947102514",
         "media": [
           {
             "mediaContentType": "IMAGE",
-            "originalSource": "https://placehold.co/600x400/png",
-            "alt": "Front"
+            "originalSource": "https://placehold.co/610x410/png",
+            "alt": "Reorder front"
           },
           {
             "mediaContentType": "IMAGE",
-            "originalSource": "https://placehold.co/600x401/png",
-            "alt": "Back"
+            "originalSource": "https://placehold.co/620x420/png",
+            "alt": "Reorder side"
+          },
+          {
+            "mediaContentType": "IMAGE",
+            "originalSource": "https://placehold.co/630x430/png",
+            "alt": "Reorder back"
+          },
+          {
+            "mediaContentType": "IMAGE",
+            "originalSource": "https://placehold.co/640x440/png",
+            "alt": "Reorder detail"
           }
         ]
       },
@@ -35,8 +64,8 @@
           "productCreateMedia": {
             "media": [
               {
-                "id": "gid://shopify/MediaImage/43607668588850",
-                "alt": "Front",
+                "id": "gid://shopify/MediaImage/44070841614642",
+                "alt": "Reorder front",
                 "mediaContentType": "IMAGE",
                 "status": "UPLOADED",
                 "preview": {
@@ -45,10 +74,30 @@
                 "image": null
               },
               {
-                "id": "gid://shopify/MediaImage/43607668621618",
-                "alt": "Back",
+                "id": "gid://shopify/MediaImage/44070841647410",
+                "alt": "Reorder side",
                 "mediaContentType": "IMAGE",
-                "status": "PROCESSING",
+                "status": "UPLOADED",
+                "preview": {
+                  "image": null
+                },
+                "image": null
+              },
+              {
+                "id": "gid://shopify/MediaImage/44070841680178",
+                "alt": "Reorder back",
+                "mediaContentType": "IMAGE",
+                "status": "UPLOADED",
+                "preview": {
+                  "image": null
+                },
+                "image": null
+              },
+              {
+                "id": "gid://shopify/MediaImage/44070841712946",
+                "alt": "Reorder detail",
+                "mediaContentType": "IMAGE",
+                "status": "UPLOADED",
                 "preview": {
                   "image": null
                 },
@@ -57,130 +106,348 @@
             ],
             "mediaUserErrors": [],
             "product": {
-              "id": "gid://shopify/Product/10170568147250",
+              "id": "gid://shopify/Product/10243947102514",
               "media": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/MediaImage/43607668588850",
-                    "alt": "Front",
+                    "id": "gid://shopify/MediaImage/44070841614642",
+                    "alt": "Reorder front",
                     "mediaContentType": "IMAGE",
-                    "status": "UPLOADED"
+                    "status": "UPLOADED",
+                    "preview": {
+                      "image": null
+                    },
+                    "image": null
                   },
                   {
-                    "id": "gid://shopify/MediaImage/43607668621618",
-                    "alt": "Back",
+                    "id": "gid://shopify/MediaImage/44070841647410",
+                    "alt": "Reorder side",
                     "mediaContentType": "IMAGE",
-                    "status": "PROCESSING"
+                    "status": "UPLOADED",
+                    "preview": {
+                      "image": null
+                    },
+                    "image": null
+                  },
+                  {
+                    "id": "gid://shopify/MediaImage/44070841680178",
+                    "alt": "Reorder back",
+                    "mediaContentType": "IMAGE",
+                    "status": "UPLOADED",
+                    "preview": {
+                      "image": null
+                    },
+                    "image": null
+                  },
+                  {
+                    "id": "gid://shopify/MediaImage/44070841712946",
+                    "alt": "Reorder detail",
+                    "mediaContentType": "IMAGE",
+                    "status": "PROCESSING",
+                    "preview": {
+                      "image": null
+                    },
+                    "image": null
                   }
                 ]
               }
             }
           }
-        }
-      }
-    }
-  },
-  "mutation": {
-    "variables": {
-      "id": "gid://shopify/Product/10170568147250",
-      "moves": [
-        {
-          "id": "gid://shopify/MediaImage/43607668621618",
-          "newPosition": "0"
         },
-        {
-          "id": "gid://shopify/MediaImage/43607668588850",
-          "newPosition": "99"
-        }
-      ]
-    },
-    "response": {
-      "data": {
-        "productReorderMedia": {
-          "job": {
-            "id": "gid://shopify/Job/6fbf9e34-5092-4420-923c-dd7a81128f59",
-            "done": false
-          },
-          "mediaUserErrors": []
-        }
-      }
-    }
-  },
-  "downstreamRead": {
-    "data": {
-      "product": {
-        "id": "gid://shopify/Product/10170568147250",
-        "media": {
-          "nodes": [
-            {
-              "id": "gid://shopify/MediaImage/43607668621618",
-              "alt": "Back",
-              "mediaContentType": "IMAGE",
-              "status": "PROCESSING"
-            },
-            {
-              "id": "gid://shopify/MediaImage/43607668588850",
-              "alt": "Front",
-              "mediaContentType": "IMAGE",
-              "status": "PROCESSING"
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 41,
+            "actualQueryCost": 32,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1968,
+              "restoreRate": 100
             }
-          ]
-        },
-        "images": {
-          "nodes": []
+          }
         }
       }
-    }
-  },
-  "upstreamCalls": [
-    {
-      "operationName": "ProductsHydrateNodes",
-      "variables": {
-        "ids": ["gid://shopify/Product/10170568147250"]
-      },
-      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
+    },
+    "readyRead": {
+      "data": {
+        "product": {
+          "id": "gid://shopify/Product/10243947102514",
+          "media": {
             "nodes": [
               {
-                "id": "gid://shopify/Product/10170568147250",
-                "title": "Hermes Media Reorder Conformance 1777154081659",
-                "media": {
-                  "nodes": [
-                    {
-                      "id": "gid://shopify/MediaImage/43607668621618",
-                      "alt": "Back",
-                      "mediaContentType": "IMAGE",
-                      "status": "PROCESSING"
-                    },
-                    {
-                      "id": "gid://shopify/MediaImage/43607668588850",
-                      "alt": "Front",
-                      "mediaContentType": "IMAGE",
-                      "status": "PROCESSING"
-                    }
-                  ]
-                },
-                "moves": [
-                  {
-                    "id": "gid://shopify/MediaImage/43607668621618",
-                    "newPosition": "0"
-                  },
-                  {
-                    "id": "gid://shopify/MediaImage/43607668588850",
-                    "newPosition": "99"
-                  }
-                ],
-                "images": {
-                  "nodes": []
-                }
+                "id": "gid://shopify/MediaImage/44070841614642",
+                "alt": "Reorder front",
+                "mediaContentType": "IMAGE",
+                "status": "READY"
+              },
+              {
+                "id": "gid://shopify/MediaImage/44070841647410",
+                "alt": "Reorder side",
+                "mediaContentType": "IMAGE",
+                "status": "READY"
+              },
+              {
+                "id": "gid://shopify/MediaImage/44070841680178",
+                "alt": "Reorder back",
+                "mediaContentType": "IMAGE",
+                "status": "READY"
+              },
+              {
+                "id": "gid://shopify/MediaImage/44070841712946",
+                "alt": "Reorder detail",
+                "mediaContentType": "IMAGE",
+                "status": "READY"
+              }
+            ]
+          },
+          "images": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductImage/54030132379954",
+                "altText": "Reorder front"
+              },
+              {
+                "id": "gid://shopify/ProductImage/54030132412722",
+                "altText": "Reorder side"
+              },
+              {
+                "id": "gid://shopify/ProductImage/54030132445490",
+                "altText": "Reorder back"
+              },
+              {
+                "id": "gid://shopify/ProductImage/54030132478258",
+                "altText": "Reorder detail"
               }
             ]
           }
         }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 9,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1991,
+            "restoreRate": 100
+          }
+        }
       }
     }
-  ]
+  },
+  "singleMove": {
+    "mutation": {
+      "variables": {
+        "id": "gid://shopify/Product/10243947102514",
+        "moves": [
+          {
+            "id": "gid://shopify/MediaImage/44070841712946",
+            "newPosition": "1"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "productReorderMedia": {
+            "job": {
+              "id": "gid://shopify/Job/82469cea-2114-4a75-82fb-8adad4051b42",
+              "done": false
+            },
+            "mediaUserErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "downstreamRead": {
+      "data": {
+        "product": {
+          "id": "gid://shopify/Product/10243947102514",
+          "media": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MediaImage/44070841614642",
+                "alt": "Reorder front",
+                "mediaContentType": "IMAGE",
+                "status": "READY"
+              },
+              {
+                "id": "gid://shopify/MediaImage/44070841712946",
+                "alt": "Reorder detail",
+                "mediaContentType": "IMAGE",
+                "status": "READY"
+              },
+              {
+                "id": "gid://shopify/MediaImage/44070841647410",
+                "alt": "Reorder side",
+                "mediaContentType": "IMAGE",
+                "status": "READY"
+              },
+              {
+                "id": "gid://shopify/MediaImage/44070841680178",
+                "alt": "Reorder back",
+                "mediaContentType": "IMAGE",
+                "status": "READY"
+              }
+            ]
+          },
+          "images": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductImage/54030132379954",
+                "altText": "Reorder front"
+              },
+              {
+                "id": "gid://shopify/ProductImage/54030132478258",
+                "altText": "Reorder detail"
+              },
+              {
+                "id": "gid://shopify/ProductImage/54030132412722",
+                "altText": "Reorder side"
+              },
+              {
+                "id": "gid://shopify/ProductImage/54030132445490",
+                "altText": "Reorder back"
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 9,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "orderedMoves": {
+    "mutation": {
+      "variables": {
+        "id": "gid://shopify/Product/10243947102514",
+        "moves": [
+          {
+            "id": "gid://shopify/MediaImage/44070841647410",
+            "newPosition": "0"
+          },
+          {
+            "id": "gid://shopify/MediaImage/44070841712946",
+            "newPosition": "3"
+          },
+          {
+            "id": "gid://shopify/MediaImage/44070841647410",
+            "newPosition": "2"
+          },
+          {
+            "id": "gid://shopify/MediaImage/44070841647410",
+            "newPosition": "2"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "productReorderMedia": {
+            "job": {
+              "id": "gid://shopify/Job/e4a01083-fa1b-4605-8a72-42b8efcc1899",
+              "done": false
+            },
+            "mediaUserErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "downstreamRead": {
+      "data": {
+        "product": {
+          "id": "gid://shopify/Product/10243947102514",
+          "media": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MediaImage/44070841614642",
+                "alt": "Reorder front",
+                "mediaContentType": "IMAGE",
+                "status": "READY"
+              },
+              {
+                "id": "gid://shopify/MediaImage/44070841680178",
+                "alt": "Reorder back",
+                "mediaContentType": "IMAGE",
+                "status": "READY"
+              },
+              {
+                "id": "gid://shopify/MediaImage/44070841647410",
+                "alt": "Reorder side",
+                "mediaContentType": "IMAGE",
+                "status": "READY"
+              },
+              {
+                "id": "gid://shopify/MediaImage/44070841712946",
+                "alt": "Reorder detail",
+                "mediaContentType": "IMAGE",
+                "status": "READY"
+              }
+            ]
+          },
+          "images": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductImage/54030132379954",
+                "altText": "Reorder front"
+              },
+              {
+                "id": "gid://shopify/ProductImage/54030132445490",
+                "altText": "Reorder back"
+              },
+              {
+                "id": "gid://shopify/ProductImage/54030132412722",
+                "altText": "Reorder side"
+              },
+              {
+                "id": "gid://shopify/ProductImage/54030132478258",
+                "altText": "Reorder detail"
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 9,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [],
+  "notes": "Creates a disposable product and four ready image media items, captures one move over the complete list, then captures repeated and same-position moves applied sequentially in request order."
 }
