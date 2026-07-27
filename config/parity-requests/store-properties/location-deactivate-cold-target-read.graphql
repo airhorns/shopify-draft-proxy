@@ -1,0 +1,18 @@
+fragment LocationDeactivateColdTargetFields on Location {
+  id
+  name
+  isActive
+  activatable
+  deactivatable
+  fulfillsOnlineOrders
+  hasActiveInventory
+  hasUnfulfilledOrders
+  deletable
+  shipsInventory
+}
+
+query LocationDeactivateColdTargetRead($locationId: ID!) {
+  location(id: $locationId) {
+    ...LocationDeactivateColdTargetFields
+  }
+}

@@ -86,7 +86,7 @@ const PRIMARY_LOCALE_CHANGE_MESSAGE: &str =
     "The primary locale of your store can't be changed through this endpoint.";
 
 const MARKET_MUTATION_TARGETS_HYDRATE_QUERY: &str =
-    include_str!("../../../config/parity-requests/markets/market-mutation-targets-hydrate.graphql");
+    include_str!("../../runtime_graphql/markets/market-mutation-targets-hydrate.graphql");
 
 fn first_market_localization_market_id(
     variables: &BTreeMap<String, ResolvedValue>,
@@ -491,9 +491,6 @@ fn apply_context_id_diff<ReadIds>(
     }
 }
 
-fn next_markets_catalogs_numeric_id(store: &Store, extra_len: usize) -> usize {
-    (store.staged.markets.len() * 2) + (store.staged.catalogs.len() * 2) + extra_len + 1
-}
 fn selected_catalog_error(
     _field: &MarketsRootInput,
     path: Vec<&str>,
@@ -826,22 +823,6 @@ fn record_gid(record: &Value, resource_type: &str) -> Option<String> {
         .map(str::to_string)
 }
 
-/// Next synthetic `MarketWebPresence` numeric id: one greater than the highest
-/// numeric id already staged. Deriving from the max (not the count) keeps a newly
-/// created presence sorting after any live baseline ids hydrated by the preflight,
-/// so a downstream `webPresences` read returns Shopify's id-ascending order. The
-/// live ids are equal-width integers, so the staged `BTreeMap` key order matches
-/// numeric order.
-fn next_web_presence_numeric_id(web_presences: &BTreeMap<String, Value>) -> u64 {
-    web_presences
-        .keys()
-        .map(|key| resource_id_path_tail(key.as_str()))
-        .filter_map(|numeric| numeric.parse::<u64>().ok())
-        .max()
-        .unwrap_or(0)
-        + 1
-}
-
 /// A market participates in backup-region coverage when it is enabled, of REGION
 /// type, and not a legacy market. Used for captured backup-region coverage decisions.
 fn market_record_is_active_region_non_legacy(market: &Value) -> bool {
@@ -976,7 +957,7 @@ fn market_record_legacy(market: &Value) -> bool {
 
 /// Region country codes declared by a market record, reading from the captured
 /// `conditions.regionsCondition.regions` connection (nodes and/or edges). Supports both upstream-hydrated and mutation-staged market shapes.
-fn market_record_country_codes(market: &Value) -> Vec<String> {
+pub(in crate::proxy) fn market_record_country_codes(market: &Value) -> Vec<String> {
     let Some(regions) = market
         .get("conditions")
         .and_then(|conditions| conditions.get("regionsCondition"))

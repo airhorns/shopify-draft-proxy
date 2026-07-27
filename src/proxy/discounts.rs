@@ -380,7 +380,7 @@ const SHOPIFY_FUNCTION_AVAILABILITY_QUERY: &str = "query ShopifyFunctionAvailabi
 /// proxy forwards matches the recorded `DiscountUniquenessCheck` cassette call
 /// byte-for-byte (the cassette matcher is strict on query text + variables).
 const DISCOUNT_UNIQUENESS_QUERY: &str =
-    include_str!("../../config/parity-requests/discounts/discount-uniqueness-check.graphql");
+    include_str!("../runtime_graphql/discounts/discount-uniqueness-check.graphql");
 /// Item-entitlement existence probe forwarded before a native discount create /
 /// update is
 /// validated. Discounts that entitle products / variants / collections must
@@ -393,7 +393,7 @@ const DISCOUNT_UNIQUENESS_QUERY: &str =
 /// recorded `ProductsHydrateNodes` cassette call byte-for-byte (the cassette
 /// matcher is strict on query text + variables).
 const DISCOUNT_ITEM_REFS_HYDRATE_QUERY: &str =
-    include_str!("../../config/parity-requests/discounts/discount-item-refs-hydrate.graphql");
+    include_str!("../runtime_graphql/discounts/discount-item-refs-hydrate.graphql.raw");
 impl DraftProxy {
     pub(in crate::proxy) fn discounts_query_outcome(
         &mut self,
@@ -933,11 +933,19 @@ impl DraftProxy {
         let summary = self.discount_summary_for_input(typename, input);
         let now_epoch = self.current_epoch_seconds();
         let timestamp = self.next_mutation_timestamp();
+        let metafield_ids = match input.get("metafields") {
+            Some(ResolvedValue::List(metafields)) => metafields
+                .iter()
+                .map(|_| self.next_synthetic_gid("Metafield"))
+                .collect(),
+            _ => Vec::new(),
+        };
         DiscountRecordBuildContext {
             shop_currency_code,
             summary,
             timestamp,
             now_epoch,
+            metafield_ids,
         }
     }
 
@@ -1045,7 +1053,9 @@ impl DraftProxy {
         let response = self.upstream_post(
             request,
             json!({
-                "query": DISCOUNT_ITEM_REFS_HYDRATE_QUERY,
+                "query": DISCOUNT_ITEM_REFS_HYDRATE_QUERY
+                    .strip_suffix('\n')
+                    .unwrap_or(DISCOUNT_ITEM_REFS_HYDRATE_QUERY),
                 "operationName": "ProductsHydrateNodes",
                 "variables": { "ids": ids }
             }),
@@ -3837,6 +3847,7 @@ struct DiscountRecordBuildContext {
     summary: String,
     timestamp: String,
     now_epoch: i64,
+    metafield_ids: Vec<String>,
 }
 
 fn discount_input_path_present(input: &BTreeMap<String, ResolvedValue>, path: &[&str]) -> bool {
@@ -4042,7 +4053,7 @@ fn discount_record_from_input(
         "appliesOnSubscription": applies_on_subscription,
         "codes": codes,
         "codesCount": count_object(codes.as_array().map(Vec::len).unwrap_or(0)),
-        "metafields": discount_metafields_from_input(input, timestamp)
+        "metafields": discount_metafields_from_input(input, timestamp, &context.metafield_ids)
             .or_else(|| existing.map(|record| record["metafields"].clone()))
             .unwrap_or_else(|| json!([])),
         "summary": summary
@@ -5053,6 +5064,7 @@ fn discount_maximum_shipping_price_from_input(
 fn discount_metafields_from_input(
     input: &BTreeMap<String, ResolvedValue>,
     timestamp: &str,
+    metafield_ids: &[String],
 ) -> Option<Value> {
     match input.get("metafields") {
         Some(ResolvedValue::List(metafields)) => Some(Value::Array(
@@ -5061,7 +5073,7 @@ fn discount_metafields_from_input(
                 .enumerate()
                 .filter_map(|(index, value)| match value {
                     ResolvedValue::Object(metafield) => Some(json!({
-                        "id": synthetic_shopify_gid("Metafield", format!("discount-app-{index}")),
+                        "id": metafield_ids.get(index).cloned().unwrap_or_default(),
                         "namespace": resolved_string_field(metafield, "namespace").unwrap_or_default(),
                         "key": resolved_string_field(metafield, "key").unwrap_or_default(),
                         "type": resolved_string_field(metafield, "type").unwrap_or_default(),

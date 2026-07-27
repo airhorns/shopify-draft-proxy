@@ -95,7 +95,7 @@ fn unpublish_from_current_storefront_channel(proxy: &mut DraftProxy, product_id:
     );
 }
 
-fn add_storefront_inventory_location(proxy: &mut DraftProxy) -> String {
+fn add_storefront_inventory_location(proxy: &mut DraftProxy, name: &str) -> String {
     let response = proxy.process_request(json_graphql_request(
         r#"
         mutation AddStorefrontInventoryLocation($input: LocationAddInput!) {
@@ -105,7 +105,7 @@ fn add_storefront_inventory_location(proxy: &mut DraftProxy) -> String {
           }
         }
         "#,
-        json!({ "input": { "name": "Storefront inventory", "address": { "countryCode": "US" } } }),
+        json!({ "input": { "name": name, "address": { "countryCode": "US" } } }),
     ));
     assert_eq!(response.status, 200);
     assert_eq!(
@@ -121,7 +121,7 @@ fn add_storefront_inventory_location(proxy: &mut DraftProxy) -> String {
 fn stage_storefront_cart_variant(
     proxy: &mut DraftProxy,
     inventory_quantity: i64,
-) -> (String, String) {
+) -> (String, String, String) {
     let publication_id = "gid://shopify/Publication/storefront-cart-tests";
     restore_storefront_current_publication(proxy, publication_id);
     let create = proxy.process_request(json_graphql_request(
@@ -191,7 +191,8 @@ fn stage_storefront_cart_variant(
         "{}",
         update.body
     );
-    let location_id = add_storefront_inventory_location(proxy);
+    let location_name = format!("Storefront inventory {product_id}");
+    let location_id = add_storefront_inventory_location(proxy, &location_name);
     let inventory = proxy.process_request(json_graphql_request(
         r#"
         mutation SetCartMerchandiseInventory($input: InventorySetQuantitiesInput!) {
@@ -218,7 +219,7 @@ fn stage_storefront_cart_variant(
         inventory.body
     );
     publish_to_current_storefront_channel(proxy, &product_id);
-    (variant_id, location_id)
+    (product_id, variant_id, location_id)
 }
 
 struct StorefrontCartDeliveryProfileFixture {
@@ -1335,7 +1336,7 @@ fn storefront_catalog_reflects_admin_staged_lifecycle_and_variant_inventory() {
         json!([])
     );
 
-    let location_id = add_storefront_inventory_location(&mut proxy);
+    let location_id = add_storefront_inventory_location(&mut proxy, "Storefront inventory");
     let set_inventory = proxy.process_request(json_graphql_request(
         r#"
         mutation StorefrontInventorySet($input: InventorySetQuantitiesInput!) {
@@ -1699,6 +1700,9 @@ fn storefront_products_connection_search_sort_window_and_fragments_use_visible_c
         .with_upstream_transport(|_| {
             panic!("snapshot Storefront catalog should not call upstream")
         });
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["shop"] = json!({ "currencyCode": "USD" });
+    });
     restore_storefront_current_publication(&mut proxy, current_publication_id);
     create_legacy_variant(
         &mut proxy,
@@ -1835,7 +1839,10 @@ fn storefront_cart_lifecycle_stages_locally_with_aliases_fragments_and_state_rou
         .with_upstream_transport(|_| {
             panic!("supported Storefront carts must never write upstream")
         });
-    let (variant_id, _) = stage_storefront_cart_variant(&mut proxy, 5);
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["shop"] = json!({ "currencyCode": "CAD" });
+    });
+    let (_, variant_id, _) = stage_storefront_cart_variant(&mut proxy, 5);
 
     let create = proxy.process_request(storefront_graphql_request(
         r#"
@@ -1892,7 +1899,7 @@ fn storefront_cart_lifecycle_stages_locally_with_aliases_fragments_and_state_rou
     assert_eq!(cart["totalQuantity"], json!(2));
     assert_eq!(
         cart["cost"]["subtotalAmount"],
-        json!({ "amount": "25.0", "currencyCode": "USD" })
+        json!({ "amount": "25.0", "currencyCode": "CAD" })
     );
     assert_eq!(
         cart["lines"]["nodes"][0]["merchandise"]["id"],
@@ -2055,10 +2062,303 @@ fn storefront_cart_lifecycle_stages_locally_with_aliases_fragments_and_state_rou
 }
 
 #[test]
+fn storefront_money_projection_uses_observed_currency_and_nulls_without_evidence() {
+    let mut eur_proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| panic!("snapshot EUR Storefront reads must stay local"));
+    restore_state_with(&mut eur_proxy, |state| {
+        state["baseState"]["shop"] = json!({ "currencyCode": "EUR" });
+    });
+    let (eur_product_id, eur_variant_id, _) = stage_storefront_cart_variant(&mut eur_proxy, 5);
+
+    let eur_product = eur_proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontEurProduct($id: ID!) {
+          product(id: $id) {
+            priceRange { minVariantPrice { amount currencyCode } }
+            variants(first: 1) { nodes { price { amount currencyCode } } }
+          }
+        }
+        "#,
+        json!({ "id": eur_product_id }),
+    ));
+    assert_eq!(eur_product.status, 200, "{}", eur_product.body);
+    assert_eq!(
+        eur_product.body["data"]["product"]["priceRange"]["minVariantPrice"]["currencyCode"],
+        json!("EUR"),
+        "{}",
+        eur_product.body,
+    );
+    assert_eq!(
+        eur_product.body["data"]["product"]["variants"]["nodes"][0]["price"]["currencyCode"],
+        json!("EUR"),
+        "{}",
+        eur_product.body,
+    );
+
+    let eur_cart = eur_proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation StorefrontEurCart($input: CartInput) {
+          cartCreate(input: $input) {
+            cart {
+              cost { subtotalAmount { amount currencyCode } totalAmount { amount currencyCode } }
+              lines(first: 1) {
+                nodes {
+                  merchandise { ... on ProductVariant { price { amount currencyCode } } }
+                  cost { amountPerQuantity { amount currencyCode } totalAmount { amount currencyCode } }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "lines": [{ "merchandiseId": eur_variant_id, "quantity": 2 }]
+            }
+        }),
+    ));
+    assert_eq!(eur_cart.status, 200, "{}", eur_cart.body);
+    let eur_cart_value = &eur_cart.body["data"]["cartCreate"]["cart"];
+    for currency_path in [
+        &eur_cart_value["cost"]["subtotalAmount"]["currencyCode"],
+        &eur_cart_value["cost"]["totalAmount"]["currencyCode"],
+        &eur_cart_value["lines"]["nodes"][0]["merchandise"]["price"]["currencyCode"],
+        &eur_cart_value["lines"]["nodes"][0]["cost"]["amountPerQuantity"]["currencyCode"],
+        &eur_cart_value["lines"]["nodes"][0]["cost"]["totalAmount"]["currencyCode"],
+    ] {
+        assert_eq!(currency_path, &json!("EUR"), "{}", eur_cart.body);
+    }
+
+    let mut cart_state_proxy =
+        configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+            .with_upstream_transport(|_| {
+                panic!("snapshot cart-state currency reads must stay local")
+            });
+    let (_, currency_unknown_variant_id, _) =
+        stage_storefront_cart_variant(&mut cart_state_proxy, 5);
+    let (_, cad_variant_id, _) = stage_storefront_cart_variant(&mut cart_state_proxy, 5);
+    restore_state_with(&mut cart_state_proxy, |state| {
+        state["stagedState"]["productVariants"][&cad_variant_id]["currencyCode"] = json!("CAD");
+    });
+    let cart_state_currency = cart_state_proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation StorefrontCartStateCurrency($input: CartInput) {
+          cartCreate(input: $input) {
+            cart {
+              cost { totalAmount { currencyCode } }
+              lines(first: 2) {
+                nodes {
+                  merchandise { ... on ProductVariant { price { currencyCode } } }
+                  cost { totalAmount { currencyCode } }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "lines": [
+                    { "merchandiseId": currency_unknown_variant_id, "quantity": 1 },
+                    { "merchandiseId": cad_variant_id, "quantity": 1 }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(
+        cart_state_currency.status, 200,
+        "{}",
+        cart_state_currency.body
+    );
+    let cart_state_value = &cart_state_currency.body["data"]["cartCreate"]["cart"];
+    for currency_path in [
+        &cart_state_value["cost"]["totalAmount"]["currencyCode"],
+        &cart_state_value["lines"]["nodes"][0]["merchandise"]["price"]["currencyCode"],
+        &cart_state_value["lines"]["nodes"][0]["cost"]["totalAmount"]["currencyCode"],
+        &cart_state_value["lines"]["nodes"][1]["merchandise"]["price"]["currencyCode"],
+        &cart_state_value["lines"]["nodes"][1]["cost"]["totalAmount"]["currencyCode"],
+    ] {
+        assert_eq!(currency_path, &json!("CAD"), "{}", cart_state_currency.body);
+    }
+
+    let market_id = "gid://shopify/Market/context-eur";
+    let catalog_id = "gid://shopify/MarketCatalog/context-eur";
+    let price_list_id = "gid://shopify/PriceList/context-eur";
+    let mut contextual_proxy =
+        configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+            .with_upstream_transport(|_| {
+                panic!("snapshot contextual Storefront reads must stay local")
+            });
+    restore_state_with(&mut contextual_proxy, |state| {
+        state["baseState"]["shop"] = json!({ "currencyCode": "CAD" });
+        state["baseState"]["storefrontLocalizations"] = json!({
+            "country=*;language=*": {
+                "country": { "isoCode": "CA", "currency": { "isoCode": "CAD" } },
+                "language": { "isoCode": "EN" },
+                "market": { "id": "gid://shopify/Market/primary", "handle": "primary" }
+            }
+        });
+        state["stagedState"]["markets"] = json!({
+            (market_id): {
+                "id": market_id,
+                "handle": "europe",
+                "status": "ACTIVE",
+                "conditions": {
+                    "regionsCondition": {
+                        "regions": { "nodes": [{ "code": "DE" }] }
+                    }
+                },
+                "currencySettings": {
+                    "baseCurrency": { "currencyCode": "EUR" }
+                }
+            }
+        });
+        state["stagedState"]["catalogs"] = json!({
+            (catalog_id): {
+                "id": catalog_id,
+                "status": "ACTIVE",
+                "marketIds": [market_id],
+                "priceListId": price_list_id
+            }
+        });
+        state["stagedState"]["priceLists"] = json!({
+            (price_list_id): {
+                "id": price_list_id,
+                "currency": "EUR",
+                "prices": { "edges": [] }
+            }
+        });
+    });
+    let (contextual_product_id, contextual_variant_id, _) =
+        stage_storefront_cart_variant(&mut contextual_proxy, 5);
+
+    let contextual_product = contextual_proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontContextualProduct($id: ID!) @inContext(country: DE) {
+          product(id: $id) {
+            priceRange { minVariantPrice { amount currencyCode } }
+            variants(first: 1) { nodes { price { amount currencyCode } } }
+          }
+        }
+        "#,
+        json!({ "id": contextual_product_id }),
+    ));
+    assert_eq!(
+        contextual_product.status, 200,
+        "{}",
+        contextual_product.body
+    );
+    assert_eq!(
+        contextual_product.body["data"]["product"]["priceRange"]["minVariantPrice"]["currencyCode"],
+        json!("EUR"),
+        "{}",
+        contextual_product.body,
+    );
+    assert_eq!(
+        contextual_product.body["data"]["product"]["variants"]["nodes"][0]["price"]["currencyCode"],
+        json!("EUR"),
+        "{}",
+        contextual_product.body,
+    );
+
+    let contextual_cart = contextual_proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation StorefrontContextualCart($input: CartInput) {
+          cartCreate(input: $input) {
+            cart {
+              cost { subtotalAmount { amount currencyCode } totalAmount { amount currencyCode } }
+              lines(first: 1) {
+                nodes { cost { amountPerQuantity { amount currencyCode } totalAmount { amount currencyCode } } }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "buyerIdentity": { "countryCode": "DE" },
+                "lines": [{ "merchandiseId": contextual_variant_id, "quantity": 1 }]
+            }
+        }),
+    ));
+    assert_eq!(contextual_cart.status, 200, "{}", contextual_cart.body);
+    let contextual_cart_value = &contextual_cart.body["data"]["cartCreate"]["cart"];
+    for currency_path in [
+        &contextual_cart_value["cost"]["subtotalAmount"]["currencyCode"],
+        &contextual_cart_value["cost"]["totalAmount"]["currencyCode"],
+        &contextual_cart_value["lines"]["nodes"][0]["cost"]["amountPerQuantity"]["currencyCode"],
+        &contextual_cart_value["lines"]["nodes"][0]["cost"]["totalAmount"]["currencyCode"],
+    ] {
+        assert_eq!(currency_path, &json!("EUR"), "{}", contextual_cart.body);
+    }
+
+    let mut unavailable_proxy =
+        configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+            .with_upstream_transport(|_| {
+                panic!("snapshot unavailable Storefront reads must stay local")
+            });
+    let (unavailable_product_id, unavailable_variant_id, _) =
+        stage_storefront_cart_variant(&mut unavailable_proxy, 5);
+    let unavailable_product = unavailable_proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontUnavailableCurrencyProduct($id: ID!) {
+          product(id: $id) { priceRange { minVariantPrice { amount currencyCode } } }
+        }
+        "#,
+        json!({ "id": unavailable_product_id }),
+    ));
+    assert_eq!(
+        unavailable_product.status, 200,
+        "{}",
+        unavailable_product.body
+    );
+    assert!(!unavailable_product.body.to_string().contains("USD"));
+    assert_eq!(unavailable_product.body["data"], Value::Null);
+    assert_eq!(
+        unavailable_product.body["errors"][0]["message"],
+        json!("Storefront snapshot has no value for non-null root `QueryRoot.product`")
+    );
+    assert_eq!(
+        unavailable_product.body["errors"][0]["path"],
+        json!(["product", "priceRange", "minVariantPrice"])
+    );
+
+    let unavailable_cart = unavailable_proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation StorefrontUnavailableCurrencyCart($input: CartInput) {
+          cartCreate(input: $input) {
+            cart { cost { totalAmount { amount currencyCode } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "lines": [{ "merchandiseId": unavailable_variant_id, "quantity": 1 }]
+            }
+        }),
+    ));
+    assert_eq!(unavailable_cart.status, 200, "{}", unavailable_cart.body);
+    assert!(!unavailable_cart.body.to_string().contains("USD"));
+    assert_eq!(unavailable_cart.body["data"], Value::Null);
+    assert_eq!(
+        unavailable_cart.body["errors"][0]["message"],
+        json!("Storefront snapshot has no value for non-null root `QueryRoot.cartCreate`")
+    );
+    assert_eq!(
+        unavailable_cart.body["errors"][0]["path"],
+        json!(["cartCreate", "cart", "cost", "totalAmount"])
+    );
+}
+
+#[test]
 fn storefront_cart_validations_warnings_limits_and_stale_branches_match_capture() {
     let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
         .with_upstream_transport(|_| panic!("supported Storefront cart branches must stay local"));
-    let (variant_id, _) = stage_storefront_cart_variant(&mut proxy, 5);
+    let (_, variant_id, _) = stage_storefront_cart_variant(&mut proxy, 5);
     let create = proxy.process_request(storefront_graphql_request(
         r#"
         mutation CreateValidationCart($input: CartInput) {
@@ -2280,7 +2580,7 @@ fn storefront_cart_adjustments_reuse_shared_state_and_round_trip_without_upstrea
         .with_upstream_transport(|_| {
             panic!("supported Storefront cart adjustments must never write upstream")
         });
-    let (variant_id, _) = stage_storefront_cart_variant(&mut proxy, 5);
+    let (_, variant_id, _) = stage_storefront_cart_variant(&mut proxy, 5);
     restore_state_with(&mut proxy, |state| {
         state["baseState"]["shop"] = json!({
             "id": "gid://shopify/Shop/cart-adjustments",
@@ -2720,7 +3020,10 @@ fn storefront_cart_state_is_isolated_between_proxy_instances() {
 fn storefront_cart_delivery_lifecycle_stages_rates_selection_and_state_round_trip() {
     let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
         .with_upstream_transport(|_| panic!("Storefront cart delivery must stay local"));
-    let (variant_id, location_id) = stage_storefront_cart_variant(&mut proxy, 5);
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["shop"] = json!({ "currencyCode": "USD" });
+    });
+    let (_, variant_id, location_id) = stage_storefront_cart_variant(&mut proxy, 5);
     stage_storefront_cart_delivery_profile(&mut proxy, &variant_id, &location_id);
 
     let create = proxy.process_request(storefront_graphql_request(
@@ -2948,10 +3251,189 @@ fn storefront_cart_delivery_lifecycle_stages_rates_selection_and_state_round_tri
 }
 
 #[test]
+fn storefront_cart_strict_address_validation_uses_country_metadata() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| panic!("Storefront cart address validation must stay local"));
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["shop"] = json!({ "currencyCode": "USD" });
+    });
+    let create_cart = |proxy: &mut DraftProxy, country_code: &str| {
+        let response = proxy.process_request(storefront_graphql_request(
+            include_str!("../../config/parity-requests/storefront/storefront-cart-create.graphql"),
+            json!({ "input": { "buyerIdentity": { "countryCode": country_code } } }),
+        ));
+        response.body["data"]["cartCreate"]["cart"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("strict address cart create failed: {}", response.body))
+            .to_string()
+    };
+    let add_addresses = |proxy: &mut DraftProxy, cart_id: &str, addresses: Value| {
+        proxy.process_request(storefront_graphql_request(
+            include_str!(
+                "../../config/parity-requests/storefront/storefront-cart-delivery-addresses-add.graphql"
+            ),
+            json!({ "cartId": cart_id, "addresses": addresses }),
+        ))
+    };
+
+    let emirates_cart_id = create_cart(&mut proxy, "AE");
+    let emirates_required = add_addresses(
+        &mut proxy,
+        &emirates_cart_id,
+        json!([{
+            "address": { "deliveryAddress": { "countryCode": "AE" } },
+            "validationStrategy": "STRICT"
+        }]),
+    );
+    assert_eq!(
+        emirates_required.body["data"]["cartDeliveryAddressesAdd"]["userErrors"],
+        json!([
+            { "field": ["addresses", "0", "address", "deliveryAddress", "lastName"], "message": "A last name is required in order to continue.", "code": "ADDRESS_FIELD_IS_REQUIRED" },
+            { "field": ["addresses", "0", "address", "deliveryAddress", "address1"], "message": "An address is required in order to continue.", "code": "ADDRESS_FIELD_IS_REQUIRED" },
+            { "field": ["addresses", "0", "address", "deliveryAddress", "provinceCode"], "message": "The specified country requires a zone.", "code": "ADDRESS_FIELD_IS_REQUIRED" },
+            { "field": ["addresses", "0", "address", "deliveryAddress", "city"], "message": "A city is required in order to continue.", "code": "ADDRESS_FIELD_IS_REQUIRED" }
+        ])
+    );
+    assert_eq!(
+        emirates_required.body["data"]["cartDeliveryAddressesAdd"]["cart"]["delivery"]["addresses"],
+        json!([])
+    );
+
+    let emirates_invalid_zone = add_addresses(
+        &mut proxy,
+        &emirates_cart_id,
+        json!([{
+            "address": { "deliveryAddress": {
+                "firstName": "Cart", "lastName": "Buyer", "address1": "1 Example Street",
+                "city": "Dubai", "provinceCode": "ZZ", "countryCode": "AE"
+            } },
+            "validationStrategy": "STRICT"
+        }]),
+    );
+    assert_eq!(
+        emirates_invalid_zone.body["data"]["cartDeliveryAddressesAdd"]["userErrors"],
+        json!([{
+            "field": ["addresses", "0", "address", "deliveryAddress", "provinceCode"],
+            "message": "The specified country requires a zone.",
+            "code": "ADDRESS_FIELD_IS_REQUIRED"
+        }])
+    );
+    assert_eq!(
+        emirates_invalid_zone.body["data"]["cartDeliveryAddressesAdd"]["cart"]["delivery"]
+            ["addresses"],
+        json!([])
+    );
+
+    let emirates_valid = add_addresses(
+        &mut proxy,
+        &emirates_cart_id,
+        json!([{
+            "address": { "deliveryAddress": {
+                "firstName": "Cart", "lastName": "Buyer", "address1": "1 Example Street",
+                "city": "Dubai", "provinceCode": "du", "countryCode": "AE"
+            } },
+            "validationStrategy": "STRICT"
+        }]),
+    );
+    assert_eq!(
+        emirates_valid.body["data"]["cartDeliveryAddressesAdd"]["userErrors"],
+        json!([])
+    );
+    let emirates_address = &emirates_valid.body["data"]["cartDeliveryAddressesAdd"]["cart"]
+        ["delivery"]["addresses"][0]["address"];
+    assert_eq!(emirates_address["provinceCode"], json!("DU"));
+    assert_eq!(emirates_address["zip"], Value::Null);
+
+    let singapore_cart_id = create_cart(&mut proxy, "SG");
+    let singapore_valid = add_addresses(
+        &mut proxy,
+        &singapore_cart_id,
+        json!([{
+            "address": { "deliveryAddress": {
+                "lastName": "Buyer", "address1": "1 Example Street", "countryCode": "SG",
+                "zip": "018989"
+            } },
+            "validationStrategy": "STRICT"
+        }]),
+    );
+    assert_eq!(
+        singapore_valid.body["data"]["cartDeliveryAddressesAdd"]["userErrors"],
+        json!([])
+    );
+    let singapore_address = &singapore_valid.body["data"]["cartDeliveryAddressesAdd"]["cart"]
+        ["delivery"]["addresses"][0]["address"];
+    assert_eq!(singapore_address["city"], Value::Null);
+    assert_eq!(singapore_address["provinceCode"], Value::Null);
+    assert_eq!(singapore_address["zip"], json!("018989"));
+
+    let lenient_cart_id = create_cart(&mut proxy, "AU");
+    let lenient = add_addresses(
+        &mut proxy,
+        &lenient_cart_id,
+        json!([{
+            "address": { "deliveryAddress": { "countryCode": "AU" } }
+        }]),
+    );
+    assert_eq!(
+        lenient.body["data"]["cartDeliveryAddressesAdd"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        lenient.body["data"]["cartDeliveryAddressesAdd"]["cart"]["delivery"]["addresses"][0]
+            ["address"]["countryCode"],
+        json!("AU")
+    );
+
+    let australia_cart_id = create_cart(&mut proxy, "AU");
+    let australia_required = add_addresses(
+        &mut proxy,
+        &australia_cart_id,
+        json!([{
+            "address": { "deliveryAddress": { "countryCode": "AU" } },
+            "validationStrategy": "STRICT"
+        }]),
+    );
+    assert_eq!(
+        australia_required.body["data"]["cartDeliveryAddressesAdd"]["userErrors"],
+        json!([
+            { "field": ["addresses", "0", "address", "deliveryAddress", "lastName"], "message": "A last name is required in order to continue.", "code": "ADDRESS_FIELD_IS_REQUIRED" },
+            { "field": ["addresses", "0", "address", "deliveryAddress", "address1"], "message": "An address is required in order to continue.", "code": "ADDRESS_FIELD_IS_REQUIRED" },
+            { "field": ["addresses", "0", "address", "deliveryAddress", "provinceCode"], "message": "The specified country requires a zone.", "code": "ADDRESS_FIELD_IS_REQUIRED" },
+            { "field": ["addresses", "0", "address", "deliveryAddress", "zip"], "message": "Country specified requires a postal code in order to continue.", "code": "ADDRESS_FIELD_IS_REQUIRED" },
+            { "field": ["addresses", "0", "address", "deliveryAddress", "city"], "message": "A city is required in order to continue.", "code": "ADDRESS_FIELD_IS_REQUIRED" }
+        ])
+    );
+
+    let australia_postal_normalized = add_addresses(
+        &mut proxy,
+        &australia_cart_id,
+        json!([{
+            "address": { "deliveryAddress": {
+                "firstName": "Cart", "lastName": "Buyer", "address1": "1 Example Street",
+                "city": "Sydney", "provinceCode": "ZZ", "countryCode": "AU", "zip": "2000"
+            } },
+            "validationStrategy": "STRICT"
+        }]),
+    );
+    assert_eq!(
+        australia_postal_normalized.body["data"]["cartDeliveryAddressesAdd"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        australia_postal_normalized.body["data"]["cartDeliveryAddressesAdd"]["cart"]["delivery"]
+            ["addresses"][0]["address"]["provinceCode"],
+        json!("NSW")
+    );
+}
+
+#[test]
 fn storefront_cart_delivery_validates_ownership_inputs_and_stale_options() {
     let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
         .with_upstream_transport(|_| panic!("Storefront cart delivery validation must stay local"));
-    let (variant_id, location_id) = stage_storefront_cart_variant(&mut proxy, 5);
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["shop"] = json!({ "currencyCode": "USD" });
+    });
+    let (_, variant_id, location_id) = stage_storefront_cart_variant(&mut proxy, 5);
     stage_storefront_cart_delivery_profile(&mut proxy, &variant_id, &location_id);
     let create_cart = |proxy: &mut DraftProxy, country_code: &str| {
         proxy.process_request(storefront_graphql_request(
@@ -3086,7 +3568,10 @@ fn storefront_cart_delivery_recalculates_from_admin_shipping_and_address_context
         .with_upstream_transport(|_| {
             panic!("Storefront cart delivery context changes must stay local")
         });
-    let (variant_id, location_id) = stage_storefront_cart_variant(&mut proxy, 5);
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["shop"] = json!({ "currencyCode": "USD" });
+    });
+    let (_, variant_id, location_id) = stage_storefront_cart_variant(&mut proxy, 5);
     let profile = stage_storefront_cart_delivery_profile(&mut proxy, &variant_id, &location_id);
     let create = proxy.process_request(storefront_graphql_request(
         r#"mutation CreateDeliveryContextCart($input: CartInput) { cartCreate(input: $input) { cart { id } userErrors { field message code } warnings { code message target } } }"#,
@@ -5546,7 +6031,7 @@ fn storefront_shop_metafields_use_staged_shop_owner_without_hydration() {
     );
     stage_metafields_set(
         &mut proxy,
-        "gid://shopify/Shop/storefront-metafields-no-hydrate",
+        "gid://shopify/Shop/storefront-metafields-no-hydrate?shopify-draft-proxy=synthetic",
         json!([
             {
                 "namespace": "custom",
@@ -7252,6 +7737,309 @@ fn storefront_node_and_nodes_dispatch_supported_visible_types_and_preserve_slots
 }
 
 #[test]
+fn storefront_node_hydrates_an_unrelated_id_after_local_product_discovery() {
+    let observed_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let observed_for_proxy = Arc::clone(&observed_requests);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        observed_for_proxy.lock().unwrap().push(request);
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "node": {
+                        "__typename": "Page",
+                        "id": "gid://shopify/Page/upstream-unrelated",
+                        "handle": "upstream-unrelated",
+                        "title": "Upstream unrelated page"
+                    }
+                }
+            }),
+        }
+    });
+
+    let staged = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageUnrelatedProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id title }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "Local discovery product" } }),
+    ));
+    assert_eq!(staged.status, 200, "{}", staged.body);
+    assert_eq!(
+        staged.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let staged_content = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageOtherDiscoveryState(
+          $collection: CollectionInput!
+          $page: PageCreateInput!
+        ) {
+          collectionCreate(input: $collection) {
+            collection { id title }
+            userErrors { field message }
+          }
+          pageCreate(page: $page) {
+            page { id title }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "collection": { "title": "Local discovery collection" },
+            "page": { "title": "Local discovery page", "isPublished": true }
+        }),
+    ));
+    assert_eq!(staged_content.status, 200, "{}", staged_content.body);
+    assert_eq!(
+        staged_content.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        staged_content.body["data"]["pageCreate"]["userErrors"],
+        json!([])
+    );
+
+    let response = proxy.process_request(storefront_graphql_request(
+        r#"
+        query UnrelatedStorefrontNode($id: ID!) {
+          node(id: $id) {
+            __typename
+            id
+            ... on Page { handle title }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Page/upstream-unrelated" }),
+    ));
+
+    assert_eq!(response.status, 200, "{}", response.body);
+    assert_eq!(response.body["errors"], Value::Null, "{}", response.body);
+    assert_eq!(
+        response.body["data"]["node"],
+        json!({
+            "__typename": "Page",
+            "id": "gid://shopify/Page/upstream-unrelated",
+            "handle": "upstream-unrelated",
+            "title": "Upstream unrelated page"
+        })
+    );
+    assert_eq!(observed_requests.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn storefront_nodes_merge_each_id_and_reuse_one_upstream_request() {
+    let publication_id = "gid://shopify/Publication/storefront-node-overlay";
+    let observed_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let observed_for_proxy = Arc::clone(&observed_requests);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        observed_for_proxy.lock().unwrap().push(request);
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "single": {
+                        "__typename": "Page",
+                        "id": "gid://shopify/Page/upstream-mixed",
+                        "handle": "upstream-mixed",
+                        "title": "Upstream mixed page"
+                    },
+                    "mixed": [
+                        null,
+                        {
+                            "__typename": "Page",
+                            "id": "gid://shopify/Page/upstream-mixed",
+                            "handle": "upstream-mixed",
+                            "title": "Upstream mixed page"
+                        },
+                        {
+                            "__typename": "Menu",
+                            "id": "gid://shopify/Menu/upstream-mixed",
+                            "handle": "upstream-mixed-menu",
+                            "title": "Upstream mixed menu"
+                        },
+                        null,
+                        {
+                            "__typename": "Collection",
+                            "id": "gid://shopify/Collection/upstream-mixed",
+                            "handle": "upstream-mixed-collection",
+                            "title": "Upstream mixed collection"
+                        },
+                        {
+                            "__typename": "Page",
+                            "id": "gid://shopify/Page/upstream-mixed",
+                            "handle": "upstream-mixed",
+                            "title": "Upstream mixed page"
+                        }
+                    ]
+                }
+            }),
+        }
+    });
+    restore_storefront_current_publication(&mut proxy, publication_id);
+
+    let staged = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageMixedNodeProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id title }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "Local mixed-node product" } }),
+    ));
+    let product_id = staged.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    publish_to_current_storefront_channel(&mut proxy, &product_id);
+
+    let response = proxy.process_request(storefront_graphql_request(
+        r#"
+        query MixedStorefrontNodes($pageId: ID!, $ids: [ID!]!) {
+          single: node(id: $pageId) {
+            __typename
+            id
+            ... on Page { handle title }
+          }
+          mixed: nodes(ids: $ids) {
+            __typename
+            id
+            ... on Product { title }
+            ... on Page { handle title }
+            ... on Menu { handle title }
+            ... on Collection { handle title }
+          }
+        }
+        "#,
+        json!({
+            "pageId": "gid://shopify/Page/upstream-mixed",
+            "ids": [
+                product_id,
+                "gid://shopify/Page/upstream-mixed",
+                "gid://shopify/Menu/upstream-mixed",
+                "gid://shopify/Page/upstream-missing",
+                "gid://shopify/Collection/upstream-mixed",
+                "gid://shopify/Page/upstream-mixed"
+            ]
+        }),
+    ));
+
+    assert_eq!(response.status, 200, "{}", response.body);
+    assert_eq!(response.body["errors"], Value::Null, "{}", response.body);
+    assert_eq!(
+        response.body["data"]["single"]["title"],
+        json!("Upstream mixed page")
+    );
+    let nodes = response.body["data"]["mixed"].as_array().unwrap();
+    assert_eq!(nodes.len(), 6);
+    assert_eq!(nodes[0]["title"], json!("Local mixed-node product"));
+    assert_eq!(nodes[1]["title"], json!("Upstream mixed page"));
+    assert_eq!(nodes[2]["title"], json!("Upstream mixed menu"));
+    assert_eq!(nodes[3], Value::Null);
+    assert_eq!(nodes[4]["title"], json!("Upstream mixed collection"));
+    assert_eq!(nodes[5], nodes[1]);
+    assert_eq!(observed_requests.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn storefront_nodes_overlay_tombstones_while_hydrating_other_ids() {
+    let deleted_product_id = "gid://shopify/Product/storefront-node-deleted";
+    let upstream_page_id = "gid://shopify/Page/storefront-node-upstream";
+    let observed_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let observed_for_proxy = Arc::clone(&observed_requests);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(UnsupportedMutationMode::Passthrough),
+    )
+    .with_base_products(vec![storefront_product_fixture(
+        deleted_product_id,
+        "Deleted Node product",
+        "deleted-node-product",
+        None,
+    )])
+    .with_upstream_transport(move |request| {
+        observed_for_proxy.lock().unwrap().push(request);
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "mixed": [
+                        {
+                            "__typename": "Product",
+                            "id": deleted_product_id,
+                            "title": "Upstream must not resurrect this product"
+                        },
+                        {
+                            "__typename": "Page",
+                            "id": upstream_page_id,
+                            "handle": "storefront-node-upstream",
+                            "title": "Hydrated upstream Page"
+                        }
+                    ]
+                }
+            }),
+        }
+    });
+
+    let deleted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteStorefrontNodeProduct($input: ProductDeleteInput!) {
+          productDelete(input: $input) {
+            deletedProductId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": deleted_product_id } }),
+    ));
+    assert_eq!(deleted.status, 200, "{}", deleted.body);
+    assert_eq!(
+        deleted.body["data"]["productDelete"]["userErrors"],
+        json!([])
+    );
+
+    let response = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontNodeTombstoneOverlay($ids: [ID!]!) {
+          mixed: nodes(ids: $ids) {
+            __typename
+            id
+            ... on Product { title }
+            ... on Page { handle title }
+          }
+        }
+        "#,
+        json!({ "ids": [deleted_product_id, upstream_page_id] }),
+    ));
+
+    assert_eq!(response.status, 200, "{}", response.body);
+    assert_eq!(response.body["errors"], Value::Null, "{}", response.body);
+    assert_eq!(response.body["data"]["mixed"][0], Value::Null);
+    assert_eq!(
+        response.body["data"]["mixed"][1]["title"],
+        json!("Hydrated upstream Page")
+    );
+    assert_eq!(observed_requests.lock().unwrap().len(), 1);
+}
+
+#[test]
 fn storefront_discovery_rejects_malformed_global_ids_like_shopify() {
     let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
         .with_upstream_transport(|_| panic!("invalid snapshot node must not call upstream"));
@@ -7273,13 +8061,29 @@ fn storefront_discovery_rejects_malformed_global_ids_like_shopify() {
 }
 
 #[test]
-fn storefront_discovery_parity_document_with_operation_name_stays_local() {
+fn storefront_discovery_parity_document_hydrates_only_unresolved_nodes() {
     let publication_id = "gid://shopify/Publication/storefront-discovery-parity-document";
+    let observed_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let observed_for_proxy = Arc::clone(&observed_requests);
     let mut proxy = configured_proxy(
         ReadMode::LiveHybrid,
         Some(UnsupportedMutationMode::Passthrough),
     )
-    .with_upstream_transport(|_| panic!("staged Storefront discovery must stay local"));
+    .with_upstream_transport(move |request| {
+        observed_for_proxy.lock().unwrap().push(request);
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "aliasedNodes": [null, null, null, null, null, null]
+                }
+            }),
+        }
+    });
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["shop"] = json!({ "currencyCode": "USD" });
+    });
     restore_storefront_current_publication(&mut proxy, publication_id);
     let fixture = stage_storefront_discovery_fixture(&mut proxy);
     let document =
@@ -7316,6 +8120,7 @@ fn storefront_discovery_parity_document_with_operation_name_stays_local() {
     assert_eq!(response.body["data"]["mixed"]["totalCount"], json!(1));
     assert_eq!(response.body["data"]["prefixLast"]["totalCount"], json!(3));
     assert_eq!(response.body["data"]["aliasedNodes"][1], Value::Null);
+    assert_eq!(observed_requests.lock().unwrap().len(), 1);
 }
 
 #[test]
@@ -7393,6 +8198,15 @@ fn storefront_search_and_predictive_search_use_effective_visible_state() {
         first.body["data"]["search"]["pageInfo"]["hasNextPage"],
         json!(true)
     );
+    assert_eq!(
+        first.body["data"]["search"]["productFilters"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|filter| filter["id"].clone())
+            .collect::<Vec<_>>(),
+        vec![json!("filter.v.availability"), json!("filter.v.price")]
+    );
     assert_eq!(first.body["data"]["explicitTypes"]["totalCount"], json!(1));
     assert_eq!(
         first.body["data"]["explicitTypes"]["nodes"][0]["__typename"],
@@ -7467,6 +8281,10 @@ fn storefront_search_and_predictive_search_use_effective_visible_state() {
     let hidden = proxy.process_request(storefront_graphql_request(query, json!({ "after": null })));
     assert_eq!(hidden.body["data"]["search"]["totalCount"], json!(0));
     assert_eq!(hidden.body["data"]["search"]["nodes"], json!([]));
+    assert_eq!(
+        hidden.body["data"]["search"]["productFilters"][0]["id"],
+        json!("filter.v.price")
+    );
     assert_eq!(hidden.body["data"]["predictive"]["products"], json!([]));
     assert_eq!(hidden.body["data"]["predictive"]["collections"], json!([]));
     assert_eq!(hidden.body["data"]["predictive"]["articles"], json!([]));

@@ -1,0 +1,30 @@
+query ProductOptionsHydrateNodes($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    ... on Product {
+      id
+      title
+      handle
+      status
+      options {
+        id
+        name
+        position
+        optionValues {
+          id
+          name
+          hasVariants
+        }
+      }
+      variants(first: 100) {
+        nodes {
+          id
+          title
+          selectedOptions {
+            name
+            value
+          }
+        }
+      }
+    }
+  }
+}

@@ -1663,7 +1663,7 @@ impl DraftProxy {
 
         let delivery_address =
             resolved_object_field(&address, "deliveryAddress").unwrap_or_default();
-        let fields = StorefrontCartDeliveryAddressFields {
+        let mut fields = StorefrontCartDeliveryAddressFields {
             first_name: normalized_cart_address_field(&delivery_address, "firstName"),
             last_name: normalized_cart_address_field(&delivery_address, "lastName"),
             company: normalized_cart_address_field(&delivery_address, "company"),
@@ -1694,36 +1694,37 @@ impl DraftProxy {
             return Ok(fields);
         }
 
+        let country_code = fields.country_code.as_deref().unwrap_or_default();
+        let requirements = country_address_requirements(country_code);
+        if requirements.province {
+            fields.province_code = normalize_strict_address_province_code(
+                country_code,
+                fields.province_code.as_deref(),
+                fields.zip.as_deref(),
+            );
+        }
+
         let mut errors = Vec::new();
         for (name, missing, message) in [
             (
                 "lastName",
-                fields.last_name.is_none(),
+                requirements.last_name && fields.last_name.is_none(),
                 "A last name is required in order to continue.",
             ),
             (
                 "address1",
-                fields.address1.is_none(),
+                requirements.address1 && fields.address1.is_none(),
                 "An address is required in order to continue.",
             ),
             (
                 "provinceCode",
-                fields.province_code.is_none()
-                    && fields
-                        .country_code
-                        .as_deref()
-                        .is_some_and(|code| matches!(code, "US" | "CA")),
+                requirements.province && fields.province_code.is_none(),
                 "The specified country requires a zone.",
             ),
             (
                 "zip",
-                fields.zip.is_none(),
+                requirements.postal_code && fields.zip.is_none(),
                 "Country specified requires a postal code in order to continue.",
-            ),
-            (
-                "city",
-                fields.city.is_none(),
-                "A city is required in order to continue.",
             ),
         ] {
             if missing {
@@ -1739,6 +1740,44 @@ impl DraftProxy {
                     "ADDRESS_FIELD_IS_REQUIRED",
                 ));
             }
+        }
+        if requirements.support == CountryAddressSupport::Missing {
+            errors.push(cart_user_error(
+                [
+                    "addresses",
+                    &index.to_string(),
+                    "address",
+                    "deliveryAddress",
+                    "countryCode",
+                ],
+                "A country is required in order to continue.",
+                "ADDRESS_FIELD_IS_REQUIRED",
+            ));
+        }
+        if requirements.city && fields.city.is_none() {
+            errors.push(cart_user_error(
+                [
+                    "addresses",
+                    &index.to_string(),
+                    "address",
+                    "deliveryAddress",
+                    "city",
+                ],
+                "A city is required in order to continue.",
+                "ADDRESS_FIELD_IS_REQUIRED",
+            ));
+        }
+        if requirements.support == CountryAddressSupport::Unsupported {
+            errors.push(cart_user_error(
+                [
+                    "addresses",
+                    &index.to_string(),
+                    "address",
+                    "deliveryAddress",
+                ],
+                "Country is not supported",
+                "UNSPECIFIED_ADDRESS_ERROR",
+            ));
         }
         if errors.is_empty() {
             Ok(fields)
@@ -2040,9 +2079,9 @@ impl DraftProxy {
         lines: &[StorefrontCartLineRecord],
     ) -> String {
         let context = self.storefront_cart_context(cart);
-        lines
+        let currencies = lines
             .iter()
-            .find_map(|line| {
+            .filter_map(|line| {
                 self.store
                     .product_variant_by_id(&line.merchandise_id)
                     .map(|variant| {
@@ -2051,7 +2090,15 @@ impl DraftProxy {
                     })
             })
             .filter(|currency| !currency.is_empty())
-            .unwrap_or_else(|| self.storefront_currency_code())
+            .collect::<BTreeSet<_>>();
+        if currencies.len() > 1 {
+            return String::new();
+        }
+        currencies
+            .into_iter()
+            .next()
+            .or_else(|| self.storefront_currency_code(&context))
+            .unwrap_or_default()
     }
 
     fn storefront_cart_lines_subtotal(
@@ -2308,18 +2355,7 @@ impl DraftProxy {
         lines: &[StorefrontCartLineRecord],
     ) -> StorefrontCartCalculation {
         let context = self.storefront_cart_context(cart);
-        let currency_code = lines
-            .iter()
-            .find_map(|line| {
-                self.store
-                    .product_variant_by_id(&line.merchandise_id)
-                    .map(|variant| {
-                        self.storefront_variant_pricing(variant, &context)
-                            .currency_code
-                    })
-            })
-            .filter(|currency| !currency.is_empty())
-            .unwrap_or_else(|| self.storefront_currency_code());
+        let currency_code = self.storefront_cart_currency_code(cart, lines);
         let subtotal = lines
             .iter()
             .filter_map(|line| {
@@ -2670,11 +2706,8 @@ impl DraftProxy {
         let product = variant.and_then(|variant| self.store.product_by_id(&variant.product_id));
         let context = self.storefront_cart_context(cart);
         let pricing = variant.map(|variant| self.storefront_variant_pricing(variant, &context));
-        let currency_code = pricing
-            .as_ref()
-            .map(|pricing| pricing.currency_code.clone())
-            .filter(|currency| !currency.is_empty())
-            .unwrap_or_else(|| self.storefront_currency_code());
+        let lines = self.storefront_cart_lines(&cart.internal_id);
+        let currency_code = self.storefront_cart_currency_code(cart, &lines);
         let line_total = pricing
             .as_ref()
             .and_then(|pricing| pricing.price.parse::<f64>().ok())
@@ -3305,6 +3338,9 @@ fn storefront_cart_input_limit_outcome(
 }
 
 fn storefront_money_value(amount: f64, currency_code: &str) -> Value {
+    if currency_code.is_empty() {
+        return Value::Null;
+    }
     json!({
         "amount": format_money_amount(amount),
         "currencyCode": currency_code

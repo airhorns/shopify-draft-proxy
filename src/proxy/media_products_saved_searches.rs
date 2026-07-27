@@ -17,7 +17,7 @@ const TAGGABLE_ORDER_HYDRATE_QUERY: &str =
 const TAGGABLE_DRAFT_ORDER_HYDRATE_QUERY: &str =
     "query OrdersDraftOrderHydrate($id: ID!) {\n  draftOrder(id: $id) { id name tags }\n}";
 const TAGGABLE_CUSTOMER_HYDRATE_QUERY: &str =
-    include_str!("../../config/parity-requests/customers/taggable-customer-hydrate.graphql");
+    include_str!("../runtime_graphql/customers/taggable-customer-hydrate.graphql.raw");
 const TAGGABLE_ARTICLE_HYDRATE_QUERY: &str = "query TagsArticleHydrate($id: ID!) {\n  article(id: $id) {\n    __typename\n    id\n    title\n    handle\n    tags\n    createdAt\n    updatedAt\n    blog { id }\n  }\n}";
 const TAGGABLE_PRODUCT_HYDRATE_QUERY: &str = "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      availablePublicationsCount { count precision }\n      resourcePublicationsCount { count precision }\n      resourcePublicationsV2(first: 10) { nodes { publication { id } publishDate isPublished } }\n      publications(first: 10) { nodes { isPublished publishDate product { id } } }\n    }\n  }\n}";
 const PRODUCT_VARIANTS_BULK_CREATE_INVENTORY_QUANTITIES_LIMIT: usize = 50_000;
@@ -222,6 +222,16 @@ impl DraftProxy {
                 return ResolverOutcome::value(product_create_payload_value(None, vec![error]));
             }
         };
+        let category = match self.product_category_for_mutation_input(
+            request,
+            &input,
+            invocation.response_key,
+            invocation.root_location,
+        ) {
+            Ok(category) => category,
+            Err(outcome) => return outcome,
+        };
+
         let id = self.next_proxy_synthetic_gid("Product");
         let status =
             resolved_string_field(&input, "status").unwrap_or_else(|| "ACTIVE".to_string());
@@ -275,26 +285,12 @@ impl DraftProxy {
                 .extra_fields
                 .insert("giftCardTemplateSuffix".to_string(), json!(suffix));
         }
-        // Shopify resolves the input `category` taxonomy GID into a `{id, fullName}`
-        // object on the created product, surfaced through both the mutation payload and
-        // downstream reads.
-        if let Some(category_id) = product_category_input_id(&input) {
-            match self.product_category_value_for_input(request, &category_id) {
-                Some(category) => {
-                    product
-                        .extra_fields
-                        .insert("category".to_string(), category);
-                }
-                None => {
-                    return graphql_error_outcome(
-                        vec![invalid_product_taxonomy_node_id_error(
-                            invocation.response_key,
-                            invocation.root_location,
-                        )],
-                        invocation.response_key,
-                    );
-                }
-            }
+        // Shopify resolves the input taxonomy GID before product identity or related
+        // resources are allocated. Only authoritative category metadata reaches state.
+        if let Some(category) = category {
+            product
+                .extra_fields
+                .insert("category".to_string(), category);
         }
 
         // `productCreate` always materializes at least one variant. With `productOptions`,
@@ -519,13 +515,23 @@ impl DraftProxy {
         let Some(id) = resolved_string_field(&input, "id") else {
             return ResolverOutcome::value(product_update_missing_payload_value());
         };
-        if self.store.product_by_id(&id).is_none() && self.config.read_mode == ReadMode::LiveHybrid
+        let mutation_hydration_complete = self.ensure_product_mutation_hydrated(request, &id);
+        if !mutation_hydration_complete
+            && self.config.read_mode == ReadMode::LiveHybrid
+            && self.store.product_by_id(&id).is_none()
         {
             self.hydrate_product_nodes_for_observation_with_request(request, vec![id.clone()]);
+        }
+        if !mutation_hydration_complete
+            && self.config.read_mode == ReadMode::LiveHybrid
+            && self.store.product_by_id(&id).is_none()
+        {
+            return ResolverOutcome::value(product_update_missing_payload_value());
         }
         let Some(existing) = self.store.product_staged_or_base(&id) else {
             return ResolverOutcome::value(product_update_missing_payload_value());
         };
+        self.remember_product_catalog_base_record(&existing);
 
         if input.contains_key("title")
             && resolved_string_field(&input, "title")
@@ -557,6 +563,12 @@ impl DraftProxy {
         }
 
         let top_level_media_inputs = product_top_level_media_inputs(&arguments);
+        if !mutation_hydration_complete
+            && self.config.read_mode == ReadMode::LiveHybrid
+            && top_level_media_inputs.is_some()
+        {
+            return ResolverOutcome::value(product_update_missing_payload_value());
+        }
         if let Some(media_inputs) = top_level_media_inputs.as_ref() {
             let media_errors = product_top_level_media_user_errors(media_inputs);
             if !media_errors.is_empty() {
@@ -576,22 +588,40 @@ impl DraftProxy {
             Err(error) => return self.product_update_field_user_error(&existing, error),
         };
 
+        let category = match self.product_category_for_mutation_input(
+            request,
+            &input,
+            invocation.response_key,
+            invocation.root_location,
+        ) {
+            Ok(category) => category,
+            Err(outcome) => return outcome,
+        };
+
         let mut extra_fields = existing.extra_fields;
-        if let Some(category_id) = product_category_input_id(&input) {
-            match self.product_category_value_for_input(request, &category_id) {
-                Some(category) => {
-                    extra_fields.insert("category".to_string(), category);
-                }
-                None => {
-                    return graphql_error_outcome(
-                        vec![invalid_product_taxonomy_node_id_error(
-                            invocation.response_key,
-                            invocation.root_location,
-                        )],
-                        invocation.response_key,
-                    );
+        if let Some(seo_input) = resolved_object_field(&input, "seo") {
+            let mut seo = extra_fields
+                .get("seo")
+                .and_then(Value::as_object)
+                .cloned()
+                .unwrap_or_else(|| {
+                    serde_json::Map::from_iter([
+                        ("title".to_string(), json!(existing.seo_title.clone())),
+                        (
+                            "description".to_string(),
+                            json!(existing.seo_description.clone()),
+                        ),
+                    ])
+                });
+            for field in ["title", "description"] {
+                if let Some(value) = seo_input.get(field) {
+                    seo.insert(field.to_string(), resolved_value_json(value));
                 }
             }
+            extra_fields.insert("seo".to_string(), Value::Object(seo));
+        }
+        if let Some(category) = category {
+            extra_fields.insert("category".to_string(), category);
         }
 
         let media_append = top_level_media_inputs
@@ -603,7 +633,7 @@ impl DraftProxy {
         let mut response_media = existing.media.clone();
         response_media.extend(media_append.mutation_nodes);
 
-        let product = ProductRecord {
+        let mut product = ProductRecord {
             id: existing.id,
             created_at: existing.created_at,
             updated_at: self.next_product_updated_at(&existing.updated_at),
@@ -633,6 +663,29 @@ impl DraftProxy {
             collections: existing.collections,
             extra_fields,
         };
+        let mut staged_fields = vec!["updatedAt"];
+        for field in [
+            "title",
+            "handle",
+            "status",
+            "descriptionHtml",
+            "vendor",
+            "productType",
+            "tags",
+            "templateSuffix",
+            "seo",
+        ] {
+            if input.contains_key(field) {
+                staged_fields.push(field);
+            }
+        }
+        if product_category_input_id(&input).is_some() {
+            staged_fields.push("category");
+        }
+        if top_level_media_inputs.is_some() {
+            staged_fields.push("media");
+        }
+        mark_product_staged_fields(&mut product, &staged_fields);
         self.store.stage_product(product.clone());
         let mut response_product = product.clone();
         response_product.media = response_media;
@@ -674,20 +727,6 @@ impl DraftProxy {
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
-        if self.config.read_mode == ReadMode::Snapshot
-            && matches!(
-                invocation.root_name,
-                "productVariantAppendMedia" | "productVariantDetachMedia"
-            )
-        {
-            return resolver_http_error_outcome(
-                400,
-                format!(
-                    "No mutation dispatcher implemented for root field: {}",
-                    invocation.root_name
-                ),
-            );
-        }
         let request = invocation.request;
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         match invocation.root_name {
@@ -1461,9 +1500,8 @@ impl DraftProxy {
     ) -> ResolverOutcome<Value> {
         let product_id = resolved_string_field(arguments, "productId").unwrap_or_default();
         let variant_ids = resolved_string_list_arg(arguments, "variantsIds");
-        // Hydrate the product together with the variants being deleted so a cold
-        // backend stages both before applying the delete, matching the node
-        // hydration recorded during capture.
+        // Hydrate the complete product catalog before applying the delete so a
+        // cold backend preserves every surviving variant and omitted product field.
         let Some(product) = self
             .product_for_bulk_variant_mutation_with_variant_ids(request, &product_id, &variant_ids)
             .cloned()
@@ -1688,19 +1726,10 @@ impl DraftProxy {
         &mut self,
         request: &Request,
         product_id: &str,
-        variant_ids: &[String],
+        _variant_ids: &[String],
     ) -> Option<&ProductRecord> {
-        if self.store.product_by_id(product_id).is_none()
-            && self.config.read_mode == ReadMode::LiveHybrid
-        {
-            let mut hydrate_ids = vec![product_id.to_string()];
-            hydrate_ids.extend(variant_ids.iter().cloned());
-            if hydrate_ids.len() > 1 {
-                let mut tail = hydrate_ids.split_off(1);
-                tail.sort();
-                hydrate_ids.extend(tail);
-            }
-            self.hydrate_product_nodes_for_observation_with_request(request, hydrate_ids);
+        if !self.ensure_product_mutation_hydrated(request, product_id) {
+            return None;
         }
         self.store.product_by_id(product_id)
     }
@@ -2017,6 +2046,9 @@ impl DraftProxy {
         }
         if !self.store.has_product(&id) {
             return ResolverOutcome::value(product_delete_missing_payload_value());
+        }
+        if let Some(existing) = self.store.product_by_id(&id).cloned() {
+            self.remember_product_catalog_base_record(&existing);
         }
 
         if is_async_delete {

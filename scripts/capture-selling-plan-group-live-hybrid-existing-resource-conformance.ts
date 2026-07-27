@@ -82,62 +82,8 @@ query sellingPlanGroupHydrateNodes($ids: [ID!]!) {
       options
       position
       createdAt
-      products(first: 250) {
-        edges {
-          cursor
-          node {
-          __typename
-          id
-          title
-          handle
-          status
-          createdAt
-          updatedAt
-          variants(first: 50) {
-            edges {
-              cursor
-              node {
-              __typename
-              id
-              title
-              sku
-              barcode
-              price
-              compareAtPrice
-              taxable
-              inventoryPolicy
-              inventoryQuantity
-              selectedOptions { name value }
-              inventoryItem { id tracked requiresShipping }
-              }
-            }
-            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
-          }
-          }
-        }
-        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
-      }
-      productVariants(first: 250) {
-        edges {
-          cursor
-          node {
-          __typename
-          id
-          title
-          sku
-          barcode
-          price
-          compareAtPrice
-          taxable
-          inventoryPolicy
-          inventoryQuantity
-          selectedOptions { name value }
-          inventoryItem { id tracked requiresShipping }
-          product { id title handle status createdAt updatedAt }
-          }
-        }
-        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
-      }
+      productsCount { count precision }
+      productVariantsCount { count precision }
       sellingPlans(first: 250) {
         edges {
           cursor
@@ -185,6 +131,86 @@ query sellingPlanGroupHydrateNodes($ids: [ID!]!) {
         pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
       }
     }
+  }
+}
+`;
+
+const sellingPlanGroupProductMembershipProbeQuery =
+  'query SellingPlanGroupProductMembershipProbe($groupId0: ID!, $resourceId0: ID!) { probe0: sellingPlanGroup(id: $groupId0) { id membership: appliesToProduct(productId: $resourceId0) productsCount { count precision } } }';
+
+const sellingPlanGroupProductVariantMembershipProbeQuery =
+  'query SellingPlanGroupProductVariantMembershipProbe($groupId0: ID!, $resourceId0: ID!) { probe0: sellingPlanGroup(id: $groupId0) { id membership: appliesToProductVariant(productVariantId: $resourceId0) productVariantsCount { count precision } } }';
+
+const sellingPlanGroupProductsWindowQuery = `
+query SellingPlanGroupProductsWindow(
+  $id: ID!
+  $first: Int
+  $after: String
+  $last: Int
+  $before: String
+  $reverse: Boolean!
+) {
+  sellingPlanGroup(id: $id) {
+    products(first: $first, after: $after, last: $last, before: $before, reverse: $reverse) {
+      edges {
+        cursor
+        node {
+          __typename
+          id
+          title
+          handle
+          status
+          createdAt
+          updatedAt
+        }
+      }
+      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+    }
+    productsCount { count precision }
+  }
+}
+`;
+
+const sellingPlanGroupProductVariantsWindowQuery = `
+query SellingPlanGroupProductVariantsWindow(
+  $id: ID!
+  $productId: ID
+  $first: Int
+  $after: String
+  $last: Int
+  $before: String
+  $reverse: Boolean!
+) {
+  sellingPlanGroup(id: $id) {
+    productVariants(
+      productId: $productId
+      first: $first
+      after: $after
+      last: $last
+      before: $before
+      reverse: $reverse
+    ) {
+      edges {
+        cursor
+        node {
+          __typename
+          id
+          title
+          sku
+          barcode
+          price
+          compareAtPrice
+          taxable
+          inventoryPolicy
+          inventoryQuantity
+          selectedOptions { name value }
+          inventoryItem { id tracked requiresShipping }
+          product { id title handle status createdAt updatedAt }
+        }
+      }
+      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+    }
+    productVariantsCount(productId: $productId) { count precision }
   }
 }
 `;
@@ -319,6 +345,49 @@ try {
     },
   );
 
+  scenarios['productMembershipBeforeLocalReplay'] = await runScenario(
+    'productMembershipBeforeLocalReplay',
+    sellingPlanGroupProductMembershipProbeQuery,
+    {
+      groupId0: groupId,
+      resourceId0: productId,
+    },
+  );
+  scenarios['variantMembershipBeforeLocalReplay'] = await runScenario(
+    'variantMembershipBeforeLocalReplay',
+    sellingPlanGroupProductVariantMembershipProbeQuery,
+    {
+      groupId0: groupId,
+      resourceId0: variantId,
+    },
+  );
+  scenarios['productWindowBeforeLocalReplay'] = await runScenario(
+    'productWindowBeforeLocalReplay',
+    sellingPlanGroupProductsWindowQuery,
+    {
+      id: groupId,
+      productId: null,
+      first: 5,
+      after: null,
+      last: null,
+      before: null,
+      reverse: false,
+    },
+  );
+  scenarios['variantWindowBeforeLocalReplay'] = await runScenario(
+    'variantWindowBeforeLocalReplay',
+    sellingPlanGroupProductVariantsWindowQuery,
+    {
+      id: groupId,
+      productId: null,
+      first: 5,
+      after: null,
+      last: null,
+      before: null,
+      reverse: false,
+    },
+  );
+
   scenarios['updateExistingGroup'] = await runScenario('updateExistingGroup', updateGroupMutation, {
     id: groupId,
     productId,
@@ -380,7 +449,7 @@ await capture.writeJson(outputPath, {
       planId,
     },
     notes: [
-      'The proxy starts cold in parity replay; the group/product/variant context comes only from the recorded sellingPlanGroupHydrateNodes upstreamCalls entry.',
+      'The proxy starts cold in parity replay; group scalars/counts, relationship memberships/windows, and the downstream mixed Product/ProductVariant read come from their exact recorded upstreamCalls entries.',
       'The update target uses isolatedProxy so a pre-fix proxy would forward the caller mutation upstream instead of hydrating and staging locally.',
     ],
   },
@@ -388,12 +457,66 @@ await capture.writeJson(outputPath, {
   cleanup,
   upstreamCalls: [
     {
+      operationName: 'ReadSellingPlanGroup',
+      variables: scenarios['coldGroupRead'].variables,
+      query: readGroupQuery,
+      response: {
+        status: scenarios['coldGroupRead'].status,
+        body: scenarios['coldGroupRead'].response,
+      },
+    },
+    {
       operationName: 'sellingPlanGroupHydrateNodes',
       variables: { ids: [groupId] },
       query: sellingPlanGroupHydrateNodesQuery,
       response: {
         status: scenarios['hydrateBeforeLocalReplay'].status,
         body: scenarios['hydrateBeforeLocalReplay'].response,
+      },
+    },
+    {
+      operationName: 'SellingPlanGroupProductMembershipProbe',
+      variables: scenarios['productMembershipBeforeLocalReplay'].variables,
+      query: sellingPlanGroupProductMembershipProbeQuery,
+      response: {
+        status: scenarios['productMembershipBeforeLocalReplay'].status,
+        body: scenarios['productMembershipBeforeLocalReplay'].response,
+      },
+    },
+    {
+      operationName: 'SellingPlanGroupProductVariantMembershipProbe',
+      variables: scenarios['variantMembershipBeforeLocalReplay'].variables,
+      query: sellingPlanGroupProductVariantMembershipProbeQuery,
+      response: {
+        status: scenarios['variantMembershipBeforeLocalReplay'].status,
+        body: scenarios['variantMembershipBeforeLocalReplay'].response,
+      },
+    },
+    {
+      operationName: 'SellingPlanGroupProductsWindow',
+      variables: scenarios['productWindowBeforeLocalReplay'].variables,
+      query: sellingPlanGroupProductsWindowQuery,
+      response: {
+        status: scenarios['productWindowBeforeLocalReplay'].status,
+        body: scenarios['productWindowBeforeLocalReplay'].response,
+      },
+    },
+    {
+      operationName: 'SellingPlanGroupProductVariantsWindow',
+      variables: scenarios['variantWindowBeforeLocalReplay'].variables,
+      query: sellingPlanGroupProductVariantsWindowQuery,
+      response: {
+        status: scenarios['variantWindowBeforeLocalReplay'].status,
+        body: scenarios['variantWindowBeforeLocalReplay'].response,
+      },
+    },
+    {
+      operationName: 'DownstreamSellingPlanRead',
+      variables: scenarios['downstreamAfterUpdate'].variables,
+      query: downstreamReadQuery,
+      response: {
+        status: scenarios['downstreamAfterUpdate'].status,
+        body: scenarios['downstreamAfterUpdate'].response,
       },
     },
   ],

@@ -17,6 +17,16 @@ type CaptureEntry = {
   };
 };
 
+type RecordedUpstreamCall = {
+  operationName: string;
+  variables: Record<string, unknown>;
+  query: string;
+  response: {
+    status: number;
+    body: unknown;
+  };
+};
+
 type JsonRecord = Record<string, unknown>;
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
@@ -103,6 +113,9 @@ const productDeleteDocument = `mutation ProductCategoryValidationCleanup($input:
 }
 `;
 
+const taxonomyCategoryHydrateQuery =
+  'query ProductTaxonomyCategoryHydrate($id: ID!) { node(id: $id) { __typename id ... on TaxonomyCategory { name fullName isLeaf level parentId } } }';
+
 function readPath(value: unknown, parts: string[]): unknown {
   let current = value;
   for (const part of parts) {
@@ -136,6 +149,24 @@ async function capture(query: string, variables: Record<string, unknown>): Promi
   };
 }
 
+async function captureUnknownCategoryLookup(id: string): Promise<RecordedUpstreamCall> {
+  const lookup = await capture(taxonomyCategoryHydrateQuery, { id });
+  const errors = readPath(lookup.response.payload, ['errors']);
+  const node = readPath(lookup.response.payload, ['data', 'node']);
+  if (lookup.response.status !== 200 || (Array.isArray(errors) && errors.length > 0) || node !== null) {
+    throw new Error(`Expected an authoritative null taxonomy node for ${id}: ${JSON.stringify(lookup.response)}`);
+  }
+  return {
+    operationName: 'ProductTaxonomyCategoryHydrate',
+    variables: { id },
+    query: taxonomyCategoryHydrateQuery,
+    response: {
+      status: lookup.response.status,
+      body: lookup.response.payload,
+    },
+  };
+}
+
 async function cleanupProduct(productId: string | null): Promise<CaptureEntry | null> {
   if (productId === null) {
     return null;
@@ -146,11 +177,18 @@ async function cleanupProduct(productId: string | null): Promise<CaptureEntry | 
 await mkdir(outputDir, { recursive: true });
 
 const runId = `${Date.now()}`;
-const unknownCategory = 'gid://shopify/TaxonomyCategory/not-a-real-node';
+// The taxonomy-shaped tail is intentional: this must prove that GID syntax does
+// not establish category existence or supply hierarchy metadata.
+const unknownCategory = 'gid://shopify/TaxonomyCategory/zz-999999999';
 let setupProductId: string | null = null;
 let productSetProductId: string | null = null;
 
 try {
+  const upstreamCalls = [
+    await captureUnknownCategoryLookup(unknownCategory),
+    await captureUnknownCategoryLookup(unknownCategory),
+    await captureUnknownCategoryLookup(unknownCategory),
+  ];
   const setup = await capture(productCreateDocument, {
     product: {
       title: `Hermes Product Category Validation Setup ${runId}`,
@@ -195,7 +233,7 @@ try {
           productUpdateUnknownCategory,
           productSetUnknownCategory,
         },
-        upstreamCalls: [],
+        upstreamCalls,
       },
       null,
       2,

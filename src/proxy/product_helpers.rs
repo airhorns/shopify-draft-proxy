@@ -1,11 +1,126 @@
 use super::*;
 use crate::graphql::ParsedDocument;
 use crate::graphql::RawArgumentValue;
+use base64::Engine as _;
 
 mod collections;
 mod product_tail;
 mod saved_search;
 mod search;
+
+const PRODUCT_LIVE_HYBRID_CATALOG_WINDOW_QUERY: &str = r#"query DraftProxyProductCatalogWindow(
+  $first: Int!
+  $after: String
+  $query: String
+  $sortKey: ProductSortKeys
+  $reverse: Boolean
+) {
+  products(first: $first, after: $after, query: $query, sortKey: $sortKey, reverse: $reverse) {
+    edges {
+      cursor
+      node {
+        id
+        legacyResourceId
+        title
+        handle
+        status
+        createdAt
+        updatedAt
+        publishedAt
+        descriptionHtml
+        vendor
+        productType
+        tags
+        templateSuffix
+        totalInventory
+        tracksInventory
+        isGiftCard
+        requiresSellingPlan
+        giftCardTemplateSuffix
+        onlineStorePreviewUrl
+        hasOnlyDefaultVariant
+        hasOutOfStockVariants
+        totalVariants
+        seo {
+          title
+          description
+        }
+        category {
+          id
+          fullName
+        }
+        options {
+          id
+          name
+          position
+          values
+        }
+        variants(first: 25) {
+          nodes {
+            id
+            title
+            sku
+            barcode
+            price
+            compareAtPrice
+            taxable
+            inventoryPolicy
+            inventoryQuantity
+            position
+            selectedOptions {
+              name
+              value
+            }
+            inventoryItem {
+              id
+              tracked
+              requiresShipping
+            }
+          }
+        }
+        collections(first: 10) {
+          nodes {
+            id
+            title
+            handle
+          }
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}"#;
+const PRODUCT_LIVE_HYBRID_COUNT_QUERY: &str = r#"query DraftProxyProductCatalogCount($query: String) {
+  productsCount(query: $query) {
+    count
+    precision
+  }
+}"#;
+const PRODUCT_LIVE_HYBRID_SAVED_SEARCH_HYDRATE_QUERY: &str =
+    "query DraftProxyProductSavedSearchHydration($id: ID!) {\n  node(id: $id) {\n    ... on SavedSearch {\n      id\n      name\n      query\n      resourceType\n    }\n  }\n}";
+const PRODUCT_OVERLAY_CURSOR_PREFIX: &str = "draft-product-overlay:";
+
+#[derive(Clone)]
+struct ProductCatalogUpstreamCandidate {
+    product: ProductRecord,
+    cursor: String,
+}
+
+#[derive(Clone, Default)]
+struct ProductCatalogCursorState {
+    upstream_after: Option<String>,
+    consumed_staged_ids: BTreeSet<String>,
+}
+
+struct ProductCatalogMergedNode {
+    product: ProductRecord,
+    cursor_state: ProductCatalogCursorState,
+}
 
 pub(in crate::proxy) use self::collections::*;
 pub(in crate::proxy) use self::saved_search::*;
@@ -861,9 +976,12 @@ pub(in crate::proxy) fn product_field_resolver_registrations() -> Vec<FieldResol
         "requiresComponents",
         "selectedOptions",
         "sellableOnlineQuantity",
+        "showUnitPrice",
         "sku",
+        "taxCode",
         "taxable",
         "title",
+        "unitPriceMeasurement",
     ] {
         registrations.push(FieldResolverRegistration::property(
             ApiSurface::Admin,
@@ -940,6 +1058,16 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Snapshot {
             return false;
         }
+        if self.config.read_mode == ReadMode::Live {
+            return true;
+        }
+        if self.product_catalog_overlay_active()
+            && fields
+                .iter()
+                .any(|field| matches!(field.name.as_str(), "products" | "productsCount"))
+        {
+            return false;
+        }
         fields
             .iter()
             .any(|field| self.live_hybrid_product_field_needs_upstream(field))
@@ -947,7 +1075,7 @@ impl DraftProxy {
 
     fn live_hybrid_product_field_needs_upstream(&self, field: &RootFieldSelection) -> bool {
         match field.name.as_str() {
-            "products" | "productsCount" => true,
+            "products" | "productsCount" => !self.product_catalog_overlay_active(),
             "product" => {
                 let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                 id.is_empty()
@@ -973,11 +1101,453 @@ impl DraftProxy {
 }
 
 impl DraftProxy {
+    pub(in crate::proxy) fn remember_product_catalog_base_record(
+        &mut self,
+        product: &ProductRecord,
+    ) {
+        self.product_catalog_base_records
+            .entry(product.id.clone())
+            .or_insert_with(|| product.clone());
+    }
+
+    fn staged_product_catalog_ids(&self) -> BTreeSet<String> {
+        let mut ids = self
+            .product_catalog_base_records
+            .keys()
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        ids.extend(self.store.products.staged.tombstones.iter().cloned());
+        ids.extend(
+            self.store
+                .products
+                .staged
+                .records
+                .keys()
+                .filter(|id| is_synthetic_gid(id))
+                .cloned(),
+        );
+        ids
+    }
+
+    fn product_catalog_overlay_active(&self) -> bool {
+        !self.staged_product_catalog_ids().is_empty()
+    }
+
+    fn product_catalog_cursor_context(
+        arguments: &BTreeMap<String, ResolvedValue>,
+        overlay_ids: &BTreeSet<String>,
+    ) -> Value {
+        json!({
+            "query": resolved_string_field(arguments, "query"),
+            "sortKey": resolved_string_field(arguments, "sortKey"),
+            "reverse": resolved_bool_field(arguments, "reverse").unwrap_or(false),
+            "overlayIds": overlay_ids.iter().collect::<Vec<_>>(),
+        })
+    }
+
+    fn encode_product_catalog_cursor(
+        state: &ProductCatalogCursorState,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        overlay_ids: &BTreeSet<String>,
+    ) -> String {
+        let payload = json!({
+            "version": 1,
+            "context": Self::product_catalog_cursor_context(arguments, overlay_ids),
+            "upstreamAfter": state.upstream_after,
+            "consumedStagedIds": state.consumed_staged_ids.iter().collect::<Vec<_>>(),
+        });
+        format!(
+            "{PRODUCT_OVERLAY_CURSOR_PREFIX}{}",
+            base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(payload.to_string())
+        )
+    }
+
+    fn decode_product_catalog_cursor(
+        cursor: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        overlay_ids: &BTreeSet<String>,
+    ) -> Option<ProductCatalogCursorState> {
+        let encoded = cursor.strip_prefix(PRODUCT_OVERLAY_CURSOR_PREFIX)?;
+        let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(encoded)
+            .ok()?;
+        let payload: Value = serde_json::from_slice(&bytes).ok()?;
+        if payload["version"] != json!(1)
+            || payload["context"] != Self::product_catalog_cursor_context(arguments, overlay_ids)
+        {
+            return None;
+        }
+        let consumed_staged_ids = payload["consumedStagedIds"]
+            .as_array()?
+            .iter()
+            .map(|id| id.as_str().map(str::to_string))
+            .collect::<Option<BTreeSet<_>>>()?;
+        Some(ProductCatalogCursorState {
+            upstream_after: payload["upstreamAfter"].as_str().map(str::to_string),
+            consumed_staged_ids,
+        })
+    }
+
+    fn product_catalog_staged_candidates(
+        &self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        overlay_ids: &BTreeSet<String>,
+        state: &ProductCatalogCursorState,
+    ) -> Vec<ProductRecord> {
+        let query = resolved_string_field(arguments, "query");
+        let sort_key = resolved_string_field(arguments, "sortKey");
+        let reverse = resolved_bool_field(arguments, "reverse").unwrap_or(false);
+        let mut records = overlay_ids
+            .iter()
+            .filter(|id| !state.consumed_staged_ids.contains(*id))
+            .filter_map(|id| self.store.products.staged.get(id).cloned())
+            .filter(|product| {
+                self.product_search_decision(product, query.as_deref())
+                    == StagedSearchDecision::Match
+            })
+            .collect::<Vec<_>>();
+        records.sort_by(|left, right| {
+            let ordering = product_staged_sort_key(left, sort_key.as_deref())
+                .cmp(&product_staged_sort_key(right, sort_key.as_deref()));
+            if reverse {
+                ordering.reverse()
+            } else {
+                ordering
+            }
+        });
+        records
+    }
+
+    fn merge_product_catalog_candidates(
+        &self,
+        upstream: &[ProductCatalogUpstreamCandidate],
+        staged: &[ProductRecord],
+        initial_state: &ProductCatalogCursorState,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        overlay_ids: &BTreeSet<String>,
+        maximum: usize,
+    ) -> Vec<ProductCatalogMergedNode> {
+        let sort_key = resolved_string_field(arguments, "sortKey");
+        let reverse = resolved_bool_field(arguments, "reverse").unwrap_or(false);
+        let mut upstream_index = 0usize;
+        let mut staged_index = 0usize;
+        let mut state = initial_state.clone();
+        let mut merged = Vec::new();
+
+        while merged.len() < maximum
+            && (upstream_index < upstream.len() || staged_index < staged.len())
+        {
+            let take_upstream = match (upstream.get(upstream_index), staged.get(staged_index)) {
+                (Some(upstream), Some(staged)) => {
+                    let ordering = product_staged_sort_key(&upstream.product, sort_key.as_deref())
+                        .cmp(&product_staged_sort_key(staged, sort_key.as_deref()));
+                    if reverse {
+                        ordering.reverse().is_le()
+                    } else {
+                        ordering.is_le()
+                    }
+                }
+                (Some(_), None) => true,
+                (None, Some(_)) => false,
+                (None, None) => break,
+            };
+
+            if take_upstream {
+                let candidate = &upstream[upstream_index];
+                upstream_index += 1;
+                state.upstream_after = Some(candidate.cursor.clone());
+                if overlay_ids.contains(&candidate.product.id) {
+                    continue;
+                }
+                merged.push(ProductCatalogMergedNode {
+                    product: candidate.product.clone(),
+                    cursor_state: state.clone(),
+                });
+            } else {
+                let product = staged[staged_index].clone();
+                staged_index += 1;
+                state.consumed_staged_ids.insert(product.id.clone());
+                merged.push(ProductCatalogMergedNode {
+                    product,
+                    cursor_state: state.clone(),
+                });
+            }
+        }
+        merged
+    }
+
+    fn product_catalog_window_value(
+        &mut self,
+        request: &Request,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        if arguments.contains_key("before") || arguments.contains_key("last") {
+            return None;
+        }
+        let overlay_ids = self.staged_product_catalog_ids();
+        let state = match resolved_string_field(arguments, "after") {
+            Some(cursor) => Self::decode_product_catalog_cursor(&cursor, arguments, &overlay_ids)?,
+            None => ProductCatalogCursorState::default(),
+        };
+        let page_size = resolved_int_field(arguments, "first")
+            .filter(|value| *value >= 0)
+            .map(|value| value as usize)
+            .unwrap_or(50);
+        let staged = self.product_catalog_staged_candidates(arguments, &overlay_ids, &state);
+        let mut upstream = Vec::new();
+        let mut fetch_after = state.upstream_after.clone();
+        let mut seen_cursors = BTreeSet::new();
+        let query = resolved_string_field(arguments, "query");
+        let sort_key = resolved_string_field(arguments, "sortKey");
+        let reverse = resolved_bool_field(arguments, "reverse").unwrap_or(false);
+        let mut upstream_has_next;
+        let mut implicit_upstream_next = false;
+
+        loop {
+            let requested = page_size
+                .saturating_add(overlay_ids.len())
+                .saturating_add(1)
+                .clamp(1, 250);
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": PRODUCT_LIVE_HYBRID_CATALOG_WINDOW_QUERY,
+                    "operationName": "DraftProxyProductCatalogWindow",
+                    "variables": {
+                        "first": requested,
+                        "after": fetch_after,
+                        "query": query,
+                        "sortKey": sort_key,
+                        "reverse": reverse,
+                    },
+                }),
+            );
+            if !(200..300).contains(&response.status) || response.body.get("errors").is_some() {
+                return None;
+            }
+            let connection = &response.body["data"]["products"];
+            let edges = connection.get("edges").and_then(Value::as_array)?;
+            for edge in edges {
+                let cursor = edge.get("cursor").and_then(Value::as_str)?.to_string();
+                let product = product_state_from_json(edge.get("node")?)?;
+                upstream.push(ProductCatalogUpstreamCandidate { product, cursor });
+            }
+            upstream_has_next = connection["pageInfo"]["hasNextPage"]
+                .as_bool()
+                .unwrap_or(false);
+
+            let preview = self.merge_product_catalog_candidates(
+                &upstream,
+                &staged,
+                &state,
+                arguments,
+                &overlay_ids,
+                page_size.saturating_add(1),
+            );
+            if preview.len() > page_size || !upstream_has_next {
+                break;
+            }
+
+            let fetched_ids = upstream
+                .iter()
+                .map(|candidate| candidate.product.id.as_str())
+                .collect::<BTreeSet<_>>();
+            let unseen_suppressions = overlay_ids.iter().any(|id| {
+                !fetched_ids.contains(id.as_str())
+                    && self
+                        .product_catalog_base_records
+                        .get(id)
+                        .or_else(|| self.store.products.base.get(id))
+                        .is_some_and(|product| {
+                            self.product_search_decision(product, query.as_deref())
+                                == StagedSearchDecision::Match
+                        })
+            });
+            if preview.len() == page_size && !unseen_suppressions {
+                implicit_upstream_next = true;
+                break;
+            }
+
+            let end_cursor = connection["pageInfo"]["endCursor"].as_str()?.to_string();
+            if !seen_cursors.insert(end_cursor.clone()) {
+                return None;
+            }
+            fetch_after = Some(end_cursor);
+        }
+
+        let mut merged = self.merge_product_catalog_candidates(
+            &upstream,
+            &staged,
+            &state,
+            arguments,
+            &overlay_ids,
+            page_size.saturating_add(1),
+        );
+        let has_next_page = merged.len() > page_size || implicit_upstream_next;
+        merged.truncate(page_size);
+        let cursors = merged
+            .iter()
+            .map(|node| {
+                Self::encode_product_catalog_cursor(&node.cursor_state, arguments, &overlay_ids)
+            })
+            .collect::<Vec<_>>();
+        let nodes = merged
+            .iter()
+            .map(|node| self.product_canonical_value(&node.product))
+            .collect::<Vec<_>>();
+        let edges = nodes
+            .iter()
+            .zip(cursors.iter())
+            .map(|(node, cursor)| json!({ "cursor": cursor, "node": node }))
+            .collect::<Vec<_>>();
+        Some(json!({
+            "nodes": nodes,
+            "edges": edges,
+            "pageInfo": connection_page_info(
+                has_next_page,
+                arguments.contains_key("after"),
+                cursors.first().cloned(),
+                cursors.last().cloned(),
+            ),
+        }))
+    }
+
+    fn hydrate_product_saved_search_for_arguments(
+        &mut self,
+        request: &Request,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return;
+        }
+        let Some(saved_search_id) = resolved_string_field(arguments, "savedSearchId") else {
+            return;
+        };
+        if self.store.saved_search_by_id(&saved_search_id).is_some() {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": PRODUCT_LIVE_HYBRID_SAVED_SEARCH_HYDRATE_QUERY,
+                "operationName": "DraftProxyProductSavedSearchHydration",
+                "variables": { "id": saved_search_id },
+            }),
+        );
+        if !(200..300).contains(&response.status) || response.body.get("errors").is_some() {
+            return;
+        }
+        let api_client_id = saved_search_request_api_client_id(request);
+        let Some(record) = saved_search_record_from_node(
+            &response.body["data"]["node"],
+            "PRODUCT",
+            &api_client_id,
+        ) else {
+            return;
+        };
+        if record.resource_type != "PRODUCT"
+            || self.store.saved_searches.staged.is_tombstoned(&record.id)
+        {
+            return;
+        }
+        self.store
+            .saved_searches
+            .base
+            .insert(record.id.clone(), record);
+    }
+
+    fn product_arguments_with_saved_search_query(
+        &self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> BTreeMap<String, ResolvedValue> {
+        let Some(saved_search_id) = resolved_string_field(arguments, "savedSearchId") else {
+            return arguments.clone();
+        };
+        let mut merged = arguments.clone();
+        merged.remove("savedSearchId");
+        let Some(saved_search_query) = self
+            .store
+            .saved_search_by_id(&saved_search_id)
+            .filter(|record| record.resource_type == "PRODUCT")
+            .map(|record| record.query)
+        else {
+            return merged;
+        };
+        let argument_query = resolved_string_field(arguments, "query").unwrap_or_default();
+        let query = match (
+            saved_search_query.trim().is_empty(),
+            argument_query.trim().is_empty(),
+        ) {
+            (true, true) => String::new(),
+            (true, false) => argument_query,
+            (false, true) => saved_search_query,
+            (false, false) => format!("{saved_search_query} {argument_query}"),
+        };
+        merged.insert("query".to_string(), ResolvedValue::String(query));
+        merged
+    }
+
+    fn product_arguments_need_upstream_catalog_search(
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> bool {
+        resolved_string_field(arguments, "query")
+            .is_some_and(|query| catalog_search_predicate_requires_full_catalog(&query))
+    }
+
+    fn product_catalog_count_delta(&self, arguments: &BTreeMap<String, ResolvedValue>) -> isize {
+        let query = resolved_string_field(arguments, "query");
+        self.staged_product_catalog_ids()
+            .iter()
+            .map(|id| {
+                let base_matches = self
+                    .product_catalog_base_records
+                    .get(id)
+                    .or_else(|| self.store.products.base.get(id))
+                    .is_some_and(|product| {
+                        self.product_search_decision(product, query.as_deref())
+                            == StagedSearchDecision::Match
+                    });
+                let effective_matches = self.store.products.staged.get(id).is_some_and(|product| {
+                    self.product_search_decision(product, query.as_deref())
+                        == StagedSearchDecision::Match
+                });
+                isize::from(effective_matches) - isize::from(base_matches)
+            })
+            .sum()
+    }
+
+    fn live_hybrid_product_count_value(
+        &mut self,
+        request: &Request,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        let query = resolved_string_field(arguments, "query");
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": PRODUCT_LIVE_HYBRID_COUNT_QUERY,
+                "operationName": "DraftProxyProductCatalogCount",
+                "variables": { "query": query },
+            }),
+        );
+        if !(200..300).contains(&response.status) || response.body.get("errors").is_some() {
+            return None;
+        }
+        upstream_count_value_with_staged_delta(
+            response.body.pointer("/data/productsCount"),
+            self.product_catalog_count_delta(arguments),
+            arguments,
+        )
+    }
+
     pub(crate) fn products_count_outcome(
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
-        if self.config.read_mode != ReadMode::Snapshot {
+        if self.config.read_mode == ReadMode::Live
+            || (self.config.read_mode == ReadMode::LiveHybrid
+                && !self.product_catalog_overlay_active())
+        {
             return self.cached_or_forward_upstream_root_outcome(
                 invocation.request,
                 invocation.response_key,
@@ -988,26 +1558,44 @@ impl DraftProxy {
             .iter()
             .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
             .collect::<BTreeMap<_, _>>();
-        let count = if arguments.contains_key("query") {
-            staged_connection_query(
-                self.store.products(),
-                &arguments,
-                |product, query| self.product_search_decision(product, query),
-                product_staged_sort_key,
-                |product| product_cursor(product).to_string(),
-            )
-            .total_count
-        } else {
-            self.store.product_count()
-        };
-        ResolverOutcome::value(count_object(count))
+        self.hydrate_product_saved_search_for_arguments(invocation.request, &arguments);
+        let arguments = self.product_arguments_with_saved_search_query(&arguments);
+        if Self::product_arguments_need_upstream_catalog_search(&arguments) {
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
+        }
+        if self.config.read_mode == ReadMode::LiveHybrid {
+            return self
+                .live_hybrid_product_count_value(invocation.request, &arguments)
+                .map(ResolverOutcome::value)
+                .unwrap_or_else(|| {
+                    self.cached_or_forward_upstream_root_outcome(
+                        invocation.request,
+                        invocation.response_key,
+                    )
+                });
+        }
+        let count = staged_connection_query(
+            self.store.products(),
+            &arguments,
+            |product, query| self.product_search_decision(product, query),
+            product_staged_sort_key,
+            |product| product_cursor(product).to_string(),
+        )
+        .total_count;
+        ResolverOutcome::value(snapshot_count_with_limit_precision(count, &arguments))
     }
 
     pub(crate) fn products_root_outcome(
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
-        if self.config.read_mode != ReadMode::Snapshot {
+        if self.config.read_mode == ReadMode::Live
+            || (self.config.read_mode == ReadMode::LiveHybrid
+                && !self.product_catalog_overlay_active())
+        {
             return self.cached_or_forward_upstream_root_outcome(
                 invocation.request,
                 invocation.response_key,
@@ -1018,6 +1606,25 @@ impl DraftProxy {
             .iter()
             .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
             .collect::<BTreeMap<_, _>>();
+        self.hydrate_product_saved_search_for_arguments(invocation.request, &arguments);
+        let arguments = self.product_arguments_with_saved_search_query(&arguments);
+        if Self::product_arguments_need_upstream_catalog_search(&arguments) {
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
+        }
+        if self.config.read_mode == ReadMode::LiveHybrid {
+            return self
+                .product_catalog_window_value(invocation.request, &arguments)
+                .map(ResolverOutcome::value)
+                .unwrap_or_else(|| {
+                    self.cached_or_forward_upstream_root_outcome(
+                        invocation.request,
+                        invocation.response_key,
+                    )
+                });
+        }
         ResolverOutcome::value(staged_connection_value_with_args(
             self.store.products(),
             &arguments,
@@ -1259,8 +1866,10 @@ impl DraftProxy {
                 "seo".to_string(),
                 product.extra_fields.get("seo").cloned().unwrap_or_else(|| {
                     json!({
-                        "title": product.seo_title,
-                        "description": product.seo_description,
+                        "title": (!product.seo_title.is_empty())
+                            .then(|| product.seo_title.clone()),
+                        "description": (!product.seo_description.is_empty())
+                            .then(|| product.seo_description.clone()),
                     })
                 }),
             ),
@@ -1590,6 +2199,7 @@ fn product_variant_inventory_item_field(
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
     Ok(product_variant_record(proxy, invocation)
+        .filter(|variant| is_shopify_gid_of_type(&variant.inventory_item.id, "InventoryItem"))
         .map(|variant| {
             let variant = proxy.variant_with_inventory_levels(&variant);
             product_variant_state_json(&variant)["inventoryItem"].clone()
@@ -1937,34 +2547,62 @@ pub(in crate::proxy) fn product_option_name_has_title_delimiter(name: &str) -> b
 // The batched node-hydrate query the proxy forwards to observe pre-existing
 // products / variants / collections in LiveHybrid. Shared verbatim with the
 // conformance capture scripts so re-recorded cassettes match byte-for-byte.
-pub(in crate::proxy) const PRODUCTS_HYDRATE_NODES_OBSERVATION_QUERY: &str = include_str!(
-    "../../config/parity-requests/products/products-hydrate-nodes-observation.graphql"
-);
+pub(in crate::proxy) const PRODUCTS_HYDRATE_NODES_OBSERVATION_QUERY: &str =
+    include_str!("../runtime_graphql/products/products-hydrate-nodes-observation.graphql.raw");
 
 // `productSet` must decide update-vs-create from a real existing product when
 // LiveHybrid has not observed it yet. These productSet-owned hydrate documents
 // select product options in addition to variants so omitted-field and replacement
 // semantics can build from the upstream product graph.
 pub(in crate::proxy) const PRODUCT_SET_TARGET_HYDRATE_BY_ID_QUERY: &str =
-    include_str!("../../config/parity-requests/products/productSet-target-hydrate-by-id.graphql");
+    include_str!("../runtime_graphql/products/productSet-target-hydrate-by-id.graphql");
 
-pub(in crate::proxy) const PRODUCT_SET_TARGET_HYDRATE_BY_HANDLE_QUERY: &str = include_str!(
-    "../../config/parity-requests/products/productSet-target-hydrate-by-handle.graphql"
-);
+pub(in crate::proxy) const PRODUCT_SET_TARGET_HYDRATE_BY_HANDLE_QUERY: &str =
+    include_str!("../runtime_graphql/products/productSet-target-hydrate-by-handle.graphql");
 
 pub(in crate::proxy) const TAXONOMY_CATEGORY_HYDRATE_QUERY: &str = "query ProductTaxonomyCategoryHydrate($id: ID!) { node(id: $id) { __typename id ... on TaxonomyCategory { name fullName isLeaf level parentId } } }";
 
 pub(in crate::proxy) const COLLECTION_REORDER_PRODUCTS_COLLECTION_HYDRATE_QUERY: &str = include_str!(
-    "../../config/parity-requests/products/collectionReorderProducts-collection-hydrate.graphql"
+    "../runtime_graphql/products/collectionReorderProducts-collection-hydrate.graphql"
 );
 
-// The generic observation query above does not select product `options`, which the
-// productOptionsReorder graph needs. This options-aware node hydrate selects the
-// option/optionValue graph (and variants) and is forwarded only by the reorder
-// owner-hydrate path. Kept as a shared `.graphql` doc so re-recorded cassettes match
-// the emitted forward byte-for-byte.
-pub(in crate::proxy) const PRODUCT_OPTIONS_HYDRATE_NODES_QUERY: &str =
-    include_str!("../../config/parity-requests/products/product-options-hydrate-nodes.graphql");
+pub(in crate::proxy) const PRODUCT_MUTATION_PREFLIGHT_HYDRATE_QUERY: &str =
+    include_str!("../runtime_graphql/products/product-mutation-preflight-hydrate.graphql");
+
+const PRODUCT_OBSERVED_FIELDS_FIELD: &str = "__shopifyDraftProxyObservedFields";
+const PRODUCT_COMPLETE_RELATIONSHIPS_FIELD: &str = "__shopifyDraftProxyCompleteRelationships";
+const PRODUCT_STAGED_FIELDS_FIELD: &str = "__shopifyDraftProxyStagedFields";
+pub(in crate::proxy) const PRODUCT_MUTATION_HYDRATION_COMPLETE_FIELD: &str =
+    "__shopifyDraftProxyMutationHydrationComplete";
+const PRODUCT_MUTATION_REQUIRED_FIELDS: &[&str] = &[
+    "id",
+    "legacyResourceId",
+    "createdAt",
+    "updatedAt",
+    "title",
+    "handle",
+    "status",
+    "publishedAt",
+    "descriptionHtml",
+    "vendor",
+    "productType",
+    "tags",
+    "templateSuffix",
+    "totalInventory",
+    "tracksInventory",
+    "onlineStorePreviewUrl",
+    "requiresSellingPlan",
+    "isGiftCard",
+    "giftCardTemplateSuffix",
+    "seo",
+    "category",
+    "options",
+    "variants",
+    "media",
+    "collections",
+];
+const PRODUCT_MUTATION_REQUIRED_RELATIONSHIPS: &[&str] =
+    &["options", "variants", "media", "collections"];
 
 // Publication-membership hydrate forwarded the first time the local publication
 // engine publishes a publishable resource (product / collection) it has never
@@ -1973,13 +2611,11 @@ pub(in crate::proxy) const PRODUCT_OPTIONS_HYDRATE_NODES_QUERY: &str =
 // resource's membership is discovered by reading upstream rather than injected
 // via `/__meta/seed`. Shared verbatim with the cassette so the forward matches
 // byte-for-byte.
-pub(in crate::proxy) const PUBLICATION_RESOURCE_HYDRATE_QUERY: &str = include_str!(
-    "../../config/parity-requests/products/publication-resource-hydrate-nodes.graphql"
-);
+pub(in crate::proxy) const PUBLICATION_RESOURCE_HYDRATE_QUERY: &str =
+    include_str!("../runtime_graphql/products/publication-resource-hydrate-nodes.graphql");
 
-pub(in crate::proxy) const CURRENT_APP_PUBLICATION_HYDRATE_QUERY: &str = include_str!(
-    "../../config/parity-requests/store-properties/current-app-publication-hydrate.graphql"
-);
+pub(in crate::proxy) const CURRENT_APP_PUBLICATION_HYDRATE_QUERY: &str =
+    include_str!("../runtime_graphql/store-properties/current-app-publication-hydrate.graphql");
 
 struct ProductStatusInputContext<'a> {
     argument_name: &'a str,
@@ -2008,44 +2644,118 @@ pub(in crate::proxy) fn merge_observed_product(
     mut existing: ProductRecord,
     observed: ProductRecord,
 ) -> ProductRecord {
-    existing.title = observed.title;
-    existing.handle = observed.handle;
-    existing.status = observed.status;
-    existing.created_at = observed.created_at;
-    existing.updated_at = observed.updated_at;
-    existing.description_html = observed.description_html;
-    existing.vendor = observed.vendor;
-    existing.product_type = observed.product_type;
-    existing.tags = observed.tags;
-    existing.template_suffix = observed.template_suffix;
-    existing.seo_title = observed.seo_title;
-    existing.seo_description = observed.seo_description;
-    existing.total_inventory = observed.total_inventory;
-    existing.tracks_inventory = observed.tracks_inventory;
-    if !observed.media.is_empty() {
-        existing.media = observed.media;
+    let existing_observed_fields = product_observed_fields(&existing);
+    let existing_staged_fields = product_staged_fields(&existing);
+    let observed_fields = product_observed_fields(&observed);
+    let existing_is_authoritative = existing_observed_fields.is_none();
+    let observed_has = |field: &str| {
+        observed_fields
+            .as_ref()
+            .is_none_or(|fields| fields.contains(field))
+    };
+    let merge_scalar = |field: &str| {
+        !existing_is_authoritative && !existing_staged_fields.contains(field) && observed_has(field)
+    };
+
+    if merge_scalar("title") {
+        existing.title = observed.title.clone();
     }
-    if !observed.variants.is_empty() {
-        existing.variants = observed
-            .variants
-            .into_iter()
-            .filter_map(|variant| {
-                let observed_id = variant.get("id").and_then(Value::as_str);
-                let Some(id) = observed_id else {
-                    return Some(variant);
-                };
-                existing
-                    .variants
-                    .iter()
-                    .find(|existing| existing.get("id").and_then(Value::as_str) == Some(id))
-                    .map(|existing| shallow_merged_object(existing.clone(), variant))
-            })
-            .collect();
+    if merge_scalar("handle") {
+        existing.handle = observed.handle.clone();
     }
-    for collection in observed.collections {
-        upsert_minimal_collection(&mut existing.collections, &collection);
+    if merge_scalar("status") {
+        existing.status = observed.status.clone();
     }
-    existing.extra_fields.extend(observed.extra_fields);
+    if merge_scalar("createdAt") {
+        existing.created_at = observed.created_at.clone();
+    }
+    if merge_scalar("updatedAt") {
+        existing.updated_at = observed.updated_at.clone();
+    }
+    if merge_scalar("descriptionHtml") {
+        existing.description_html = observed.description_html.clone();
+    }
+    if merge_scalar("vendor") {
+        existing.vendor = observed.vendor.clone();
+    }
+    if merge_scalar("productType") {
+        existing.product_type = observed.product_type.clone();
+    }
+    if merge_scalar("tags") {
+        existing.tags = observed.tags.clone();
+    }
+    if merge_scalar("templateSuffix") {
+        existing.template_suffix = observed.template_suffix.clone();
+    }
+    if merge_scalar("seo") {
+        existing.seo_title = observed.seo_title.clone();
+        existing.seo_description = observed.seo_description.clone();
+    }
+    if merge_scalar("totalInventory") {
+        existing.total_inventory = observed.total_inventory;
+    }
+    if merge_scalar("tracksInventory") {
+        existing.tracks_inventory = observed.tracks_inventory;
+    }
+
+    if !existing_is_authoritative
+        && !existing_staged_fields.contains("media")
+        && observed_has("media")
+    {
+        merge_observed_product_nodes(
+            &mut existing.media,
+            observed.media.clone(),
+            product_relationship_is_complete(&observed, "media"),
+        );
+    }
+    if !existing_is_authoritative
+        && !existing_staged_fields.contains("variants")
+        && observed_has("variants")
+    {
+        merge_observed_product_nodes(
+            &mut existing.variants,
+            observed.variants.clone(),
+            product_relationship_is_complete(&observed, "variants"),
+        );
+    }
+    if !existing_is_authoritative
+        && !existing_staged_fields.contains("collections")
+        && observed_has("collections")
+    {
+        if product_relationship_is_complete(&observed, "collections") {
+            existing.collections = observed.collections.clone();
+        } else {
+            for collection in &observed.collections {
+                upsert_minimal_collection(&mut existing.collections, collection);
+            }
+        }
+    }
+
+    if !existing_is_authoritative {
+        for (key, value) in &observed.extra_fields {
+            if matches!(
+                key.as_str(),
+                PRODUCT_OBSERVED_FIELDS_FIELD
+                    | PRODUCT_COMPLETE_RELATIONSHIPS_FIELD
+                    | PRODUCT_STAGED_FIELDS_FIELD
+            ) {
+                continue;
+            }
+            if !existing_staged_fields.contains(key) && observed_has(key) {
+                existing.extra_fields.insert(key.clone(), value.clone());
+            }
+        }
+        let mut merged_fields = existing_observed_fields.unwrap_or_default();
+        merged_fields.extend(observed_fields.unwrap_or_default());
+        set_product_metadata_set(&mut existing, PRODUCT_OBSERVED_FIELDS_FIELD, merged_fields);
+        let mut complete_relationships = product_complete_relationships(&existing);
+        complete_relationships.extend(product_complete_relationships(&observed));
+        set_product_metadata_set(
+            &mut existing,
+            PRODUCT_COMPLETE_RELATIONSHIPS_FIELD,
+            complete_relationships,
+        );
+    }
     existing.collections.sort_by(|left, right| {
         let left_title = left
             .get("title")
@@ -2058,6 +2768,88 @@ pub(in crate::proxy) fn merge_observed_product(
         left_title.cmp(right_title)
     });
     existing
+}
+
+fn merge_observed_product_nodes(
+    existing: &mut Vec<Value>,
+    observed: Vec<Value>,
+    relationship_complete: bool,
+) {
+    if relationship_complete {
+        *existing = observed;
+        return;
+    }
+    for observed_node in observed {
+        let observed_id = observed_node.get("id").and_then(Value::as_str);
+        if let Some(existing_node) = observed_id.and_then(|id| {
+            existing
+                .iter_mut()
+                .find(|node| node.get("id").and_then(Value::as_str) == Some(id))
+        }) {
+            *existing_node = shallow_merged_object(existing_node.clone(), observed_node);
+        } else {
+            existing.push(observed_node);
+        }
+    }
+}
+
+fn product_metadata_set(product: &ProductRecord, field: &str) -> Option<BTreeSet<String>> {
+    product.extra_fields.get(field).map(|value| {
+        value
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .map(str::to_string)
+            .collect()
+    })
+}
+
+fn set_product_metadata_set(product: &mut ProductRecord, field: &str, values: BTreeSet<String>) {
+    product.extra_fields.insert(
+        field.to_string(),
+        Value::Array(values.into_iter().map(Value::String).collect()),
+    );
+}
+
+fn product_observed_fields(product: &ProductRecord) -> Option<BTreeSet<String>> {
+    product_metadata_set(product, PRODUCT_OBSERVED_FIELDS_FIELD)
+}
+
+fn product_staged_fields(product: &ProductRecord) -> BTreeSet<String> {
+    product_metadata_set(product, PRODUCT_STAGED_FIELDS_FIELD).unwrap_or_default()
+}
+
+pub(in crate::proxy) fn mark_product_staged_fields(product: &mut ProductRecord, fields: &[&str]) {
+    let mut staged_fields = product_staged_fields(product);
+    staged_fields.extend(fields.iter().map(|field| (*field).to_string()));
+    set_product_metadata_set(product, PRODUCT_STAGED_FIELDS_FIELD, staged_fields);
+}
+
+fn product_complete_relationships(product: &ProductRecord) -> BTreeSet<String> {
+    product_metadata_set(product, PRODUCT_COMPLETE_RELATIONSHIPS_FIELD).unwrap_or_default()
+}
+
+fn product_relationship_is_complete(product: &ProductRecord, relationship: &str) -> bool {
+    product_observed_fields(product).is_none()
+        || product_complete_relationships(product).contains(relationship)
+}
+
+pub(in crate::proxy) fn product_mutation_hydration_complete(product: &ProductRecord) -> bool {
+    let Some(observed_fields) = product_observed_fields(product) else {
+        return true;
+    };
+    product
+        .extra_fields
+        .get(PRODUCT_MUTATION_HYDRATION_COMPLETE_FIELD)
+        .and_then(Value::as_bool)
+        == Some(true)
+        && PRODUCT_MUTATION_REQUIRED_FIELDS
+            .iter()
+            .all(|field| observed_fields.contains(*field))
+        && PRODUCT_MUTATION_REQUIRED_RELATIONSHIPS
+            .iter()
+            .all(|relationship| product_relationship_is_complete(product, relationship))
 }
 
 pub(in crate::proxy) fn product_summary_json(product: &ProductRecord) -> Value {
@@ -2282,7 +3074,9 @@ impl DraftProxy {
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
-        if self.config.read_mode == ReadMode::Snapshot {
+        if self.config.read_mode == ReadMode::Snapshot
+            && invocation.root_name != "productCreateMedia"
+        {
             return resolver_http_error_outcome(
                 400,
                 format!(
@@ -2317,11 +3111,31 @@ impl DraftProxy {
                 invocation.response_key,
             );
         };
-        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
-            invocation.root_name,
-            "products",
-            Vec::new(),
-        ))
+        let has_errors = ["userErrors", "mediaUserErrors"].iter().any(|key| {
+            payload
+                .get(key)
+                .and_then(Value::as_array)
+                .is_some_and(|errors| !errors.is_empty())
+        });
+        let has_effect = payload
+            .get("media")
+            .and_then(Value::as_array)
+            .is_some_and(|media| !media.is_empty())
+            || payload
+                .get("deletedMediaIds")
+                .and_then(Value::as_array)
+                .is_some_and(|ids| !ids.is_empty())
+            || payload.get("job").is_some_and(Value::is_object);
+        let outcome = ResolverOutcome::value(payload);
+        if has_errors && !has_effect {
+            outcome
+        } else {
+            outcome.with_log_draft(LogDraft::staged(
+                invocation.root_name,
+                "products",
+                Vec::new(),
+            ))
+        }
     }
 
     /// productCreateMedia stages newly uploaded media on a product. Each media
@@ -2565,7 +3379,7 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
         let product_id = resolved_string_field(arguments, "id")?;
-        let mut moves = resolved_object_list_field(arguments, "moves");
+        let moves = resolved_object_list_field(arguments, "moves");
 
         // Reorder operates on media that already exists on the product. If the
         // product has not been staged locally yet, hydrate it from upstream so
@@ -2578,22 +3392,28 @@ impl DraftProxy {
             ));
         }
 
-        moves.sort_by_key(|media_move| {
-            resolved_string_field(media_move, "newPosition")
+        let mut media = self.product_known_media(&product_id);
+        for media_move in moves {
+            let Some(id) = resolved_string_field(&media_move, "id") else {
+                continue;
+            };
+            let new_position = resolved_string_field(&media_move, "newPosition")
                 .and_then(|position| position.parse::<usize>().ok())
-                .unwrap_or(usize::MAX)
-        });
-        let move_ids = moves
-            .iter()
-            .filter_map(|media_move| resolved_string_field(media_move, "id"))
-            .collect::<Vec<_>>();
-        for id in &move_ids {
-            self.store.staged.media_ready_on_read.remove(id);
+                .or_else(|| {
+                    resolved_int_field(&media_move, "newPosition")
+                        .map(|position| position.max(0) as usize)
+                })
+                .unwrap_or(0);
+            let Some(current_position) = media
+                .iter()
+                .position(|node| node.get("id").and_then(Value::as_str) == Some(id.as_str()))
+            else {
+                continue;
+            };
+            let node = media.remove(current_position);
+            media.insert(new_position.min(media.len()), node);
+            self.store.staged.media_ready_on_read.remove(&id);
         }
-        let media = move_ids
-            .iter()
-            .map(|id| self.product_reorder_media_node(&product_id, id))
-            .collect();
         self.stage_product_media_nodes(&product_id, media);
         Some(json!({
             "job": {
@@ -2674,44 +3494,14 @@ impl DraftProxy {
         if self.store.product_staged_or_base(product_id).is_some() {
             return true;
         }
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return false;
+        }
         self.hydrate_product_nodes_for_observation_with_request(
             request,
             vec![product_id.to_string()],
         );
         self.store.product_staged_or_base(product_id).is_some()
-    }
-
-    /// Build a reordered media node. Alt text is preserved from any media
-    /// already staged/observed for this product so the proxy honours real
-    /// asset metadata instead of hardcoding GID-specific captions.
-    fn product_reorder_media_node(&self, product_id: &str, id: &str) -> Value {
-        let known = self
-            .store
-            .product_staged_or_base(product_id)
-            .and_then(|product| {
-                product
-                    .media
-                    .into_iter()
-                    .find(|node| node.get("id").and_then(Value::as_str) == Some(id))
-            });
-        let mut node = known.unwrap_or_else(|| {
-            let alt = self
-                .store
-                .product_staged_or_base(product_id)
-                .and_then(|product| {
-                    product.media.iter().find_map(|node| {
-                        if node.get("id").and_then(Value::as_str) == Some(id) {
-                            node.get("alt").and_then(Value::as_str).map(str::to_string)
-                        } else {
-                            None
-                        }
-                    })
-                })
-                .unwrap_or_default();
-            product_media_node_with_type(id, &alt, "IMAGE", "PROCESSING", None, None)
-        });
-        node["status"] = json!("PROCESSING");
-        node
     }
 }
 
@@ -3675,7 +4465,7 @@ fn product_variant_state_from_json_parts(
             .and_then(|item| item.get("id"))
             .and_then(Value::as_str)
             .map(str::to_string)
-            .unwrap_or_else(|| shopify_gid("InventoryItem", resource_id_tail(&id))),
+            .unwrap_or_default(),
         ProductVariantInventoryItemMode::Required => {
             inventory_item?.get("id")?.as_str()?.to_string()
         }
@@ -3781,6 +4571,7 @@ pub(in crate::proxy) fn product_state_map_from_json(
 
 pub(in crate::proxy) fn product_state_from_json(value: &Value) -> Option<ProductRecord> {
     let id = value.get("id")?.as_str()?.to_string();
+    let is_serialized_state = value.get("extraFields").is_some_and(Value::is_object);
     let created_at = value
         .get("createdAt")
         .and_then(Value::as_str)
@@ -3796,6 +4587,44 @@ pub(in crate::proxy) fn product_state_from_json(value: &Value) -> Option<Product
         for (key, observed) in state_extra_fields {
             extra_fields.insert(key.clone(), observed.clone());
         }
+    }
+    if !is_serialized_state && !extra_fields.contains_key(PRODUCT_OBSERVED_FIELDS_FIELD) {
+        let observed_fields = value
+            .as_object()
+            .into_iter()
+            .flatten()
+            .map(|(field, _)| field.clone())
+            .filter(|field| !matches!(field.as_str(), "__typename" | "extraFields"))
+            .collect::<BTreeSet<_>>();
+        extra_fields.insert(
+            PRODUCT_OBSERVED_FIELDS_FIELD.to_string(),
+            Value::Array(observed_fields.into_iter().map(Value::String).collect()),
+        );
+    }
+    if !is_serialized_state && !extra_fields.contains_key(PRODUCT_COMPLETE_RELATIONSHIPS_FIELD) {
+        let mut complete_relationships = BTreeSet::new();
+        if value.get("options").is_some() {
+            complete_relationships.insert("options".to_string());
+        }
+        for relationship in ["variants", "media", "collections"] {
+            if value
+                .get(relationship)
+                .and_then(|connection| connection.pointer("/pageInfo/hasNextPage"))
+                .and_then(Value::as_bool)
+                == Some(false)
+            {
+                complete_relationships.insert(relationship.to_string());
+            }
+        }
+        extra_fields.insert(
+            PRODUCT_COMPLETE_RELATIONSHIPS_FIELD.to_string(),
+            Value::Array(
+                complete_relationships
+                    .into_iter()
+                    .map(Value::String)
+                    .collect(),
+            ),
+        );
     }
     Some(ProductRecord {
         id,
@@ -4556,28 +5385,72 @@ pub(in crate::proxy) fn product_category_input_id(
 }
 
 impl DraftProxy {
-    /// Resolve a taxonomy category GID to a stable local category object. In live-hybrid
-    /// mode, prefer Shopify's taxonomy node data through the upstream/cassette read path.
-    /// When that source is unavailable, derive a deterministic fallback from the input
-    /// GID tail instead of collapsing valid-but-unknown taxonomy IDs to null.
-    pub(in crate::proxy) fn product_category_value_for_input(
+    pub(in crate::proxy) fn product_category_for_mutation_input(
+        &self,
+        request: &Request,
+        input: &BTreeMap<String, ResolvedValue>,
+        response_key: &str,
+        root_location: SourceLocation,
+    ) -> Result<Option<Value>, ResolverOutcome<Value>> {
+        let Some(category_id) = product_category_input_id(input) else {
+            return Ok(None);
+        };
+        match self.product_category_resolution_for_input(request, &category_id) {
+            ProductCategoryResolution::Found(category) => Ok(Some(category)),
+            ProductCategoryResolution::Malformed | ProductCategoryResolution::VerifiedAbsent => {
+                Err(graphql_error_outcome(
+                    vec![invalid_product_taxonomy_node_id_error(
+                        response_key,
+                        root_location,
+                    )],
+                    response_key,
+                ))
+            }
+            ProductCategoryResolution::Indeterminate => {
+                Err(indeterminate_product_taxonomy_category_outcome())
+            }
+        }
+    }
+
+    /// Resolve product category input from authoritative effective state or Shopify's
+    /// taxonomy node read. A well-formed GID proves only the resource type, never that the
+    /// category exists or that its path encodes hierarchy metadata.
+    pub(in crate::proxy) fn product_category_resolution_for_input(
         &self,
         request: &Request,
         id: &str,
-    ) -> Option<Value> {
-        let tail = taxonomy_category_tail(id)?;
-        if self.config.read_mode == ReadMode::LiveHybrid
-            && shopify_gid_tail_for_type(id, "TaxonomyCategory").is_some()
-        {
-            if let Some(category) = self.hydrate_taxonomy_category_value(request, id) {
-                return Some(category);
-            }
+    ) -> ProductCategoryResolution {
+        if !is_shopify_gid_of_type(id, "TaxonomyCategory") {
+            return ProductCategoryResolution::Malformed;
         }
 
-        Some(derived_product_category_value(id, tail))
+        if let Some(category) = self.product_category_value_from_effective_state(id) {
+            return ProductCategoryResolution::Found(category);
+        }
+
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return ProductCategoryResolution::Indeterminate;
+        }
+
+        self.hydrate_taxonomy_category_value(request, id)
     }
 
-    fn hydrate_taxonomy_category_value(&self, request: &Request, id: &str) -> Option<Value> {
+    fn product_category_value_from_effective_state(&self, id: &str) -> Option<Value> {
+        self.store
+            .products
+            .staged
+            .records
+            .values()
+            .chain(self.store.products.base.records.values())
+            .filter_map(|product| product.extra_fields.get("category"))
+            .find_map(|category| authoritative_product_category_value(category, id))
+    }
+
+    fn hydrate_taxonomy_category_value(
+        &self,
+        request: &Request,
+        id: &str,
+    ) -> ProductCategoryResolution {
         let response = self.upstream_post(
             request,
             json!({
@@ -4586,112 +5459,67 @@ impl DraftProxy {
                 "variables": { "id": id }
             }),
         );
-        if response.status != 200 || response.body.get("errors").is_some() {
-            return None;
+        if !(200..300).contains(&response.status)
+            || response
+                .body
+                .get("errors")
+                .and_then(Value::as_array)
+                .is_some_and(|errors| !errors.is_empty())
+        {
+            return ProductCategoryResolution::Indeterminate;
         }
-        let node = response.body.pointer("/data/node")?;
-        if node.get("__typename").and_then(Value::as_str) != Some("TaxonomyCategory") {
-            return None;
+        let Some(node) = response.body.pointer("/data/node") else {
+            return ProductCategoryResolution::Indeterminate;
+        };
+        if node.is_null() {
+            return ProductCategoryResolution::VerifiedAbsent;
         }
 
-        let fallback = taxonomy_category_tail(id)
-            .map(|tail| derived_product_category_value(id, tail))
-            .unwrap_or_else(|| json!({ "id": id, "fullName": null }));
-        Some(json!({
-            "id": id,
-            "fullName": category_field_or_fallback(node, &fallback, "fullName"),
-            "name": category_field_or_fallback(node, &fallback, "name"),
-            "isLeaf": category_field_or_fallback(node, &fallback, "isLeaf"),
-            "level": category_field_or_fallback(node, &fallback, "level"),
-            "parentId": category_field_or_fallback(node, &fallback, "parentId"),
-        }))
+        authoritative_product_category_value(node, id)
+            .map(ProductCategoryResolution::Found)
+            .unwrap_or(ProductCategoryResolution::Indeterminate)
     }
 }
 
-fn category_field_or_fallback(node: &Value, fallback: &Value, field: &str) -> Value {
-    node.get(field)
-        .filter(|value| !value.is_null())
-        .cloned()
-        .unwrap_or_else(|| fallback.get(field).cloned().unwrap_or(Value::Null))
+#[derive(Debug, Clone, PartialEq)]
+pub(in crate::proxy) enum ProductCategoryResolution {
+    Found(Value),
+    VerifiedAbsent,
+    Malformed,
+    Indeterminate,
 }
 
-fn taxonomy_category_tail(id: &str) -> Option<&str> {
-    let tail = shopify_gid_tail_for_type(id, "TaxonomyCategory")?;
-    let tail = tail.split('?').next().unwrap_or(tail);
-    if taxonomy_category_tail_is_valid(tail) {
-        Some(tail)
-    } else {
-        None
-    }
-}
-
-fn taxonomy_category_tail_is_valid(tail: &str) -> bool {
-    let segments: Vec<&str> = tail
-        .split('-')
-        .filter(|segment| !segment.is_empty())
-        .collect();
-    if segments.is_empty() {
-        return false;
-    }
-    if !segments[0]
-        .chars()
-        .all(|character| character.is_ascii_lowercase())
+fn authoritative_product_category_value(category: &Value, requested_id: &str) -> Option<Value> {
+    if category.get("__typename").is_some()
+        && category.get("__typename").and_then(Value::as_str) != Some("TaxonomyCategory")
     {
-        return false;
+        return None;
     }
-    segments[1..]
-        .iter()
-        .all(|segment| segment.chars().all(|character| character.is_ascii_digit()))
-}
+    if category.get("id").and_then(Value::as_str) != Some(requested_id) {
+        return None;
+    }
+    let name = category.get("name")?.as_str()?;
+    let full_name = category.get("fullName")?.as_str()?;
+    let is_leaf = category.get("isLeaf")?.as_bool()?;
+    let level = category.get("level")?.as_u64()?;
+    let parent_id = category.get("parentId")?;
+    if !parent_id.is_null() && parent_id.as_str().is_none() {
+        return None;
+    }
 
-fn derived_product_category_value(id: &str, tail: &str) -> Value {
-    let segments: Vec<&str> = tail
-        .split('-')
-        .filter(|segment| !segment.is_empty())
-        .collect();
-    let labels = segments
-        .iter()
-        .map(|segment| taxonomy_category_tail_label(segment))
-        .collect::<Vec<_>>();
-    let name = labels.last().cloned().unwrap_or_default();
-    let full_name = labels.join(" > ");
-    let parent_id = if segments.len() > 1 {
-        let parent_tail = segments[..segments.len() - 1].join("-");
-        Value::String(shopify_gid("TaxonomyCategory", parent_tail))
-    } else {
-        Value::Null
-    };
-
-    json!({
-        "id": id,
+    Some(json!({
+        "id": requested_id,
         "fullName": full_name,
         "name": name,
-        "isLeaf": true,
-        "level": segments.len(),
+        "isLeaf": is_leaf,
+        "level": level,
         "parentId": parent_id
-    })
+    }))
 }
 
-fn taxonomy_category_tail_label(segment: &str) -> String {
-    if segment.chars().all(|character| character.is_ascii_digit()) {
-        return segment.to_string();
-    }
-
-    segment
-        .split('_')
-        .flat_map(|part| part.split_whitespace())
-        .filter(|part| !part.is_empty())
-        .map(|part| {
-            let mut chars = part.chars();
-            match chars.next() {
-                Some(first) => {
-                    first.to_ascii_uppercase().to_string() + &chars.as_str().to_ascii_lowercase()
-                }
-                None => String::new(),
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
+pub(in crate::proxy) fn indeterminate_product_taxonomy_category_outcome() -> ResolverOutcome<Value>
+{
+    ResolverOutcome::error("Unable to verify product taxonomy category")
 }
 
 pub(in crate::proxy) fn invalid_product_taxonomy_node_id_error(
@@ -5255,6 +6083,101 @@ pub(in crate::proxy) fn variant_media_ids_from_json(value: &Value) -> Vec<String
 #[cfg(test)]
 mod product_variant_connection_tests {
     use super::*;
+
+    #[test]
+    fn partial_product_observation_updates_only_selected_fields_and_relationship_nodes() {
+        let existing = product_state_from_json(&json!({
+            "id": "gid://shopify/Product/1",
+            "title": "Original title",
+            "handle": "original-title",
+            "status": "ACTIVE",
+            "vendor": "Preserved vendor",
+            "tags": ["preserved"],
+            "createdAt": "2024-01-01T00:00:00Z",
+            "updatedAt": "2024-01-02T00:00:00Z",
+            "seo": { "title": "Preserved SEO", "description": "Preserved description" },
+            "media": {
+                "nodes": [{ "id": "gid://shopify/MediaImage/1", "alt": "Preserved media" }],
+                "pageInfo": { "hasNextPage": false }
+            },
+            "variants": {
+                "nodes": [
+                    { "id": "gid://shopify/ProductVariant/1", "title": "First" },
+                    { "id": "gid://shopify/ProductVariant/2", "title": "Second" }
+                ],
+                "pageInfo": { "hasNextPage": false }
+            }
+        }))
+        .expect("existing product should normalize");
+        let observed = product_state_from_json(&json!({
+            "id": "gid://shopify/Product/1",
+            "title": "Observed title",
+            "variants": {
+                "nodes": [
+                    { "id": "gid://shopify/ProductVariant/1", "title": "Observed first" }
+                ]
+            }
+        }))
+        .expect("partial product should normalize");
+
+        let merged = merge_observed_product(existing, observed);
+
+        assert_eq!(merged.title, "Observed title");
+        assert_eq!(merged.vendor, "Preserved vendor");
+        assert_eq!(merged.tags, vec!["preserved"]);
+        assert_eq!(merged.seo_title, "Preserved SEO");
+        assert_eq!(merged.media.len(), 1);
+        assert_eq!(merged.variants.len(), 2);
+        assert_eq!(merged.variants[0]["title"], json!("Observed first"));
+        assert_eq!(merged.variants[1]["title"], json!("Second"));
+    }
+
+    #[test]
+    fn authoritative_product_state_round_trip_stays_mutation_complete() {
+        let product = ProductRecord {
+            id: "gid://shopify/Product/1".to_string(),
+            title: "Local product".to_string(),
+            ..ProductRecord::default()
+        };
+
+        let restored = product_state_from_json(&product_state_json(&product))
+            .expect("serialized product state should normalize");
+
+        assert!(product_observed_fields(&restored).is_none());
+        assert!(product_mutation_hydration_complete(&restored));
+    }
+
+    #[test]
+    fn ordinary_complete_connections_do_not_claim_mutation_hydration_authority() {
+        let observed = product_state_from_json(&json!({
+            "id": "gid://shopify/Product/1",
+            "title": "Observed product",
+            "options": [],
+            "variants": { "nodes": [], "pageInfo": { "hasNextPage": false } },
+            "media": { "nodes": [], "pageInfo": { "hasNextPage": false } },
+            "collections": { "nodes": [], "pageInfo": { "hasNextPage": false } }
+        }))
+        .expect("observed product should normalize");
+
+        assert!(!product_mutation_hydration_complete(&observed));
+    }
+
+    #[test]
+    fn observed_variant_without_inventory_item_does_not_invent_cross_resource_identity() {
+        let variant = product_variant_state_from_observed_json(&json!({
+            "id": "gid://shopify/ProductVariant/424242",
+            "product": { "id": "gid://shopify/Product/1" },
+            "title": "Partially observed variant",
+            "price": "10.00",
+        }))
+        .expect("partially observed variant should normalize");
+
+        assert_eq!(variant.inventory_item.id, "");
+        assert_ne!(
+            variant.inventory_item.id,
+            "gid://shopify/InventoryItem/424242"
+        );
+    }
 
     #[test]
     fn staged_variant_overlays_its_observed_connection_position() {
