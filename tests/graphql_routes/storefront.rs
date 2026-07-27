@@ -7774,6 +7774,9 @@ fn storefront_node_hydrates_an_unrelated_id_after_local_product_discovery() {
         Some(UnsupportedMutationMode::Passthrough),
     )
     .with_upstream_transport(move |request| {
+        if let Some(response) = empty_online_store_handle_reservation_response(&request) {
+            return response;
+        }
         observed_for_proxy.lock().unwrap().push(request);
         Response {
             status: 200,

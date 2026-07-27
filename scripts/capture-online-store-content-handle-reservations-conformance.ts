@@ -44,18 +44,22 @@ async function readRequest(filename: string): Promise<string> {
   return readFile(path.join('config', 'parity-requests', 'online-store', filename), 'utf8');
 }
 
+async function readRuntimeRequest(filename: string): Promise<string> {
+  return readFile(path.join('src', 'runtime_graphql', 'online-store', filename), 'utf8');
+}
+
 const pageCreateMutation = await readRequest('online-store-content-handle-page-create.graphql');
 const pageUpdateMutation = await readRequest('online-store-content-handle-page-update.graphql');
 const blogCreateMutation = await readRequest('online-store-content-handle-blog-create.graphql');
 const blogUpdateMutation = await readRequest('online-store-content-handle-blog-update.graphql');
 const articleCreateMutation = await readRequest('online-store-content-handle-article-create.graphql');
 const articleUpdateMutation = await readRequest('online-store-content-handle-article-update.graphql');
-const pageHandleHydrateQuery = await readRequest('online-store-page-handle-reservation-hydrate.graphql');
-const blogHandleHydrateQuery = await readRequest('online-store-blog-handle-reservation-hydrate.graphql');
-const articleHandleHydrateQuery = await readRequest('online-store-article-handle-reservation-hydrate.graphql');
-const pageMutationHydrateQuery = await readRequest('online-store-page-mutation-hydrate.graphql');
-const blogMutationHydrateQuery = await readRequest('online-store-blog-mutation-hydrate.graphql');
-const articleMutationHydrateQuery = await readRequest('online-store-article-mutation-hydrate.graphql');
+const pageHandleHydrateQuery = await readRuntimeRequest('online-store-page-handle-reservation-hydrate.graphql');
+const blogHandleHydrateQuery = await readRuntimeRequest('online-store-blog-handle-reservation-hydrate.graphql');
+const articleHandleHydrateQuery = await readRuntimeRequest('online-store-article-handle-reservation-hydrate.graphql');
+const pageMutationHydrateQuery = await readRuntimeRequest('online-store-page-mutation-hydrate.graphql');
+const blogMutationHydrateQuery = await readRuntimeRequest('online-store-blog-mutation-hydrate.graphql');
+const articleMutationHydrateQuery = await readRuntimeRequest('online-store-article-mutation-hydrate.graphql');
 
 const pageDeleteMutation = `#graphql
   mutation OnlineStoreContentHandlePageCleanup($id: ID!) {
