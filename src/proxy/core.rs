@@ -74,6 +74,7 @@ impl DraftProxy {
             registry: ResolverRegistry::new(default_registry()),
             store: Store::with_default_baseline(),
             shop_sells_subscriptions: None,
+            product_catalog_base_records: BTreeMap::new(),
             clock: Arc::new(default_runtime_clock),
             last_mutation_timestamp: None,
             execution_session: ExecutionSession::default(),
@@ -213,6 +214,7 @@ impl DraftProxy {
                 self.store.clear_staged();
                 self.store.reset_synthetic_id_sequence();
                 self.shop_sells_subscriptions = None;
+                self.product_catalog_base_records.clear();
                 self.last_mutation_timestamp = None;
                 self.execution_session = ExecutionSession::default();
                 ok_json(json!({ "ok": true, "message": "state reset" }))

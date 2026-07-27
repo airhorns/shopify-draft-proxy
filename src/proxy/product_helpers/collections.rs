@@ -1874,10 +1874,8 @@ impl DraftProxy {
         self.observe_nodes_response(&response);
     }
 
-    /// Forward the options-aware product hydrate (selecting the option/optionValue
-    /// graph that the generic observation query omits) and observe it, so a cold
-    /// productOptionsReorder resolves the real owning product + option graph from
-    /// upstream instead of relying on seeded state.
+    /// Hydrate the complete product mutation baseline before option mutations so
+    /// omitted fields and unseen option/variant relationships remain intact.
     pub(in crate::proxy) fn hydrate_product_options_owner(
         &mut self,
         request: &Request,

@@ -86,7 +86,7 @@ const PRIMARY_LOCALE_CHANGE_MESSAGE: &str =
     "The primary locale of your store can't be changed through this endpoint.";
 
 const MARKET_MUTATION_TARGETS_HYDRATE_QUERY: &str =
-    include_str!("../../../config/parity-requests/markets/market-mutation-targets-hydrate.graphql");
+    include_str!("../../runtime_graphql/markets/market-mutation-targets-hydrate.graphql");
 
 fn first_market_localization_market_id(
     variables: &BTreeMap<String, ResolvedValue>,

@@ -1,0 +1,59 @@
+query OrdersReturnOrderHydrate($id: ID!) {
+  order(id: $id) {
+    id
+    name
+    createdAt
+    updatedAt
+    displayFinancialStatus
+    displayFulfillmentStatus
+    totalPriceSet { shopMoney { amount currencyCode } }
+    currentTotalPriceSet { shopMoney { amount currencyCode } }
+    totalRefundedSet { shopMoney { amount currencyCode } }
+    lineItems(first: 50) {
+      nodes {
+        id
+        title
+        quantity
+      }
+    }
+    fulfillments(first: 50) {
+      id
+      status
+      displayStatus
+      createdAt
+      updatedAt
+      fulfillmentLineItems(first: 50) {
+        nodes {
+          id
+          quantity
+          lineItem {
+            id
+            title
+            variant {
+              id
+            }
+          }
+        }
+      }
+    }
+    returns(first: 50) {
+      nodes {
+        id
+        name
+        status
+        totalQuantity
+        returnLineItems(first: 50) {
+          nodes {
+            ... on ReturnLineItem {
+              id
+              quantity
+              fulfillmentLineItem {
+                id
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

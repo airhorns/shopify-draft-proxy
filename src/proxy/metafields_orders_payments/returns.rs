@@ -87,7 +87,7 @@ fn reverse_fulfillment_order_deliveries_field(
 }
 
 const RETURN_CALCULATION_ORDER_HYDRATE_QUERY: &str =
-    include_str!("../../../config/parity-requests/orders/return-calculation-order-hydrate.graphql");
+    include_str!("../../runtime_graphql/orders/return-calculation-order-hydrate.graphql");
 
 fn return_matches_id(return_value: &Value, value: &str) -> bool {
     let value = value.trim_matches('"').trim_matches('\'');

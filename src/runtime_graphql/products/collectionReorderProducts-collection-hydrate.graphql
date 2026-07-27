@@ -1,0 +1,19 @@
+query CollectionReorderProductsCollectionHydrate($id: ID!) {
+  collection(id: $id) {
+    id
+    title
+    handle
+    sortOrder
+    products(first: 10) {
+      nodes {
+        id
+        title
+        handle
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+  }
+}
