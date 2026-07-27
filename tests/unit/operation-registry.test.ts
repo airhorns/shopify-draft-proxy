@@ -245,8 +245,8 @@ describe('operation registry', () => {
       registeredMutationCount: 438,
       implementedMutationCount: 413,
       implementedMutationRuntimeTestEvidence: {
-        withRuntimeTests: 139,
-        withoutRuntimeTests: 274,
+        withRuntimeTests: 162,
+        withoutRuntimeTests: 251,
       },
       declaredUnimplemented: [
         'companyContactSendWelcomeEmail',
@@ -360,9 +360,9 @@ describe('operation registry', () => {
   it('audits captured Shopify Node implementors against the explicit Rust resolver inventory', () => {
     expect(nodeResolverCoverageAudit()).toEqual({
       capturedNodeImplementorCount: 203,
-      localNodeResolverTypeCount: 86,
+      localNodeResolverTypeCount: 88,
       localResolverBehaviorCounts: {
-        projectLocalRecord: 83,
+        projectLocalRecord: 85,
         returnKnownNull: 3,
       },
       unsupported: [
@@ -374,7 +374,6 @@ describe('operation registry', () => {
         'AppCredit',
         'AppRevenueAttributionRecord',
         'BasicEvent',
-        'BulkOperation',
         'BusinessEntity',
         'CalculatedOrder',
         'CashDrawer',
@@ -456,7 +455,6 @@ describe('operation registry', () => {
         'ReturnReasonDefinition',
         'ReverseFulfillmentOrderDisposition',
         'SaleAdditionalFee',
-        'SavedSearch',
         'ScriptTag',
         'SellingPlan',
         'SellingPlanGroup',

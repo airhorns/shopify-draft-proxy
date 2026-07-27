@@ -145,6 +145,44 @@ describe('parity runner JSONL targets', () => {
   });
 });
 
+describe('parity runner explicit null boundaries', () => {
+  const nullDifference = {
+    path: '$.product.onlineStorePreviewUrl',
+    matcher: 'null',
+    reason: 'A local-only product has no authoritative Shopify preview URL.',
+  };
+
+  it('accepts null while rejecting a plausible-looking fabricated URL', () => {
+    const capture = { product: { onlineStorePreviewUrl: 'https://example.shopifypreview.com/products_preview' } };
+
+    expect(diffValues(capture, { product: { onlineStorePreviewUrl: null } }, [nullDifference])).toEqual([]);
+    expect(
+      diffValues(capture, { product: { onlineStorePreviewUrl: 'https://shopify-draft-proxy.preview/products/1' } }, [
+        nullDifference,
+      ]),
+    ).toEqual([expect.stringContaining('$.product.onlineStorePreviewUrl')]);
+  });
+
+  it('is a validated parity-spec matcher', () => {
+    expect(
+      paritySpecSchema.parse({
+        scenarioId: 'preview-null-boundary',
+        operationNames: ['productSet'],
+        scenarioStatus: 'captured',
+        assertionKinds: ['nullability-parity'],
+        liveCaptureFiles: ['fixtures/conformance/example/2025-01/products/preview.json'],
+        proxyRequest: { documentPath: 'config/parity-requests/products/preview.graphql' },
+        comparisonMode: 'captured-vs-proxy-request',
+        comparison: {
+          mode: 'strict-json',
+          expectedDifferences: [nullDifference],
+          targets: [{ name: 'preview', capturePath: '$.response', proxyPath: '$' }],
+        },
+      }).comparison?.expectedDifferences,
+    ).toEqual([nullDifference]);
+  });
+});
+
 describe('Rust parity runner cassette matching', () => {
   it('accepts Storefront API parity requests as first-class captured scenario inputs', () => {
     expect(

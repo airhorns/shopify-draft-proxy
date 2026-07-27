@@ -100,7 +100,9 @@ fn product_set_live_hybrid_hydrates_unobserved_existing_id_before_update() {
               id
               title
               handle
+              status
               vendor
+              onlineStorePreviewUrl
               options { id name values optionValues { id name hasVariants } }
               variants(first: 10) {
                 nodes { id title sku inventoryItem { id tracked } }
@@ -123,7 +125,12 @@ fn product_set_live_hybrid_hydrates_unobserved_existing_id_before_update() {
     assert_eq!(product["id"], json!(product_id));
     assert_eq!(product["title"], json!("Hydrated ID update"));
     assert_eq!(product["handle"], json!("hydrated-id-product"));
+    assert_eq!(product["status"], json!("ACTIVE"));
     assert_eq!(product["vendor"], json!("Hydrated Vendor"));
+    assert_eq!(
+        product["onlineStorePreviewUrl"],
+        json!("https://example.myshopify.com/products/hydrated")
+    );
     assert_eq!(
         product["options"][0]["id"],
         json!("gid://shopify/ProductOption/101")
@@ -341,5 +348,124 @@ fn product_set_live_hybrid_preserves_missing_identifier_behaviors_after_hydratio
     assert_eq!(
         log_snapshot(&handle_proxy)["entries"][0]["stagedResourceIds"],
         json!([created_id])
+    );
+}
+
+#[test]
+fn product_set_preserves_an_observed_null_preview_url() {
+    let product_id = "gid://shopify/Product/7101";
+    let mut hydrated = product_set_hydrated_product_node(product_id, "preview-unavailable");
+    hydrated["onlineStorePreviewUrl"] = Value::Null;
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        move |_| Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": { "nodes": [hydrated.clone()] } }),
+        }
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductSetObservedNullPreview($identifier: ProductSetIdentifiers, $input: ProductSetInput!) {
+          productSet(identifier: $identifier, input: $input, synchronous: true) {
+            product { id onlineStorePreviewUrl }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "identifier": { "id": product_id },
+            "input": { "title": "Preview remains unavailable" }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body["data"]["productSet"]["userErrors"], json!([]));
+    assert_eq!(
+        response.body["data"]["productSet"]["product"]["onlineStorePreviewUrl"],
+        Value::Null
+    );
+}
+
+#[test]
+fn snapshot_product_set_uses_null_preview_url_and_delete_hides_the_product() {
+    let mut proxy = snapshot_proxy();
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductSetSnapshotPreviewBoundary($input: ProductSetInput!) {
+          productSet(input: $input, synchronous: true) {
+            product { id status onlineStorePreviewUrl }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "title": "Snapshot preview boundary", "status": "DRAFT" } }),
+    ));
+
+    assert_eq!(created.status, 200);
+    let product = &created.body["data"]["productSet"]["product"];
+    let product_id = product["id"]
+        .as_str()
+        .expect("productSet should return an id");
+    assert_eq!(product["status"], json!("DRAFT"));
+    assert_eq!(product["onlineStorePreviewUrl"], Value::Null);
+
+    let read = proxy.process_request(json_graphql_request(
+        "query ProductSetSnapshotPreviewRead($id: ID!) { product(id: $id) { id onlineStorePreviewUrl } }",
+        json!({ "id": product_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["product"]["onlineStorePreviewUrl"],
+        Value::Null
+    );
+
+    let deleted = proxy.process_request(json_graphql_request(
+        "mutation ProductSetSnapshotPreviewDelete($input: ProductDeleteInput!) { productDelete(input: $input) { deletedProductId userErrors { field message } } }",
+        json!({ "input": { "id": product_id } }),
+    ));
+    assert_eq!(
+        deleted.body["data"]["productDelete"]["deletedProductId"],
+        json!(product_id)
+    );
+
+    let deleted_read = proxy.process_request(json_graphql_request(
+        "query ProductSetDeletedPreviewRead($id: ID!) { product(id: $id) { id onlineStorePreviewUrl } }",
+        json!({ "id": product_id }),
+    ));
+    assert_eq!(deleted_read.body["data"]["product"], Value::Null);
+}
+
+#[test]
+fn product_duplicate_does_not_copy_the_source_products_authoritative_preview_url() {
+    let source_id = "gid://shopify/Product/7201";
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let source = product_set_hydrated_product_node(source_id, "duplicate-preview-source");
+        move |_| Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": { "nodes": [source.clone()] } }),
+        }
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductDuplicatePreviewBoundary($productId: ID!, $newTitle: String!) {
+          productDuplicate(productId: $productId, newTitle: $newTitle, synchronous: true) {
+            newProduct { id onlineStorePreviewUrl }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "productId": source_id, "newTitle": "Duplicate preview boundary" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["productDuplicate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["productDuplicate"]["newProduct"]["onlineStorePreviewUrl"],
+        Value::Null
     );
 }

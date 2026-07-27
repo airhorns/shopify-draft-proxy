@@ -482,12 +482,20 @@ impl DraftProxy {
                 "deliveryPromiseCompleteNodeIds": self.store.base.delivery_promise_complete_node_ids.iter().cloned().collect::<Vec<_>>(),
                 "orders": self.store.base.orders.records.clone(),
                 "orderOrder": self.store.base.orders.order,
+                "returnPreconditionHydratedOrderIds": self.store.base.return_precondition_hydrated_order_ids.iter().cloned().collect::<Vec<_>>(),
                 "orderCountBaselines": self.store.base.order_count_baselines.clone(),
                 "discounts": self.store.base.discounts.records.clone(),
                 "discountOrder": self.store.base.discounts.order,
                 "discountCountBaselines": self.store.base.discount_count_baselines.clone(),
                 "segments": self.store.base.segments.records.clone(),
                 "segmentOrder": self.store.base.segments.order,
+                "segmentNameIds": self.store.base.segment_name_ids.clone(),
+                "segmentCompleteNameProbes": self.store.base.segment_complete_name_probes.iter().cloned().collect::<Vec<_>>(),
+                "segmentKnownMissingIds": self.store.base.segment_known_missing_ids.iter().cloned().collect::<Vec<_>>(),
+                "segmentCountBaseline": self.store.base.segment_count_baseline.clone().unwrap_or(Value::Null),
+                "segmentCatalogComplete": self.store.base.segment_catalog_complete,
+                "customerSegmentMemberQueries": self.store.base.customer_segment_member_queries.clone(),
+                "customerSegmentMemberQueryKnownMissingIds": self.store.base.customer_segment_member_query_known_missing_ids.iter().cloned().collect::<Vec<_>>(),
                 "bulkOperations": self.store.base.bulk_operations.records.clone(),
                 "bulkOperationOrder": self.store.base.bulk_operations.order.clone(),
                 "bulkOperationsObserved": self.store.base.bulk_operations_observed,
@@ -611,6 +619,7 @@ impl DraftProxy {
                 "segments": self.store.staged.segments.records.clone(),
                 "segmentOrder": self.store.staged.segments.order.clone(),
                 "deletedSegmentIds": self.store.staged.segments.tombstones.iter().cloned().collect::<Vec<_>>(),
+                "customerSegmentMemberQueries": self.store.staged.customer_segment_member_queries.clone(),
                 "publicationIds": self.store.staged.publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "createdPublicationIds": self.store.staged.created_publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "publications": self.store.staged.publications.clone(),
@@ -705,6 +714,31 @@ impl DraftProxy {
                 .iter()
                 .cloned()
                 .collect::<Vec<_>>());
+        }
+        if !self.store.base.b2b_customers.records.is_empty()
+            || !self.store.base.b2b_customers.order.is_empty()
+        {
+            snapshot["baseState"]["b2bCustomers"] =
+                json!(self.store.base.b2b_customers.records.clone());
+            snapshot["baseState"]["b2bCustomerOrder"] =
+                json!(self.store.base.b2b_customers.order.clone());
+        }
+        if !self.store.base.b2b_relationship_completeness.is_empty() {
+            snapshot["baseState"]["b2bRelationshipCompleteness"] =
+                json!(self.store.base.b2b_relationship_completeness.clone());
+        }
+        if !self.store.base.b2b_address_ids.is_empty() {
+            snapshot["baseState"]["b2bAddressIds"] = json!(self
+                .store
+                .base
+                .b2b_address_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if !self.store.base.b2b_address_location_ids.is_empty() {
+            snapshot["baseState"]["b2bAddressLocationIds"] =
+                json!(self.store.base.b2b_address_location_ids.clone());
         }
         if !self.store.base.function_metadata.is_empty() {
             snapshot["baseState"]["functionMetadata"] =
@@ -986,6 +1020,8 @@ impl DraftProxy {
                 json!(self.store.staged.b2b_role_assignments.clone());
             snapshot["stagedState"]["b2bStaffAssignments"] =
                 json!(self.store.staged.b2b_staff_assignments.clone());
+            snapshot["stagedState"]["b2bAddressLocationIds"] =
+                json!(self.store.staged.b2b_address_location_ids.clone());
             snapshot["stagedState"]["deletedB2bCompanyIds"] = json!(self
                 .store
                 .staged
@@ -1019,6 +1055,13 @@ impl DraftProxy {
                 .store
                 .staged
                 .deleted_b2b_staff_assignment_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+            snapshot["stagedState"]["deletedB2bAddressIds"] = json!(self
+                .store
+                .staged
+                .deleted_b2b_address_ids
                 .iter()
                 .cloned()
                 .collect::<Vec<_>>());
@@ -1134,6 +1177,15 @@ impl DraftProxy {
                 .staged
                 .metaobjects
                 .tombstones
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if !self.store.staged.deleted_metaobject_types.is_empty() {
+            snapshot["stagedState"]["deletedMetaobjectTypes"] = json!(self
+                .store
+                .staged
+                .deleted_metaobject_types
                 .iter()
                 .cloned()
                 .collect::<Vec<_>>());
@@ -1436,6 +1488,8 @@ impl DraftProxy {
                 .staged
                 .deleted_b2b_staff_assignment_ids
                 .is_empty()
+            || !self.store.staged.b2b_address_location_ids.is_empty()
+            || !self.store.staged.deleted_b2b_address_ids.is_empty()
     }
 
     pub(in crate::proxy) fn dump_state(&self, request: &Request) -> Response {
@@ -1516,6 +1570,8 @@ impl DraftProxy {
                 .map(string_array_from_json)
                 .unwrap_or_default(),
         );
+        self.store.base.return_precondition_hydrated_order_ids =
+            string_set_from_json(state["baseState"].get("returnPreconditionHydratedOrderIds"));
         self.store.base.order_count_baselines =
             value_map_from_json(state["baseState"].get("orderCountBaselines"));
         self.store.base.draft_orders.replace_with_order(
@@ -1732,6 +1788,43 @@ impl DraftProxy {
                 .map(string_array_from_json)
                 .unwrap_or_default(),
         );
+        self.store.base.segment_name_ids = state["baseState"]
+            .get("segmentNameIds")
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
+            .unwrap_or_default();
+        if self.store.base.segment_name_ids.is_empty() {
+            self.store.rebuild_segment_name_index();
+        }
+        self.store.base.segment_complete_name_probes = state["baseState"]
+            .get("segmentCompleteNameProbes")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.base.segment_known_missing_ids = state["baseState"]
+            .get("segmentKnownMissingIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.base.segment_count_baseline = state["baseState"]
+            .get("segmentCountBaseline")
+            .filter(|value| value.is_object())
+            .cloned();
+        self.store.base.segment_catalog_complete = state["baseState"]
+            .get("segmentCatalogComplete")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        self.store.base.customer_segment_member_queries =
+            value_map_from_json(state["baseState"].get("customerSegmentMemberQueries"));
+        self.store
+            .base
+            .customer_segment_member_query_known_missing_ids = state["baseState"]
+            .get("customerSegmentMemberQueryKnownMissingIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.base.gift_cards = value_map_from_json(state["baseState"].get("giftCards"));
         self.store.base.gift_card_configuration = state["baseState"]
             .get("giftCardConfiguration")
@@ -2084,6 +2177,26 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .collect();
+        self.store.base.b2b_customers.replace_with_order(
+            value_map_from_json(state["baseState"].get("b2bCustomers")),
+            state["baseState"]
+                .get("b2bCustomerOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
+        self.store.base.b2b_relationship_completeness = state["baseState"]
+            .get("b2bRelationshipCompleteness")
+            .cloned()
+            .and_then(|value| serde_json::from_value(value).ok())
+            .unwrap_or_default();
+        self.store.base.b2b_address_ids = state["baseState"]
+            .get("b2bAddressIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.base.b2b_address_location_ids =
+            string_map_from_json(state["baseState"].get("b2bAddressLocationIds"));
         self.store.staged.publication_ids =
             string_array_from_json(&state["stagedState"]["publicationIds"])
                 .into_iter()
@@ -2544,6 +2657,8 @@ impl DraftProxy {
             Some("segmentOrder"),
             Some("deletedSegmentIds"),
         );
+        self.store.staged.customer_segment_member_queries =
+            value_map_from_json(state["stagedState"].get("customerSegmentMemberQueries"));
         self.store.staged.fulfillment_order_cursors = state["stagedState"]
             .get("fulfillmentOrderCursors")
             .and_then(|value| serde_json::from_value(value.clone()).ok())
@@ -2647,6 +2762,8 @@ impl DraftProxy {
             value_map_from_json(state["stagedState"].get("b2bRoleAssignments"));
         self.store.staged.b2b_staff_assignments =
             value_map_from_json(state["stagedState"].get("b2bStaffAssignments"));
+        self.store.staged.b2b_address_location_ids =
+            string_map_from_json(state["stagedState"].get("b2bAddressLocationIds"));
         replace_staged_value_records(
             &mut self.store.staged.metaobject_definitions,
             &state["stagedState"],
@@ -2661,6 +2778,12 @@ impl DraftProxy {
             None,
             Some("deletedMetaobjectIds"),
         );
+        self.store.staged.deleted_metaobject_types = state["stagedState"]
+            .get("deletedMetaobjectTypes")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.url_redirects =
             value_map_from_json(state["stagedState"].get("urlRedirects"));
         self.store.staged.url_redirect_order = state["stagedState"]
@@ -2788,6 +2911,12 @@ impl DraftProxy {
             .collect();
         self.store.staged.deleted_b2b_staff_assignment_ids = state["stagedState"]
             .get("deletedB2bStaffAssignmentIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.staged.deleted_b2b_address_ids = state["stagedState"]
+            .get("deletedB2bAddressIds")
             .map(string_array_from_json)
             .unwrap_or_default()
             .into_iter()

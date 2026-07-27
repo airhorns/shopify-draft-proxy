@@ -1,0 +1,18 @@
+query MediaFileUpdateMixedBatchRead($ids: [ID!]!, $query: String!) {
+  files(first: 2, query: $query, sortKey: FILENAME) {
+    nodes {
+      id
+      __typename
+      alt
+      fileStatus
+    }
+  }
+  nodes(ids: $ids) {
+    id
+    __typename
+    ... on MediaImage {
+      alt
+      fileStatus
+    }
+  }
+}
