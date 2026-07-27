@@ -2690,7 +2690,11 @@ mod tests {
             "metafields": owners
                 .into_iter()
                 .map(|(resource_type, index)| {
-                    let value = format!("before-{resource_type}");
+                    let value = if stale_market_digest && resource_type == "Market" {
+                        "after-Market".to_string()
+                    } else {
+                        format!("before-{resource_type}")
+                    };
                     json!({
                         "ownerId": shopify_gid(resource_type, index),
                         "namespace": "custom",
