@@ -114,7 +114,6 @@ function nodeResolverCoverageAudit() {
     localResolverBehaviorCounts: {
       projectLocalRecord: nodeResolverInventoryEntries.filter((entry) => entry.behavior === 'project-local-record')
         .length,
-      hydrateUnmodeled: nodeResolverInventoryEntries.filter((entry) => entry.behavior === 'hydrate-unmodeled').length,
     },
     unsupported: capturedTypeNames.filter((typeName) => !localResolverTypeNames.includes(typeName)),
     localInventoryNotInCapturedNodeInterface: localResolverTypeNames.filter(
@@ -360,10 +359,9 @@ describe('operation registry', () => {
   it('audits captured Shopify Node implementors against the explicit Rust resolver inventory', () => {
     expect(nodeResolverCoverageAudit()).toEqual({
       capturedNodeImplementorCount: 203,
-      localNodeResolverTypeCount: 86,
+      localNodeResolverTypeCount: 83,
       localResolverBehaviorCounts: {
         projectLocalRecord: 83,
-        hydrateUnmodeled: 3,
       },
       unsupported: [
         'AbandonedCheckout',
@@ -381,6 +379,7 @@ describe('operation registry', () => {
         'CashManagementDefaultReasonCode',
         'CashManagementSystemReasonCode',
         'CashTrackingAdjustment',
+        'CashTrackingSession',
         'CatalogCsvOperation',
         'Channel',
         'ChannelDefinition',
@@ -441,6 +440,7 @@ describe('operation registry', () => {
         'PaymentSchedule',
         'PaymentTerms',
         'PaymentTermsTemplate',
+        'PointOfSaleDevice',
         'PointOfSaleDevicePaymentSession',
         'PriceList',
         'PriceRule',
@@ -465,6 +465,7 @@ describe('operation registry', () => {
         'ShopifyPaymentsAccount',
         'ShopifyPaymentsBalanceTransaction',
         'ShopifyPaymentsBankAccount',
+        'ShopifyPaymentsDispute',
         'ShopifyPaymentsDisputeEvidence',
         'ShopifyPaymentsDisputeFileUpload',
         'ShopifyPaymentsDisputeFulfillment',

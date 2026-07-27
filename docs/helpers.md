@@ -64,7 +64,7 @@ receiving a nested selection tree. It also exposes
 that only to plan hydration breadth or batching; do not use it to shape JSON
 output or recreate selection projectors.
 
-For generic IDs, update `src/node_resolver_inventory.rs` and its matching loader in `src/proxy/node_registry.rs` rather than adding another `node`/`nodes` switch. The inventory is exported for coverage audits; the executable loader reads the owning domain's effective store state.
+For generic IDs with a local state model, update `src/node_resolver_inventory.rs` and its matching loader in `src/proxy/node_registry.rs` rather than adding another `node`/`nodes` switch. The inventory is exported for coverage audits; each entry represents a locally resolvable type whose executable loader reads the owning domain's effective store state. Do not register an unmodeled type merely to make LiveHybrid forward it: well-formed GIDs outside the inventory already use the generic unsupported-type upstream path, while Snapshot returns `null`.
 
 Node loaders return store evidence through `NodeLoadState`: `Found`, `KnownMissing`, `NeedsHydration`, or `UnsupportedType`. Return `Some(Value::Null)` from an inventory loader when a tombstone or modeled safe-null makes absence authoritative; return `None` only when live-hybrid may need hydration. Do not add a parallel loader-name enum or per-call domain switch.
 

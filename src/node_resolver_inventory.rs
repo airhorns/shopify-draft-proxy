@@ -55,14 +55,12 @@ pub(crate) enum NodeLoadState<T = Value> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NodeResolverBehavior {
     ProjectLocalRecord,
-    HydrateUnmodeled,
 }
 
 impl NodeResolverBehavior {
     fn registry_name(self) -> &'static str {
         match self {
             Self::ProjectLocalRecord => "project-local-record",
-            Self::HydrateUnmodeled => "hydrate-unmodeled",
         }
     }
 }
@@ -146,12 +144,6 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
         "node_registry::load_cart_transform",
         NodeResolverBehavior::ProjectLocalRecord,
         load_cart_transform,
-    ),
-    node_entry!(
-        "CashTrackingSession",
-        "NodeLoadState::NeedsHydration",
-        NodeResolverBehavior::HydrateUnmodeled,
-        load_unmodeled,
     ),
     node_entry!(
         "Collection",
@@ -424,12 +416,6 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
         load_online_store,
     ),
     node_entry!(
-        "PointOfSaleDevice",
-        "NodeLoadState::NeedsHydration",
-        NodeResolverBehavior::HydrateUnmodeled,
-        load_unmodeled,
-    ),
-    node_entry!(
         "Product",
         "DraftProxy::product_canonical_value",
         NodeResolverBehavior::ProjectLocalRecord,
@@ -542,12 +528,6 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
         "Store::effective.function_metadata",
         NodeResolverBehavior::ProjectLocalRecord,
         load_shopify_function,
-    ),
-    node_entry!(
-        "ShopifyPaymentsDispute",
-        "NodeLoadState::NeedsHydration",
-        NodeResolverBehavior::HydrateUnmodeled,
-        load_unmodeled,
     ),
     node_entry!(
         "StoreCreditAccount",

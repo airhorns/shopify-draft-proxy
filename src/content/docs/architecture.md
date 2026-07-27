@@ -46,7 +46,7 @@ There is no process-wide singleton, ambient context, or module-global store. The
 
 `live-hybrid` lets fidelity expand one operation at a time without pretending every Admin API domain is complete.
 
-Successful upstream null reads also establish an instance-owned, API-version-scoped exact Node miss. Later generic `node` / `nodes` reads for that same ID may return null without another transport call, while cold IDs still hydrate upstream. `POST /__meta/reset` clears these observations.
+Successful generic Node nulls and successful nulls from the finance/POS singular roots establish an instance-owned, API-version-scoped exact Node miss for well-formed Shopify GIDs, including types outside the local resolver inventory. Later generic `node` / `nodes` reads for that same ID may return null without another transport call, while cold IDs still hydrate upstream. `POST /__meta/reset` clears these observations.
 
 ## Mutation Paths
 

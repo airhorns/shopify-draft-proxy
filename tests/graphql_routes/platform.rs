@@ -2858,7 +2858,7 @@ fn snapshot_finance_and_pos_node_no_data_reads_return_null_nodes_locally() {
 }
 
 #[test]
-fn live_hybrid_unmodeled_legitimate_nodes_forward_and_preserve_upstream_fields() {
+fn live_hybrid_unregistered_legitimate_nodes_forward_and_preserve_upstream_fields() {
     let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
     let captured_requests = Arc::clone(&upstream_requests);
     let mut proxy =

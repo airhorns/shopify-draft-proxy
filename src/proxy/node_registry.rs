@@ -445,7 +445,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn cache_authoritative_admin_node_value(&self, id: &str, value: &Value) {
-        if registered_node_type_name(id).is_none() {
+        if shopify_gid_resource_type(id).is_none() {
             return;
         }
         let key =
@@ -1325,14 +1325,6 @@ pub(crate) fn load_media(
         .map_or(NodeLoadState::NeedsHydration, |value| {
             NodeLoadState::Found(EntityRef::new(type_name, id, value))
         })
-}
-
-pub(crate) fn load_unmodeled(
-    _proxy: &DraftProxy,
-    _id: &str,
-    _request: Option<&Request>,
-) -> NodeLoadState<EntityRef> {
-    NodeLoadState::NeedsHydration
 }
 
 #[cfg(test)]
