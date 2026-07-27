@@ -40,6 +40,10 @@ const customerMergeAttachedHydrateDocument = await readFile(
   'config/parity-requests/customers/customer-merge-attached-hydrate.graphql',
   'utf8',
 );
+const customerMergeAttachedPageHydrateDocument = await readFile(
+  'config/parity-requests/customers/customer-merge-attached-page-hydrate.graphql',
+  'utf8',
+);
 const customerMergeDraftOrderCreateDocument = await readFile(
   'config/parity-requests/customers/customer-merge-draft-order-create.graphql',
   'utf8',
@@ -68,7 +72,57 @@ async function captureMergeHydrate(ids, context) {
 async function captureMergeAttachedHydrate(ids, context) {
   const result = await runGraphql(customerMergeAttachedHydrateDocument, { ids });
   assertNoTopLevelErrors(result, context);
-  return result.payload;
+  const records = new Map(
+    (result.payload?.data?.nodes ?? [])
+      .filter((customer) => typeof customer?.id === 'string')
+      .map((customer) => [customer.id, structuredClone(customer)]),
+  );
+  const pageCalls = [];
+  const oneId = ids[0];
+  const twoId = ids[1] ?? oneId;
+  let previousSignature = null;
+  while (typeof oneId === 'string') {
+    const variables = { oneId, twoId };
+    for (const [prefix, id, enabled] of [
+      ['one', oneId, true],
+      ['two', twoId, ids.length > 1],
+    ]) {
+      const customer = records.get(id) ?? {};
+      for (const [field, suffix] of [
+        ['addressesV2', 'Addresses'],
+        ['metafields', 'Metafields'],
+        ['orders', 'Orders'],
+      ]) {
+        const connection = customer[field];
+        const cursor = connection?.pageInfo?.endCursor ?? null;
+        variables[`${prefix}${suffix}After`] = cursor;
+        variables[`${prefix}${suffix}Pending`] =
+          enabled && connection?.pageInfo?.hasNextPage !== false && typeof cursor === 'string';
+      }
+    }
+    const signature = JSON.stringify(variables);
+    const hasPending = Object.entries(variables).some(([key, value]) => key.endsWith('Pending') && value === true);
+    if (!hasPending || signature === previousSignature) {
+      break;
+    }
+    previousSignature = signature;
+    const page = await runGraphql(customerMergeAttachedPageHydrateDocument, variables);
+    assertNoTopLevelErrors(page, `${context} continuation`);
+    pageCalls.push({ variables, payload: page.payload });
+    for (const [responseKey, id, enabled] of [
+      ['one', oneId, true],
+      ['two', twoId, ids.length > 1],
+    ]) {
+      if (!enabled) continue;
+      const pageCustomer = page.payload?.data?.[responseKey];
+      const customer = records.get(id);
+      if (!pageCustomer || !customer) continue;
+      for (const field of ['addressesV2', 'metafields', 'orders']) {
+        if (pageCustomer[field]) customer[field] = pageCustomer[field];
+      }
+    }
+  }
+  return { payload: result.payload, pageCalls };
 }
 
 async function captureGraphqlPayload(document, variables, context) {
@@ -91,6 +145,15 @@ function attachedHydrateUpstreamCall(ids, payload) {
     operationName: 'CustomerMergeAttachedHydrate',
     variables: { ids },
     query: customerMergeAttachedHydrateDocument,
+    response: { status: 200, body: payload },
+  };
+}
+
+function attachedPageHydrateUpstreamCall(variables, payload) {
+  return {
+    operationName: 'CustomerMergeAttachedPageHydrate',
+    variables,
+    query: customerMergeAttachedPageHydrateDocument,
     response: { status: 200, body: payload },
   };
 }
@@ -446,7 +509,7 @@ async function main() {
   );
   const requiredScopes = ['read_customer_merge', 'write_customer_merge'];
   if (capturesAttachedResources) {
-    requiredScopes.push('read_draft_orders', 'write_draft_orders');
+    requiredScopes.push('read_orders', 'write_orders', 'read_draft_orders', 'write_draft_orders');
   }
   for (const requiredScope of requiredScopes) {
     if (!scopeHandles.has(requiredScope)) {
@@ -480,6 +543,12 @@ async function main() {
                 type: 'single_line_text_field',
                 value: `source-conflict-${stamp}`,
               },
+              ...Array.from({ length: 4 }, (_, index) => ({
+                namespace: 'custom',
+                key: `source_tail_${index + 1}`,
+                type: 'single_line_text_field',
+                value: `source-tail-${index + 1}-${stamp}`,
+              })),
             ],
           }
         : {}),
@@ -526,19 +595,19 @@ async function main() {
     );
   }
 
-  const addressOneVariables = {
+  const addressOneVariables = Array.from({ length: 6 }, (_, index) => ({
     customerId: customerOneId,
     address: {
       firstName: 'Source',
-      lastName: 'Address',
-      address1: '1 Source Merge St',
+      lastName: `Address ${index + 1}`,
+      address1: `${index + 1} Source Merge St`,
       city: 'Ottawa',
       provinceCode: 'ON',
       countryCode: 'CA',
-      zip: 'K1A 0B1',
+      zip: `K1A 0B${index + 1}`,
     },
-    setAsDefault: true,
-  };
+    setAsDefault: index === 0,
+  }));
   const addressTwoVariables = {
     customerId: customerTwoId,
     address: {
@@ -552,11 +621,13 @@ async function main() {
     },
     setAsDefault: true,
   };
-  const createAddressOne = capturesAttachedResources
-    ? await runGraphql(createCustomerAddressMutation, addressOneVariables)
-    : null;
-  if (createAddressOne) {
-    assertNoTopLevelErrors(createAddressOne, 'customerAddressCreate one');
+  const createAddressOne = [];
+  if (capturesAttachedResources) {
+    for (const [index, variables] of addressOneVariables.entries()) {
+      const created = await runGraphql(createCustomerAddressMutation, variables);
+      assertNoTopLevelErrors(created, `customerAddressCreate one ${index + 1}`);
+      createAddressOne.push(created);
+    }
   }
   const createAddressTwo = capturesAttachedResources
     ? await runGraphql(createCustomerAddressMutation, addressTwoVariables)
@@ -565,21 +636,21 @@ async function main() {
     assertNoTopLevelErrors(createAddressTwo, 'customerAddressCreate two');
   }
 
-  const orderVariables = {
+  const orderVariables = Array.from({ length: 6 }, (_, index) => ({
     order: {
       customerId: customerOneId,
       email: oneVariables.input.email,
-      note: 'HAR-291 customer merge source order',
+      note: `Customer merge source order ${index + 1}`,
       tags: ['har-291-merge', `merge-${stamp}`],
       test: true,
       currency: 'CAD',
       lineItems: [
         {
-          title: 'HAR-291 merge source order item',
+          title: `Customer merge source order item ${index + 1}`,
           quantity: 1,
           priceSet: {
             shopMoney: {
-              amount: '11.00',
+              amount: `${11 + index}.00`,
               currencyCode: 'CAD',
             },
           },
@@ -591,8 +662,28 @@ async function main() {
       sendReceipt: false,
       sendFulfillmentReceipt: false,
     },
-  };
-  const orderCreate = capturesAttachedResources ? await runGraphql(orderCreateMutation, orderVariables) : null;
+  }));
+  const orderCreate = [];
+  if (capturesAttachedResources) {
+    for (const [index, variables] of orderVariables.entries()) {
+      let created = null;
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        created = await runGraphql(orderCreateMutation, variables);
+        assertNoTopLevelErrors(created, `customerMerge orderCreate ${index + 1}`);
+        const userErrors = created.payload?.data?.orderCreate?.userErrors ?? [];
+        if (userErrors.length === 0) break;
+        const throttled = userErrors.some((error) => error?.message === 'Too many attempts. Please try again later.');
+        if (!throttled || attempt === 3) {
+          throw new Error(`customerMerge orderCreate ${index + 1} returned userErrors: ${JSON.stringify(userErrors)}`);
+        }
+        await new Promise((resolve) => setTimeout(resolve, 15_000));
+      }
+      orderCreate.push(created);
+      if (index + 1 < orderVariables.length) {
+        await new Promise((resolve) => setTimeout(resolve, 12_000));
+      }
+    }
+  }
 
   const draftOrderVariables = {
     input: {
@@ -678,14 +769,14 @@ async function main() {
   // customer validation branches only issue scalar hydrates.
   const mergeHydrateIds = [customerOneId, customerTwoId];
   const hydratePayload = await captureMergeHydrate(mergeHydrateIds, 'customerMerge hydrate customers');
-  const attachedHydratePayload = await captureMergeAttachedHydrate(
+  const attachedHydrate = await captureMergeAttachedHydrate(
     mergeHydrateIds,
     'customerMerge attached hydrate customers',
   );
   const hydrateTwoOnlyPayload = capturesAttachedResources
     ? await captureMergeHydrate([customerTwoId], 'customerMerge hydrate customer two')
     : null;
-  const attachedHydrateTwoOnlyPayload = capturesAttachedResources
+  const attachedHydrateTwoOnly = capturesAttachedResources
     ? await captureMergeAttachedHydrate([customerTwoId], 'customerMerge attached hydrate customer two')
     : null;
   const unknownHydratePayload = await captureMergeHydrate([UNKNOWN_CUSTOMER_GID], 'customerMerge unknown hydrate');
@@ -769,7 +860,7 @@ async function main() {
         ? {
             createAddressOne: {
               variables: addressOneVariables,
-              response: createAddressOne?.payload,
+              responses: createAddressOne.map((created) => created.payload),
             },
             createAddressTwo: {
               variables: addressTwoVariables,
@@ -777,7 +868,7 @@ async function main() {
             },
             orderCreate: {
               variables: orderVariables,
-              response: orderCreate?.payload,
+              responses: orderCreate.map((created) => created.payload),
             },
             draftOrderCreate: {
               variables: draftOrderVariables,
@@ -877,11 +968,15 @@ async function main() {
         ? [draftOrderCustomerHydrateUpstreamCall(customerOneId, draftOrderCustomerHydratePayload)]
         : []),
       hydrateUpstreamCall(mergeHydrateIds, hydratePayload),
-      attachedHydrateUpstreamCall(mergeHydrateIds, attachedHydratePayload),
-      ...(hydrateTwoOnlyPayload && attachedHydrateTwoOnlyPayload
+      attachedHydrateUpstreamCall(mergeHydrateIds, attachedHydrate.payload),
+      ...attachedHydrate.pageCalls.map(({ variables, payload }) => attachedPageHydrateUpstreamCall(variables, payload)),
+      ...(hydrateTwoOnlyPayload && attachedHydrateTwoOnly
         ? [
             hydrateUpstreamCall([customerTwoId], hydrateTwoOnlyPayload),
-            attachedHydrateUpstreamCall([customerTwoId], attachedHydrateTwoOnlyPayload),
+            attachedHydrateUpstreamCall([customerTwoId], attachedHydrateTwoOnly.payload),
+            ...attachedHydrateTwoOnly.pageCalls.map(({ variables, payload }) =>
+              attachedPageHydrateUpstreamCall(variables, payload),
+            ),
           ]
         : []),
       hydrateUpstreamCall([UNKNOWN_CUSTOMER_GID], unknownHydratePayload),

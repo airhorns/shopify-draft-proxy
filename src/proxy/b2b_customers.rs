@@ -22,8 +22,8 @@ pub(in crate::proxy) use self::customers::{
     customer_field_resolver_registrations, customer_field_resolver_type_policies,
 };
 use self::merge_erasure::{
-    connection_has_nodes, customer_merge_extract_order_records, customer_merge_job_from_request,
-    nodes_connection, order_connection_cursor,
+    connection_has_nodes, customer_merge_job_from_request, nodes_connection,
+    order_connection_cursor,
 };
 
 pub(in crate::proxy) struct B2bRootInput {

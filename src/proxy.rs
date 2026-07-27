@@ -454,6 +454,14 @@ struct ShopPolicyRecord {
     translations: Vec<Value>,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CustomerMergeAttachedCompleteness {
+    addresses_v2: bool,
+    metafields: bool,
+    orders: bool,
+}
+
 #[derive(Clone)]
 struct Store {
     base: BaseState,
@@ -473,6 +481,8 @@ enum B2bRelationshipCompleteness {
 
 #[derive(Clone, Default)]
 struct BaseState {
+    customer_merge_customers: BTreeMap<String, Value>,
+    customer_merge_attached_completeness: BTreeMap<String, CustomerMergeAttachedCompleteness>,
     delivery_profiles: OrderedRecords<Value>,
     delivery_promise_providers: OrderedRecords<Value>,
     delivery_promise_provider_complete_location_ids: BTreeSet<String>,
