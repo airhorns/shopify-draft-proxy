@@ -11636,6 +11636,78 @@ fn live_hybrid_product_catalog_overlays_staged_create_update_and_delete() {
 }
 
 #[test]
+fn live_hybrid_variant_only_mutation_does_not_claim_product_lifecycle_catalog_overlay() {
+    let product_id = "gid://shopify/Product/variant-only-catalog-boundary";
+    let upstream_product_id = "gid://shopify/Product/upstream-catalog-product";
+    let upstream_response = json!({
+        "data": {
+            "product": {
+                "id": product_id,
+                "variants": { "nodes": [{ "id": "gid://shopify/ProductVariant/upstream" }] }
+            },
+            "products": {
+                "nodes": [{ "id": upstream_product_id, "title": "Upstream catalog product" }]
+            },
+            "productsCount": { "count": 1, "precision": "EXACT" }
+        }
+    });
+    let calls = Arc::new(Mutex::new(Vec::<String>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![seed_product(product_id)])
+        .with_upstream_transport({
+            let calls = Arc::clone(&calls);
+            let upstream_response = upstream_response.clone();
+            move |request| {
+                calls.lock().unwrap().push(request.body);
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: upstream_response.clone(),
+                }
+            }
+        });
+
+    let variant = create_legacy_variant(&mut proxy, product_id, "VARIANT-ONLY", "10.00");
+    let variant_id = variant["id"].as_str().unwrap().to_string();
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteVariantOnlyCatalogChange($productId: ID!, $variantsIds: [ID!]!) {
+          productVariantsBulkDelete(productId: $productId, variantsIds: $variantsIds) {
+            product { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "productId": product_id, "variantsIds": [variant_id] }),
+    ));
+    assert_eq!(
+        delete.body["data"]["productVariantsBulkDelete"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query VariantOnlyCatalogBoundary($id: ID!) {
+          product(id: $id) { id variants(first: 10) { nodes { id } } }
+          products(first: 10) { nodes { id title } }
+          productsCount { count precision }
+        }
+        "#,
+        json!({ "id": product_id }),
+    ));
+
+    assert_eq!(read.body, upstream_response);
+    let calls = calls.lock().unwrap();
+    assert_eq!(
+        calls.len(),
+        1,
+        "the mixed catalog read should retain the existing passthrough boundary"
+    );
+    assert!(calls[0].contains("VariantOnlyCatalogBoundary"));
+    assert!(!calls[0].contains("DraftProxyProductCatalogWindow"));
+}
+
+#[test]
 fn live_hybrid_handle_and_barcode_searches_forward_with_partial_overlay_state() {
     let calls = Arc::new(Mutex::new(Vec::<String>::new()));
     let upstream_search = json!({

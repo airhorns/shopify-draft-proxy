@@ -1112,19 +1112,20 @@ impl DraftProxy {
 
     fn staged_product_catalog_ids(&self) -> BTreeSet<String> {
         let mut ids = self
-            .log_entries
-            .iter()
-            .filter(|entry| entry.get("status") == Some(&json!("staged")))
-            .filter(|entry| {
-                entry.pointer("/interpreted/capability/domain") == Some(&json!("products"))
-            })
-            .filter_map(|entry| entry.get("stagedResourceIds").and_then(Value::as_array))
-            .flatten()
-            .filter_map(Value::as_str)
-            .filter(|id| shopify_gid_resource_type(id) == Some("Product"))
-            .map(str::to_string)
+            .product_catalog_base_records
+            .keys()
+            .cloned()
             .collect::<BTreeSet<_>>();
         ids.extend(self.store.products.staged.tombstones.iter().cloned());
+        ids.extend(
+            self.store
+                .products
+                .staged
+                .records
+                .keys()
+                .filter(|id| is_synthetic_gid(id))
+                .cloned(),
+        );
         ids
     }
 
