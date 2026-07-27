@@ -773,7 +773,7 @@ fn canonical_delivery_location_group_zone_value(zone: &Value) -> Value {
     zone
 }
 
-fn stored_delivery_profile_nodes(value: &Value) -> Vec<Value> {
+pub(in crate::proxy) fn stored_delivery_profile_nodes(value: &Value) -> Vec<Value> {
     value
         .as_array()
         .cloned()

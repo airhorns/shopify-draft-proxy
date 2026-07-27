@@ -1,0 +1,52 @@
+{
+  "scenarioId": "product-mutation-hydration-option-update",
+  "operationNames": ["productOptionUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "mutation-no-write-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-mutation-hydration-option-update.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/product-mutation-hydration-option-update.graphql",
+    "apiVersion": "2025-01",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured productOptionUpdate on a real rich product with twelve variants. The exact production preflight cassette proves option hydration preserves route-independent product state and remaps every variant readback.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "option-update-remaps-complete-variant-catalog",
+        "capturePath": "$.mutation.response.data.productOptionUpdate",
+        "proxyPath": "$.data.productOptionUpdate",
+        "expectedDifferences": [
+          {
+            "path": "$.product.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify advances the product timestamp for the option write while the proxy preserves the hydrated timestamp."
+          }
+        ]
+      },
+      {
+        "name": "read-after-option-update-preserves-rich-product-and-all-remapped-variants",
+        "capturePath": "$.downstreamRead.response.data.product",
+        "proxyPath": "$.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-mutation-hydration-read.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.downstreamRead.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify advances the product timestamp for the option write while the proxy preserves the hydrated timestamp."
+          }
+        ]
+      }
+    ]
+  }
+}

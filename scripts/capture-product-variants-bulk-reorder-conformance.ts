@@ -7,6 +7,7 @@ import path from 'node:path';
 
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
+import { captureProductMutationPreflight } from './product-mutation-preflight-capture.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
@@ -126,8 +127,12 @@ const downstreamReadQuery = await readFile(
   'config/parity-requests/products/productVariantsBulkReorder-position-read.graphql',
   'utf8',
 );
-const productsHydrateNodesQuery = await readFile(
-  'config/parity-requests/products/products-hydrate-nodes-observation.graphql',
+const legacyReorderMutation = await readFile(
+  'config/parity-requests/products/productVariantsBulkReorder-parity.graphql',
+  'utf8',
+);
+const legacyDownstreamReadQuery = await readFile(
+  'config/parity-requests/products/productVariantsBulkReorder-downstream-read.graphql',
   'utf8',
 );
 
@@ -142,27 +147,6 @@ function variantByTitle(variants, title) {
     throw new Error(`Expected ${title} variant in ${JSON.stringify(variants, null, 2)}`);
   }
   return variant;
-}
-
-function hydrateIds(productId, variantIds) {
-  return [productId, ...[...variantIds].sort()];
-}
-
-async function recordProductHydrationCall(productId, variantIds) {
-  const variables = { ids: hydrateIds(productId, variantIds) };
-  const response = await runGraphqlRaw(productsHydrateNodesQuery, variables);
-  if (response.status < 200 || response.status >= 300 || response.payload.errors) {
-    throw new Error(`ProductsHydrateNodes failed: ${JSON.stringify(response, null, 2)}`);
-  }
-  return {
-    operationName: 'ProductsHydrateNodes',
-    variables,
-    query: productsHydrateNodesQuery,
-    response: {
-      status: response.status,
-      body: response.payload,
-    },
-  };
 }
 
 async function captureCase(name, query, variables) {
@@ -216,6 +200,7 @@ try {
   const blue = variantByTitle(seededVariants, 'Blue');
   const green = variantByTitle(seededVariants, 'Green');
   const unknownVariantId = 'gid://shopify/ProductVariant/999999999999999999';
+  const upstreamCalls = await captureProductMutationPreflight(runGraphqlRaw, productId);
 
   const cases = [];
   cases.push(
@@ -254,7 +239,15 @@ try {
 
   const reorderDownstreamVariables = { productId };
   const reorderDownstreamRead = await runGraphql(downstreamReadQuery, reorderDownstreamVariables);
-  const upstreamCalls = [await recordProductHydrationCall(productId, [green.id, red.id])];
+  const legacyMutationVariables = {
+    productId,
+    positions: [
+      { id: green.id, position: 1 },
+      { id: red.id, position: 2 },
+    ],
+  };
+  const legacyMutationResponse = await runGraphql(legacyReorderMutation, legacyMutationVariables);
+  const legacyDownstreamRead = await runGraphql(legacyDownstreamReadQuery, reorderDownstreamVariables);
 
   const payload = {
     capturedAt: new Date().toISOString(),
@@ -278,6 +271,30 @@ try {
   };
 
   await writeFile(outputPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+  await writeFile(
+    path.join(outputDir, 'product-variants-bulk-reorder-parity.json'),
+    `${JSON.stringify(
+      {
+        capturedAt: new Date().toISOString(),
+        storeDomain,
+        apiVersion,
+        setup: {
+          productCreate: createProductResponse,
+          productOptionsCreate: setupOptionsResponse,
+          productVariantsBulkCreate: bulkCreateResponse,
+        },
+        mutation: {
+          variables: legacyMutationVariables,
+          response: legacyMutationResponse,
+        },
+        downstreamRead: legacyDownstreamRead,
+        upstreamCalls,
+      },
+      null,
+      2,
+    )}\n`,
+    'utf8',
+  );
 
   console.log(
     JSON.stringify(
