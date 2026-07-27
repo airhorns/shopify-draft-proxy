@@ -250,7 +250,7 @@ impl DraftProxy {
             || !self.store.staged.delivery_profiles.tombstones.is_empty()
     }
 
-    fn observe_delivery_profiles_data(&mut self, data: &Value) -> bool {
+    pub(in crate::proxy) fn observe_delivery_profiles_data(&mut self, data: &Value) -> bool {
         let mut profiles = Vec::new();
         collect_delivery_profile_response_values(data, &mut profiles);
         let mut observed = false;

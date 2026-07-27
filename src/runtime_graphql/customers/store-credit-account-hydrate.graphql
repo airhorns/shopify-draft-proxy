@@ -1,0 +1,76 @@
+query StoreCreditAccountHydrate($id: ID!) {
+  storeCreditAccount(id: $id) {
+    id
+    balance {
+      amount
+      currencyCode
+    }
+    owner {
+      ... on Customer {
+        id
+        firstName
+        lastName
+        displayName
+        email
+        phone
+        locale
+        note
+        canDelete
+        verifiedEmail
+        dataSaleOptOut
+        taxExempt
+        taxExemptions
+        state
+        tags
+        createdAt
+        updatedAt
+        defaultEmailAddress {
+          emailAddress
+        }
+        defaultPhoneNumber {
+          phoneNumber
+        }
+        defaultAddress {
+          id
+          firstName
+          lastName
+          address1
+          address2
+          city
+          company
+          province
+          provinceCode
+          country
+          countryCodeV2
+          zip
+          phone
+          name
+          formattedArea
+        }
+        addressesV2(first: 250) {
+          nodes {
+            id
+            firstName
+            lastName
+            address1
+            address2
+            city
+            company
+            province
+            provinceCode
+            country
+            countryCodeV2
+            zip
+            phone
+            name
+            formattedArea
+          }
+        }
+      }
+      ... on CompanyLocation {
+        id
+        name
+      }
+    }
+  }
+}

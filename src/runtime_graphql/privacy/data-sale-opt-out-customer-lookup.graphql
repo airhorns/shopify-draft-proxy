@@ -1,0 +1,9 @@
+query DataSaleOptOutCustomerLookup($identifier: CustomerIdentifierInput!) {
+  customerByIdentifier(identifier: $identifier) {
+    id
+    email
+    defaultEmailAddress {
+      emailAddress
+    }
+  }
+}

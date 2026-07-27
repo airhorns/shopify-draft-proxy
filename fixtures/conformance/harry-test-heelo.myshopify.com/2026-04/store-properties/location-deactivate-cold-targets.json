@@ -1,0 +1,1073 @@
+{
+  "capturedAt": "2026-07-20T14:37:02.547Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": [
+    "Captures mutation-first locationDeactivate behavior for independently cold source and active/inactive/missing destination targets.",
+    "Every proxy prerequisite is a real query-only Shopify interaction recorded verbatim in upstreamCalls; no proxy state is seeded."
+  ],
+  "setup": {
+    "sourceAdd": {
+      "name": "location-deactivate-cold-targets source 20260720143702Add",
+      "query": "mutation LocationDeactivateColdTargetAdd($input: LocationAddInput!) {\n    locationAdd(input: $input) {\n      location { id name isActive }\n      userErrors { field message code }\n    }\n  }",
+      "variables": {
+        "input": {
+          "name": "location-deactivate-cold-targets source 20260720143702",
+          "fulfillsOnlineOrders": false,
+          "address": {
+            "address1": "873 State St",
+            "city": "Boston",
+            "provinceCode": "MA",
+            "countryCode": "US",
+            "zip": "02110"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationAdd": {
+              "location": {
+                "id": "gid://shopify/Location/114053710130",
+                "name": "location-deactivate-cold-targets source 20260720143702",
+                "isActive": true
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "activeDestinationAdd": {
+      "name": "location-deactivate-cold-targets active destination 20260720143702Add",
+      "query": "mutation LocationDeactivateColdTargetAdd($input: LocationAddInput!) {\n    locationAdd(input: $input) {\n      location { id name isActive }\n      userErrors { field message code }\n    }\n  }",
+      "variables": {
+        "input": {
+          "name": "location-deactivate-cold-targets active destination 20260720143702",
+          "fulfillsOnlineOrders": false,
+          "address": {
+            "address1": "873 State St",
+            "city": "Boston",
+            "provinceCode": "MA",
+            "countryCode": "US",
+            "zip": "02110"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationAdd": {
+              "location": {
+                "id": "gid://shopify/Location/114053742898",
+                "name": "location-deactivate-cold-targets active destination 20260720143702",
+                "isActive": true
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "inactiveDestinationAdd": {
+      "name": "location-deactivate-cold-targets inactive destination 20260720143702Add",
+      "query": "mutation LocationDeactivateColdTargetAdd($input: LocationAddInput!) {\n    locationAdd(input: $input) {\n      location { id name isActive }\n      userErrors { field message code }\n    }\n  }",
+      "variables": {
+        "input": {
+          "name": "location-deactivate-cold-targets inactive destination 20260720143702",
+          "fulfillsOnlineOrders": false,
+          "address": {
+            "address1": "873 State St",
+            "city": "Boston",
+            "provinceCode": "MA",
+            "countryCode": "US",
+            "zip": "02110"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationAdd": {
+              "location": {
+                "id": "gid://shopify/Location/114053775666",
+                "name": "location-deactivate-cold-targets inactive destination 20260720143702",
+                "isActive": true
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "inactiveDestinationDeactivate": {
+      "name": "inactiveDestinationDeactivate",
+      "query": "mutation LocationDeactivateColdTargetCleanup($locationId: ID!, $idempotencyKey: String!) {\n    locationDeactivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {\n      location { id isActive }\n      locationDeactivateUserErrors { field message code }\n    }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/114053775666",
+        "idempotencyKey": "location-deactivate-cold-targets-inactive-setup-20260720143702"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDeactivate": {
+              "location": {
+                "id": "gid://shopify/Location/114053775666",
+                "isActive": false
+              },
+              "locationDeactivateUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "sourceHydrate": {
+      "name": "sourceHydrate",
+      "query": "query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: \"custom\", key: \"hours\") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: [\"available\", \"committed\", \"on_hand\"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }",
+      "variables": {
+        "id": "gid://shopify/Location/114053710130"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/114053710130",
+              "legacyResourceId": "114053710130",
+              "name": "location-deactivate-cold-targets source 20260720143702",
+              "activatable": true,
+              "addressVerified": false,
+              "createdAt": "2026-07-20T14:37:02Z",
+              "deactivatable": true,
+              "deactivatedAt": null,
+              "deletable": false,
+              "fulfillsOnlineOrders": false,
+              "hasActiveInventory": false,
+              "hasUnfulfilledOrders": false,
+              "isActive": true,
+              "isFulfillmentService": false,
+              "isPrimary": false,
+              "shipsInventory": false,
+              "updatedAt": "2026-07-20T14:37:02Z",
+              "fulfillmentService": null,
+              "address": {
+                "address1": "873 State St",
+                "address2": null,
+                "city": "Boston",
+                "country": "United States",
+                "countryCode": "US",
+                "formatted": ["873 State St", "Boston MA 02110", "United States"],
+                "latitude": 42.3596375,
+                "longitude": -71.0517783,
+                "phone": null,
+                "province": "Massachusetts",
+                "provinceCode": "MA",
+                "zip": "02110"
+              },
+              "suggestedAddresses": [
+                {
+                  "address1": "873 State St",
+                  "countryCode": "US",
+                  "formatted": ["873 State St", "Boston MA 02109", "United States"]
+                }
+              ],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "activeDestinationHydrate": {
+      "name": "activeDestinationHydrate",
+      "query": "query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: \"custom\", key: \"hours\") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: [\"available\", \"committed\", \"on_hand\"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }",
+      "variables": {
+        "id": "gid://shopify/Location/114053742898"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/114053742898",
+              "legacyResourceId": "114053742898",
+              "name": "location-deactivate-cold-targets active destination 20260720143702",
+              "activatable": true,
+              "addressVerified": false,
+              "createdAt": "2026-07-20T14:37:03Z",
+              "deactivatable": true,
+              "deactivatedAt": null,
+              "deletable": false,
+              "fulfillsOnlineOrders": false,
+              "hasActiveInventory": false,
+              "hasUnfulfilledOrders": false,
+              "isActive": true,
+              "isFulfillmentService": false,
+              "isPrimary": false,
+              "shipsInventory": false,
+              "updatedAt": "2026-07-20T14:37:03Z",
+              "fulfillmentService": null,
+              "address": {
+                "address1": "873 State St",
+                "address2": null,
+                "city": "Boston",
+                "country": "United States",
+                "countryCode": "US",
+                "formatted": ["873 State St", "Boston MA 02110", "United States"],
+                "latitude": 42.3596375,
+                "longitude": -71.0517783,
+                "phone": null,
+                "province": "Massachusetts",
+                "provinceCode": "MA",
+                "zip": "02110"
+              },
+              "suggestedAddresses": [
+                {
+                  "address1": "873 State St",
+                  "countryCode": "US",
+                  "formatted": ["873 State St", "Boston MA 02109", "United States"]
+                }
+              ],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "inactiveDestinationHydrate": {
+      "name": "inactiveDestinationHydrate",
+      "query": "query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: \"custom\", key: \"hours\") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: [\"available\", \"committed\", \"on_hand\"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }",
+      "variables": {
+        "id": "gid://shopify/Location/114053775666"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/114053775666",
+              "legacyResourceId": "114053775666",
+              "name": "location-deactivate-cold-targets inactive destination 20260720143702",
+              "activatable": true,
+              "addressVerified": false,
+              "createdAt": "2026-07-20T14:37:03Z",
+              "deactivatable": true,
+              "deactivatedAt": "2026-07-20T14:37:04Z",
+              "deletable": true,
+              "fulfillsOnlineOrders": false,
+              "hasActiveInventory": false,
+              "hasUnfulfilledOrders": false,
+              "isActive": false,
+              "isFulfillmentService": false,
+              "isPrimary": false,
+              "shipsInventory": false,
+              "updatedAt": "2026-07-20T14:37:04Z",
+              "fulfillmentService": null,
+              "address": {
+                "address1": "873 State St",
+                "address2": null,
+                "city": "Boston",
+                "country": "United States",
+                "countryCode": "US",
+                "formatted": ["873 State St", "Boston MA 02110", "United States"],
+                "latitude": 42.3596375,
+                "longitude": -71.0517783,
+                "phone": null,
+                "province": "Massachusetts",
+                "provinceCode": "MA",
+                "zip": "02110"
+              },
+              "suggestedAddresses": [
+                {
+                  "address1": "873 State St",
+                  "countryCode": "US",
+                  "formatted": ["873 State St", "Boston MA 02109", "United States"]
+                }
+              ],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "missingDestinationHydrate": {
+      "name": "missingDestinationHydrate",
+      "query": "query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: \"custom\", key: \"hours\") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: [\"available\", \"committed\", \"on_hand\"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }",
+      "variables": {
+        "id": "gid://shopify/Location/999999999999"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "location": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "workflow": {
+    "inactiveDestination": {
+      "name": "inactiveDestination",
+      "query": "#graphql\n  fragment LocationDeactivateColdTargetFields on Location {\n    id\n    name\n    isActive\n    activatable\n    deactivatable\n    fulfillsOnlineOrders\n    hasActiveInventory\n    hasUnfulfilledOrders\n    deletable\n    shipsInventory\n  }\n\n\n  mutation LocationDeactivateColdTargets(\n    $locationId: ID!\n    $destinationLocationId: ID!\n    $idempotencyKey: String!\n  ) {\n    locationDeactivate(locationId: $locationId, destinationLocationId: $destinationLocationId)\n      @idempotent(key: $idempotencyKey) {\n      location { ...LocationDeactivateColdTargetFields }\n      locationDeactivateUserErrors { field message code }\n    }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/114053710130",
+        "destinationLocationId": "gid://shopify/Location/114053775666",
+        "idempotencyKey": "location-deactivate-cold-targets-inactive-20260720143702"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDeactivate": {
+              "location": {
+                "id": "gid://shopify/Location/114053710130",
+                "name": "location-deactivate-cold-targets source 20260720143702",
+                "isActive": true,
+                "activatable": true,
+                "deactivatable": true,
+                "fulfillsOnlineOrders": false,
+                "hasActiveInventory": false,
+                "hasUnfulfilledOrders": false,
+                "deletable": false,
+                "shipsInventory": false
+              },
+              "locationDeactivateUserErrors": [
+                {
+                  "field": ["destinationLocationId"],
+                  "message": "Location could not be deactivated because the destination location could be not found or is inactive.",
+                  "code": "DESTINATION_LOCATION_NOT_FOUND_OR_INACTIVE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "missingDestination": {
+      "name": "missingDestination",
+      "query": "#graphql\n  fragment LocationDeactivateColdTargetFields on Location {\n    id\n    name\n    isActive\n    activatable\n    deactivatable\n    fulfillsOnlineOrders\n    hasActiveInventory\n    hasUnfulfilledOrders\n    deletable\n    shipsInventory\n  }\n\n\n  mutation LocationDeactivateColdTargets(\n    $locationId: ID!\n    $destinationLocationId: ID!\n    $idempotencyKey: String!\n  ) {\n    locationDeactivate(locationId: $locationId, destinationLocationId: $destinationLocationId)\n      @idempotent(key: $idempotencyKey) {\n      location { ...LocationDeactivateColdTargetFields }\n      locationDeactivateUserErrors { field message code }\n    }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/114053710130",
+        "destinationLocationId": "gid://shopify/Location/999999999999",
+        "idempotencyKey": "location-deactivate-cold-targets-missing-20260720143702"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDeactivate": {
+              "location": {
+                "id": "gid://shopify/Location/114053710130",
+                "name": "location-deactivate-cold-targets source 20260720143702",
+                "isActive": true,
+                "activatable": true,
+                "deactivatable": true,
+                "fulfillsOnlineOrders": false,
+                "hasActiveInventory": false,
+                "hasUnfulfilledOrders": false,
+                "deletable": false,
+                "shipsInventory": false
+              },
+              "locationDeactivateUserErrors": [
+                {
+                  "field": ["destinationLocationId"],
+                  "message": "destination location not shopify managed",
+                  "code": "DESTINATION_LOCATION_NOT_SHOPIFY_MANAGED"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "activeDestination": {
+      "name": "activeDestination",
+      "query": "#graphql\n  fragment LocationDeactivateColdTargetFields on Location {\n    id\n    name\n    isActive\n    activatable\n    deactivatable\n    fulfillsOnlineOrders\n    hasActiveInventory\n    hasUnfulfilledOrders\n    deletable\n    shipsInventory\n  }\n\n\n  mutation LocationDeactivateColdTargets(\n    $locationId: ID!\n    $destinationLocationId: ID!\n    $idempotencyKey: String!\n  ) {\n    locationDeactivate(locationId: $locationId, destinationLocationId: $destinationLocationId)\n      @idempotent(key: $idempotencyKey) {\n      location { ...LocationDeactivateColdTargetFields }\n      locationDeactivateUserErrors { field message code }\n    }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/114053710130",
+        "destinationLocationId": "gid://shopify/Location/114053742898",
+        "idempotencyKey": "location-deactivate-cold-targets-active-20260720143702"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDeactivate": {
+              "location": {
+                "id": "gid://shopify/Location/114053710130",
+                "name": "location-deactivate-cold-targets source 20260720143702",
+                "isActive": false,
+                "activatable": true,
+                "deactivatable": true,
+                "fulfillsOnlineOrders": false,
+                "hasActiveInventory": false,
+                "hasUnfulfilledOrders": false,
+                "deletable": true,
+                "shipsInventory": false
+              },
+              "locationDeactivateUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "sourceRead": {
+      "name": "sourceRead",
+      "query": "#graphql\n  fragment LocationDeactivateColdTargetFields on Location {\n    id\n    name\n    isActive\n    activatable\n    deactivatable\n    fulfillsOnlineOrders\n    hasActiveInventory\n    hasUnfulfilledOrders\n    deletable\n    shipsInventory\n  }\n\n\n  query LocationDeactivateColdTargetRead($locationId: ID!) {\n    location(id: $locationId) { ...LocationDeactivateColdTargetFields }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/114053710130"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/114053710130",
+              "name": "location-deactivate-cold-targets source 20260720143702",
+              "isActive": false,
+              "activatable": true,
+              "deactivatable": true,
+              "fulfillsOnlineOrders": false,
+              "hasActiveInventory": false,
+              "hasUnfulfilledOrders": false,
+              "deletable": true,
+              "shipsInventory": false
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "destinationRead": {
+      "name": "destinationRead",
+      "query": "#graphql\n  fragment LocationDeactivateColdTargetFields on Location {\n    id\n    name\n    isActive\n    activatable\n    deactivatable\n    fulfillsOnlineOrders\n    hasActiveInventory\n    hasUnfulfilledOrders\n    deletable\n    shipsInventory\n  }\n\n\n  query LocationDeactivateColdTargetRead($locationId: ID!) {\n    location(id: $locationId) { ...LocationDeactivateColdTargetFields }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/114053742898"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/114053742898",
+              "name": "location-deactivate-cold-targets active destination 20260720143702",
+              "isActive": true,
+              "activatable": true,
+              "deactivatable": true,
+              "fulfillsOnlineOrders": false,
+              "hasActiveInventory": false,
+              "hasUnfulfilledOrders": false,
+              "deletable": false,
+              "shipsInventory": false
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "name": "sourceCleanupDelete",
+      "query": "mutation LocationDeactivateColdTargetDelete($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors { field message code }\n    }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/114053710130"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDelete": {
+              "deletedLocationId": "gid://shopify/Location/114053710130",
+              "locationDeleteUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "activeDestinationCleanupDeactivate",
+      "query": "mutation LocationDeactivateColdTargetCleanup($locationId: ID!, $idempotencyKey: String!) {\n    locationDeactivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {\n      location { id isActive }\n      locationDeactivateUserErrors { field message code }\n    }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/114053742898",
+        "idempotencyKey": "location-deactivate-cold-targets-activeDestination-cleanup-20260720143702"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDeactivate": {
+              "location": {
+                "id": "gid://shopify/Location/114053742898",
+                "isActive": false
+              },
+              "locationDeactivateUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "activeDestinationCleanupDelete",
+      "query": "mutation LocationDeactivateColdTargetDelete($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors { field message code }\n    }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/114053742898"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDelete": {
+              "deletedLocationId": "gid://shopify/Location/114053742898",
+              "locationDeleteUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "inactiveDestinationCleanupDelete",
+      "query": "mutation LocationDeactivateColdTargetDelete($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors { field message code }\n    }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/114053775666"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDelete": {
+              "deletedLocationId": "gid://shopify/Location/114053775666",
+              "locationDeleteUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "StorePropertiesLocationHydrate",
+      "query": "query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: \"custom\", key: \"hours\") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: [\"available\", \"committed\", \"on_hand\"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }",
+      "variables": {
+        "id": "gid://shopify/Location/114053710130"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/114053710130",
+              "legacyResourceId": "114053710130",
+              "name": "location-deactivate-cold-targets source 20260720143702",
+              "activatable": true,
+              "addressVerified": false,
+              "createdAt": "2026-07-20T14:37:02Z",
+              "deactivatable": true,
+              "deactivatedAt": null,
+              "deletable": false,
+              "fulfillsOnlineOrders": false,
+              "hasActiveInventory": false,
+              "hasUnfulfilledOrders": false,
+              "isActive": true,
+              "isFulfillmentService": false,
+              "isPrimary": false,
+              "shipsInventory": false,
+              "updatedAt": "2026-07-20T14:37:02Z",
+              "fulfillmentService": null,
+              "address": {
+                "address1": "873 State St",
+                "address2": null,
+                "city": "Boston",
+                "country": "United States",
+                "countryCode": "US",
+                "formatted": ["873 State St", "Boston MA 02110", "United States"],
+                "latitude": 42.3596375,
+                "longitude": -71.0517783,
+                "phone": null,
+                "province": "Massachusetts",
+                "provinceCode": "MA",
+                "zip": "02110"
+              },
+              "suggestedAddresses": [
+                {
+                  "address1": "873 State St",
+                  "countryCode": "US",
+                  "formatted": ["873 State St", "Boston MA 02109", "United States"]
+                }
+              ],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "StorePropertiesLocationHydrate",
+      "query": "query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: \"custom\", key: \"hours\") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: [\"available\", \"committed\", \"on_hand\"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }",
+      "variables": {
+        "id": "gid://shopify/Location/114053742898"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/114053742898",
+              "legacyResourceId": "114053742898",
+              "name": "location-deactivate-cold-targets active destination 20260720143702",
+              "activatable": true,
+              "addressVerified": false,
+              "createdAt": "2026-07-20T14:37:03Z",
+              "deactivatable": true,
+              "deactivatedAt": null,
+              "deletable": false,
+              "fulfillsOnlineOrders": false,
+              "hasActiveInventory": false,
+              "hasUnfulfilledOrders": false,
+              "isActive": true,
+              "isFulfillmentService": false,
+              "isPrimary": false,
+              "shipsInventory": false,
+              "updatedAt": "2026-07-20T14:37:03Z",
+              "fulfillmentService": null,
+              "address": {
+                "address1": "873 State St",
+                "address2": null,
+                "city": "Boston",
+                "country": "United States",
+                "countryCode": "US",
+                "formatted": ["873 State St", "Boston MA 02110", "United States"],
+                "latitude": 42.3596375,
+                "longitude": -71.0517783,
+                "phone": null,
+                "province": "Massachusetts",
+                "provinceCode": "MA",
+                "zip": "02110"
+              },
+              "suggestedAddresses": [
+                {
+                  "address1": "873 State St",
+                  "countryCode": "US",
+                  "formatted": ["873 State St", "Boston MA 02109", "United States"]
+                }
+              ],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "StorePropertiesLocationHydrate",
+      "query": "query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: \"custom\", key: \"hours\") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: [\"available\", \"committed\", \"on_hand\"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }",
+      "variables": {
+        "id": "gid://shopify/Location/114053775666"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/114053775666",
+              "legacyResourceId": "114053775666",
+              "name": "location-deactivate-cold-targets inactive destination 20260720143702",
+              "activatable": true,
+              "addressVerified": false,
+              "createdAt": "2026-07-20T14:37:03Z",
+              "deactivatable": true,
+              "deactivatedAt": "2026-07-20T14:37:04Z",
+              "deletable": true,
+              "fulfillsOnlineOrders": false,
+              "hasActiveInventory": false,
+              "hasUnfulfilledOrders": false,
+              "isActive": false,
+              "isFulfillmentService": false,
+              "isPrimary": false,
+              "shipsInventory": false,
+              "updatedAt": "2026-07-20T14:37:04Z",
+              "fulfillmentService": null,
+              "address": {
+                "address1": "873 State St",
+                "address2": null,
+                "city": "Boston",
+                "country": "United States",
+                "countryCode": "US",
+                "formatted": ["873 State St", "Boston MA 02110", "United States"],
+                "latitude": 42.3596375,
+                "longitude": -71.0517783,
+                "phone": null,
+                "province": "Massachusetts",
+                "provinceCode": "MA",
+                "zip": "02110"
+              },
+              "suggestedAddresses": [
+                {
+                  "address1": "873 State St",
+                  "countryCode": "US",
+                  "formatted": ["873 State St", "Boston MA 02109", "United States"]
+                }
+              ],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "StorePropertiesLocationHydrate",
+      "query": "query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: \"custom\", key: \"hours\") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: [\"available\", \"committed\", \"on_hand\"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }",
+      "variables": {
+        "id": "gid://shopify/Location/999999999999"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "location": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

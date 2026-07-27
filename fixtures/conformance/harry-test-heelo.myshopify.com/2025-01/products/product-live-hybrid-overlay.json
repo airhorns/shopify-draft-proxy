@@ -1,0 +1,1238 @@
+{
+  "capturedAt": "2026-07-19T15:46:06.193Z",
+  "setup": {
+    "updateProduct": {
+      "variables": {
+        "product": {
+          "title": "A Overlay Original 1784475952065",
+          "status": "ACTIVE",
+          "vendor": "Conformance",
+          "productType": "Overlay Base",
+          "tags": ["update-original-1784475952065"]
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10243946479922",
+              "title": "A Overlay Original 1784475952065",
+              "handle": "a-overlay-original-1784475952065",
+              "status": "ACTIVE",
+              "vendor": "Conformance",
+              "productType": "Overlay Base",
+              "tags": ["update-original-1784475952065"],
+              "descriptionHtml": "",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "deleteProduct": {
+      "variables": {
+        "product": {
+          "title": "Delete Overlay 1784475952065",
+          "status": "ACTIVE",
+          "vendor": "Conformance",
+          "productType": "Overlay Base",
+          "tags": ["delete-1784475952065"]
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10243946512690",
+              "title": "Delete Overlay 1784475952065",
+              "handle": "delete-overlay-1784475952065",
+              "status": "ACTIVE",
+              "vendor": "Conformance",
+              "productType": "Overlay Base",
+              "tags": ["delete-1784475952065"],
+              "descriptionHtml": "",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "unrelatedProduct": {
+      "variables": {
+        "product": {
+          "title": "Z Overlay Unrelated 1784475952065",
+          "status": "ACTIVE",
+          "vendor": "Conformance",
+          "productType": "Overlay Control",
+          "tags": ["control-1784475952065"]
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10243946545458",
+              "title": "Z Overlay Unrelated 1784475952065",
+              "handle": "z-overlay-unrelated-1784475952065",
+              "status": "ACTIVE",
+              "vendor": "Conformance",
+              "productType": "Overlay Control",
+              "tags": ["control-1784475952065"],
+              "descriptionHtml": "",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "savedSearchCreate": {
+      "variables": {
+        "input": {
+          "resourceType": "PRODUCT",
+          "name": "Overlay products 1784475952065",
+          "query": "tag:overlay-1784475952065"
+        }
+      },
+      "response": {
+        "data": {
+          "savedSearchCreate": {
+            "savedSearch": {
+              "id": "gid://shopify/SavedSearch/4088484135218",
+              "name": "Overlay products 1784475952065",
+              "query": "tag:overlay-1784475952065",
+              "resourceType": "PRODUCT"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "hydration": {
+    "updateProduct": {
+      "variables": {
+        "ids": ["gid://shopify/Product/10243946479922"]
+      },
+      "response": {
+        "data": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Product/10243946479922",
+              "title": "A Overlay Original 1784475952065",
+              "handle": "a-overlay-original-1784475952065",
+              "status": "ACTIVE",
+              "totalInventory": 0,
+              "tracksInventory": false,
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51488323698994",
+                    "title": "Default Title",
+                    "sku": null,
+                    "barcode": null,
+                    "price": "0.00",
+                    "compareAtPrice": null,
+                    "taxable": true,
+                    "inventoryPolicy": "DENY",
+                    "inventoryQuantity": 0,
+                    "selectedOptions": [
+                      {
+                        "name": "Title",
+                        "value": "Default Title"
+                      }
+                    ],
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53593922011442",
+                      "tracked": false,
+                      "requiresShipping": true
+                    }
+                  }
+                ]
+              },
+              "collections": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false
+                }
+              }
+            }
+          ]
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 21,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "deleteProduct": {
+      "variables": {
+        "ids": ["gid://shopify/Product/10243946512690"]
+      },
+      "response": {
+        "data": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Product/10243946512690",
+              "title": "Delete Overlay 1784475952065",
+              "handle": "delete-overlay-1784475952065",
+              "status": "ACTIVE",
+              "totalInventory": 0,
+              "tracksInventory": false,
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51488323731762",
+                    "title": "Default Title",
+                    "sku": null,
+                    "barcode": null,
+                    "price": "0.00",
+                    "compareAtPrice": null,
+                    "taxable": true,
+                    "inventoryPolicy": "DENY",
+                    "inventoryQuantity": 0,
+                    "selectedOptions": [
+                      {
+                        "name": "Title",
+                        "value": "Default Title"
+                      }
+                    ],
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53593922044210",
+                      "tracked": false,
+                      "requiresShipping": true
+                    }
+                  }
+                ]
+              },
+              "collections": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false
+                }
+              }
+            }
+          ]
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 21,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "catalogWindows": [
+      {
+        "name": "catalog",
+        "variables": {
+          "first": 14,
+          "after": null,
+          "query": "tag:overlay-1784475952065",
+          "sortKey": "TITLE",
+          "reverse": false
+        },
+        "nodeCount": 0,
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      },
+      {
+        "name": "reverse",
+        "variables": {
+          "first": 5,
+          "after": null,
+          "query": "tag:overlay-1784475952065",
+          "sortKey": "TITLE",
+          "reverse": true
+        },
+        "nodeCount": 0,
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      },
+      {
+        "name": "firstPage",
+        "variables": {
+          "first": 5,
+          "after": null,
+          "query": "tag:overlay-1784475952065",
+          "sortKey": "TITLE",
+          "reverse": false
+        },
+        "nodeCount": 0,
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      },
+      {
+        "name": "savedSearch",
+        "variables": {
+          "first": 14,
+          "after": null,
+          "query": "tag:overlay\\-1784475952065",
+          "sortKey": "TITLE",
+          "reverse": false
+        },
+        "nodeCount": 0,
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      },
+      {
+        "name": "deleted",
+        "variables": {
+          "first": 14,
+          "after": null,
+          "query": "tag:delete-1784475952065",
+          "sortKey": null,
+          "reverse": false
+        },
+        "nodeCount": 0,
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      },
+      {
+        "name": "unrelated",
+        "variables": {
+          "first": 14,
+          "after": null,
+          "query": "tag:control-1784475952065",
+          "sortKey": null,
+          "reverse": false
+        },
+        "nodeCount": 0,
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      },
+      {
+        "name": "secondPage",
+        "variables": {
+          "first": 5,
+          "after": null,
+          "query": "tag:overlay-1784475952065",
+          "sortKey": "TITLE",
+          "reverse": false
+        },
+        "nodeCount": 0,
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      }
+    ],
+    "catalogCounts": {
+      "matching": {
+        "variables": {
+          "query": "tag:overlay-1784475952065"
+        },
+        "response": {
+          "data": {
+            "productsCount": {
+              "count": 0,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "total": {
+        "variables": {
+          "query": null
+        },
+        "response": {
+          "data": {
+            "productsCount": {
+              "count": 1461,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "savedSearch": {
+      "variables": {
+        "id": "gid://shopify/SavedSearch/4088484135218"
+      },
+      "response": {
+        "data": {
+          "node": {
+            "id": "gid://shopify/SavedSearch/4088484135218",
+            "name": "Overlay products 1784475952065",
+            "query": "tag:overlay\\-1784475952065",
+            "resourceType": "PRODUCT"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "mutations": {
+    "create": {
+      "variables": {
+        "product": {
+          "title": "B Overlay Created 1784475952065",
+          "handle": "b-overlay-created-1784475952065",
+          "status": "ACTIVE",
+          "vendor": "Conformance",
+          "productType": "Overlay Staged",
+          "tags": ["overlay-1784475952065"]
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10243946578226",
+              "title": "B Overlay Created 1784475952065",
+              "handle": "b-overlay-created-1784475952065",
+              "status": "ACTIVE",
+              "vendor": "Conformance",
+              "productType": "Overlay Staged",
+              "tags": ["overlay-1784475952065"],
+              "descriptionHtml": "",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "update": {
+      "variables": {
+        "product": {
+          "id": "gid://shopify/Product/10243946479922",
+          "title": "A Overlay Updated 1784475952065",
+          "handle": "a-overlay-updated-1784475952065",
+          "tags": ["overlay-1784475952065"]
+        }
+      },
+      "response": {
+        "data": {
+          "productUpdate": {
+            "product": {
+              "id": "gid://shopify/Product/10243946479922",
+              "title": "A Overlay Updated 1784475952065",
+              "handle": "a-overlay-updated-1784475952065",
+              "status": "ACTIVE",
+              "vendor": "Conformance",
+              "productType": "Overlay Base",
+              "tags": ["overlay-1784475952065"],
+              "descriptionHtml": "",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              },
+              "onlineStorePreviewUrl": "https://adwzshsg5sv0hlo4-92891250994.shopifypreview.com/products_preview?preview_key=c0eed9eebde8cceb5d1fbadb11e02c6d&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0xOVQxNjo0NTo1NS43ODVaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--6d411ca45a7526c9035c045680daa1a7179afdf5"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "delete": {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Product/10243946512690"
+        }
+      },
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10243946512690",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "read": {
+    "variables": {
+      "matchQuery": "tag:overlay-1784475952065",
+      "deletedQuery": "tag:delete-1784475952065",
+      "controlQuery": "tag:control-1784475952065",
+      "savedSearchId": "gid://shopify/SavedSearch/4088484135218"
+    },
+    "response": {
+      "data": {
+        "catalog": {
+          "nodes": [
+            {
+              "title": "A Overlay Updated 1784475952065",
+              "handle": "a-overlay-updated-1784475952065",
+              "status": "ACTIVE",
+              "tags": ["overlay-1784475952065"]
+            },
+            {
+              "title": "B Overlay Created 1784475952065",
+              "handle": "b-overlay-created-1784475952065",
+              "status": "ACTIVE",
+              "tags": ["overlay-1784475952065"]
+            }
+          ]
+        },
+        "reverse": {
+          "nodes": [
+            {
+              "title": "B Overlay Created 1784475952065",
+              "handle": "b-overlay-created-1784475952065",
+              "tags": ["overlay-1784475952065"]
+            }
+          ]
+        },
+        "firstPage": {
+          "nodes": [
+            {
+              "title": "A Overlay Updated 1784475952065",
+              "handle": "a-overlay-updated-1784475952065",
+              "tags": ["overlay-1784475952065"]
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjoxMDI0Mzk0NjQ3OTkyMiwibGFzdF92YWx1ZSI6ImEgb3ZlcmxheSB1cGRhdGVkIDE3ODQ0NzU5NTIwNjUifQ==",
+            "endCursor": "eyJsYXN0X2lkIjoxMDI0Mzk0NjQ3OTkyMiwibGFzdF92YWx1ZSI6ImEgb3ZlcmxheSB1cGRhdGVkIDE3ODQ0NzU5NTIwNjUifQ=="
+          }
+        },
+        "savedSearch": {
+          "nodes": [
+            {
+              "title": "A Overlay Updated 1784475952065",
+              "handle": "a-overlay-updated-1784475952065",
+              "tags": ["overlay-1784475952065"]
+            },
+            {
+              "title": "B Overlay Created 1784475952065",
+              "handle": "b-overlay-created-1784475952065",
+              "tags": ["overlay-1784475952065"]
+            }
+          ]
+        },
+        "deleted": {
+          "nodes": []
+        },
+        "unrelated": {
+          "nodes": [
+            {
+              "title": "Z Overlay Unrelated 1784475952065",
+              "handle": "z-overlay-unrelated-1784475952065",
+              "tags": ["control-1784475952065"]
+            }
+          ]
+        },
+        "matches": {
+          "count": 2,
+          "precision": "EXACT"
+        },
+        "limitedTotal": {
+          "count": 1,
+          "precision": "AT_LEAST"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 50,
+          "actualQueryCost": 41,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1959,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "page": {
+    "variables": {
+      "matchQuery": "tag:overlay-1784475952065",
+      "after": "eyJsYXN0X2lkIjoxMDI0Mzk0NjQ3OTkyMiwibGFzdF92YWx1ZSI6ImEgb3ZlcmxheSB1cGRhdGVkIDE3ODQ0NzU5NTIwNjUifQ=="
+    },
+    "response": {
+      "data": {
+        "products": {
+          "nodes": [
+            {
+              "title": "B Overlay Created 1784475952065",
+              "handle": "b-overlay-created-1784475952065",
+              "tags": ["overlay-1784475952065"]
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": "eyJsYXN0X2lkIjoxMDI0Mzk0NjU3ODIyNiwibGFzdF92YWx1ZSI6ImIgb3ZlcmxheSBjcmVhdGVkIDE3ODQ0NzU5NTIwNjUifQ==",
+            "endCursor": "eyJsYXN0X2lkIjoxMDI0Mzk0NjU3ODIyNiwibGFzdF92YWx1ZSI6ImIgb3ZlcmxheSBjcmVhdGVkIDE3ODQ0NzU5NTIwNjUifQ=="
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
+      "variables": {
+        "ids": ["gid://shopify/Product/10243946479922"]
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10243946479922",
+                "title": "A Overlay Original 1784475952065",
+                "handle": "a-overlay-original-1784475952065",
+                "status": "ACTIVE",
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51488323698994",
+                      "title": "Default Title",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "compareAtPrice": null,
+                      "taxable": true,
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Title",
+                          "value": "Default Title"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53593922011442",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                },
+                "collections": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 21,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ProductsHydrateNodes",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
+      "variables": {
+        "ids": ["gid://shopify/Product/10243946512690"]
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10243946512690",
+                "title": "Delete Overlay 1784475952065",
+                "handle": "delete-overlay-1784475952065",
+                "status": "ACTIVE",
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51488323731762",
+                      "title": "Default Title",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "compareAtPrice": null,
+                      "taxable": true,
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Title",
+                          "value": "Default Title"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53593922044210",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                },
+                "collections": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 21,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DraftProxyProductCatalogWindow",
+      "query": "query DraftProxyProductCatalogWindow(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: ProductSortKeys\n  $reverse: Boolean\n) {\n  products(first: $first, after: $after, query: $query, sortKey: $sortKey, reverse: $reverse) {\n    edges {\n      cursor\n      node {\n        id\n        legacyResourceId\n        title\n        handle\n        status\n        createdAt\n        updatedAt\n        publishedAt\n        descriptionHtml\n        vendor\n        productType\n        tags\n        templateSuffix\n        totalInventory\n        tracksInventory\n        isGiftCard\n        requiresSellingPlan\n        giftCardTemplateSuffix\n        onlineStorePreviewUrl\n        hasOnlyDefaultVariant\n        hasOutOfStockVariants\n        totalVariants\n        seo {\n          title\n          description\n        }\n        category {\n          id\n          fullName\n        }\n        options {\n          id\n          name\n          position\n          values\n        }\n        variants(first: 25) {\n          nodes {\n            id\n            title\n            sku\n            barcode\n            price\n            compareAtPrice\n            taxable\n            inventoryPolicy\n            inventoryQuantity\n            position\n            selectedOptions {\n              name\n              value\n            }\n            inventoryItem {\n              id\n              tracked\n              requiresShipping\n            }\n          }\n        }\n        collections(first: 10) {\n          nodes {\n            id\n            title\n            handle\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "first": 14,
+        "after": null,
+        "query": "tag:overlay-1784475952065",
+        "sortKey": "TITLE",
+        "reverse": false
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "products": {
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 152,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DraftProxyProductCatalogWindow",
+      "query": "query DraftProxyProductCatalogWindow(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: ProductSortKeys\n  $reverse: Boolean\n) {\n  products(first: $first, after: $after, query: $query, sortKey: $sortKey, reverse: $reverse) {\n    edges {\n      cursor\n      node {\n        id\n        legacyResourceId\n        title\n        handle\n        status\n        createdAt\n        updatedAt\n        publishedAt\n        descriptionHtml\n        vendor\n        productType\n        tags\n        templateSuffix\n        totalInventory\n        tracksInventory\n        isGiftCard\n        requiresSellingPlan\n        giftCardTemplateSuffix\n        onlineStorePreviewUrl\n        hasOnlyDefaultVariant\n        hasOutOfStockVariants\n        totalVariants\n        seo {\n          title\n          description\n        }\n        category {\n          id\n          fullName\n        }\n        options {\n          id\n          name\n          position\n          values\n        }\n        variants(first: 25) {\n          nodes {\n            id\n            title\n            sku\n            barcode\n            price\n            compareAtPrice\n            taxable\n            inventoryPolicy\n            inventoryQuantity\n            position\n            selectedOptions {\n              name\n              value\n            }\n            inventoryItem {\n              id\n              tracked\n              requiresShipping\n            }\n          }\n        }\n        collections(first: 10) {\n          nodes {\n            id\n            title\n            handle\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "first": 5,
+        "after": null,
+        "query": "tag:overlay-1784475952065",
+        "sortKey": "TITLE",
+        "reverse": true
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "products": {
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 92,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DraftProxyProductCatalogWindow",
+      "query": "query DraftProxyProductCatalogWindow(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: ProductSortKeys\n  $reverse: Boolean\n) {\n  products(first: $first, after: $after, query: $query, sortKey: $sortKey, reverse: $reverse) {\n    edges {\n      cursor\n      node {\n        id\n        legacyResourceId\n        title\n        handle\n        status\n        createdAt\n        updatedAt\n        publishedAt\n        descriptionHtml\n        vendor\n        productType\n        tags\n        templateSuffix\n        totalInventory\n        tracksInventory\n        isGiftCard\n        requiresSellingPlan\n        giftCardTemplateSuffix\n        onlineStorePreviewUrl\n        hasOnlyDefaultVariant\n        hasOutOfStockVariants\n        totalVariants\n        seo {\n          title\n          description\n        }\n        category {\n          id\n          fullName\n        }\n        options {\n          id\n          name\n          position\n          values\n        }\n        variants(first: 25) {\n          nodes {\n            id\n            title\n            sku\n            barcode\n            price\n            compareAtPrice\n            taxable\n            inventoryPolicy\n            inventoryQuantity\n            position\n            selectedOptions {\n              name\n              value\n            }\n            inventoryItem {\n              id\n              tracked\n              requiresShipping\n            }\n          }\n        }\n        collections(first: 10) {\n          nodes {\n            id\n            title\n            handle\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "first": 5,
+        "after": null,
+        "query": "tag:overlay-1784475952065",
+        "sortKey": "TITLE",
+        "reverse": false
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "products": {
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 92,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DraftProxyProductSavedSearchHydration",
+      "query": "query DraftProxyProductSavedSearchHydration($id: ID!) {\n  node(id: $id) {\n    ... on SavedSearch {\n      id\n      name\n      query\n      resourceType\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/SavedSearch/4088484135218"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "node": {
+              "id": "gid://shopify/SavedSearch/4088484135218",
+              "name": "Overlay products 1784475952065",
+              "query": "tag:overlay\\-1784475952065",
+              "resourceType": "PRODUCT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DraftProxyProductCatalogWindow",
+      "query": "query DraftProxyProductCatalogWindow(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: ProductSortKeys\n  $reverse: Boolean\n) {\n  products(first: $first, after: $after, query: $query, sortKey: $sortKey, reverse: $reverse) {\n    edges {\n      cursor\n      node {\n        id\n        legacyResourceId\n        title\n        handle\n        status\n        createdAt\n        updatedAt\n        publishedAt\n        descriptionHtml\n        vendor\n        productType\n        tags\n        templateSuffix\n        totalInventory\n        tracksInventory\n        isGiftCard\n        requiresSellingPlan\n        giftCardTemplateSuffix\n        onlineStorePreviewUrl\n        hasOnlyDefaultVariant\n        hasOutOfStockVariants\n        totalVariants\n        seo {\n          title\n          description\n        }\n        category {\n          id\n          fullName\n        }\n        options {\n          id\n          name\n          position\n          values\n        }\n        variants(first: 25) {\n          nodes {\n            id\n            title\n            sku\n            barcode\n            price\n            compareAtPrice\n            taxable\n            inventoryPolicy\n            inventoryQuantity\n            position\n            selectedOptions {\n              name\n              value\n            }\n            inventoryItem {\n              id\n              tracked\n              requiresShipping\n            }\n          }\n        }\n        collections(first: 10) {\n          nodes {\n            id\n            title\n            handle\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "first": 14,
+        "after": null,
+        "query": "tag:overlay\\-1784475952065",
+        "sortKey": "TITLE",
+        "reverse": false
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "products": {
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 152,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DraftProxyProductCatalogWindow",
+      "query": "query DraftProxyProductCatalogWindow(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: ProductSortKeys\n  $reverse: Boolean\n) {\n  products(first: $first, after: $after, query: $query, sortKey: $sortKey, reverse: $reverse) {\n    edges {\n      cursor\n      node {\n        id\n        legacyResourceId\n        title\n        handle\n        status\n        createdAt\n        updatedAt\n        publishedAt\n        descriptionHtml\n        vendor\n        productType\n        tags\n        templateSuffix\n        totalInventory\n        tracksInventory\n        isGiftCard\n        requiresSellingPlan\n        giftCardTemplateSuffix\n        onlineStorePreviewUrl\n        hasOnlyDefaultVariant\n        hasOutOfStockVariants\n        totalVariants\n        seo {\n          title\n          description\n        }\n        category {\n          id\n          fullName\n        }\n        options {\n          id\n          name\n          position\n          values\n        }\n        variants(first: 25) {\n          nodes {\n            id\n            title\n            sku\n            barcode\n            price\n            compareAtPrice\n            taxable\n            inventoryPolicy\n            inventoryQuantity\n            position\n            selectedOptions {\n              name\n              value\n            }\n            inventoryItem {\n              id\n              tracked\n              requiresShipping\n            }\n          }\n        }\n        collections(first: 10) {\n          nodes {\n            id\n            title\n            handle\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "first": 14,
+        "after": null,
+        "query": "tag:delete-1784475952065",
+        "sortKey": null,
+        "reverse": false
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "products": {
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 152,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DraftProxyProductCatalogWindow",
+      "query": "query DraftProxyProductCatalogWindow(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: ProductSortKeys\n  $reverse: Boolean\n) {\n  products(first: $first, after: $after, query: $query, sortKey: $sortKey, reverse: $reverse) {\n    edges {\n      cursor\n      node {\n        id\n        legacyResourceId\n        title\n        handle\n        status\n        createdAt\n        updatedAt\n        publishedAt\n        descriptionHtml\n        vendor\n        productType\n        tags\n        templateSuffix\n        totalInventory\n        tracksInventory\n        isGiftCard\n        requiresSellingPlan\n        giftCardTemplateSuffix\n        onlineStorePreviewUrl\n        hasOnlyDefaultVariant\n        hasOutOfStockVariants\n        totalVariants\n        seo {\n          title\n          description\n        }\n        category {\n          id\n          fullName\n        }\n        options {\n          id\n          name\n          position\n          values\n        }\n        variants(first: 25) {\n          nodes {\n            id\n            title\n            sku\n            barcode\n            price\n            compareAtPrice\n            taxable\n            inventoryPolicy\n            inventoryQuantity\n            position\n            selectedOptions {\n              name\n              value\n            }\n            inventoryItem {\n              id\n              tracked\n              requiresShipping\n            }\n          }\n        }\n        collections(first: 10) {\n          nodes {\n            id\n            title\n            handle\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "first": 14,
+        "after": null,
+        "query": "tag:control-1784475952065",
+        "sortKey": null,
+        "reverse": false
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "products": {
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 152,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DraftProxyProductCatalogCount",
+      "query": "query DraftProxyProductCatalogCount($query: String) {\n  productsCount(query: $query) {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "query": "tag:overlay-1784475952065"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "productsCount": {
+              "count": 0,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DraftProxyProductCatalogCount",
+      "query": "query DraftProxyProductCatalogCount($query: String) {\n  productsCount(query: $query) {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "query": null
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "productsCount": {
+              "count": 1461,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DraftProxyProductCatalogWindow",
+      "query": "query DraftProxyProductCatalogWindow(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: ProductSortKeys\n  $reverse: Boolean\n) {\n  products(first: $first, after: $after, query: $query, sortKey: $sortKey, reverse: $reverse) {\n    edges {\n      cursor\n      node {\n        id\n        legacyResourceId\n        title\n        handle\n        status\n        createdAt\n        updatedAt\n        publishedAt\n        descriptionHtml\n        vendor\n        productType\n        tags\n        templateSuffix\n        totalInventory\n        tracksInventory\n        isGiftCard\n        requiresSellingPlan\n        giftCardTemplateSuffix\n        onlineStorePreviewUrl\n        hasOnlyDefaultVariant\n        hasOutOfStockVariants\n        totalVariants\n        seo {\n          title\n          description\n        }\n        category {\n          id\n          fullName\n        }\n        options {\n          id\n          name\n          position\n          values\n        }\n        variants(first: 25) {\n          nodes {\n            id\n            title\n            sku\n            barcode\n            price\n            compareAtPrice\n            taxable\n            inventoryPolicy\n            inventoryQuantity\n            position\n            selectedOptions {\n              name\n              value\n            }\n            inventoryItem {\n              id\n              tracked\n              requiresShipping\n            }\n          }\n        }\n        collections(first: 10) {\n          nodes {\n            id\n            title\n            handle\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "first": 5,
+        "after": null,
+        "query": "tag:overlay-1784475952065",
+        "sortKey": "TITLE",
+        "reverse": false
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "products": {
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 92,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

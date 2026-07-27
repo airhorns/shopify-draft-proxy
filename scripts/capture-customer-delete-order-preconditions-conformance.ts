@@ -32,6 +32,7 @@ const customerDeleteDocument = await readFile(
   'config/parity-requests/customers/customer-delete-order-precondition-delete.graphql',
   'utf8',
 );
+const customerHydrateDocument = await readFile('config/parity-requests/customers/customer-hydrate.graphql', 'utf8');
 const customerReadDocument = await readFile(
   'config/parity-requests/customers/customer-delete-order-precondition-read.graphql',
   'utf8',
@@ -100,6 +101,27 @@ async function run(
   return result;
 }
 
+function upstreamCall(
+  operationName: string,
+  query: string,
+  variables: Record<string, unknown>,
+  result: ConformanceGraphqlResult,
+): Record<string, unknown> {
+  return {
+    method: 'POST',
+    apiSurface: 'admin',
+    apiVersion,
+    path: `/admin/api/${apiVersion}/graphql.json`,
+    operationName,
+    query,
+    variables,
+    response: {
+      status: result.status,
+      body: result.payload,
+    },
+  };
+}
+
 async function bestEffortCleanup(customerId: string | null, orderId: string | null): Promise<Record<string, unknown>> {
   const cleanup: Record<string, unknown> = {};
   if (orderId) {
@@ -143,6 +165,12 @@ const controlCustomerVariables = {
 };
 const controlCustomerCreate = await run(customerCreateDocument, controlCustomerVariables, 'control customerCreate');
 const controlCustomerId = readCustomerCreateId(controlCustomerCreate, 'control customerCreate');
+const controlHydrateVariables = { id: controlCustomerId };
+const controlHydrate = await run(
+  customerHydrateDocument,
+  controlHydrateVariables,
+  'control CustomerHydrate before customerDelete',
+);
 const controlDelete = await run(customerDeleteDocument, { input: { id: controlCustomerId } }, 'control customerDelete');
 const controlRead = await run(customerReadDocument, { id: controlCustomerId }, 'control read after customerDelete');
 
@@ -182,6 +210,12 @@ try {
 
   const orderCreate = await run(orderCreateDocument, orderVariables, 'blocked orderCreate');
   blockingOrderId = readOrderCreateId(orderCreate, 'blocked orderCreate');
+  const blockedHydrateVariables = { id: blockedCustomerId };
+  const blockedHydrate = await run(
+    customerHydrateDocument,
+    blockedHydrateVariables,
+    'blocked CustomerHydrate before customerDelete',
+  );
   const blockedDelete = await run(
     customerDeleteDocument,
     { input: { id: blockedCustomerId } },
@@ -208,7 +242,7 @@ try {
       readAfterDelete: controlRead.payload,
     },
     cleanup: {},
-    upstreamCalls: [],
+    upstreamCalls: [upstreamCall('CustomerHydrate', customerHydrateDocument, controlHydrateVariables, controlHydrate)],
   };
 
   const blockedFixture = {
@@ -235,8 +269,16 @@ try {
       customerDelete: blockedDelete.payload,
       readAfterBlockedDelete: blockedRead.payload,
     },
+    control: {
+      setup: noOrdersFixture.setup,
+      expected: noOrdersFixture.expected,
+    },
     cleanup: blockedCleanup,
-    upstreamCalls: [],
+    upstreamCalls: [
+      upstreamCall('CustomerHydrate', customerHydrateDocument, blockedHydrateVariables, blockedHydrate),
+      upstreamCall('CustomerDeleteOrderPreconditionRead', customerReadDocument, { id: blockedCustomerId }, blockedRead),
+      upstreamCall('CustomerHydrate', customerHydrateDocument, controlHydrateVariables, controlHydrate),
+    ],
   };
 
   await Promise.all([

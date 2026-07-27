@@ -1,0 +1,41 @@
+mutation StandardLinkedMetafieldValuesAttach(
+  $metafields: [MetafieldsSetInput!]!
+  $productId: ID!
+  $options: [OptionCreateInput!]!
+) {
+  metafieldsSet(metafields: $metafields) {
+    metafields {
+      namespace
+      key
+      type
+      value
+    }
+    userErrors {
+      field
+      message
+      code
+      elementIndex
+    }
+  }
+  productOptionsCreate(productId: $productId, options: $options) {
+    product {
+      id
+      options {
+        name
+        linkedMetafield {
+          namespace
+          key
+        }
+        optionValues {
+          name
+          linkedMetafieldValue
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

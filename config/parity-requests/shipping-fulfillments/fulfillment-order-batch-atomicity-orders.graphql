@@ -1,0 +1,53 @@
+#graphql
+  fragment FulfillmentOrderBatchAtomicityFields on FulfillmentOrder {
+    id
+    status
+    requestStatus
+    updatedAt
+    supportedActions {
+      action
+    }
+    assignedLocation {
+      name
+      location {
+        id
+        name
+      }
+    }
+    lineItems(first: 10) {
+      nodes {
+        id
+        totalQuantity
+        remainingQuantity
+        lineItem {
+          id
+          title
+          quantity
+          fulfillableQuantity
+        }
+      }
+    }
+  }
+
+  query FulfillmentOrderBatchAtomicityOrders($firstOrderId: ID!, $secondOrderId: ID!) {
+    first: order(id: $firstOrderId) {
+      id
+      name
+      displayFulfillmentStatus
+      fulfillmentOrders(first: 10) {
+        nodes {
+          ...FulfillmentOrderBatchAtomicityFields
+        }
+      }
+    }
+    second: order(id: $secondOrderId) {
+      id
+      name
+      displayFulfillmentStatus
+      fulfillmentOrders(first: 10) {
+        nodes {
+          ...FulfillmentOrderBatchAtomicityFields
+        }
+      }
+    }
+  }

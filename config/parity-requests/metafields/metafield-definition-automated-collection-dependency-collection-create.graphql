@@ -1,0 +1,30 @@
+mutation MetafieldDefinitionAutomatedCollectionCreate($input: CollectionInput!) {
+  collectionCreate(input: $input) {
+    collection {
+      id
+      title
+      ruleSet {
+        appliedDisjunctively
+        rules {
+          column
+          relation
+          condition
+          conditionObject {
+            __typename
+            ... on CollectionRuleMetafieldCondition {
+              metafieldDefinition {
+                id
+                namespace
+                key
+              }
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

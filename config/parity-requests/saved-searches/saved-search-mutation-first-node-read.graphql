@@ -1,0 +1,16 @@
+query SavedSearchMutationFirstNodeRead($id: ID!) {
+  node(id: $id) {
+    ... on SavedSearch {
+      id
+      legacyResourceId
+      name
+      query
+      resourceType
+      searchTerms
+      filters {
+        key
+        value
+      }
+    }
+  }
+}
