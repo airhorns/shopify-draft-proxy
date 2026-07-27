@@ -14,12 +14,12 @@ const ORDER_PAYMENT_TRANSACTION_HYDRATE_BY_ORDER_QUERY: &str = include_str!(
 const ORDER_PAYMENT_TRANSACTION_HYDRATE_BY_TRANSACTION_QUERY: &str = include_str!(
     "../../runtime_graphql/payments/order-payment-transaction-hydrate-by-transaction.graphql"
 );
-const ORDER_CREATE_MANUAL_PAYMENT_CAPABILITY_QUERY: &str = include_str!(
-    "../../../config/parity-requests/orders/order-create-manual-payment-capability.graphql"
-);
-const ORDER_CREATE_MANUAL_PAYMENT_CONTEXT_QUERY: &str = include_str!(
-    "../../../config/parity-requests/orders/order-create-manual-payment-context.graphql"
-);
+// Runtime-owned manual-payment preflight documents. Parity capture keeps
+// separate byte-identical requests for exact cassette replay.
+const ORDER_CREATE_MANUAL_PAYMENT_CAPABILITY_QUERY: &str =
+    include_str!("../../runtime_graphql/payments/order-create-manual-payment-capability.graphql");
+const ORDER_CREATE_MANUAL_PAYMENT_CONTEXT_QUERY: &str =
+    include_str!("../../runtime_graphql/payments/order-create-manual-payment-context.graphql");
 const FINAL_CAPTURE_UNSUPPORTED_PAYMENT_PROVIDER_MESSAGE: &str =
     "Setting final capture is not supported for this transaction's payment gateway. Please remove the parameter or set it to null, then try again.";
 
