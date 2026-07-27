@@ -1,0 +1,6 @@
+query SavedSearchPartialPageBefore($before: String!) {
+  productSavedSearches(last: 1, before: $before) {
+    edges { cursor node { id name query resourceType } }
+    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+  }
+}

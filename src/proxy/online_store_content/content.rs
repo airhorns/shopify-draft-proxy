@@ -111,37 +111,31 @@ fn online_store_article_comments_count_field(
 }
 
 fn online_store_content_metafield_field(
-    _proxy: &mut DraftProxy,
-    _request: &Request,
+    proxy: &mut DraftProxy,
+    request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
-    let namespace = invocation
-        .arguments
-        .get("namespace")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
-    let key = invocation
-        .arguments
-        .get("key")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
-    Ok(online_store_content_metafield(invocation.parent, namespace, key).unwrap_or(Value::Null))
+    let api_client_id = request_app_namespace_api_client_id(request);
+    Ok(proxy.canonical_embedded_or_owner_metafield_value(
+        invocation.parent,
+        &resolved_arguments_from_json(&invocation.arguments),
+        api_client_id.as_deref(),
+    ))
 }
 
 fn online_store_content_metafields_field(
-    _proxy: &mut DraftProxy,
-    _request: &Request,
+    proxy: &mut DraftProxy,
+    request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
-    let namespace = invocation
-        .arguments
-        .get("namespace")
-        .and_then(Value::as_str);
-    Ok(connection_value_with_args(
-        online_store_content_metafield_nodes(invocation.parent, namespace),
-        &resolved_arguments_from_json(&invocation.arguments),
-        value_id_cursor,
-    ))
+    let api_client_id = request_app_namespace_api_client_id(request);
+    Ok(
+        proxy.canonical_embedded_or_owner_metafields_connection_value(
+            invocation.parent,
+            &resolved_arguments_from_json(&invocation.arguments),
+            api_client_id.as_deref(),
+        ),
+    )
 }
 
 fn online_store_blog_articles_field(
@@ -941,6 +935,7 @@ impl DraftProxy {
         let id = self.next_online_store_id("Article");
         let record = article_record(&id, &blog_id, &input, None, &timestamp);
         self.stage_online_store_record(OnlineStoreKind::Article, id.clone(), record.clone());
+        self.stage_observed_owner_metafields(&id, &record);
         self.touch_online_store_blog(&blog_id, &timestamp);
         staged_ids.push(id);
         self.online_store_article_payload(self.enriched_article_record(&record), Vec::new())
@@ -998,6 +993,7 @@ impl DraftProxy {
         let timestamp = online_store_operation_timestamp();
         apply_article_input(&mut record, &input, &timestamp);
         self.stage_online_store_record(kind, id.clone(), record.clone());
+        self.stage_observed_owner_metafields(&id, &record);
         if let Some(blog_id) = record["blogId"].as_str() {
             let blog_id = blog_id.to_string();
             self.touch_online_store_blog(&blog_id, &timestamp);
@@ -1851,36 +1847,6 @@ fn article_image_json(input: &BTreeMap<String, ResolvedValue>) -> Value {
         "url": url,
         "altText": alt_text
     })
-}
-
-fn online_store_content_metafield(record: &Value, namespace: &str, key: &str) -> Option<Value> {
-    online_store_content_metafield_nodes(record, Some(namespace))
-        .into_iter()
-        .find(|metafield| metafield.get("key").and_then(Value::as_str) == Some(key))
-}
-
-fn online_store_content_metafield_nodes(record: &Value, namespace: Option<&str>) -> Vec<Value> {
-    let mut nodes = connection_nodes(&record["metafields"]);
-    if let Some(metafield) = record.get("metafield").filter(|value| value.is_object()) {
-        let duplicate = nodes.iter().any(|node| {
-            node.get("namespace").and_then(Value::as_str)
-                == metafield.get("namespace").and_then(Value::as_str)
-                && node.get("key").and_then(Value::as_str)
-                    == metafield.get("key").and_then(Value::as_str)
-        });
-        if !duplicate {
-            nodes.push(metafield.clone());
-        }
-    }
-
-    nodes
-        .into_iter()
-        .filter(|metafield| {
-            namespace.is_none_or(|namespace| {
-                metafield.get("namespace").and_then(Value::as_str) == Some(namespace)
-            })
-        })
-        .collect()
 }
 
 fn apply_online_store_metafields_input(

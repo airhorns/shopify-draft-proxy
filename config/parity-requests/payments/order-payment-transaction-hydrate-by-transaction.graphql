@@ -1,0 +1,101 @@
+query OrderPaymentTransactionHydrateByTransaction($id: ID!) {
+  transaction: node(id: $id) {
+    __typename
+    ... on OrderTransaction {
+      id
+      kind
+      status
+      gateway
+      manualPaymentGateway
+      manuallyCapturable
+      multiCapturable
+      amountSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+        presentmentMoney {
+          amount
+          currencyCode
+        }
+      }
+      parentTransaction {
+        id
+        kind
+        status
+      }
+      order {
+        id
+        presentmentCurrencyCode
+        displayFinancialStatus
+        capturable
+        totalCapturable
+        totalCapturableSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+          presentmentMoney {
+            amount
+            currencyCode
+          }
+        }
+        totalOutstandingSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+          presentmentMoney {
+            amount
+            currencyCode
+          }
+        }
+        totalReceivedSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+          presentmentMoney {
+            amount
+            currencyCode
+          }
+        }
+        netPaymentSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+          presentmentMoney {
+            amount
+            currencyCode
+          }
+        }
+        paymentGatewayNames
+        transactions {
+          id
+          kind
+          status
+          gateway
+          manualPaymentGateway
+          manuallyCapturable
+          multiCapturable
+          amountSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+            presentmentMoney {
+              amount
+              currencyCode
+            }
+          }
+          parentTransaction {
+            id
+            kind
+            status
+          }
+        }
+      }
+    }
+  }
+}

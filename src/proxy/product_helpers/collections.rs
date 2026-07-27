@@ -34,6 +34,16 @@ query CollectionsIdentityHydrate(
           column
           relation
           condition
+          conditionObject {
+            __typename
+            ... on CollectionRuleMetafieldCondition {
+              metafieldDefinition {
+                id
+                namespace
+                key
+              }
+            }
+          }
         }
       }
       productsCount {
@@ -820,6 +830,7 @@ impl DraftProxy {
 
     fn collection_canonical_value(&self, collection: &Value) -> Value {
         let mut value = collection.clone();
+        self.populate_collection_rule_condition_objects(&mut value);
         if let Some(object) = value.as_object_mut() {
             object.insert("__typename".to_string(), json!("Collection"));
             object.remove("products");
@@ -831,6 +842,56 @@ impl DraftProxy {
                 .or_insert_with(|| json!("BEST_SELLING"));
         }
         value
+    }
+
+    pub(in crate::proxy) fn automated_collection_uses_metafield_definition(
+        &self,
+        definition_id: &str,
+    ) -> bool {
+        !definition_id.is_empty()
+            && self.store.staged.collections.values().any(|collection| {
+                collection
+                    .get("ruleSet")
+                    .and_then(|rule_set| rule_set.get("rules"))
+                    .and_then(Value::as_array)
+                    .is_some_and(|rules| {
+                        rules.iter().any(|rule| {
+                            rule.get("column").and_then(Value::as_str)
+                                == Some("PRODUCT_METAFIELD_DEFINITION")
+                                && collection_rule_metafield_definition_id(rule)
+                                    == Some(definition_id)
+                        })
+                    })
+            })
+    }
+
+    fn populate_collection_rule_condition_objects(&self, collection: &mut Value) {
+        let Some(rules) = collection
+            .get_mut("ruleSet")
+            .and_then(|rule_set| rule_set.get_mut("rules"))
+            .and_then(Value::as_array_mut)
+        else {
+            return;
+        };
+        for rule in rules {
+            if !matches!(
+                rule.get("column").and_then(Value::as_str),
+                Some("PRODUCT_METAFIELD_DEFINITION" | "VARIANT_METAFIELD_DEFINITION")
+            ) {
+                continue;
+            }
+            let Some(definition_id) = collection_rule_metafield_definition_id(rule) else {
+                continue;
+            };
+            let Some((_, definition)) = self.effective_metafield_definition_by_id(definition_id)
+            else {
+                continue;
+            };
+            rule["conditionObject"] = json!({
+                "__typename": "CollectionRuleMetafieldCondition",
+                "metafieldDefinition": definition
+            });
+        }
     }
 
     pub(in crate::proxy) fn hydrate_collections_for_read(
@@ -2279,6 +2340,7 @@ impl DraftProxy {
     ) -> Value {
         let collection = collection.map(|collection| {
             let mut collection = collection.clone();
+            self.populate_collection_rule_condition_objects(&mut collection);
             if let Some(object) = collection.as_object_mut() {
                 // Preserve the mutation's explicit membership source. The
                 // Collection field resolver still owns arguments, windowing,
@@ -2955,10 +3017,22 @@ fn collection_rule_set_json(input: BTreeMap<String, ResolvedValue>) -> Value {
             .map(|rule| json!({
                 "column": resolved_string_field(&rule, "column").unwrap_or_default(),
                 "relation": resolved_string_field(&rule, "relation").unwrap_or_default(),
-                "condition": resolved_string_field(&rule, "condition").unwrap_or_default()
+                "condition": resolved_string_field(&rule, "condition").unwrap_or_default(),
+                "conditionObjectId": resolved_string_field(&rule, "conditionObjectId")
             }))
             .collect::<Vec<_>>()
     })
+}
+
+fn collection_rule_metafield_definition_id(rule: &Value) -> Option<&str> {
+    rule.get("conditionObjectId")
+        .and_then(Value::as_str)
+        .or_else(|| {
+            rule.get("conditionObject")
+                .and_then(|condition_object| condition_object.get("metafieldDefinition"))
+                .and_then(|definition| definition.get("id"))
+                .and_then(Value::as_str)
+        })
 }
 
 fn collection_rule_set_rules_empty(input: &BTreeMap<String, ResolvedValue>) -> bool {

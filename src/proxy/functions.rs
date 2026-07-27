@@ -110,11 +110,10 @@ impl DraftProxy {
             raw_arguments,
             arguments: resolved_arguments_from_json(&arguments),
         };
-        let (value, errors) = self.function_mutation_value(request, &field);
-        let staged = !value.is_null();
-        let mut outcome = ResolverOutcome::value(value)
+        let (result, errors) = self.function_mutation_value(request, &field);
+        let mut outcome = ResolverOutcome::value(result.value)
             .with_errors(root_field_errors_from_json(&errors, response_key));
-        if staged {
+        if result.staged {
             outcome = outcome.with_log_draft(LogDraft::staged(root_name, "functions", Vec::new()));
         }
         outcome
@@ -124,7 +123,7 @@ impl DraftProxy {
         &mut self,
         request: &Request,
         field: &FunctionRootInput,
-    ) -> (Value, Vec<Value>) {
+    ) -> (LocalMutationResult, Vec<Value>) {
         let mut errors = Vec::new();
         let value = match field.name.as_str() {
             "validationCreate" => self.function_validation_create_payload(request, field),
@@ -146,10 +145,10 @@ impl DraftProxy {
                     self.function_tax_app_configure_payload(field)
                 } else {
                     errors.push(tax_app_configure_access_denied_error(field));
-                    Value::Null
+                    LocalMutationResult::no_stage(Value::Null)
                 }
             }
-            _ => Value::Null,
+            _ => LocalMutationResult::no_stage(Value::Null),
         };
         (value, errors)
     }
@@ -2128,18 +2127,18 @@ impl DraftProxy {
         &mut self,
         request: &Request,
         field: &FunctionRootInput,
-    ) -> Value {
+    ) -> LocalMutationResult {
         let input = match field.arguments.get("validation") {
             Some(ResolvedValue::Object(input)) => input,
             _ => {
-                return payload_user_error(
+                return LocalMutationResult::no_stage(payload_user_error(
                     VALIDATION_FUNCTION_PAYLOAD.payload_key,
                     user_error(
                         ["validation"],
                         "Required input field must be present.",
                         Some("REQUIRED_INPUT_FIELD"),
                     ),
-                );
+                ));
             }
         };
         let (function_id, function_handle) = function_identifier_input(input);
@@ -2151,22 +2150,25 @@ impl DraftProxy {
             &function_handle,
         ) {
             Ok(function) => function,
-            Err(payload) => return payload,
+            Err(payload) => return LocalMutationResult::no_stage(payload),
         };
         let errors = validation_metafield_errors(input);
         if !errors.is_empty() {
-            return payload_error(VALIDATION_FUNCTION_PAYLOAD.payload_key, errors);
+            return LocalMutationResult::no_stage(payload_error(
+                VALIDATION_FUNCTION_PAYLOAD.payload_key,
+                errors,
+            ));
         }
         let enable = resolved_bool_field(input, "enable").unwrap_or(false);
         if enable && self.effective_active_validation_count(None) >= 25 {
-            return payload_user_error(
+            return LocalMutationResult::no_stage(payload_user_error(
                 VALIDATION_FUNCTION_PAYLOAD.payload_key,
                 user_error(
                     Vec::<&str>::new(),
                     "Cannot have more than 25 active validation functions.",
                     Some("MAX_VALIDATIONS_ACTIVATED"),
                 ),
-            );
+            ));
         }
         let id = self.next_proxy_synthetic_gid("Validation");
         let timestamp = self.next_product_timestamp();
@@ -2185,26 +2187,26 @@ impl DraftProxy {
             "metafields": validation_metafield_connection(metafields)
         });
         self.stage_function_validation(validation.clone());
-        json!({ "validation": validation, "userErrors": [] })
+        LocalMutationResult::staged(json!({ "validation": validation, "userErrors": [] }))
     }
 
     fn function_validation_update_payload(
         &mut self,
         request: &Request,
         field: &FunctionRootInput,
-    ) -> Value {
+    ) -> LocalMutationResult {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let input = match field.arguments.get("validation") {
             Some(ResolvedValue::Object(input)) => input,
             _ => {
-                return payload_user_error(
+                return LocalMutationResult::no_stage(payload_user_error(
                     VALIDATION_FUNCTION_PAYLOAD.payload_key,
                     user_error(
                         ["validation"],
                         "Required input field must be present.",
                         Some("REQUIRED_INPUT_FIELD"),
                     ),
-                );
+                ));
             }
         };
         if self
@@ -2213,10 +2215,10 @@ impl DraftProxy {
             .deleted_function_validation_ids
             .contains(&id)
         {
-            return payload_user_error(
+            return LocalMutationResult::no_stage(payload_user_error(
                 VALIDATION_FUNCTION_PAYLOAD.payload_key,
                 user_error(["id"], "Extension not found.", Some("NOT_FOUND")),
-            );
+            ));
         }
         if self.function_validation_by_id(&id).is_none()
             && self.config.read_mode != ReadMode::Snapshot
@@ -2224,27 +2226,30 @@ impl DraftProxy {
             self.hydrate_function_validation_by_id(request, &id);
         }
         let Some(mut validation) = self.function_validation_by_id(&id).cloned() else {
-            return payload_user_error(
+            return LocalMutationResult::no_stage(payload_user_error(
                 VALIDATION_FUNCTION_PAYLOAD.payload_key,
                 user_error(["id"], "Extension not found.", Some("NOT_FOUND")),
-            );
+            ));
         };
         let errors = validation_metafield_errors(input);
         if !errors.is_empty() {
-            return payload_error(VALIDATION_FUNCTION_PAYLOAD.payload_key, errors);
+            return LocalMutationResult::no_stage(payload_error(
+                VALIDATION_FUNCTION_PAYLOAD.payload_key,
+                errors,
+            ));
         }
         let next_enable = resolved_bool_field(input, "enable")
             .or_else(|| resolved_bool_field(input, "enabled"))
             .unwrap_or(false);
         if next_enable && self.effective_active_validation_count(Some(&id)) >= 25 {
-            return payload_user_error(
+            return LocalMutationResult::no_stage(payload_user_error(
                 VALIDATION_FUNCTION_PAYLOAD.payload_key,
                 user_error(
                     Vec::<&str>::new(),
                     "Cannot have more than 25 active validation functions.",
                     Some("MAX_VALIDATIONS_ACTIVATED"),
                 ),
-            );
+            ));
         }
         if let Some(title) = resolved_string_field(input, "title") {
             validation["title"] = json!(title);
@@ -2260,14 +2265,14 @@ impl DraftProxy {
             validation_metafields_from_input(input, &timestamp),
         );
         self.stage_function_validation(validation.clone());
-        json!({ "validation": validation, "userErrors": [] })
+        LocalMutationResult::staged(json!({ "validation": validation, "userErrors": [] }))
     }
 
     fn function_validation_delete_payload(
         &mut self,
         request: &Request,
         field: &FunctionRootInput,
-    ) -> Value {
+    ) -> LocalMutationResult {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         if self.function_validation_by_id(&id).is_none()
             && self.config.read_mode != ReadMode::Snapshot
@@ -2295,10 +2300,15 @@ impl DraftProxy {
                 .deleted_function_validation_ids
                 .insert(id.clone());
         }
-        if base_deleted {
+        let value = if base_deleted {
             json!({ "deletedId": id, "userErrors": [] })
         } else {
             payload
+        };
+        if deleted {
+            LocalMutationResult::staged(value)
+        } else {
+            LocalMutationResult::no_stage(value)
         }
     }
 
@@ -2306,7 +2316,7 @@ impl DraftProxy {
         &mut self,
         request: &Request,
         field: &FunctionRootInput,
-    ) -> Value {
+    ) -> LocalMutationResult {
         let function_id = resolved_string_field(&field.arguments, "functionId");
         let function_handle = resolved_string_field(&field.arguments, "functionHandle");
         if let Some(payload) = function_identifier_error(
@@ -2314,18 +2324,18 @@ impl DraftProxy {
             &function_id,
             &function_handle,
         ) {
-            return payload;
+            return LocalMutationResult::no_stage(payload);
         }
         if let Some(function_id) = function_id.as_deref() {
             if self.effective_function_id_in_use(function_id) {
-                return payload_user_error(
+                return LocalMutationResult::no_stage(payload_user_error(
                     CART_TRANSFORM_FUNCTION_PAYLOAD.payload_key,
                     user_error(
                         ["functionId"],
                         "Could not enable cart transform because it is already registered",
                         Some("FUNCTION_ALREADY_REGISTERED"),
                     ),
-                );
+                ));
             }
         }
         let function = match function_resolution_payload(
@@ -2336,14 +2346,17 @@ impl DraftProxy {
             &function_handle,
         ) {
             Ok(function) => function,
-            Err(payload) => return payload,
+            Err(payload) => return LocalMutationResult::no_stage(payload),
         };
         if self.effective_cart_transform_count() > 0 {
-            return maximum_cart_transforms_error();
+            return LocalMutationResult::no_stage(maximum_cart_transforms_error());
         }
         let errors = cart_transform_metafield_errors(field);
         if !errors.is_empty() {
-            return payload_error(CART_TRANSFORM_FUNCTION_PAYLOAD.payload_key, errors);
+            return LocalMutationResult::no_stage(payload_error(
+                CART_TRANSFORM_FUNCTION_PAYLOAD.payload_key,
+                errors,
+            ));
         }
         let id = self.next_proxy_synthetic_gid("CartTransform");
         let metafield_ids: Vec<String> = Vec::new();
@@ -2387,14 +2400,14 @@ impl DraftProxy {
             cart_transform.as_object_mut().unwrap().remove("metafield");
         }
         self.stage_function_cart_transform(cart_transform.clone());
-        json!({ "cartTransform": cart_transform, "userErrors": [] })
+        LocalMutationResult::staged(json!({ "cartTransform": cart_transform, "userErrors": [] }))
     }
 
     fn function_cart_transform_delete_payload(
         &mut self,
         request: &Request,
         field: &FunctionRootInput,
-    ) -> Value {
+    ) -> LocalMutationResult {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         if self.function_cart_transform_by_id(&id).is_none()
             && self.config.read_mode != ReadMode::Snapshot
@@ -2426,10 +2439,15 @@ impl DraftProxy {
                 .deleted_function_cart_transform_ids
                 .insert(id.clone());
         }
-        if base_deleted {
+        let value = if base_deleted {
             json!({ "deletedId": id, "userErrors": [] })
         } else {
             payload
+        };
+        if deleted {
+            LocalMutationResult::staged(value)
+        } else {
+            LocalMutationResult::no_stage(value)
         }
     }
 
@@ -2437,7 +2455,7 @@ impl DraftProxy {
         &mut self,
         request: &Request,
         field: &FunctionRootInput,
-    ) -> Value {
+    ) -> LocalMutationResult {
         let function_id = resolved_string_field(&field.arguments, "functionId");
         let function_handle = resolved_string_field(&field.arguments, "functionHandle");
         if let Some(payload) = function_identifier_error(
@@ -2445,13 +2463,13 @@ impl DraftProxy {
             &function_id,
             &function_handle,
         ) {
-            return payload;
+            return LocalMutationResult::no_stage(payload);
         }
         let delivery_method_types = fulfillment_constraint_rule_delivery_method_types(field);
         if let Some(payload) =
             fulfillment_constraint_rule_delivery_method_error(&delivery_method_types)
         {
-            return payload;
+            return LocalMutationResult::no_stage(payload);
         }
         let function = match function_resolution_payload(
             self,
@@ -2461,7 +2479,7 @@ impl DraftProxy {
             &function_handle,
         ) {
             Ok(function) => function,
-            Err(payload) => return payload,
+            Err(payload) => return LocalMutationResult::no_stage(payload),
         };
         let id = self.next_synthetic_gid("FulfillmentConstraintRule");
         let metafield_ids = match field.arguments.get("metafields") {
@@ -2499,14 +2517,14 @@ impl DraftProxy {
             rule.as_object_mut().unwrap().remove("metafield");
         }
         self.stage_function_fulfillment_constraint_rule(rule.clone());
-        json!({ "fulfillmentConstraintRule": rule, "userErrors": [] })
+        LocalMutationResult::staged(json!({ "fulfillmentConstraintRule": rule, "userErrors": [] }))
     }
 
     fn function_fulfillment_constraint_rule_update_payload(
         &mut self,
         request: &Request,
         field: &FunctionRootInput,
-    ) -> Value {
+    ) -> LocalMutationResult {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let function_id = resolved_string_field(&field.arguments, "functionId");
         let function_handle = resolved_string_field(&field.arguments, "functionHandle");
@@ -2516,14 +2534,14 @@ impl DraftProxy {
                 &function_id,
                 &function_handle,
             ) {
-                return payload;
+                return LocalMutationResult::no_stage(payload);
             }
         }
         let delivery_method_types = fulfillment_constraint_rule_delivery_method_types(field);
         if let Some(payload) =
             fulfillment_constraint_rule_delivery_method_error(&delivery_method_types)
         {
-            return payload;
+            return LocalMutationResult::no_stage(payload);
         }
         let Some(mut rule) = self
             .store
@@ -2532,14 +2550,14 @@ impl DraftProxy {
             .get(&id)
             .cloned()
         else {
-            return payload_user_error(
+            return LocalMutationResult::no_stage(payload_user_error(
                 FULFILLMENT_CONSTRAINT_RULE_FUNCTION_PAYLOAD.payload_key,
                 user_error(
                     ["id"],
                     &format!("Could not find FulfillmentConstraintRule with id: {id}"),
                     Some("NOT_FOUND"),
                 ),
-            );
+            ));
         };
         if function_id.is_some() || function_handle.is_some() {
             let function = match function_resolution_payload(
@@ -2550,7 +2568,7 @@ impl DraftProxy {
                 &function_handle,
             ) {
                 Ok(function) => function,
-                Err(payload) => return payload,
+                Err(payload) => return LocalMutationResult::no_stage(payload),
             };
             rule["functionId"] = function["id"].clone();
             rule["functionHandle"] = function["handle"].clone();
@@ -2559,13 +2577,13 @@ impl DraftProxy {
         }
         rule["deliveryMethodTypes"] = json!(delivery_method_types);
         self.stage_function_fulfillment_constraint_rule(rule.clone());
-        json!({ "fulfillmentConstraintRule": rule, "userErrors": [] })
+        LocalMutationResult::staged(json!({ "fulfillmentConstraintRule": rule, "userErrors": [] }))
     }
 
     fn function_fulfillment_constraint_rule_delete_payload(
         &mut self,
         field: &FunctionRootInput,
-    ) -> Value {
+    ) -> LocalMutationResult {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let (payload, deleted) = delete_staged_function_record(
             &mut self.store.staged.function_fulfillment_constraint_rules,
@@ -2598,14 +2616,22 @@ impl DraftProxy {
                 .deleted_function_fulfillment_constraint_rule_ids
                 .insert(id.clone());
         }
-        if base_deleted {
+        let value = if base_deleted {
             json!({ "success": true, "userErrors": [] })
         } else {
             payload
+        };
+        if deleted {
+            LocalMutationResult::staged(value)
+        } else {
+            LocalMutationResult::no_stage(value)
         }
     }
 
-    fn function_tax_app_configure_payload(&mut self, field: &FunctionRootInput) -> Value {
+    fn function_tax_app_configure_payload(
+        &mut self,
+        field: &FunctionRootInput,
+    ) -> LocalMutationResult {
         let ready = resolved_bool_field(&field.arguments, "ready").unwrap_or(true);
         let id = self
             .store
@@ -2624,7 +2650,9 @@ impl DraftProxy {
         });
         self.store.staged.functions_dirty = true;
         self.store.staged.tax_app_configuration = Some(configuration.clone());
-        json!({ "taxAppConfiguration": configuration, "userErrors": [] })
+        LocalMutationResult::staged(
+            json!({ "taxAppConfiguration": configuration, "userErrors": [] }),
+        )
     }
 
     fn stage_function_validation(&mut self, validation: Value) {

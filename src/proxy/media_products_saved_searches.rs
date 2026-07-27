@@ -667,20 +667,6 @@ impl DraftProxy {
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
-        if self.config.read_mode == ReadMode::Snapshot
-            && matches!(
-                invocation.root_name,
-                "productVariantAppendMedia" | "productVariantDetachMedia"
-            )
-        {
-            return resolver_http_error_outcome(
-                400,
-                format!(
-                    "No mutation dispatcher implemented for root field: {}",
-                    invocation.root_name
-                ),
-            );
-        }
         let request = invocation.request;
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         match invocation.root_name {

@@ -803,7 +803,10 @@ fn product_create_update_and_reorder_media_preserve_non_image_media_types() {
     assert_product_media_type(&downstream[2], "MODEL_3D", "Model3d", "Model3d");
     assert_product_media_type(&downstream[3], "VIDEO", "Video", "Video");
 
-    let external_video_id = created[1]["id"].as_str().unwrap();
+    let declared_video_id = created[0]["id"].as_str().unwrap().to_string();
+    let external_video_id = created[1]["id"].as_str().unwrap().to_string();
+    let model_id = created[2]["id"].as_str().unwrap().to_string();
+    let inferred_video_id = created[3]["id"].as_str().unwrap().to_string();
     let update = proxy.process_request(json_graphql_request(
         r#"
         mutation ProductUpdateExternalVideo($productId: ID!, $media: [UpdateMediaInput!]!) {
@@ -835,7 +838,6 @@ fn product_create_update_and_reorder_media_preserve_non_image_media_types() {
         "external video update should not project a MediaImage fragment"
     );
 
-    let model_id = created[2]["id"].as_str().unwrap();
     let reorder = proxy.process_request(json_graphql_request(
         r#"
         mutation ProductReorderNonImageMedia($productId: ID!, $moves: [MoveInput!]!) {
@@ -848,8 +850,10 @@ fn product_create_update_and_reorder_media_preserve_non_image_media_types() {
         json!({
             "productId": product_id,
             "moves": [
+                { "id": external_video_id, "newPosition": "3" },
                 { "id": model_id, "newPosition": "0" },
-                { "id": external_video_id, "newPosition": "1" }
+                { "id": external_video_id, "newPosition": "1" },
+                { "id": model_id, "newPosition": "0" }
             ]
         }),
     ));
@@ -867,8 +871,12 @@ fn product_create_update_and_reorder_media_preserve_non_image_media_types() {
               nodes {
                 id
                 __typename
+                alt
                 mediaContentType
                 status
+                ... on Video { sources { url } }
+                ... on ExternalVideo { originUrl }
+                ... on Model3d { sources { url } }
               }
             }
           }
@@ -880,15 +888,53 @@ fn product_create_update_and_reorder_media_preserve_non_image_media_types() {
     let reordered = read.body["data"]["product"]["media"]["nodes"]
         .as_array()
         .expect("reordered media should be an array");
+    assert_eq!(
+        reordered.len(),
+        4,
+        "reordering a subset must preserve every unmoved media node"
+    );
+    assert_eq!(
+        reordered
+            .iter()
+            .map(|node| node["id"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec![
+            model_id.as_str(),
+            external_video_id.as_str(),
+            declared_video_id.as_str(),
+            inferred_video_id.as_str(),
+        ],
+        "moves must be applied sequentially in request order, including repeated and same-position moves"
+    );
     assert_product_media_type(&reordered[0], "MODEL_3D", "Model3d", "Model3d");
-    assert_eq!(reordered[0]["status"], json!("PROCESSING"));
+    assert_eq!(reordered[0]["alt"], json!("Declared model"));
+    assert_eq!(
+        reordered[0]["sources"],
+        json!([{ "url": "https://cdn.example.com/model.glb" }])
+    );
     assert_product_media_type(
         &reordered[1],
         "EXTERNAL_VIDEO",
         "ExternalVideo",
         "ExternalVideo",
     );
-    assert_eq!(reordered[1]["status"], json!("PROCESSING"));
+    assert_eq!(reordered[1]["alt"], json!("Updated external video"));
+    assert_eq!(
+        reordered[1]["originUrl"],
+        json!("https://youtu.be/dQw4w9WgXcQ")
+    );
+    assert_product_media_type(&reordered[2], "VIDEO", "Video", "Video");
+    assert_eq!(reordered[2]["alt"], json!("Declared video"));
+    assert_eq!(
+        reordered[2]["sources"],
+        json!([{ "url": "https://cdn.example.com/declared-video.mp4" }])
+    );
+    assert_product_media_type(&reordered[3], "VIDEO", "Video", "Video");
+    assert_eq!(reordered[3]["alt"], json!("Inferred video"));
+    assert_eq!(
+        reordered[3]["sources"],
+        json!([{ "url": "https://cdn.example.com/inferred-video.MP4?download=1" }])
+    );
 }
 
 #[test]
@@ -1733,6 +1779,49 @@ fn product_reorder_media_unknown_media_id_returns_async_job_without_immediate_er
     assert_eq!(payload["userErrors"], json!([]));
 }
 
+#[test]
+fn product_reorder_media_missing_product_does_not_change_state_or_log() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_upstream_transport(|_| missing_product_hydrate_response());
+    let state_before = state_snapshot(&proxy);
+    let log_before = log_snapshot(&proxy);
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MissingProductReorder($id: ID!, $moves: [MoveInput!]!) {
+          productReorderMedia(id: $id, moves: $moves) {
+            job { id done }
+            userErrors { field message }
+            mediaUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/999999999999",
+            "moves": [{
+                "id": "gid://shopify/MediaImage/999999999999",
+                "newPosition": "0"
+            }]
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["productReorderMedia"]["job"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["data"]["productReorderMedia"]["mediaUserErrors"],
+        json!([{
+            "field": ["id"],
+            "message": "Product does not exist",
+            "code": "PRODUCT_DOES_NOT_EXIST"
+        }])
+    );
+    assert_eq!(state_snapshot(&proxy), state_before);
+    assert_eq!(log_snapshot(&proxy), log_before);
+}
+
 fn append_variant_media_for_test(
     proxy: &mut DraftProxy,
     product_id: &str,
@@ -2261,6 +2350,71 @@ fn product_and_variant_media_connections_return_windowed_edges_and_page_info() {
     assert_eq!(
         append.body["data"]["productVariantAppendMedia"]["userErrors"],
         json!([])
+    );
+
+    let reorder = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReorderProductMediaWithVariantAttachment($id: ID!, $moves: [MoveInput!]!) {
+          productReorderMedia(id: $id, moves: $moves) {
+            job { id done }
+            mediaUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": product_id,
+            "moves": [{ "id": back_id, "newPosition": "0" }]
+        }),
+    ));
+    assert_eq!(reorder.status, 200);
+    assert_eq!(
+        reorder.body["data"]["productReorderMedia"]["mediaUserErrors"],
+        json!([])
+    );
+
+    let reordered_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductAndVariantMediaAfterReorder($productId: ID!, $variantId: ID!) {
+          product(id: $productId) {
+            media(first: 10) { nodes { id alt } }
+            images(first: 10) { nodes { id altText } }
+            featuredMedia {
+              __typename
+              ... on MediaImage { id alt }
+            }
+          }
+          productVariant(id: $variantId) {
+            media(first: 10) { nodes { id alt } }
+          }
+        }
+        "#,
+        json!({ "productId": product_id, "variantId": variant_id }),
+    ));
+    assert_eq!(reordered_read.status, 200);
+    assert_eq!(
+        reordered_read.body["data"]["product"]["media"]["nodes"],
+        json!([
+            { "id": back_id, "alt": "Back" },
+            { "id": front_id, "alt": "Front" },
+            { "id": side_id, "alt": "Side" }
+        ])
+    );
+    assert_eq!(
+        reordered_read.body["data"]["product"]["images"]["nodes"],
+        json!([
+            { "id": "gid://shopify/ProductImage/3", "altText": "Back" },
+            { "id": "gid://shopify/ProductImage/1", "altText": "Front" },
+            { "id": "gid://shopify/ProductImage/2", "altText": "Side" }
+        ])
+    );
+    assert_eq!(
+        reordered_read.body["data"]["product"]["featuredMedia"],
+        json!({ "__typename": "MediaImage", "id": back_id, "alt": "Back" })
+    );
+    assert_eq!(
+        reordered_read.body["data"]["productVariant"]["media"]["nodes"],
+        json!([{ "id": front_id, "alt": "Front" }]),
+        "variant-media attachments must still resolve from the reordered complete library"
     );
 
     let variant_read = proxy.process_request(json_graphql_request(
@@ -4252,14 +4406,38 @@ fn product_variants_bulk_update_sorts_user_errors_by_field_and_code() {
 }
 
 #[test]
-fn product_media_roots_without_store_backed_handlers_fail_closed() {
+fn snapshot_variant_media_and_create_media_honor_local_prerequisite_boundaries() {
     let mut proxy = snapshot_proxy();
 
-    for (root, query) in [
+    for (root, error_field, query) in [
         (
             "productCreateMedia",
+            "mediaUserErrors",
             r#"mutation { productCreateMedia(productId: "gid://shopify/Product/optioned", media: [{ originalSource: "not-a-url", mediaContentType: IMAGE }]) { media { id } mediaUserErrors { message } } }"#,
         ),
+        (
+            "productVariantAppendMedia",
+            "userErrors",
+            r#"mutation { productVariantAppendMedia(productId: "gid://shopify/Product/optioned", variantMedia: [{ variantId: "gid://shopify/ProductVariant/child", mediaIds: ["gid://shopify/MediaImage/ready"] }]) { productVariants { id } userErrors { message } } }"#,
+        ),
+        (
+            "productVariantDetachMedia",
+            "userErrors",
+            r#"mutation { productVariantDetachMedia(productId: "gid://shopify/Product/optioned", variantMedia: [{ variantId: "gid://shopify/ProductVariant/default", mediaIds: ["gid://shopify/MediaImage/ready"] }]) { productVariants { id } userErrors { message } } }"#,
+        ),
+    ] {
+        let response = proxy.process_request(json_graphql_request(query, json!({})));
+        assert_eq!(response.status, 200, "{root} should return a payload error");
+        assert!(
+            response.body["data"][root][error_field]
+                .as_array()
+                .is_some_and(|errors| !errors.is_empty()),
+            "{root} should report its missing prerequisite through {error_field}: {}",
+            response.body
+        );
+    }
+
+    for (root, query) in [
         (
             "productUpdateMedia",
             r#"mutation { productUpdateMedia(productId: "gid://shopify/Product/optioned", media: [{ id: "gid://shopify/MediaImage/missing", alt: "Missing" }]) { media { id } mediaUserErrors { message } } }"#,
@@ -4272,17 +4450,12 @@ fn product_media_roots_without_store_backed_handlers_fail_closed() {
             "productReorderMedia",
             r#"mutation { productReorderMedia(id: "gid://shopify/Product/optioned", moves: [{ id: "gid://shopify/MediaImage/missing", newPosition: "0" }]) { job { id } mediaUserErrors { message } } }"#,
         ),
-        (
-            "productVariantAppendMedia",
-            r#"mutation { productVariantAppendMedia(productId: "gid://shopify/Product/optioned", variantMedia: [{ variantId: "gid://shopify/ProductVariant/child", mediaIds: ["gid://shopify/MediaImage/ready"] }]) { productVariants { id } userErrors { message } } }"#,
-        ),
-        (
-            "productVariantDetachMedia",
-            r#"mutation { productVariantDetachMedia(productId: "gid://shopify/Product/optioned", variantMedia: [{ variantId: "gid://shopify/ProductVariant/default", mediaIds: ["gid://shopify/MediaImage/ready"] }]) { productVariants { id } userErrors { message } } }"#,
-        ),
     ] {
         let response = proxy.process_request(json_graphql_request(query, json!({})));
-        assert_eq!(response.status, 400, "{root} should fail closed");
+        assert_eq!(
+            response.status, 400,
+            "{root} should retain its partial boundary"
+        );
         assert_engine_resolver_failure(
             &response,
             root,
@@ -4290,6 +4463,212 @@ fn product_media_roots_without_store_backed_handlers_fail_closed() {
         );
     }
     assert_eq!(log_snapshot(&proxy), json!({ "entries": [] }));
+}
+
+#[test]
+fn snapshot_variant_media_lifecycle_uses_public_graphql_prerequisites() {
+    let mut proxy = snapshot_proxy()
+        .with_upstream_transport(|_| panic!("snapshot variant media lifecycle must stay local"));
+
+    let (product_id, variant_id) =
+        create_product_for_relationship_test(&mut proxy, "Snapshot variant media", None);
+    let (other_product_id, other_variant_id) =
+        create_product_for_relationship_test(&mut proxy, "Other snapshot variant media", None);
+    let ready_media_id =
+        create_product_media_for_test(&mut proxy, &product_id, "IMAGE", "Ready image");
+    let external_video_id =
+        create_product_media_for_test(&mut proxy, &product_id, "EXTERNAL_VIDEO", "External video");
+    let other_media_id =
+        create_product_media_for_test(&mut proxy, &other_product_id, "IMAGE", "Other image");
+
+    let media_read = proxy.process_request(json_graphql_request(
+        r#"
+        query PollSnapshotProductMedia($id: ID!) {
+          product(id: $id) {
+            media(first: 10) { nodes { id status } }
+          }
+        }
+        "#,
+        json!({ "id": product_id }),
+    ));
+    assert_eq!(media_read.status, 200);
+    assert_eq!(
+        media_read.body["data"]["product"]["media"]["nodes"][0],
+        json!({ "id": ready_media_id, "status": "READY" })
+    );
+
+    let log_before_controls = log_snapshot(&proxy);
+    let missing_product_errors = append_variant_media_for_test(
+        &mut proxy,
+        "gid://shopify/Product/missing",
+        json!([{ "variantId": variant_id, "mediaIds": [ready_media_id] }]),
+    );
+    assert_eq!(
+        missing_product_errors[0]["code"],
+        json!("PRODUCT_VARIANT_DOES_NOT_EXIST_ON_PRODUCT")
+    );
+    assert_eq!(log_snapshot(&proxy), log_before_controls);
+
+    let control_cases = [
+        (
+            json!([{ "variantId": "gid://shopify/ProductVariant/missing", "mediaIds": [ready_media_id] }]),
+            "PRODUCT_VARIANT_DOES_NOT_EXIST_ON_PRODUCT",
+        ),
+        (
+            json!([{ "variantId": other_variant_id, "mediaIds": [ready_media_id] }]),
+            "PRODUCT_VARIANT_DOES_NOT_EXIST_ON_PRODUCT",
+        ),
+        (
+            json!([{ "variantId": variant_id, "mediaIds": ["gid://shopify/MediaImage/missing"] }]),
+            "MEDIA_DOES_NOT_EXIST_ON_PRODUCT",
+        ),
+        (
+            json!([{ "variantId": variant_id, "mediaIds": [other_media_id] }]),
+            "MEDIA_DOES_NOT_EXIST_ON_PRODUCT",
+        ),
+        (
+            json!([{ "variantId": variant_id, "mediaIds": [external_video_id] }]),
+            "INVALID_MEDIA_TYPE",
+        ),
+        (
+            json!([
+                { "variantId": variant_id, "mediaIds": [ready_media_id] },
+                { "variantId": variant_id, "mediaIds": [ready_media_id] }
+            ]),
+            "PRODUCT_VARIANT_SPECIFIED_MULTIPLE_TIMES",
+        ),
+    ];
+    for (variant_media, expected_code) in control_cases {
+        let errors = append_variant_media_for_test(&mut proxy, &product_id, variant_media);
+        assert_eq!(errors[0]["code"], json!(expected_code));
+        assert_eq!(
+            log_snapshot(&proxy),
+            log_before_controls,
+            "rejected append {expected_code} must not stage a mutation log entry"
+        );
+    }
+
+    let detached_errors = detach_variant_media_for_test(
+        &mut proxy,
+        &product_id,
+        json!([{ "variantId": variant_id, "mediaIds": [ready_media_id] }]),
+    );
+    assert_eq!(
+        detached_errors[0]["code"],
+        json!("MEDIA_IS_NOT_ATTACHED_TO_VARIANT")
+    );
+    assert_eq!(log_snapshot(&proxy), log_before_controls);
+
+    assert_eq!(
+        append_variant_media_for_test(
+            &mut proxy,
+            &product_id,
+            json!([{ "variantId": variant_id, "mediaIds": [ready_media_id] }]),
+        ),
+        json!([])
+    );
+    let attached_read = proxy.process_request(json_graphql_request(
+        r#"
+        query SnapshotVariantMediaAttached($id: ID!) {
+          productVariant(id: $id) {
+            media(first: 10) { nodes { id alt mediaContentType status } }
+          }
+        }
+        "#,
+        json!({ "id": variant_id }),
+    ));
+    assert_eq!(attached_read.status, 200);
+    assert_eq!(
+        attached_read.body["data"]["productVariant"]["media"]["nodes"],
+        json!([{
+            "id": ready_media_id,
+            "alt": "Ready image",
+            "mediaContentType": "IMAGE",
+            "status": "READY"
+        }])
+    );
+
+    let log_after_append = log_snapshot(&proxy);
+    let duplicate_errors = append_variant_media_for_test(
+        &mut proxy,
+        &product_id,
+        json!([{ "variantId": variant_id, "mediaIds": [ready_media_id] }]),
+    );
+    assert_eq!(
+        duplicate_errors[0]["code"],
+        json!("PRODUCT_VARIANT_ALREADY_HAS_MEDIA")
+    );
+    assert_eq!(log_snapshot(&proxy), log_after_append);
+
+    assert_eq!(
+        detach_variant_media_for_test(
+            &mut proxy,
+            &product_id,
+            json!([{ "variantId": variant_id, "mediaIds": [ready_media_id] }]),
+        ),
+        json!([])
+    );
+    let detached_read = proxy.process_request(json_graphql_request(
+        r#"
+        query SnapshotVariantMediaDetached($productId: ID!, $variantId: ID!) {
+          product(id: $productId) {
+            media(first: 10) { nodes { id } }
+          }
+          productVariant(id: $variantId) {
+            media(first: 10) { nodes { id } }
+          }
+        }
+        "#,
+        json!({ "productId": product_id, "variantId": variant_id }),
+    ));
+    assert_eq!(detached_read.status, 200);
+    assert_eq!(
+        detached_read.body["data"]["productVariant"]["media"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        detached_read.body["data"]["product"]["media"]["nodes"],
+        json!([{ "id": ready_media_id }, { "id": external_video_id }]),
+        "detaching variant media must not remove it from the product media library"
+    );
+
+    let log_after_detach = log_snapshot(&proxy);
+    let detached_again_errors = detach_variant_media_for_test(
+        &mut proxy,
+        &product_id,
+        json!([{ "variantId": variant_id, "mediaIds": [ready_media_id] }]),
+    );
+    assert_eq!(
+        detached_again_errors[0]["code"],
+        json!("MEDIA_IS_NOT_ATTACHED_TO_VARIANT")
+    );
+    assert_eq!(log_snapshot(&proxy), log_after_detach);
+
+    let entries = log_after_detach["entries"].as_array().expect("log entries");
+    let roots = entries
+        .iter()
+        .map(|entry| entry["interpreted"]["primaryRootField"].as_str().unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        roots,
+        vec![
+            "productCreate",
+            "productCreate",
+            "productCreateMedia",
+            "productCreateMedia",
+            "productCreateMedia",
+            "productVariantAppendMedia",
+            "productVariantDetachMedia"
+        ]
+    );
+    assert!(entries[5]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("productVariantAppendMedia"));
+    assert!(entries[6]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("productVariantDetachMedia"));
 }
 
 #[test]
@@ -4424,6 +4803,26 @@ fn product_variant_media_validation_guards_match_captured_shopify_errors() {
             "field": ["variantMedia", "0", "variantId"],
             "message": "The given variant already has attached media.",
             "code": "PRODUCT_VARIANT_ALREADY_HAS_MEDIA"
+        }])
+    );
+    assert_eq!(
+        detach_variant_media_for_test(
+            &mut proxy,
+            product_id,
+            json!([{ "variantId": variant_id, "mediaIds": [ready_media_id] }]),
+        ),
+        json!([])
+    );
+    assert_eq!(
+        detach_variant_media_for_test(
+            &mut proxy,
+            product_id,
+            json!([{ "variantId": variant_id, "mediaIds": [ready_media_id] }]),
+        ),
+        json!([{
+            "field": ["variantMedia", "0", "variantId"],
+            "message": "The specified media is not attached to the specified variant.",
+            "code": "MEDIA_IS_NOT_ATTACHED_TO_VARIANT"
         }])
     );
     assert_eq!(*forwarded.lock().unwrap(), 0);
@@ -6673,15 +7072,16 @@ fn product_reorder_media_without_store_backed_handler_fails_closed() {
 }
 
 #[test]
-fn product_create_and_delete_media_without_store_backed_handlers_fail_closed() {
-    let mut proxy = snapshot_proxy();
+fn snapshot_create_media_returns_payload_errors_while_delete_media_fails_closed() {
+    let mut proxy = snapshot_proxy()
+        .with_upstream_transport(|_| panic!("snapshot product media must not hydrate upstream"));
 
     let create = proxy.process_request(json_graphql_request(
         r#"
         mutation ProductCreateMediaParityPlan($productId: ID!, $media: [CreateMediaInput!]!) {
           productCreateMedia(productId: $productId, media: $media) {
             media { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } }
-            mediaUserErrors { field message }
+            mediaUserErrors { field message code }
             product { id media(first: 10) { nodes { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } } } }
           }
         }
@@ -6695,11 +7095,18 @@ fn product_create_and_delete_media_without_store_backed_handlers_fail_closed() {
             }]
         }),
     ));
-    assert_eq!(create.status, 400);
-    assert_engine_resolver_failure(
-        &create,
-        "productCreateMedia",
-        "No mutation dispatcher implemented for root field: productCreateMedia",
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productCreateMedia"],
+        json!({
+            "media": Value::Null,
+            "mediaUserErrors": [{
+                "field": ["productId"],
+                "message": "Product does not exist",
+                "code": "PRODUCT_DOES_NOT_EXIST"
+            }],
+            "product": Value::Null
+        })
     );
 
     let create_read = proxy.process_request(json_graphql_request(
@@ -10417,9 +10824,9 @@ fn product_tag_mutations_keep_product_search_filters_in_sync_with_effective_tags
 }
 
 #[test]
-fn commit_replay_rewrites_canonical_alias_from_later_staged_mutation() {
+fn commit_replay_does_not_rewrite_authoritative_id_after_synthetic_collision_skip() {
     const CANONICAL_PRODUCT_ID: &str = "gid://shopify/Product/1";
-    const SYNTHETIC_PRODUCT_ID: &str = "gid://shopify/Product/1?shopify-draft-proxy=synthetic";
+    const SYNTHETIC_PRODUCT_ID: &str = "gid://shopify/Product/2?shopify-draft-proxy=synthetic";
     const AUTHORITATIVE_PRODUCT_ID: &str = "gid://shopify/Product/9000000001";
 
     let replayed = Arc::new(Mutex::new(Vec::new()));
@@ -10514,11 +10921,11 @@ fn commit_replay_rewrites_canonical_alias_from_later_staged_mutation() {
         serde_json::from_str::<Value>(&replayed[1]).expect("second replay body should parse");
     assert_eq!(
         second_replay["variables"]["id"],
-        json!(AUTHORITATIVE_PRODUCT_ID)
+        json!(CANONICAL_PRODUCT_ID)
     );
     assert!(
-        !replayed[1].contains(&format!("\"{CANONICAL_PRODUCT_ID}\"")),
-        "canonical alias should not be sent upstream in second replay: {}",
+        !replayed[1].contains(&format!("\"{AUTHORITATIVE_PRODUCT_ID}\"")),
+        "authoritative base identity must not be rewritten to the created product: {}",
         replayed[1]
     );
 
@@ -11269,7 +11676,7 @@ fn product_mutations_preserve_root_alias_response_keys() {
             "data": {
                 "createResult": {
                     "product": {
-                        "id": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                        "id": "gid://shopify/Product/2?shopify-draft-proxy=synthetic",
                         "title": "Alias product"
                     },
                     "userErrors": []
@@ -11459,35 +11866,43 @@ fn saved_search_roots_live_hybrid_hydrate_base_rows_before_defaults() {
 
 #[test]
 fn saved_search_live_hybrid_preserves_an_unmodified_opaque_page() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
     let mut proxy =
-        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|_| Response {
-            status: 200,
-            headers: Default::default(),
-            body: json!({
-                "data": {
-                    "productSavedSearches": {
-                        "nodes": [{
-                            "id": "gid://shopify/SavedSearch/1001",
-                            "name": "Upstream first",
-                            "query": "vendor:Acme",
-                            "resourceType": "PRODUCT"
-                        }],
-                        "edges": [{
-                            "cursor": "opaque-saved-search-one",
-                            "node": {
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured_requests
+                .lock()
+                .unwrap()
+                .push(serde_json::from_str(&request.body).expect("upstream request body parses"));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "productSavedSearches": {
+                            "nodes": [{
                                 "id": "gid://shopify/SavedSearch/1001",
-                                "name": "Upstream first"
+                                "name": "Upstream first",
+                                "query": "vendor:Acme",
+                                "resourceType": "PRODUCT"
+                            }],
+                            "edges": [{
+                                "cursor": "opaque-saved-search-one",
+                                "node": {
+                                    "id": "gid://shopify/SavedSearch/1001",
+                                    "name": "Upstream first"
+                                }
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": true,
+                                "hasPreviousPage": false,
+                                "startCursor": "opaque-saved-search-one",
+                                "endCursor": "opaque-saved-search-one"
                             }
-                        }],
-                        "pageInfo": {
-                            "hasNextPage": true,
-                            "hasPreviousPage": false,
-                            "startCursor": "opaque-saved-search-one",
-                            "endCursor": "opaque-saved-search-one"
                         }
                     }
-                }
-            }),
+                }),
+            }
         });
 
     let response = proxy.process_request(json_graphql_request(
@@ -11525,6 +11940,334 @@ fn saved_search_live_hybrid_preserves_an_unmodified_opaque_page() {
             }
         })
     );
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(requests.len(), 1);
+    assert!(requests[0]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("query SavedSearchOpaquePage")));
+}
+
+#[test]
+fn saved_search_live_hybrid_overlay_keeps_partial_page_work_bounded() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_requests.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().expect("upstream query");
+            let window_query = query.contains("SavedSearchConnectionWindow");
+            let continuation = body["variables"]["after"] == json!("opaque-saved-search-two");
+            let (root, edges, has_next_page) = if window_query {
+                assert_eq!(body["variables"]["first"], json!(2));
+                (
+                    "savedSearchWindow",
+                    vec![
+                        json!({
+                            "cursor": "opaque-saved-search-one",
+                            "node": {
+                                "id": "gid://shopify/SavedSearch/3001",
+                                "name": "Upstream first",
+                                "query": "vendor:Alpha",
+                                "resourceType": "PRODUCT"
+                            }
+                        }),
+                        json!({
+                            "cursor": "opaque-saved-search-two",
+                            "node": {
+                                "id": "gid://shopify/SavedSearch/3002",
+                                "name": "Upstream second",
+                                "query": "vendor:Beta",
+                                "resourceType": "PRODUCT"
+                            }
+                        }),
+                    ],
+                    true,
+                )
+            } else if query.contains("SavedSearchConnectionBaseline") && continuation {
+                (
+                    "savedSearchBaseline",
+                    vec![json!({
+                        "cursor": "opaque-saved-search-three",
+                        "node": {
+                            "id": "gid://shopify/SavedSearch/3003",
+                            "name": "Upstream third",
+                            "query": "vendor:Gamma",
+                            "resourceType": "PRODUCT"
+                        }
+                    })],
+                    false,
+                )
+            } else if query.contains("SavedSearchConnectionBaseline") {
+                (
+                    "savedSearchBaseline",
+                    vec![
+                        json!({
+                            "cursor": "opaque-saved-search-one",
+                            "node": {
+                                "id": "gid://shopify/SavedSearch/3001",
+                                "name": "Upstream first",
+                                "query": "vendor:Alpha",
+                                "resourceType": "PRODUCT"
+                            }
+                        }),
+                        json!({
+                            "cursor": "opaque-saved-search-two",
+                            "node": {
+                                "id": "gid://shopify/SavedSearch/3002",
+                                "name": "Upstream second",
+                                "query": "vendor:Beta",
+                                "resourceType": "PRODUCT"
+                            }
+                        }),
+                    ],
+                    true,
+                )
+            } else {
+                (
+                    "productSavedSearches",
+                    vec![json!({
+                        "cursor": "opaque-saved-search-one",
+                        "node": {
+                            "id": "gid://shopify/SavedSearch/3001",
+                            "name": "Upstream first"
+                        }
+                    })],
+                    true,
+                )
+            };
+            let start_cursor = edges
+                .first()
+                .and_then(|edge| edge["cursor"].as_str())
+                .map(str::to_string);
+            let end_cursor = edges
+                .last()
+                .and_then(|edge| edge["cursor"].as_str())
+                .map(str::to_string);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        root: {
+                            "edges": edges,
+                            "pageInfo": {
+                                "hasNextPage": has_next_page,
+                                "hasPreviousPage": false,
+                                "startCursor": start_cursor,
+                                "endCursor": end_cursor
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateBoundedOverlaySavedSearch($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {
+            "resourceType": "PRODUCT",
+            "name": "Local tail",
+            "query": "vendor:Local"
+        }}),
+    ));
+    assert_eq!(
+        create.body["data"]["savedSearchCreate"]["userErrors"],
+        json!([])
+    );
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query BoundedSavedSearchOverlay {
+          productSavedSearches(first: 1) {
+            edges { cursor node { id name } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        response.body["data"]["productSavedSearches"],
+        json!({
+            "edges": [{
+                "cursor": "opaque-saved-search-one",
+                "node": {
+                    "id": "gid://shopify/SavedSearch/3001",
+                    "name": "Upstream first"
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "opaque-saved-search-one",
+                "endCursor": "opaque-saved-search-one"
+            }
+        })
+    );
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(
+        requests.len(),
+        2,
+        "the caller document plus one requested-window overlay read must be sufficient"
+    );
+    assert_eq!(
+        requests
+            .iter()
+            .filter(|body| body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("query BoundedSavedSearchOverlay")))
+            .count(),
+        1,
+        "the complete caller document must be forwarded exactly once"
+    );
+}
+
+#[test]
+fn saved_search_live_hybrid_filtered_or_sorted_overlay_preserves_authoritative_scope() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let filtered_connection = json!({
+        "edges": [{
+            "cursor": "opaque-filtered-discount-search",
+            "node": {
+                "id": "gid://shopify/SavedSearch/3101",
+                "name": "Authoritative filtered search"
+            }
+        }],
+        "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "opaque-filtered-discount-search",
+            "endCursor": "opaque-filtered-discount-search"
+        }
+    });
+    let sorted_connection = json!({
+        "edges": [{
+            "cursor": "opaque-code-sorted-discount-search",
+            "node": {
+                "id": "gid://shopify/SavedSearch/3201",
+                "name": "Authoritative code-sorted search"
+            }
+        }],
+        "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": "opaque-code-sorted-discount-search",
+            "endCursor": "opaque-code-sorted-discount-search"
+        }
+    });
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let filtered_connection = filtered_connection.clone();
+        let sorted_connection = sorted_connection.clone();
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_requests.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().expect("upstream query");
+            let data = if query.contains("FilteredDiscountSavedSearchScope") {
+                json!({"discountRedeemCodeSavedSearches": filtered_connection})
+            } else if query.contains("SortedDiscountSavedSearchScope") {
+                json!({"discountRedeemCodeSavedSearches": sorted_connection})
+            } else if query.contains("SavedSearchConnectionWindow") {
+                json!({
+                    "savedSearchWindow": {
+                        "edges": [{
+                            "cursor": "opaque-unscoped-window",
+                            "node": {
+                                "id": "gid://shopify/SavedSearch/3301",
+                                "name": "Unscoped authoritative search",
+                                "query": "times_used:0",
+                                "resourceType": "DISCOUNT_REDEEM_CODE"
+                            }
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": true,
+                            "hasPreviousPage": false,
+                            "startCursor": "opaque-unscoped-window",
+                            "endCursor": "opaque-unscoped-window"
+                        }
+                    }
+                })
+            } else {
+                panic!("unexpected upstream saved-search document: {query}")
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({"data": data}),
+            }
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDiscountSavedSearchOverlay($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {
+            "resourceType": "DISCOUNT_REDEEM_CODE",
+            "name": "Local discount search",
+            "query": ""
+        }}),
+    ));
+    assert_eq!(
+        create.body["data"]["savedSearchCreate"]["userErrors"],
+        json!([])
+    );
+
+    let filtered = proxy.process_request(json_graphql_request(
+        r#"
+        query FilteredDiscountSavedSearchScope {
+          discountRedeemCodeSavedSearches(first: 1, query: "Authoritative") {
+            edges { cursor node { id name } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        filtered.body["data"]["discountRedeemCodeSavedSearches"],
+        filtered_connection
+    );
+
+    let sorted = proxy.process_request(json_graphql_request(
+        r#"
+        query SortedDiscountSavedSearchScope {
+          discountRedeemCodeSavedSearches(first: 1, sortKey: CODE) {
+            edges { cursor node { id name } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        sorted.body["data"]["discountRedeemCodeSavedSearches"],
+        sorted_connection
+    );
+
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(
+        requests.len(),
+        2,
+        "filtered and non-ID sorted reads each forward only their caller document"
+    );
+    assert!(requests.iter().all(|body| !body["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("SavedSearchConnectionWindow"))));
 }
 
 #[test]
@@ -11549,40 +12292,74 @@ fn saved_search_live_hybrid_overlay_windows_a_complete_opaque_baseline() {
         move |request| {
             let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
             captured_requests.lock().unwrap().push(body.clone());
-            let complete_baseline = body
+            let overlay_window = body
                 .get("query")
                 .and_then(Value::as_str)
-                .is_some_and(|query| query.contains("SavedSearchConnectionBaseline"));
-            let connection = if complete_baseline {
-                json!({
-                    "nodes": [upstream_first.clone(), upstream_second.clone()],
-                    "edges": [
-                        {"cursor": "opaque-saved-search-one", "node": upstream_first.clone()},
-                        {"cursor": "opaque-saved-search-two", "node": upstream_second.clone()}
-                    ],
-                    "pageInfo": {
-                        "hasNextPage": false,
-                        "hasPreviousPage": false,
-                        "startCursor": "opaque-saved-search-one",
-                        "endCursor": "opaque-saved-search-two"
+                .is_some_and(|query| query.contains("SavedSearchConnectionWindow"));
+            let (root, connection) = if overlay_window {
+                let mut rows = [
+                    ("opaque-saved-search-one", upstream_first.clone()),
+                    ("opaque-saved-search-two", upstream_second.clone()),
+                ];
+                if body["variables"]["reverse"].as_bool() == Some(true) {
+                    rows.reverse();
+                }
+                let cursors = rows.iter().map(|(cursor, _)| *cursor).collect::<Vec<_>>();
+                let mut start = 0;
+                let mut end = rows.len();
+                if let Some(after) = body["variables"]["after"].as_str() {
+                    if let Some(position) = cursors.iter().position(|cursor| *cursor == after) {
+                        start = position + 1;
                     }
-                })
+                }
+                if let Some(before) = body["variables"]["before"].as_str() {
+                    if let Some(position) = cursors.iter().position(|cursor| *cursor == before) {
+                        end = end.min(position);
+                    }
+                }
+                if let Some(first) = body["variables"]["first"].as_u64() {
+                    end = end.min(start + first as usize);
+                }
+                if let Some(last) = body["variables"]["last"].as_u64() {
+                    start = start.max(end.saturating_sub(last as usize));
+                }
+                let selected = &rows[start..end];
+                let edges = selected
+                    .iter()
+                    .map(|(cursor, node)| json!({"cursor": cursor, "node": node}))
+                    .collect::<Vec<_>>();
+                (
+                    "savedSearchWindow",
+                    json!({
+                        "nodes": selected.iter().map(|(_, node)| node).collect::<Vec<_>>(),
+                        "edges": edges,
+                        "pageInfo": {
+                            "hasNextPage": end < rows.len(),
+                            "hasPreviousPage": start > 0,
+                            "startCursor": selected.first().map(|(cursor, _)| cursor),
+                            "endCursor": selected.last().map(|(cursor, _)| cursor)
+                        }
+                    }),
+                )
             } else {
-                json!({
-                    "nodes": [upstream_first.clone()],
-                    "edges": [{"cursor": "opaque-saved-search-one", "node": upstream_first.clone()}],
-                    "pageInfo": {
-                        "hasNextPage": true,
-                        "hasPreviousPage": false,
-                        "startCursor": "opaque-saved-search-one",
-                        "endCursor": "opaque-saved-search-one"
-                    }
-                })
+                (
+                    "productSavedSearches",
+                    json!({
+                        "nodes": [upstream_first.clone()],
+                        "edges": [{"cursor": "opaque-saved-search-one", "node": upstream_first.clone()}],
+                        "pageInfo": {
+                            "hasNextPage": true,
+                            "hasPreviousPage": false,
+                            "startCursor": "opaque-saved-search-one",
+                            "endCursor": "opaque-saved-search-one"
+                        }
+                    }),
+                )
             };
             Response {
                 status: 200,
                 headers: Default::default(),
-                body: json!({"data": {"savedSearchBaseline": connection, "productSavedSearches": connection}}),
+                body: json!({"data": {root: connection}}),
             }
         }
     });
@@ -11695,9 +12472,785 @@ fn saved_search_live_hybrid_overlay_windows_a_complete_opaque_baseline() {
             .iter()
             .any(|body| body["query"]
                 .as_str()
-                .is_some_and(|query| query.contains("SavedSearchConnectionBaseline"))),
-        "staged overlay should fetch a proven-complete baseline"
+                .is_some_and(|query| query.contains("SavedSearchConnectionWindow"))),
+        "staged overlay should fetch only a bounded authoritative window"
     );
+}
+
+#[test]
+fn saved_search_live_hybrid_partial_page_refills_after_update_and_delete() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let upstream_first = json!({
+        "id": "gid://shopify/SavedSearch/4001",
+        "name": "Upstream first",
+        "query": "vendor:Alpha",
+        "resourceType": "PRODUCT"
+    });
+    let upstream_second = json!({
+        "id": "gid://shopify/SavedSearch/4002",
+        "name": "Upstream second",
+        "query": "vendor:Beta",
+        "resourceType": "PRODUCT"
+    });
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_first = upstream_first.clone();
+        let upstream_second = upstream_second.clone();
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_requests.lock().unwrap().push(body.clone());
+            let window = body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("SavedSearchConnectionWindow"));
+            let (root, edges) = if window {
+                assert_eq!(body["variables"]["first"], json!(2));
+                (
+                    "savedSearchWindow",
+                    vec![
+                        json!({"cursor": "opaque-update-one", "node": upstream_first.clone()}),
+                        json!({"cursor": "opaque-update-two", "node": upstream_second.clone()}),
+                    ],
+                )
+            } else {
+                (
+                    "productSavedSearches",
+                    vec![json!({"cursor": "opaque-update-one", "node": upstream_first.clone()})],
+                )
+            };
+            let start_cursor = edges
+                .first()
+                .and_then(|edge| edge["cursor"].as_str())
+                .map(str::to_string);
+            let end_cursor = edges
+                .last()
+                .and_then(|edge| edge["cursor"].as_str())
+                .map(str::to_string);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        root: {
+                            "edges": edges,
+                            "pageInfo": {
+                                "hasNextPage": true,
+                                "hasPreviousPage": false,
+                                "startCursor": start_cursor,
+                                "endCursor": end_cursor
+                            }
+                        }
+                    }
+                }),
+            }
+        }
+    });
+
+    let cold = proxy.process_request(json_graphql_request(
+        r#"
+        query ObservePartialSavedSearchPage {
+          productSavedSearches(first: 1) {
+            edges { cursor node { id name query resourceType } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        cold.body["data"]["productSavedSearches"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateObservedSavedSearch($input: SavedSearchUpdateInput!) {
+          savedSearchUpdate(input: $input) {
+            savedSearch { id name query }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {
+            "id": "gid://shopify/SavedSearch/4001",
+            "name": "Locally updated first"
+        }}),
+    ));
+    assert_eq!(
+        update.body["data"]["savedSearchUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(upstream_requests.lock().unwrap().len(), 1);
+
+    let after_update = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadPartialSavedSearchAfterUpdate {
+          productSavedSearches(first: 1) {
+            edges { cursor node { id name query } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        after_update.body["data"]["productSavedSearches"],
+        json!({
+            "edges": [{
+                "cursor": "opaque-update-one",
+                "node": {
+                    "id": "gid://shopify/SavedSearch/4001",
+                    "name": "Locally updated first",
+                    "query": "vendor:Alpha"
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "opaque-update-one",
+                "endCursor": "opaque-update-one"
+            }
+        })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteObservedSavedSearch($input: SavedSearchDeleteInput!) {
+          savedSearchDelete(input: $input) {
+            deletedSavedSearchId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {"id": "gid://shopify/SavedSearch/4001"}}),
+    ));
+    assert_eq!(
+        delete.body["data"]["savedSearchDelete"]["deletedSavedSearchId"],
+        json!("gid://shopify/SavedSearch/4001")
+    );
+    assert_eq!(upstream_requests.lock().unwrap().len(), 3);
+
+    let after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query RefillPartialSavedSearchAfterDelete {
+          productSavedSearches(first: 1) {
+            edges { cursor node { id name } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        after_delete.body["data"]["productSavedSearches"],
+        json!({
+            "edges": [{
+                "cursor": "opaque-update-two",
+                "node": {
+                    "id": "gid://shopify/SavedSearch/4002",
+                    "name": "Upstream second"
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "opaque-update-two",
+                "endCursor": "opaque-update-two"
+            }
+        })
+    );
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(requests.len(), 5);
+    assert_eq!(
+        requests
+            .iter()
+            .filter(|body| body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("SavedSearchConnectionWindow")))
+            .count(),
+        2,
+        "update and delete overlays each use one bounded window request"
+    );
+}
+
+#[test]
+fn saved_search_snapshot_overlay_never_calls_upstream() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, None)
+        .with_upstream_transport(|_| panic!("snapshot saved-search reads must remain local"));
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateSnapshotSavedSearch($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {
+            "resourceType": "PRODUCT",
+            "name": "Snapshot local",
+            "query": "vendor:Snapshot"
+        }}),
+    ));
+    let local_id = create.body["data"]["savedSearchCreate"]["savedSearch"]["id"].clone();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query SnapshotSavedSearchOverlay {
+          productSavedSearches(first: 1, reverse: true) {
+            nodes { id name }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["productSavedSearches"]["nodes"],
+        json!([{ "id": local_id, "name": "Snapshot local" }])
+    );
+    assert_eq!(
+        read.body["data"]["productSavedSearches"]["pageInfo"]["hasNextPage"],
+        json!(false)
+    );
+}
+
+#[test]
+fn saved_search_update_live_hybrid_hydrates_a_mutation_first_target_by_id() {
+    let saved_search_id = "gid://shopify/SavedSearch/424242";
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            let data = if query.contains("SavedSearchMutationTargetHydrate") {
+                json!({
+                    "node": {
+                        "__typename": "SavedSearch",
+                        "id": saved_search_id,
+                        "legacyResourceId": "424242",
+                        "name": "Authoritative products",
+                        "query": "vendor:Acme tag:featured",
+                        "resourceType": "PRODUCT",
+                        "searchTerms": "",
+                        "filters": [
+                            { "key": "vendor", "value": "Acme" },
+                            { "key": "tag", "value": "featured" }
+                        ]
+                    }
+                })
+            } else if query.contains("SavedSearchConnectionWindow") {
+                json!({
+                    "savedSearchWindow": {
+                        "edges": [
+                            {
+                                "cursor": "authoritative-products",
+                                "node": {
+                                    "id": saved_search_id,
+                                    "name": "Authoritative products",
+                                    "query": "vendor:Acme tag:featured",
+                                    "resourceType": "PRODUCT"
+                                }
+                            },
+                            {
+                                "cursor": "untouched-products",
+                                "node": {
+                                    "id": "gid://shopify/SavedSearch/434343",
+                                    "name": "Untouched products",
+                                    "query": "tag:untouched",
+                                    "resourceType": "PRODUCT"
+                                }
+                            }
+                        ],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": "authoritative-products",
+                            "endCursor": "untouched-products"
+                        }
+                    }
+                })
+            } else if query.contains("productSavedSearches") {
+                json!({
+                    "productSavedSearches": {
+                        "nodes": [
+                            {
+                                "id": saved_search_id,
+                                "name": "Authoritative products",
+                                "query": "vendor:Acme tag:featured",
+                                "resourceType": "PRODUCT"
+                            },
+                            {
+                                "id": "gid://shopify/SavedSearch/434343",
+                                "name": "Untouched products",
+                                "query": "tag:untouched",
+                                "resourceType": "PRODUCT"
+                            }
+                        ],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": null,
+                            "endCursor": null
+                        }
+                    }
+                })
+            } else if query.contains("ReadUpdatedSavedSearch") {
+                json!({
+                    "node": {
+                        "__typename": "SavedSearch",
+                        "id": saved_search_id,
+                        "name": "Authoritative products",
+                        "query": "vendor:Acme tag:featured",
+                        "resourceType": "PRODUCT"
+                    }
+                })
+            } else if body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("node(id: $id)"))
+            {
+                json!({
+                    "node": {
+                        "__typename": "SavedSearch",
+                        "id": saved_search_id,
+                        "legacyResourceId": "424242",
+                        "name": "Authoritative products",
+                        "query": "vendor:Acme tag:featured",
+                        "resourceType": "PRODUCT",
+                        "searchTerms": "",
+                        "filters": [
+                            { "key": "vendor", "value": "Acme" },
+                            { "key": "tag", "value": "featured" }
+                        ]
+                    }
+                })
+            } else {
+                json!({
+                    "productSavedSearches": {
+                        "nodes": [],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": null,
+                            "endCursor": null
+                        }
+                    }
+                })
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": data }),
+            }
+        });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateColdSavedSearch($input: SavedSearchUpdateInput!) {
+          savedSearchUpdate(input: $input) {
+            savedSearch {
+              id
+              legacyResourceId
+              name
+              query
+              resourceType
+              searchTerms
+              filters { key value }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": saved_search_id, "name": "Locally renamed" } }),
+    ));
+
+    assert_eq!(update.status, 200, "{}", update.body);
+    assert_eq!(
+        update.body["data"]["savedSearchUpdate"],
+        json!({
+            "savedSearch": {
+                "id": saved_search_id,
+                "legacyResourceId": "424242",
+                "name": "Locally renamed",
+                "query": "vendor:Acme tag:featured",
+                "resourceType": "PRODUCT",
+                "searchTerms": "",
+                "filters": [
+                    { "key": "vendor", "value": "Acme" },
+                    { "key": "tag", "value": "featured" }
+                ]
+            },
+            "userErrors": []
+        })
+    );
+
+    let singular_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadUpdatedSavedSearch($id: ID!) {
+          node(id: $id) {
+            ... on SavedSearch { id name query resourceType filters { key value } }
+          }
+        }
+        "#,
+        json!({ "id": saved_search_id }),
+    ));
+    assert_eq!(
+        singular_read.body["data"]["node"],
+        json!({
+            "id": saved_search_id,
+            "name": "Locally renamed",
+            "query": "vendor:Acme tag:featured",
+            "resourceType": "PRODUCT",
+            "filters": [
+                { "key": "vendor", "value": "Acme" },
+                { "key": "tag", "value": "featured" }
+            ]
+        })
+    );
+
+    let list_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadUpdatedSavedSearchList {
+          productSavedSearches(first: 10) { nodes { id name query resourceType } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        list_read.body["data"]["productSavedSearches"]["nodes"],
+        json!([
+            {
+                "id": saved_search_id,
+                "name": "Locally renamed",
+                "query": "vendor:Acme tag:featured",
+                "resourceType": "PRODUCT"
+            },
+            {
+                "id": "gid://shopify/SavedSearch/434343",
+                "name": "Untouched products",
+                "query": "tag:untouched",
+                "resourceType": "PRODUCT"
+            }
+        ])
+    );
+
+    let bodies = upstream_bodies.lock().unwrap();
+    assert_eq!(
+        bodies.len(),
+        3,
+        "cold mutation hydrates once, singular readback stays local, and list overlay fetches one bounded window"
+    );
+    assert_eq!(bodies[0]["variables"], json!({ "id": saved_search_id }));
+    assert!(bodies.iter().all(|body| body["query"]
+        .as_str()
+        .is_some_and(|query| query.trim_start().starts_with("query "))));
+}
+
+#[test]
+fn saved_search_delete_live_hybrid_hydrates_then_tombstones_singular_and_list_reads() {
+    let saved_search_id = "gid://shopify/SavedSearch/525252";
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            let data = if query.contains("SavedSearchMutationTargetHydrate") {
+                json!({
+                    "node": {
+                        "__typename": "SavedSearch",
+                        "id": saved_search_id,
+                        "legacyResourceId": "525252",
+                        "name": "Delete target",
+                        "query": "tag:delete-me",
+                        "resourceType": "PRODUCT",
+                        "searchTerms": "",
+                        "filters": [{ "key": "tag", "value": "delete-me" }]
+                    }
+                })
+            } else if query.contains("SavedSearchConnectionWindow") {
+                json!({
+                    "savedSearchWindow": {
+                        "edges": [
+                            {
+                                "cursor": "delete-target",
+                                "node": {
+                                    "id": saved_search_id,
+                                    "name": "Delete target",
+                                    "query": "tag:delete-me",
+                                    "resourceType": "PRODUCT"
+                                }
+                            },
+                            {
+                                "cursor": "keep-target",
+                                "node": {
+                                    "id": "gid://shopify/SavedSearch/535353",
+                                    "name": "Keep target",
+                                    "query": "tag:keep-me",
+                                    "resourceType": "PRODUCT"
+                                }
+                            }
+                        ],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": "delete-target",
+                            "endCursor": "keep-target"
+                        }
+                    }
+                })
+            } else if query.contains("productSavedSearches") {
+                json!({
+                    "productSavedSearches": {
+                        "nodes": [
+                            {
+                                "id": saved_search_id,
+                                "name": "Delete target",
+                                "query": "tag:delete-me",
+                                "resourceType": "PRODUCT"
+                            },
+                            {
+                                "id": "gid://shopify/SavedSearch/535353",
+                                "name": "Keep target",
+                                "query": "tag:keep-me",
+                                "resourceType": "PRODUCT"
+                            }
+                        ]
+                    }
+                })
+            } else {
+                json!({
+                    "node": {
+                        "__typename": "SavedSearch",
+                        "id": saved_search_id,
+                        "name": "Delete target"
+                    }
+                })
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": data }),
+            }
+        });
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteColdSavedSearch($input: SavedSearchDeleteInput!) {
+          savedSearchDelete(input: $input) { deletedSavedSearchId userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "id": saved_search_id } }),
+    ));
+    assert_eq!(
+        delete.body["data"]["savedSearchDelete"],
+        json!({ "deletedSavedSearchId": saved_search_id, "userErrors": [] })
+    );
+
+    let singular_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadDeletedSavedSearch($id: ID!) {
+          node(id: $id) { ... on SavedSearch { id name } }
+        }
+        "#,
+        json!({ "id": saved_search_id }),
+    ));
+    assert_eq!(singular_read.body["data"]["node"], Value::Null);
+
+    let list_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadSavedSearchListAfterDelete {
+          productSavedSearches(first: 10) { nodes { id name } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        list_read.body["data"]["productSavedSearches"]["nodes"],
+        json!([{
+            "id": "gid://shopify/SavedSearch/535353",
+            "name": "Keep target"
+        }])
+    );
+
+    let bodies = upstream_bodies.lock().unwrap();
+    assert_eq!(
+        bodies.len(),
+        3,
+        "delete hydration and one bounded list window are reads; tombstoned singular read stays local"
+    );
+    assert!(bodies.iter().all(|body| body["query"]
+        .as_str()
+        .is_some_and(|query| query.trim_start().starts_with("query "))));
+}
+
+#[test]
+fn saved_search_mutations_live_hybrid_hydrate_truly_missing_ids_before_not_found() {
+    let missing_id = "gid://shopify/SavedSearch/626262";
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "node": null } }),
+            }
+        });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateMissingSavedSearch($input: SavedSearchUpdateInput!) {
+          savedSearchUpdate(input: $input) {
+            savedSearch { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": missing_id, "name": "Still missing" } }),
+    ));
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteMissingSavedSearch($input: SavedSearchDeleteInput!) {
+          savedSearchDelete(input: $input) { deletedSavedSearchId userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "id": missing_id } }),
+    ));
+    let missing_error = json!([{
+        "field": ["input", "id"],
+        "message": "Saved Search does not exist"
+    }]);
+    assert_eq!(
+        update.body["data"]["savedSearchUpdate"]["savedSearch"],
+        Value::Null
+    );
+    assert_eq!(
+        update.body["data"]["savedSearchUpdate"]["userErrors"],
+        missing_error
+    );
+    assert_eq!(
+        delete.body["data"]["savedSearchDelete"]["deletedSavedSearchId"],
+        Value::Null
+    );
+    assert_eq!(
+        delete.body["data"]["savedSearchDelete"]["userErrors"],
+        missing_error
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+
+    let bodies = upstream_bodies.lock().unwrap();
+    assert_eq!(
+        bodies.len(),
+        2,
+        "each mutation must prove the ID-specific miss"
+    );
+    assert!(bodies.iter().all(|body| {
+        body["query"]
+            .as_str()
+            .is_some_and(|query| query.contains("SavedSearchMutationTargetHydrate"))
+            && body["variables"] == json!({ "id": missing_id })
+    }));
+}
+
+#[test]
+fn partial_saved_search_page_does_not_prove_an_unseen_mutation_target_missing() {
+    let visible_id = "gid://shopify/SavedSearch/717171";
+    let unseen_id = "gid://shopify/SavedSearch/727272";
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            let data = if query.contains("SavedSearchMutationTargetHydrate") {
+                json!({
+                    "node": {
+                        "__typename": "SavedSearch",
+                        "id": unseen_id,
+                        "legacyResourceId": "727272",
+                        "name": "Outside first page",
+                        "query": "tag:outside",
+                        "resourceType": "PRODUCT",
+                        "searchTerms": "",
+                        "filters": [{ "key": "tag", "value": "outside" }]
+                    }
+                })
+            } else {
+                json!({
+                    "productSavedSearches": {
+                        "nodes": [{
+                            "id": visible_id,
+                            "name": "First page only",
+                            "query": "tag:first",
+                            "resourceType": "PRODUCT"
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": true,
+                            "hasPreviousPage": false,
+                            "startCursor": "first",
+                            "endCursor": "first"
+                        }
+                    }
+                })
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": data }),
+            }
+        });
+
+    let page = proxy.process_request(json_graphql_request(
+        r#"
+        query PartialSavedSearchPage {
+          productSavedSearches(first: 1) {
+            nodes { id name query resourceType }
+            pageInfo { hasNextPage }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        page.body["data"]["productSavedSearches"]["nodes"],
+        json!([{
+            "id": visible_id,
+            "name": "First page only",
+            "query": "tag:first",
+            "resourceType": "PRODUCT"
+        }])
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateUnseenSavedSearch($input: SavedSearchUpdateInput!) {
+          savedSearchUpdate(input: $input) {
+            savedSearch { id name query resourceType }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": unseen_id, "name": "Found outside page" } }),
+    ));
+    assert_eq!(
+        update.body["data"]["savedSearchUpdate"],
+        json!({
+            "savedSearch": {
+                "id": unseen_id,
+                "name": "Found outside page",
+                "query": "tag:outside",
+                "resourceType": "PRODUCT"
+            },
+            "userErrors": []
+        })
+    );
+    assert_eq!(upstream_bodies.lock().unwrap().len(), 2);
 }
 
 #[test]
@@ -11712,7 +13265,22 @@ fn staged_segment_reads_preserve_upstream_catalog_roots() {
     let mut proxy =
         configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
             let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
-            captured_requests.lock().unwrap().push(body);
+            captured_requests.lock().unwrap().push(body.clone());
+            if body["operationName"] == json!("SegmentAuthoritativePrerequisites") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "count": { "count": 1, "precision": "EXACT" },
+                            "name0": {
+                                "nodes": [],
+                                "pageInfo": { "hasNextPage": false }
+                            }
+                        }
+                    }),
+                };
+            }
             Response {
                 status: 200,
                 headers: Default::default(),
@@ -11763,9 +13331,10 @@ fn staged_segment_reads_preserve_upstream_catalog_roots() {
         create.body["data"]["segmentCreate"]["userErrors"],
         json!([])
     );
-    assert!(
-        upstream_requests.lock().unwrap().is_empty(),
-        "segmentCreate should stage locally without upstream passthrough"
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        1,
+        "segmentCreate should use one query-only prerequisite call"
     );
 
     let read = proxy.process_request(json_graphql_request(
@@ -11853,7 +13422,22 @@ fn staged_segment_detail_miss_forwards_upstream_and_tombstone_wins() {
     let mut proxy =
         configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
             let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
-            captured_requests.lock().unwrap().push(body);
+            captured_requests.lock().unwrap().push(body.clone());
+            if body["operationName"] == json!("SegmentAuthoritativePrerequisites") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "count": { "count": 1, "precision": "EXACT" },
+                            "name0": {
+                                "nodes": [],
+                                "pageInfo": { "hasNextPage": false }
+                            }
+                        }
+                    }),
+                };
+            }
             Response {
                 status: 200,
                 headers: Default::default(),
@@ -11887,9 +13471,10 @@ fn staged_segment_detail_miss_forwards_upstream_and_tombstone_wins() {
         created.body["data"]["segmentCreate"]["userErrors"],
         json!([])
     );
-    assert!(
-        upstream_requests.lock().unwrap().is_empty(),
-        "segmentCreate should stage locally without upstream passthrough"
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        1,
+        "segmentCreate should use one query-only prerequisite call"
     );
 
     let read = proxy.process_request(json_graphql_request(
@@ -11915,7 +13500,7 @@ fn staged_segment_detail_miss_forwards_upstream_and_tombstone_wins() {
     );
     assert_eq!(
         upstream_requests.lock().unwrap().len(),
-        1,
+        2,
         "detail miss should forward upstream instead of fabricating NOT_FOUND"
     );
 
@@ -11953,10 +13538,475 @@ fn staged_segment_detail_miss_forwards_upstream_and_tombstone_wins() {
     assert_eq!(after_delete.status, 200);
     assert_eq!(after_delete.body["data"]["realSegment"], Value::Null);
     assert_eq!(
+        after_delete.body["errors"],
+        json!([{
+            "message": "Segment does not exist",
+            "locations": [{ "line": 3, "column": 11 }],
+            "path": ["realSegment"],
+            "extensions": { "code": "NOT_FOUND" }
+        }])
+    );
+    assert_eq!(
         upstream_requests.lock().unwrap().len(),
-        1,
+        2,
         "local segment tombstone should be authoritative"
     );
+}
+
+#[test]
+fn segment_mutation_first_update_hydrates_persisted_target_before_local_staging() {
+    let segment_id = "gid://shopify/Segment/3000";
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_requests.lock().unwrap().push(request);
+            if body["operationName"] == json!("SegmentMutationTargetHydrate") {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "segment": {
+                                "id": segment_id,
+                                "name": "Persisted segment before update",
+                                "query": "number_of_orders >= 2",
+                                "creationDate": "2026-07-01T12:00:00Z",
+                                "lastEditDate": "2026-07-01T12:00:00Z"
+                            }
+                        }
+                    }),
+                }
+            } else if body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("query SegmentMutationFirstUpdateRead"))
+            {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "current": {
+                                "id": segment_id,
+                                "name": "Persisted segment before update",
+                                "query": "number_of_orders >= 2",
+                                "creationDate": "2026-07-01T12:00:00Z",
+                                "lastEditDate": "2026-07-01T12:00:00Z"
+                            },
+                            "matching": {
+                                "nodes": [],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": null,
+                                    "endCursor": null
+                                }
+                            },
+                            "total": { "count": 1, "precision": "EXACT" }
+                        }
+                    }),
+                }
+            } else {
+                panic!("unexpected upstream request: {body}")
+            }
+        });
+
+    let update_query = r#"
+        mutation SegmentMutationFirstUpdate($id: ID!, $name: String!, $query: String!) {
+          segmentUpdate(id: $id, name: $name, query: $query) {
+            segment { id name query creationDate lastEditDate }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let variables = json!({
+        "id": segment_id,
+        "name": "Persisted segment after local update",
+        "query": "number_of_orders >= 4"
+    });
+    let mut update_request = json_graphql_request(update_query, variables.clone());
+    update_request.path = "/admin/api/2026-04/graphql.json".to_string();
+    update_request.headers.insert(
+        "x-shopify-access-token".to_string(),
+        "mutation-first-test-token".to_string(),
+    );
+    let raw_update_body = update_request.body.clone();
+    let updated = proxy.process_request(update_request);
+
+    assert_eq!(updated.status, 200);
+    assert_eq!(
+        updated.body["data"]["segmentUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        updated.body["data"]["segmentUpdate"]["segment"]["id"],
+        json!(segment_id)
+    );
+    assert_eq!(
+        updated.body["data"]["segmentUpdate"]["segment"]["name"],
+        json!("Persisted segment after local update")
+    );
+    assert_eq!(
+        updated.body["data"]["segmentUpdate"]["segment"]["query"],
+        json!("number_of_orders >= 4")
+    );
+    assert_eq!(
+        updated.body["data"]["segmentUpdate"]["segment"]["creationDate"],
+        json!("2026-07-01T12:00:00Z")
+    );
+
+    let read_query = r#"
+        query SegmentMutationFirstUpdateRead($id: ID!, $name: String!) {
+          current: segment(id: $id) { id name query creationDate lastEditDate }
+          matching: segments(first: 10, query: $name) {
+            nodes { id name query creationDate lastEditDate }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          total: segmentsCount { count precision }
+        }
+    "#;
+    let mut read_request = json_graphql_request(
+        read_query,
+        json!({ "id": segment_id, "name": "Persisted segment after local update" }),
+    );
+    read_request.path = "/admin/api/2026-04/graphql.json".to_string();
+    read_request.headers.insert(
+        "x-shopify-access-token".to_string(),
+        "mutation-first-test-token".to_string(),
+    );
+    let read = proxy.process_request(read_request);
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["current"]["name"],
+        json!("Persisted segment after local update"),
+        "{}",
+        read.body
+    );
+    assert_eq!(
+        read.body["data"]["matching"]["nodes"],
+        json!([updated.body["data"]["segmentUpdate"]["segment"].clone()])
+    );
+    assert_eq!(
+        read.body["data"]["total"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(requests.len(), 2);
+    for request in requests.iter() {
+        assert_eq!(request.method, "POST");
+        assert_eq!(request.path, "/admin/api/2026-04/graphql.json");
+        assert_eq!(
+            request.headers.get("x-shopify-access-token"),
+            Some(&"mutation-first-test-token".to_string())
+        );
+        let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+        assert_eq!(
+            body["query"]
+                .as_str()
+                .unwrap()
+                .trim_start()
+                .starts_with("query"),
+            true
+        );
+        assert!(!body["query"].as_str().unwrap().contains("segmentUpdate"));
+    }
+    assert_eq!(
+        serde_json::from_str::<Value>(&requests[0].body).unwrap()["variables"],
+        json!({ "id": segment_id })
+    );
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(log["entries"][0]["rawBody"], raw_update_body);
+    assert_eq!(log["entries"][0]["stagedResourceIds"], json!([segment_id]));
+}
+
+#[test]
+fn segment_mutation_first_delete_hydrates_target_and_hides_downstream_reads() {
+    let segment_id = "gid://shopify/Segment/4000";
+    let survivor_id = "gid://shopify/Segment/4001";
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_requests.lock().unwrap().push(request);
+            if body["operationName"] == json!("SegmentMutationTargetHydrate") {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "segment": {
+                                "id": segment_id,
+                                "name": "Persisted segment before delete",
+                                "query": "number_of_orders >= 3",
+                                "creationDate": "2026-07-02T12:00:00Z",
+                                "lastEditDate": "2026-07-02T12:00:00Z"
+                            }
+                        }
+                    }),
+                }
+            } else if body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("query SegmentMutationFirstDeleteRead"))
+            {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "deleted": {
+                                "id": segment_id,
+                                "name": "Persisted segment before delete"
+                            },
+                            "matching": {
+                                "nodes": [
+                                    {
+                                        "id": segment_id,
+                                        "name": "Persisted segment before delete",
+                                        "query": "number_of_orders >= 3"
+                                    },
+                                    {
+                                        "id": survivor_id,
+                                        "name": "Persisted segment survivor",
+                                        "query": "number_of_orders >= 5"
+                                    }
+                                ],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": "segment-4000",
+                                    "endCursor": "segment-4001"
+                                }
+                            },
+                            "total": { "count": 2, "precision": "EXACT" }
+                        }
+                    }),
+                }
+            } else {
+                panic!("unexpected upstream request: {body}")
+            }
+        });
+
+    let delete_query = r#"
+        mutation SegmentMutationFirstDelete($id: ID!) {
+          segmentDelete(id: $id) {
+            deletedSegmentId
+            userErrors { field message }
+          }
+        }
+    "#;
+    let mut delete_request = json_graphql_request(delete_query, json!({ "id": segment_id }));
+    delete_request.path = "/admin/api/2025-10/graphql.json".to_string();
+    delete_request.headers.insert(
+        "x-shopify-access-token".to_string(),
+        "delete-mutation-first-test-token".to_string(),
+    );
+    let raw_delete_body = delete_request.body.clone();
+    let deleted = proxy.process_request(delete_request);
+
+    assert_eq!(deleted.status, 200);
+    assert_eq!(
+        deleted.body["data"]["segmentDelete"],
+        json!({ "deletedSegmentId": segment_id, "userErrors": [] })
+    );
+
+    let read_query = r#"
+        query SegmentMutationFirstDeleteRead($id: ID!, $query: String!) {
+          deleted: segment(id: $id) { id name query }
+          matching: segments(first: 10, query: $query) {
+            nodes { id name query }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          total: segmentsCount { count precision }
+        }
+    "#;
+    let mut read_request = json_graphql_request(
+        read_query,
+        json!({ "id": segment_id, "query": "Persisted segment" }),
+    );
+    read_request.path = "/admin/api/2025-10/graphql.json".to_string();
+    read_request.headers.insert(
+        "x-shopify-access-token".to_string(),
+        "delete-mutation-first-test-token".to_string(),
+    );
+    let read = proxy.process_request(read_request);
+
+    assert_eq!(read.status, 200);
+    assert_eq!(read.body["data"]["deleted"], Value::Null, "{}", read.body);
+    assert_eq!(
+        read.body["errors"],
+        json!([{
+            "message": "Segment does not exist",
+            "locations": [{ "line": 3, "column": 11 }],
+            "path": ["deleted"],
+            "extensions": { "code": "NOT_FOUND" }
+        }]),
+        "{}",
+        read.body
+    );
+    assert_eq!(
+        read.body["data"]["matching"]["nodes"],
+        json!([{
+            "id": survivor_id,
+            "name": "Persisted segment survivor",
+            "query": "number_of_orders >= 5"
+        }]),
+        "{}",
+        read.body
+    );
+    assert_eq!(
+        read.body["data"]["total"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(requests.len(), 2);
+    for request in requests.iter() {
+        assert_eq!(request.method, "POST");
+        assert_eq!(request.path, "/admin/api/2025-10/graphql.json");
+        assert_eq!(
+            request.headers.get("x-shopify-access-token"),
+            Some(&"delete-mutation-first-test-token".to_string())
+        );
+        let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+        assert!(body["query"]
+            .as_str()
+            .unwrap()
+            .trim_start()
+            .starts_with("query"));
+        assert!(!body["query"].as_str().unwrap().contains("segmentDelete"));
+    }
+
+    let state = state_snapshot(&proxy);
+    assert_eq!(state["stagedState"]["segments"], json!({}));
+    assert_eq!(
+        state["stagedState"]["deletedSegmentIds"],
+        json!([segment_id])
+    );
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(log["entries"][0]["rawBody"], raw_delete_body);
+    assert_eq!(log["entries"][0]["stagedResourceIds"], json!([segment_id]));
+}
+
+#[test]
+fn segment_mutation_hydration_preserves_error_precedence_and_failed_state() {
+    let persisted_id = "gid://shopify/Segment/5000";
+    let unknown_id = "gid://shopify/Segment/5999";
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            assert_eq!(body["operationName"], json!("SegmentMutationTargetHydrate"));
+            captured_requests.lock().unwrap().push(body.clone());
+            let id = body["variables"]["id"].as_str().unwrap();
+            let segment = if id == persisted_id {
+                json!({
+                    "id": persisted_id,
+                    "name": "Persisted validation target",
+                    "query": "number_of_orders >= 1",
+                    "creationDate": "2026-07-03T12:00:00Z",
+                    "lastEditDate": "2026-07-03T12:00:00Z"
+                })
+            } else {
+                Value::Null
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "segment": segment } }),
+            }
+        });
+
+    let invalid_existing = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SegmentMutationFirstFailedUpdate($id: ID!, $name: String) {
+          segmentUpdate(id: $id, name: $name) {
+            segment { id name }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": persisted_id, "name": "" }),
+    ));
+    assert_eq!(
+        invalid_existing.body["data"]["segmentUpdate"],
+        json!({
+            "segment": null,
+            "userErrors": [{ "field": ["name"], "message": "Name can't be blank" }]
+        })
+    );
+    assert_eq!(state_snapshot(&proxy)["stagedState"]["segments"], json!({}));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+
+    let unknown_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SegmentMutationFirstUnknownUpdate($id: ID!) {
+          segmentUpdate(id: $id) {
+            segment { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": unknown_id }),
+    ));
+    assert_eq!(
+        unknown_update.body["data"]["segmentUpdate"],
+        json!({
+            "segment": null,
+            "userErrors": [{ "field": ["id"], "message": "Segment does not exist" }]
+        })
+    );
+
+    let unknown_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SegmentMutationFirstUnknownDelete($id: ID!) {
+          segmentDelete(id: $id) {
+            deletedSegmentId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": unknown_id }),
+    ));
+    assert_eq!(
+        unknown_delete.body["data"]["segmentDelete"],
+        json!({
+            "deletedSegmentId": null,
+            "userErrors": [{ "field": ["id"], "message": "Segment does not exist" }]
+        })
+    );
+
+    for (query, id, error_code) in [
+        (
+            r#"mutation SegmentMalformedUpdate($id: ID!) { segmentUpdate(id: $id, name: "Nope") { segment { id } userErrors { field message } } }"#,
+            "not-a-gid",
+            "INVALID_VARIABLE",
+        ),
+        (
+            r#"mutation SegmentWrongTypeDelete($id: ID!) { segmentDelete(id: $id) { deletedSegmentId userErrors { field message } } }"#,
+            "gid://shopify/Order/1",
+            "RESOURCE_NOT_FOUND",
+        ),
+    ] {
+        let malformed = proxy.process_request(json_graphql_request(query, json!({ "id": id })));
+        assert_eq!(
+            malformed.body["errors"][0]["extensions"]["code"],
+            json!(error_code)
+        );
+    }
+
+    assert_eq!(upstream_requests.lock().unwrap().len(), 2);
+    let state = state_snapshot(&proxy);
+    assert_eq!(state["stagedState"]["segments"], json!({}));
+    assert_eq!(state["stagedState"]["deletedSegmentIds"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -12626,12 +14676,27 @@ fn segment_create_stages_neutral_operation_without_upstream_passthrough() {
     let upstream_called = Arc::new(Mutex::new(false));
     let upstream_called_for_proxy = Arc::clone(&upstream_called);
     let mut proxy =
-        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_| {
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
             *upstream_called_for_proxy.lock().unwrap() = true;
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            assert_eq!(
+                body["operationName"],
+                json!("SegmentAuthoritativePrerequisites")
+            );
+            assert!(body["query"].as_str().unwrap().starts_with("query"));
+            assert!(!body["query"].as_str().unwrap().contains("segmentCreate"));
             Response {
-                status: 599,
+                status: 200,
                 headers: Default::default(),
-                body: json!({ "errors": [{ "message": "segmentCreate must not proxy upstream" }] }),
+                body: json!({
+                    "data": {
+                        "count": { "count": 0, "precision": "EXACT" },
+                        "name0": {
+                            "nodes": [],
+                            "pageInfo": { "hasNextPage": false }
+                        }
+                    }
+                }),
             }
         });
     let create_query = r#"
@@ -12669,8 +14734,8 @@ fn segment_create_stages_neutral_operation_without_upstream_passthrough() {
     );
     assert_eq!(
         *upstream_called.lock().unwrap(),
-        false,
-        "supported segmentCreate must stage locally without live-hybrid passthrough"
+        true,
+        "supported segmentCreate may issue one query-only prerequisite call"
     );
 
     let log = log_snapshot(&proxy);
