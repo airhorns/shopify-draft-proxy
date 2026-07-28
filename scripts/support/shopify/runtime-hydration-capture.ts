@@ -68,13 +68,22 @@ export const STORE_PROPERTIES_LOCATION_HYDRATE_QUERY =
   'query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: "custom", key: "hours") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: ["available", "committed", "on_hand"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }';
 
 let discountUniquenessQueryPromise: Promise<string> | undefined;
+let shopSubscriptionCapabilityQueryPromise: Promise<string> | undefined;
 
 function readDiscountUniquenessQuery(): Promise<string> {
   discountUniquenessQueryPromise ??= readFile(
-    new URL('../../../config/parity-requests/discounts/discount-uniqueness-check.graphql', import.meta.url),
+    new URL('../../../src/runtime_graphql/discounts/discount-uniqueness-check.graphql', import.meta.url),
     'utf8',
   );
   return discountUniquenessQueryPromise;
+}
+
+function readShopSubscriptionCapabilityQuery(): Promise<string> {
+  shopSubscriptionCapabilityQueryPromise ??= readFile(
+    new URL('../../../src/runtime_graphql/discounts/discount-subscription-capability.graphql', import.meta.url),
+    'utf8',
+  );
+  return shopSubscriptionCapabilityQueryPromise;
 }
 
 function responseHasTopLevelErrors(payload: unknown): boolean {
@@ -119,6 +128,16 @@ export async function captureDraftProxyShopPricingHydrate(
   return await captureRuntimeHydrationCall({
     operationName: 'DraftProxyShopPricingHydrate',
     query: DRAFT_PROXY_SHOP_PRICING_HYDRATE_QUERY,
+    runGraphqlRequest,
+  });
+}
+
+export async function captureDraftProxyShopSubscriptionCapability(
+  runGraphqlRequest: GraphqlRequestRunner,
+): Promise<RecordedUpstreamCall> {
+  return await captureRuntimeHydrationCall({
+    operationName: 'DraftProxyShopSubscriptionCapability',
+    query: await readShopSubscriptionCapabilityQuery(),
     runGraphqlRequest,
   });
 }

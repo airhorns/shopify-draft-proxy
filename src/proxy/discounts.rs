@@ -364,7 +364,7 @@ const DISCOUNT_MINIMUM_SUBTOTAL_UPPER_BOUND_DECIMAL: &str = "1000000000000000000
 const SHOPIFY_FUNCTION_BY_ID_QUERY: &str = "query ShopifyFunctionById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    apiType\n    description\n    appKey\n    app {\n      id\n      title\n      handle\n      apiKey\n    }\n  }\n}\n";
 const SHOPIFY_FUNCTION_BY_HANDLE_QUERY: &str = "query ShopifyFunctionByHandle($handle: String!) {\n  shopifyFunctions(first: 1, handle: $handle) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n";
 const SHOP_SUBSCRIPTION_CAPABILITY_QUERY: &str =
-    "query DraftProxyShopSubscriptionCapability {\n  shop {\n    features {\n      sellsSubscriptions\n    }\n  }\n}\n";
+    include_str!("../runtime_graphql/discounts/discount-subscription-capability.graphql");
 /// Availability probe forwarded when activating an app discount. Shopify checks
 /// that the backing Function is still installed/available before activating; a
 /// revoked function returns an empty `nodes` list and activation fails with a
