@@ -1,0 +1,195 @@
+{
+  "scenarioId": "online-store-content-handle-reservations",
+  "operationNames": ["pageCreate", "pageUpdate", "blogCreate", "blogUpdate", "articleCreate", "articleUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "mutation-first-hydration-parity", "no-upstream-mutation"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/online-store-content-handle-reservations.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/online-store-content-handle-page-create.graphql",
+    "variablesCapturePath": "$.operations.pageGeneratedCollision.request.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "page-generated-collision-suffixes-after-authoritative-hydration",
+        "capturePath": "$.operations.pageGeneratedCollision.response.data.pageCreate",
+        "proxyPath": "$.data.pageCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.page.id",
+            "matcher": "shopify-gid:Page",
+            "reason": "The proxy stages a synthetic Page while Shopify creates an authoritative Page ID."
+          }
+        ]
+      },
+      {
+        "name": "page-explicit-create-collision-returns-taken",
+        "capturePath": "$.operations.pageExplicitCollision.response.data.pageCreate",
+        "proxyPath": "$.data.pageCreate",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-content-handle-page-create.graphql",
+          "variablesCapturePath": "$.operations.pageExplicitCollision.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "page-self-update-excludes-authoritative-owner",
+        "capturePath": "$.operations.pageSelfUpdate.response.data.pageUpdate",
+        "proxyPath": "$.data.pageUpdate",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-content-handle-page-update.graphql",
+          "variablesCapturePath": "$.operations.pageSelfUpdate.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "page-update-collision-returns-taken",
+        "capturePath": "$.operations.pageCollisionUpdate.response.data.pageUpdate",
+        "proxyPath": "$.data.pageUpdate",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-content-handle-page-update.graphql",
+          "variablesCapturePath": "$.operations.pageCollisionUpdate.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "blog-generated-collision-suffixes-after-authoritative-hydration",
+        "capturePath": "$.operations.blogGeneratedCollision.response.data.blogCreate",
+        "proxyPath": "$.data.blogCreate",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-content-handle-blog-create.graphql",
+          "variablesCapturePath": "$.operations.blogGeneratedCollision.request.variables",
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.blog.id",
+            "matcher": "shopify-gid:Blog",
+            "reason": "The proxy stages a synthetic Blog while Shopify creates an authoritative Blog ID."
+          }
+        ]
+      },
+      {
+        "name": "blog-explicit-create-collision-suffixes",
+        "capturePath": "$.operations.blogExplicitCollision.response.data.blogCreate",
+        "proxyPath": "$.data.blogCreate",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-content-handle-blog-create.graphql",
+          "variablesCapturePath": "$.operations.blogExplicitCollision.request.variables",
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.blog.id",
+            "matcher": "shopify-gid:Blog",
+            "reason": "The proxy stages a synthetic Blog while Shopify creates an authoritative Blog ID."
+          }
+        ]
+      },
+      {
+        "name": "blog-self-update-excludes-authoritative-owner",
+        "capturePath": "$.operations.blogSelfUpdate.response.data.blogUpdate",
+        "proxyPath": "$.data.blogUpdate",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-content-handle-blog-update.graphql",
+          "variablesCapturePath": "$.operations.blogSelfUpdate.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "blog-update-collision-is-an-unchanged-success",
+        "capturePath": "$.operations.blogCollisionUpdate.response.data.blogUpdate",
+        "proxyPath": "$.data.blogUpdate",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-content-handle-blog-update.graphql",
+          "variablesCapturePath": "$.operations.blogCollisionUpdate.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "article-generated-collision-suffixes-within-blog",
+        "capturePath": "$.operations.articleGeneratedCollision.response.data.articleCreate",
+        "proxyPath": "$.data.articleCreate",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-content-handle-article-create.graphql",
+          "variablesCapturePath": "$.operations.articleGeneratedCollision.request.variables",
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.article.id",
+            "matcher": "shopify-gid:Article",
+            "reason": "The proxy stages a synthetic Article while Shopify creates an authoritative Article ID."
+          }
+        ]
+      },
+      {
+        "name": "article-explicit-create-collision-returns-taken-within-blog",
+        "capturePath": "$.operations.articleExplicitCollision.response.data.articleCreate",
+        "proxyPath": "$.data.articleCreate",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-content-handle-article-create.graphql",
+          "variablesCapturePath": "$.operations.articleExplicitCollision.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "article-self-update-excludes-authoritative-owner",
+        "capturePath": "$.operations.articleSelfUpdate.response.data.articleUpdate",
+        "proxyPath": "$.data.articleUpdate",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-content-handle-article-update.graphql",
+          "variablesCapturePath": "$.operations.articleSelfUpdate.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "article-update-collision-returns-taken-within-blog",
+        "capturePath": "$.operations.articleCollisionUpdate.response.data.articleUpdate",
+        "proxyPath": "$.data.articleUpdate",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-content-handle-article-update.graphql",
+          "variablesCapturePath": "$.operations.articleCollisionUpdate.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "article-explicit-handle-can-be-reused-in-another-blog",
+        "capturePath": "$.operations.articleCrossBlogExplicitReuse.response.data.articleCreate",
+        "proxyPath": "$.data.articleCreate",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-content-handle-article-create.graphql",
+          "variablesCapturePath": "$.operations.articleCrossBlogExplicitReuse.request.variables",
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.article.id",
+            "matcher": "shopify-gid:Article",
+            "reason": "The proxy stages a synthetic Article while Shopify creates an authoritative Article ID."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Recorded Shopify Admin GraphQL 2025-01 mutation-first collision behavior for shop-scoped Page and Blog handles plus per-blog Article handles. Every isolated branch replays exact query-only handle-owner and mutation-prerequisite hydration calls. Generated collisions advance numeric suffixes; explicit Page and Article collisions return TAKEN; explicit Blog creates suffix while colliding Blog updates return the unchanged Blog without userErrors."
+}

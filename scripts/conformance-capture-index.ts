@@ -7505,7 +7505,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'Creates two disposable products, two collections, one blog, one article, and three pages through Admin GraphQL; publishes catalog resources to Online Store; polls authenticated Storefront discovery and mixed Node reads until indexed; then deletes every created resource.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
-      'The recorder captures exact publication hydration plus a live Storefront mixed-Node cassette where a proxy-synthetic Product misses upstream while unrelated real Product, Collection, Page, and Menu IDs remain visible. Query suggestions use a stable broad prefix only as input; runtime behavior must derive suggestions and tracking parameters without response-keying on the captured term.',
+      'The recorder captures exact pre-mutation Page/Blog handle reservation and publication hydration calls plus a live Storefront mixed-Node cassette where a proxy-synthetic Product misses upstream while unrelated real Product, Collection, Page, and Menu IDs remain visible. `--refresh-handle-reservations` re-sends only the existing fixture handles as query-only live calls when those cassettes need coherent refresh without replacing unrelated Storefront payload evidence. Query suggestions use a stable broad prefix only as input; runtime behavior must derive suggestions and tracking parameters without response-keying on the captured term.',
   },
   {
     domain: 'storefront',
@@ -8145,6 +8145,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/online-store/online-store-page-handle-dedupe-and-takenness.graphql',
     ],
     cleanupBehavior: 'Creates disposable pages and deletes every successful pageCreate result during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'online-store',
+    captureId: 'online-store-content-handle-reservations',
+    scriptPath: 'scripts/capture-online-store-content-handle-reservations-conformance.ts',
+    purpose:
+      'Shop-scoped Page/Blog and per-blog Article handle reservation for generated and explicit create collisions, update self-exclusion, update collisions, and cross-blog Article reuse.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}online-store-content-handle-reservations.json`,
+      'config/parity-specs/online-store/online-store-content-handle-reservations.json',
+      'config/parity-requests/online-store/online-store-content-handle-article-create.graphql',
+      'config/parity-requests/online-store/online-store-content-handle-article-update.graphql',
+      'config/parity-requests/online-store/online-store-content-handle-blog-create.graphql',
+      'config/parity-requests/online-store/online-store-content-handle-blog-update.graphql',
+      'config/parity-requests/online-store/online-store-content-handle-page-create.graphql',
+      'config/parity-requests/online-store/online-store-content-handle-page-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable pages, two blogs, and article collision rows in both blogs; cleanup deletes every successful article/page creation before deleting both blogs.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
