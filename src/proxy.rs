@@ -618,6 +618,8 @@ struct StagedState {
     delivery_promise_participants: StagedRecords<Value>,
     observed_shipping_locations: BTreeMap<String, Value>,
     observed_shipping_location_order: Vec<String>,
+    observed_shipping_locations_complete: bool,
+    observed_shipping_locations_next_cursor: Option<String>,
     locations: StagedRecords<Value>,
     location_limit_reached: bool,
     delivery_customizations: StagedRecords<Value>,
@@ -728,13 +730,16 @@ struct StagedState {
     online_store_blog_order: Vec<String>,
     deleted_online_store_blog_ids: BTreeSet<String>,
     online_store_blogs_count_base: Option<usize>,
+    observed_online_store_blog_handle_owners: BTreeMap<String, String>,
     online_store_pages: BTreeMap<String, Value>,
     online_store_page_order: Vec<String>,
     deleted_online_store_page_ids: BTreeSet<String>,
     online_store_pages_count_base: Option<usize>,
+    observed_online_store_page_handle_owners: BTreeMap<String, String>,
     online_store_articles: BTreeMap<String, Value>,
     online_store_article_order: Vec<String>,
     deleted_online_store_article_ids: BTreeSet<String>,
+    observed_online_store_article_handle_owners: BTreeMap<String, BTreeMap<String, String>>,
     online_store_comments: BTreeMap<String, Value>,
     online_store_comment_order: Vec<String>,
     deleted_online_store_comment_ids: BTreeSet<String>,
@@ -2230,6 +2235,10 @@ impl Store {
 
     fn collection_by_id(&self, id: &str) -> Option<&Value> {
         self.staged.collections.get(id)
+    }
+
+    fn collections(&self) -> Vec<Value> {
+        self.staged.collections.values().cloned().collect()
     }
 
     fn collection_by_handle(&self, handle: &str) -> Option<&Value> {

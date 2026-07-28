@@ -126,10 +126,13 @@ location catalog includes inactive and legacy rows needed for effective counts,
 duplicate-name checks, and the shop's active merchant-managed location limit.
 
 Practical rule: hydrate and retain the two catalogs separately. General staged
-location lifecycle changes overlay the normalized `locations` baseline;
-delivery-profile reads overlay a staged row only when that ID was already in the
-hydrated eligibility catalog. The captured
-`location-catalog-overlay-lifecycle` scenario also confirms that quoted
+location lifecycle changes overlay the normalized `locations` baseline. A
+staged add stays absent from delivery-profile eligibility at first, but the
+fresh `location-catalog-overlay-lifecycle` capture shows Shopify adds that row
+after deactivation with `isActive: false` and retains it after reactivation with
+`isActive: true`; deletion removes the derived row. Other delivery-profile
+reads overlay a staged row only after its ID enters the hydrated or captured
+lifecycle eligibility catalog. The same scenario also confirms that quoted
 multi-word `name:` expressions must remain one search term rather than being
 split on whitespace.
 
@@ -2628,6 +2631,7 @@ Live evidence refreshed on this host:
 - custom collections return `ruleSet: null`; the captured smart collection returns a `ruleSet` with `appliedDisjunctively: false` and a `TITLE CONTAINS VANS` rule
 - both captured custom and smart collections currently return `sortOrder: BEST_SELLING`; the custom collection's blank description comes back as empty strings for both `description` and `descriptionHtml`, not `null`
 - the catalog fixture now selects the same rich metadata fields so `collections` parity covers the captured null/empty shapes alongside nested product connection shape
+- Repeated title-only `collectionCreate` calls reserve generated handles using two suffix branches. A nonnumeric generated handle keeps its base and appends `-1`, while a generated handle ending in digits increments that trailing number in place (`...-41` becomes `...-42`). Collection handle reservation must include both observed catalog rows and collections already staged in the current proxy session.
 - HAR-594 live probes against Admin GraphQL 2025-01 accepted collection titles that looked reserved from older Rails model notes. `Frontpage`, `All`, `Types`, `Vendors`, `Products`, and `Collections` all created collections successfully with empty `userErrors`; `Frontpage` deduped to `frontpage-2` when the shop already had the homepage collection handle. Do not add local reserved-title rejection unless a newer capture proves the GraphQL mutation surface rejects it.
 - The same HAR-594 capture showed `collectionAddProducts` and `collectionRemoveProducts` against a smart collection return `collection/job: null` with an `id`-scoped user error using the wording `Can't manually add products to a smart collection` / `Can't manually remove products from a smart collection`. A successful `collectionAddProducts` payload can still show `productsCount.count: 0` while the selected `products.nodes` includes the added product; the immediate downstream `collection(id:)` read returns the recomputed non-zero `productsCount`.
 - A refreshed 2025-01 capture shows re-adding an already-member product with `collectionAddProducts` returns the collection with the existing product connection and empty `userErrors`; duplicate membership is not a payload error.
@@ -3295,7 +3299,16 @@ Observed current-version surface:
 
 - read roots: `customerPaymentMethod`, `orderPaymentStatus`, `paymentCustomization`, `paymentCustomizations`, `paymentTermsTemplates`, `shopPayPaymentRequestReceipt`, `shopPayPaymentRequestReceipts`, `shopifyPaymentsAccount`, and `tenderTransactions`
 - scaffold-only mutation roots: customer payment method create/update/revoke/update-url/duplication roots, `orderCapture`, `orderCreateMandatePayment`, payment customization create/update/delete/activation, `paymentReminderSend`, payment terms create/update/delete, `shopifyPaymentsPayoutAlternateCurrencyCreate`, and `transactionVoid`
-- payment-adjacent guardrail: `orderCreateManualPayment` now stages local manual-payment success for orders already present in proxy state, while still mirroring the captured access-denied branch for unhydrated/non-local orders without passthrough. Live success conformance remains blocked on the current credential because the available conformance shop reports `shop.plan.shopifyPlus: false`.
+- payment-adjacent guardrail: `orderCreateManualPayment` resolves store/app capability before order presence, query-only hydrates eligible cold orders, and stages successful payment effects locally. Amount-bearing calls require a confirmed `write_orders` scope and Shopify Plus; omitted/null amount calls require the scope but do not require Plus. Capability transport failure or absent snapshot context stays an explicit unknown outcome rather than being inferred from cache state.
+
+2026-07-20 live `orderCreateManualPayment` capture on `harry-test-heelo.myshopify.com` (Admin 2026-04):
+
+- the non-Plus store returned the same top-level `ACCESS_DENIED` envelope for amount-bearing calls whether the proxy replay began with a cold or already-observed order
+- with `write_orders` present and `amount` omitted, both cold and warm disposable orders succeeded, used the default `manual` gateway, paid the full outstanding balance, and exposed matching transaction/money/status state on the immediate downstream read
+- `gid://shopify/Order/0` with omitted `amount` returned `order: null` plus `userErrors[{ field: ["id"], message: "Order does not exist" }]`, confirming that eligible not-found behavior is distinct from access denial
+- a newly created order can briefly return `Order is temporarily unavailable to be modified.`; the registered recorder retries only that exact transient branch before recording the final manual-payment interaction
+- an arbitrary `paymentMethodName` returned `Payment provider is not configured on shop.` even though the no-amount capability gate passed; configured-provider validation is a separate fidelity slice from store/app eligibility
+- an unbound nullable `$amount` remains present in the raw GraphQL argument expression but has no resolved variable value, so the Plus gate must inspect preserved raw argument metadata rather than treating the coerced argument entry as a submitted amount
 
 2026-04-25 live probe on `harry-test-heelo.myshopify.com`:
 
@@ -4885,3 +4898,28 @@ Practical rule:
 - hydrate delivery-profile configuration through read-only LiveHybrid calls;
   never send the supported draft-order mutation upstream or invoke carrier
   participants during normal calculation
+
+## 117. Online Store handle collisions are scoped by resource and Blogs do not return TAKEN
+
+Admin GraphQL 2025-01 capture created colliding Pages, Blogs, and Articles and
+then exercised self-updates and updates into another record's handle. Generated
+handles used the next numeric suffix for all three resource families. Page and
+Blog reservations were shop-scoped, while an Article handle could be reused in
+a different Blog.
+
+Explicit collision behavior was not uniform. Page and Article create/update
+returned a null resource plus `TAKEN` on the resource's `handle` field. An
+explicit colliding Blog create succeeded with the next suffix instead. A Blog
+update into another Blog's handle returned the target Blog unchanged with no
+user error. Self-updates succeeded for every resource.
+
+Practical rule:
+
+- hydrate exact handle ownership with query-only requests before a mutation-first
+  create or update when effective local state cannot answer the collision check
+- reserve Page and Blog handles shop-wide and Article handles by parent Blog,
+  excluding the update target itself
+- advance trailing numeric suffixes instead of blindly appending another
+  `-1`
+- preserve Blog's distinct suffix/no-op behavior rather than sharing the Page
+  and Article `TAKEN` branch
