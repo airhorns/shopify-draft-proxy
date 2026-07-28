@@ -4,13 +4,7 @@ query MetafieldDefinitionsHydrateResourceScope(
   $first: Int!
   $after: String
 ) {
-  metafieldDefinitions(
-    ownerType: $ownerType
-    query: $query
-    first: $first
-    after: $after
-    sortKey: ID
-  ) {
+  metafieldDefinitions(ownerType: $ownerType, query: $query, first: $first, after: $after, sortKey: ID) {
     nodes {
       id
       name

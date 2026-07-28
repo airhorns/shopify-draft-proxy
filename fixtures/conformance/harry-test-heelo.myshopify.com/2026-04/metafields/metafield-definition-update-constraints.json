@@ -2,7 +2,7 @@
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "variables": {
-    "namespace": "constraint_update_mru3a3g4",
+    "namespace": "constraint_update_ms4uzpk0",
     "categoryId": "gid://shopify/TaxonomyCategory/ap-2",
     "alternateCategoryId": "gid://shopify/TaxonomyCategory/ap-2-1"
   },
@@ -10,7 +10,7 @@
     "request": {
       "documentPath": "config/parity-requests/metafields/metafield-definition-update-constraints.graphql",
       "variables": {
-        "namespace": "constraint_update_mru3a3g4",
+        "namespace": "constraint_update_ms4uzpk0",
         "categoryId": "gid://shopify/TaxonomyCategory/ap-2",
         "alternateCategoryId": "gid://shopify/TaxonomyCategory/ap-2-1"
       }
@@ -19,7 +19,7 @@
       "data": {
         "createDefinition": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227646177586",
+            "id": "gid://shopify/MetafieldDefinition/229606261042",
             "key": "tier",
             "constraints": {
               "key": null,
@@ -33,7 +33,7 @@
         },
         "setConstraints": {
           "updatedDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227646177586",
+            "id": "gid://shopify/MetafieldDefinition/229606261042",
             "constraints": {
               "key": null,
               "values": {
@@ -59,7 +59,7 @@
         },
         "updateConstraints": {
           "updatedDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227646177586",
+            "id": "gid://shopify/MetafieldDefinition/229606261042",
             "constraints": {
               "key": null,
               "values": {
@@ -75,7 +75,7 @@
         },
         "unconstrain": {
           "updatedDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227646177586",
+            "id": "gid://shopify/MetafieldDefinition/229606261042",
             "constraints": {
               "key": null,
               "values": {
@@ -97,7 +97,7 @@
         },
         "pinUnconstrained": {
           "pinnedDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227646177586",
+            "id": "gid://shopify/MetafieldDefinition/229606261042",
             "key": "tier",
             "pinnedPosition": 1
           },
@@ -110,7 +110,7 @@
           "actualQueryCost": 92,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1907,
+            "currentlyAvailable": 1908,
             "restoreRate": 100
           }
         }
@@ -121,7 +121,7 @@
     "request": {
       "documentPath": "config/parity-requests/metafields/metafield-definition-update-constraints-read.graphql",
       "variables": {
-        "namespace": "constraint_update_mru3a3g4",
+        "namespace": "constraint_update_ms4uzpk0",
         "categoryId": "gid://shopify/TaxonomyCategory/ap-2",
         "alternateCategoryId": "gid://shopify/TaxonomyCategory/ap-2-1"
       }
@@ -129,7 +129,7 @@
     "response": {
       "data": {
         "definition": {
-          "id": "gid://shopify/MetafieldDefinition/227646177586",
+          "id": "gid://shopify/MetafieldDefinition/229606261042",
           "key": "tier",
           "constraints": {
             "key": null,
@@ -146,7 +146,7 @@
           "actualQueryCost": 8,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1926,
+            "currentlyAvailable": 1935,
             "restoreRate": 100
           }
         }
@@ -157,7 +157,7 @@
     "request": {
       "document": "#graphql\n  mutation MetafieldDefinitionUpdateConstraintsSetProbe($namespace: String!) {\n    constraintsSetProbe: metafieldDefinitionUpdate(\n      definition: {\n        namespace: $namespace\n        key: \"tier\"\n        ownerType: PRODUCT\n        constraintsSet: { key: \"category\", values: [] }\n      }\n    ) {\n      updatedDefinition {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "namespace": "constraint_update_mru3a3g4"
+        "namespace": "constraint_update_ms4uzpk0"
       }
     },
     "response": {
@@ -192,7 +192,7 @@
   "cleanup": {
     "deletedDefinitions": [
       {
-        "id": "gid://shopify/MetafieldDefinition/227646177586",
+        "id": "gid://shopify/MetafieldDefinition/229606261042",
         "key": "tier"
       }
     ],
@@ -508,7 +508,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "constraint_update_mru3a3g4",
+          "namespace": "constraint_update_ms4uzpk0",
           "key": "tier"
         }
       },
@@ -544,7 +544,7 @@
         "first": 250,
         "after": null
       },
-      "query": "query MetafieldDefinitionsHydrateResourceScope(\n  $ownerType: MetafieldOwnerType!\n  $query: String!\n  $first: Int!\n  $after: String\n) {\n  metafieldDefinitions(\n    ownerType: $ownerType\n    query: $query\n    first: $first\n    after: $after\n    sortKey: ID\n  ) {\n    nodes {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      description\n      validations {\n        name\n        value\n      }\n      access {\n        admin\n        storefront\n        customerAccount\n      }\n      capabilities {\n        adminFilterable {\n          enabled\n          eligible\n          status\n        }\n        smartCollectionCondition {\n          enabled\n          eligible\n        }\n        uniqueValues {\n          enabled\n          eligible\n        }\n      }\n      constraints {\n        key\n        values(first: 50) {\n          nodes {\n            value\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pinnedPosition\n      standardTemplate {\n        id\n      }\n      validationStatus\n      metafieldsCount\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
+      "query": "query MetafieldDefinitionsHydrateResourceScope(\n  $ownerType: MetafieldOwnerType!\n  $query: String!\n  $first: Int!\n  $after: String\n) {\n  metafieldDefinitions(ownerType: $ownerType, query: $query, first: $first, after: $after, sortKey: ID) {\n    nodes {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      description\n      validations {\n        name\n        value\n      }\n      access {\n        admin\n        storefront\n        customerAccount\n      }\n      capabilities {\n        adminFilterable {\n          enabled\n          eligible\n          status\n        }\n        smartCollectionCondition {\n          enabled\n          eligible\n        }\n        uniqueValues {\n          enabled\n          eligible\n        }\n      }\n      constraints {\n        key\n        values(first: 50) {\n          nodes {\n            value\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pinnedPosition\n      standardTemplate {\n        id\n      }\n      validationStatus\n      metafieldsCount\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -3542,7 +3542,7 @@
       "variables": {
         "ownerType": "PRODUCT"
       },
-      "query": "query MetafieldDefinitionsHydratePinnedOwner($ownerType: MetafieldOwnerType!) {\n  metafieldDefinitions(\n    ownerType: $ownerType\n    pinnedStatus: PINNED\n    first: 50\n    sortKey: PINNED_POSITION\n  ) {\n    nodes {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      description\n      validations {\n        name\n        value\n      }\n      access {\n        admin\n        storefront\n        customerAccount\n      }\n      capabilities {\n        adminFilterable {\n          enabled\n          eligible\n          status\n        }\n        smartCollectionCondition {\n          enabled\n          eligible\n        }\n        uniqueValues {\n          enabled\n          eligible\n        }\n      }\n      constraints {\n        key\n        values(first: 50) {\n          nodes {\n            value\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pinnedPosition\n      standardTemplate {\n        id\n      }\n      validationStatus\n      metafieldsCount\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
+      "query": "query MetafieldDefinitionsHydratePinnedOwner($ownerType: MetafieldOwnerType!) {\n  metafieldDefinitions(ownerType: $ownerType, pinnedStatus: PINNED, first: 50, sortKey: PINNED_POSITION) {\n    nodes {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      description\n      validations {\n        name\n        value\n      }\n      access {\n        admin\n        storefront\n        customerAccount\n      }\n      capabilities {\n        adminFilterable {\n          enabled\n          eligible\n          status\n        }\n        smartCollectionCondition {\n          enabled\n          eligible\n        }\n        uniqueValues {\n          enabled\n          eligible\n        }\n      }\n      constraints {\n        key\n        values(first: 50) {\n          nodes {\n            value\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pinnedPosition\n      standardTemplate {\n        id\n      }\n      validationStatus\n      metafieldsCount\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

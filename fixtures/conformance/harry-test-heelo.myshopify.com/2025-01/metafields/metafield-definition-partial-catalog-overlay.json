@@ -1,9 +1,9 @@
 {
-  "capturedAt": "2026-07-21T00:24:26.861Z",
+  "capturedAt": "2026-07-28T16:15:21.844Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
-  "namespace": "partial_mrtwve5o",
-  "otherNamespace": "partial_other_mrtwve5o",
+  "namespace": "partial_ms4ux8hj",
+  "otherNamespace": "partial_other_ms4ux8hj",
   "captures": {
     "realCreate": {
       "label": "setup real metafieldDefinitionCreate",
@@ -11,7 +11,7 @@
         "query": "mutation CreateDefinition($definition: MetafieldDefinitionInput!) {\n  metafieldDefinitionCreate(definition: $definition) {\n    createdDefinition {\n      id\n      namespace\n      key\n      ownerType\n      name\n      type {\n        name\n        category\n      }\n      pinnedPosition\n    }\n    userErrors {\n      __typename\n      field\n      message\n      code\n    }\n  }\n}\n",
         "variables": {
           "definition": {
-            "namespace": "partial_mrtwve5o",
+            "namespace": "partial_ms4ux8hj",
             "key": "real",
             "ownerType": "PRODUCT",
             "name": "Alpha partial real definition",
@@ -24,8 +24,8 @@
         "data": {
           "metafieldDefinitionCreate": {
             "createdDefinition": {
-              "id": "gid://shopify/MetafieldDefinition/227587916082",
-              "namespace": "partial_mrtwve5o",
+              "id": "gid://shopify/MetafieldDefinition/229597643058",
+              "namespace": "partial_ms4ux8hj",
               "key": "real",
               "ownerType": "PRODUCT",
               "name": "Alpha partial real definition",
@@ -44,7 +44,7 @@
             "actualQueryCost": 11,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1989,
+              "currentlyAvailable": 1917,
               "restoreRate": 100
             }
           }
@@ -57,7 +57,7 @@
         "query": "mutation CreateDefinition($definition: MetafieldDefinitionInput!) {\n  metafieldDefinitionCreate(definition: $definition) {\n    createdDefinition {\n      id\n      namespace\n      key\n      ownerType\n      name\n      type {\n        name\n        category\n      }\n      pinnedPosition\n    }\n    userErrors {\n      __typename\n      field\n      message\n      code\n    }\n  }\n}\n",
         "variables": {
           "definition": {
-            "namespace": "partial_other_mrtwve5o",
+            "namespace": "partial_other_ms4ux8hj",
             "key": "other",
             "ownerType": "PRODUCT",
             "name": "Unrelated partial definition",
@@ -70,8 +70,8 @@
         "data": {
           "metafieldDefinitionCreate": {
             "createdDefinition": {
-              "id": "gid://shopify/MetafieldDefinition/227587948850",
-              "namespace": "partial_other_mrtwve5o",
+              "id": "gid://shopify/MetafieldDefinition/229597708594",
+              "namespace": "partial_other_ms4ux8hj",
               "key": "other",
               "ownerType": "PRODUCT",
               "name": "Unrelated partial definition",
@@ -90,7 +90,7 @@
             "actualQueryCost": 11,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1989,
+              "currentlyAvailable": 1920,
               "restoreRate": 100
             }
           }
@@ -103,7 +103,7 @@
         "query": "mutation CreateDefinition($definition: MetafieldDefinitionInput!) {\n  metafieldDefinitionCreate(definition: $definition) {\n    createdDefinition {\n      id\n      namespace\n      key\n      ownerType\n      name\n      type {\n        name\n        category\n      }\n      pinnedPosition\n    }\n    userErrors {\n      __typename\n      field\n      message\n      code\n    }\n  }\n}\n",
         "variables": {
           "definition": {
-            "namespace": "partial_mrtwve5o",
+            "namespace": "partial_ms4ux8hj",
             "key": "real",
             "ownerType": "PRODUCT",
             "name": "Duplicate partial real definition",
@@ -120,7 +120,7 @@
               {
                 "__typename": "MetafieldDefinitionCreateUserError",
                 "field": ["definition", "key"],
-                "message": "Key is in use for Product metafields on the 'partial_mrtwve5o' namespace.",
+                "message": "Key is in use for Product metafields on the 'partial_ms4ux8hj' namespace.",
                 "code": "TAKEN"
               }
             ]
@@ -132,7 +132,7 @@
             "actualQueryCost": 11,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1989,
+              "currentlyAvailable": 1936,
               "restoreRate": 100
             }
           }
@@ -145,7 +145,7 @@
         "query": "mutation CreateDefinition($definition: MetafieldDefinitionInput!) {\n  metafieldDefinitionCreate(definition: $definition) {\n    createdDefinition {\n      id\n      namespace\n      key\n      ownerType\n      name\n      type {\n        name\n        category\n      }\n      pinnedPosition\n    }\n    userErrors {\n      __typename\n      field\n      message\n      code\n    }\n  }\n}\n",
         "variables": {
           "definition": {
-            "namespace": "partial_mrtwve5o",
+            "namespace": "partial_ms4ux8hj",
             "key": "local",
             "ownerType": "PRODUCT",
             "name": "Omega partial local definition",
@@ -158,8 +158,8 @@
         "data": {
           "metafieldDefinitionCreate": {
             "createdDefinition": {
-              "id": "gid://shopify/MetafieldDefinition/227587981618",
-              "namespace": "partial_mrtwve5o",
+              "id": "gid://shopify/MetafieldDefinition/229597774130",
+              "namespace": "partial_ms4ux8hj",
               "key": "local",
               "ownerType": "PRODUCT",
               "name": "Omega partial local definition",
@@ -178,7 +178,7 @@
             "actualQueryCost": 11,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1989,
+              "currentlyAvailable": 1948,
               "restoreRate": 100
             }
           }
@@ -190,33 +190,33 @@
       "request": {
         "query": "query MetafieldDefinitionPartialCatalogRead($namespace: String!, $otherNamespace: String!) {\n  realDetail: metafieldDefinition(\n    identifier: { ownerType: PRODUCT, namespace: $namespace, key: \"real\" }\n  ) {\n    id\n    ownerType\n    namespace\n    key\n    name\n    metafieldsCount\n  }\n  localDetail: metafieldDefinition(\n    identifier: { ownerType: PRODUCT, namespace: $namespace, key: \"local\" }\n  ) {\n    id\n    ownerType\n    namespace\n    key\n    name\n    metafieldsCount\n  }\n  otherDetail: metafieldDefinition(\n    identifier: { ownerType: PRODUCT, namespace: $otherNamespace, key: \"other\" }\n  ) {\n    id\n    ownerType\n    namespace\n    key\n    name\n    metafieldsCount\n  }\n  realCatalog: metafieldDefinitions(\n    ownerType: PRODUCT\n    namespace: $namespace\n    key: \"real\"\n    first: 1\n  ) {\n    nodes {\n      id\n      namespace\n      key\n      name\n      metafieldsCount\n    }\n    edges {\n      cursor\n      node {\n        id\n        namespace\n        key\n        name\n        metafieldsCount\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  localCatalog: metafieldDefinitions(\n    ownerType: PRODUCT\n    namespace: $namespace\n    key: \"local\"\n    first: 1\n  ) {\n    nodes {\n      id\n      namespace\n      key\n      name\n      metafieldsCount\n    }\n    edges {\n      cursor\n      node {\n        id\n        namespace\n        key\n        name\n        metafieldsCount\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  otherCatalog: metafieldDefinitions(ownerType: PRODUCT, namespace: $otherNamespace, first: 1) {\n    nodes {\n      id\n      namespace\n      key\n      name\n      metafieldsCount\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
         "variables": {
-          "namespace": "partial_mrtwve5o",
-          "otherNamespace": "partial_other_mrtwve5o"
+          "namespace": "partial_ms4ux8hj",
+          "otherNamespace": "partial_other_ms4ux8hj"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "realDetail": {
-            "id": "gid://shopify/MetafieldDefinition/227587916082",
+            "id": "gid://shopify/MetafieldDefinition/229597643058",
             "ownerType": "PRODUCT",
-            "namespace": "partial_mrtwve5o",
+            "namespace": "partial_ms4ux8hj",
             "key": "real",
             "name": "Alpha partial real definition",
             "metafieldsCount": 0
           },
           "localDetail": {
-            "id": "gid://shopify/MetafieldDefinition/227587981618",
+            "id": "gid://shopify/MetafieldDefinition/229597774130",
             "ownerType": "PRODUCT",
-            "namespace": "partial_mrtwve5o",
+            "namespace": "partial_ms4ux8hj",
             "key": "local",
             "name": "Omega partial local definition",
             "metafieldsCount": 0
           },
           "otherDetail": {
-            "id": "gid://shopify/MetafieldDefinition/227587948850",
+            "id": "gid://shopify/MetafieldDefinition/229597708594",
             "ownerType": "PRODUCT",
-            "namespace": "partial_other_mrtwve5o",
+            "namespace": "partial_other_ms4ux8hj",
             "key": "other",
             "name": "Unrelated partial definition",
             "metafieldsCount": 0
@@ -224,8 +224,8 @@
           "realCatalog": {
             "nodes": [
               {
-                "id": "gid://shopify/MetafieldDefinition/227587916082",
-                "namespace": "partial_mrtwve5o",
+                "id": "gid://shopify/MetafieldDefinition/229597643058",
+                "namespace": "partial_ms4ux8hj",
                 "key": "real",
                 "name": "Alpha partial real definition",
                 "metafieldsCount": 0
@@ -233,10 +233,10 @@
             ],
             "edges": [
               {
-                "cursor": "eyJsYXN0X2lkIjoyMjc1ODc5MTYwODIsImxhc3RfdmFsdWUiOiIyMjc1ODc5MTYwODIifQ==",
+                "cursor": "eyJsYXN0X2lkIjoyMjk1OTc2NDMwNTgsImxhc3RfdmFsdWUiOiIyMjk1OTc2NDMwNTgifQ==",
                 "node": {
-                  "id": "gid://shopify/MetafieldDefinition/227587916082",
-                  "namespace": "partial_mrtwve5o",
+                  "id": "gid://shopify/MetafieldDefinition/229597643058",
+                  "namespace": "partial_ms4ux8hj",
                   "key": "real",
                   "name": "Alpha partial real definition",
                   "metafieldsCount": 0
@@ -246,15 +246,15 @@
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjoyMjc1ODc5MTYwODIsImxhc3RfdmFsdWUiOiIyMjc1ODc5MTYwODIifQ==",
-              "endCursor": "eyJsYXN0X2lkIjoyMjc1ODc5MTYwODIsImxhc3RfdmFsdWUiOiIyMjc1ODc5MTYwODIifQ=="
+              "startCursor": "eyJsYXN0X2lkIjoyMjk1OTc2NDMwNTgsImxhc3RfdmFsdWUiOiIyMjk1OTc2NDMwNTgifQ==",
+              "endCursor": "eyJsYXN0X2lkIjoyMjk1OTc2NDMwNTgsImxhc3RfdmFsdWUiOiIyMjk1OTc2NDMwNTgifQ=="
             }
           },
           "localCatalog": {
             "nodes": [
               {
-                "id": "gid://shopify/MetafieldDefinition/227587981618",
-                "namespace": "partial_mrtwve5o",
+                "id": "gid://shopify/MetafieldDefinition/229597774130",
+                "namespace": "partial_ms4ux8hj",
                 "key": "local",
                 "name": "Omega partial local definition",
                 "metafieldsCount": 0
@@ -262,10 +262,10 @@
             ],
             "edges": [
               {
-                "cursor": "eyJsYXN0X2lkIjoyMjc1ODc5ODE2MTgsImxhc3RfdmFsdWUiOiIyMjc1ODc5ODE2MTgifQ==",
+                "cursor": "eyJsYXN0X2lkIjoyMjk1OTc3NzQxMzAsImxhc3RfdmFsdWUiOiIyMjk1OTc3NzQxMzAifQ==",
                 "node": {
-                  "id": "gid://shopify/MetafieldDefinition/227587981618",
-                  "namespace": "partial_mrtwve5o",
+                  "id": "gid://shopify/MetafieldDefinition/229597774130",
+                  "namespace": "partial_ms4ux8hj",
                   "key": "local",
                   "name": "Omega partial local definition",
                   "metafieldsCount": 0
@@ -275,15 +275,15 @@
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjoyMjc1ODc5ODE2MTgsImxhc3RfdmFsdWUiOiIyMjc1ODc5ODE2MTgifQ==",
-              "endCursor": "eyJsYXN0X2lkIjoyMjc1ODc5ODE2MTgsImxhc3RfdmFsdWUiOiIyMjc1ODc5ODE2MTgifQ=="
+              "startCursor": "eyJsYXN0X2lkIjoyMjk1OTc3NzQxMzAsImxhc3RfdmFsdWUiOiIyMjk1OTc3NzQxMzAifQ==",
+              "endCursor": "eyJsYXN0X2lkIjoyMjk1OTc3NzQxMzAsImxhc3RfdmFsdWUiOiIyMjk1OTc3NzQxMzAifQ=="
             }
           },
           "otherCatalog": {
             "nodes": [
               {
-                "id": "gid://shopify/MetafieldDefinition/227587948850",
-                "namespace": "partial_other_mrtwve5o",
+                "id": "gid://shopify/MetafieldDefinition/229597708594",
+                "namespace": "partial_other_ms4ux8hj",
                 "key": "other",
                 "name": "Unrelated partial definition",
                 "metafieldsCount": 0
@@ -292,8 +292,8 @@
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjoyMjc1ODc5NDg4NTAsImxhc3RfdmFsdWUiOiIyMjc1ODc5NDg4NTAifQ==",
-              "endCursor": "eyJsYXN0X2lkIjoyMjc1ODc5NDg4NTAsImxhc3RfdmFsdWUiOiIyMjc1ODc5NDg4NTAifQ=="
+              "startCursor": "eyJsYXN0X2lkIjoyMjk1OTc3MDg1OTQsImxhc3RfdmFsdWUiOiIyMjk1OTc3MDg1OTQifQ==",
+              "endCursor": "eyJsYXN0X2lkIjoyMjk1OTc3MDg1OTQsImxhc3RfdmFsdWUiOiIyMjk1OTc3MDg1OTQifQ=="
             }
           }
         },
@@ -303,7 +303,7 @@
             "actualQueryCost": 14,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1976,
+              "currentlyAvailable": 1941,
               "restoreRate": 100
             }
           }
@@ -315,7 +315,7 @@
       "request": {
         "query": "mutation MetafieldDefinitionLifecycleDelete($id: ID!, $deleteAllAssociatedMetafields: Boolean!) {\n  metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: $deleteAllAssociatedMetafields) {\n    deletedDefinitionId\n    deletedDefinition {\n      ownerType\n      namespace\n      key\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/MetafieldDefinition/227587916082",
+          "id": "gid://shopify/MetafieldDefinition/229597643058",
           "deleteAllAssociatedMetafields": true
         }
       },
@@ -323,10 +323,10 @@
       "response": {
         "data": {
           "metafieldDefinitionDelete": {
-            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227587916082",
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229597643058",
             "deletedDefinition": {
               "ownerType": "PRODUCT",
-              "namespace": "partial_mrtwve5o",
+              "namespace": "partial_ms4ux8hj",
               "key": "real"
             },
             "userErrors": []
@@ -338,7 +338,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1977,
+              "currentlyAvailable": 1943,
               "restoreRate": 100
             }
           }
@@ -350,8 +350,8 @@
       "request": {
         "query": "query MetafieldDefinitionPartialCatalogReadAfterDelete($namespace: String!, $otherNamespace: String!) {\n  realDetail: metafieldDefinition(\n    identifier: { ownerType: PRODUCT, namespace: $namespace, key: \"real\" }\n  ) {\n    id\n  }\n  localDetail: metafieldDefinition(\n    identifier: { ownerType: PRODUCT, namespace: $namespace, key: \"local\" }\n  ) {\n    id\n    ownerType\n    namespace\n    key\n    name\n    metafieldsCount\n  }\n  otherDetail: metafieldDefinition(\n    identifier: { ownerType: PRODUCT, namespace: $otherNamespace, key: \"other\" }\n  ) {\n    id\n    ownerType\n    namespace\n    key\n    name\n    metafieldsCount\n  }\n  realCatalog: metafieldDefinitions(\n    ownerType: PRODUCT\n    namespace: $namespace\n    key: \"real\"\n    first: 1\n  ) {\n    nodes {\n      id\n      namespace\n      key\n      name\n      metafieldsCount\n    }\n    edges {\n      cursor\n      node {\n        id\n        namespace\n        key\n        name\n        metafieldsCount\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  localCatalog: metafieldDefinitions(\n    ownerType: PRODUCT\n    namespace: $namespace\n    key: \"local\"\n    first: 1\n  ) {\n    nodes {\n      id\n      namespace\n      key\n      name\n      metafieldsCount\n    }\n    edges {\n      cursor\n      node {\n        id\n        namespace\n        key\n        name\n        metafieldsCount\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  otherCatalog: metafieldDefinitions(ownerType: PRODUCT, namespace: $otherNamespace, first: 1) {\n    nodes {\n      id\n      namespace\n      key\n      name\n      metafieldsCount\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
         "variables": {
-          "namespace": "partial_mrtwve5o",
-          "otherNamespace": "partial_other_mrtwve5o"
+          "namespace": "partial_ms4ux8hj",
+          "otherNamespace": "partial_other_ms4ux8hj"
         }
       },
       "status": 200,
@@ -359,17 +359,17 @@
         "data": {
           "realDetail": null,
           "localDetail": {
-            "id": "gid://shopify/MetafieldDefinition/227587981618",
+            "id": "gid://shopify/MetafieldDefinition/229597774130",
             "ownerType": "PRODUCT",
-            "namespace": "partial_mrtwve5o",
+            "namespace": "partial_ms4ux8hj",
             "key": "local",
             "name": "Omega partial local definition",
             "metafieldsCount": 0
           },
           "otherDetail": {
-            "id": "gid://shopify/MetafieldDefinition/227587948850",
+            "id": "gid://shopify/MetafieldDefinition/229597708594",
             "ownerType": "PRODUCT",
-            "namespace": "partial_other_mrtwve5o",
+            "namespace": "partial_other_ms4ux8hj",
             "key": "other",
             "name": "Unrelated partial definition",
             "metafieldsCount": 0
@@ -387,8 +387,8 @@
           "localCatalog": {
             "nodes": [
               {
-                "id": "gid://shopify/MetafieldDefinition/227587981618",
-                "namespace": "partial_mrtwve5o",
+                "id": "gid://shopify/MetafieldDefinition/229597774130",
+                "namespace": "partial_ms4ux8hj",
                 "key": "local",
                 "name": "Omega partial local definition",
                 "metafieldsCount": 0
@@ -396,10 +396,10 @@
             ],
             "edges": [
               {
-                "cursor": "eyJsYXN0X2lkIjoyMjc1ODc5ODE2MTgsImxhc3RfdmFsdWUiOiIyMjc1ODc5ODE2MTgifQ==",
+                "cursor": "eyJsYXN0X2lkIjoyMjk1OTc3NzQxMzAsImxhc3RfdmFsdWUiOiIyMjk1OTc3NzQxMzAifQ==",
                 "node": {
-                  "id": "gid://shopify/MetafieldDefinition/227587981618",
-                  "namespace": "partial_mrtwve5o",
+                  "id": "gid://shopify/MetafieldDefinition/229597774130",
+                  "namespace": "partial_ms4ux8hj",
                   "key": "local",
                   "name": "Omega partial local definition",
                   "metafieldsCount": 0
@@ -409,15 +409,15 @@
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjoyMjc1ODc5ODE2MTgsImxhc3RfdmFsdWUiOiIyMjc1ODc5ODE2MTgifQ==",
-              "endCursor": "eyJsYXN0X2lkIjoyMjc1ODc5ODE2MTgsImxhc3RfdmFsdWUiOiIyMjc1ODc5ODE2MTgifQ=="
+              "startCursor": "eyJsYXN0X2lkIjoyMjk1OTc3NzQxMzAsImxhc3RfdmFsdWUiOiIyMjk1OTc3NzQxMzAifQ==",
+              "endCursor": "eyJsYXN0X2lkIjoyMjk1OTc3NzQxMzAsImxhc3RfdmFsdWUiOiIyMjk1OTc3NzQxMzAifQ=="
             }
           },
           "otherCatalog": {
             "nodes": [
               {
-                "id": "gid://shopify/MetafieldDefinition/227587948850",
-                "namespace": "partial_other_mrtwve5o",
+                "id": "gid://shopify/MetafieldDefinition/229597708594",
+                "namespace": "partial_other_ms4ux8hj",
                 "key": "other",
                 "name": "Unrelated partial definition",
                 "metafieldsCount": 0
@@ -426,8 +426,8 @@
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjoyMjc1ODc5NDg4NTAsImxhc3RfdmFsdWUiOiIyMjc1ODc5NDg4NTAifQ==",
-              "endCursor": "eyJsYXN0X2lkIjoyMjc1ODc5NDg4NTAsImxhc3RfdmFsdWUiOiIyMjc1ODc5NDg4NTAifQ=="
+              "startCursor": "eyJsYXN0X2lkIjoyMjk1OTc3MDg1OTQsImxhc3RfdmFsdWUiOiIyMjk1OTc3MDg1OTQifQ==",
+              "endCursor": "eyJsYXN0X2lkIjoyMjk1OTc3MDg1OTQsImxhc3RfdmFsdWUiOiIyMjk1OTc3MDg1OTQifQ=="
             }
           }
         },
@@ -437,7 +437,7 @@
             "actualQueryCost": 13,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1979,
+              "currentlyAvailable": 1952,
               "restoreRate": 100
             }
           }
@@ -454,7 +454,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "partial_mrtwve5o",
+          "namespace": "partial_ms4ux8hj",
           "key": "real"
         }
       },
@@ -464,9 +464,9 @@
         "body": {
           "data": {
             "metafieldDefinition": {
-              "id": "gid://shopify/MetafieldDefinition/227587916082",
+              "id": "gid://shopify/MetafieldDefinition/229597643058",
               "name": "Alpha partial real definition",
-              "namespace": "partial_mrtwve5o",
+              "namespace": "partial_ms4ux8hj",
               "key": "real",
               "ownerType": "PRODUCT",
               "type": {
@@ -519,7 +519,7 @@
               "actualQueryCost": 19,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1981,
+                "currentlyAvailable": 1916,
                 "restoreRate": 100
               }
             }
@@ -538,7 +538,7 @@
         "first": 250,
         "after": null
       },
-      "query": "query MetafieldDefinitionsHydrateResourceScope(\n  $ownerType: MetafieldOwnerType!\n  $query: String!\n  $first: Int!\n  $after: String\n) {\n  metafieldDefinitions(\n    ownerType: $ownerType\n    query: $query\n    first: $first\n    after: $after\n    sortKey: ID\n  ) {\n    nodes {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      description\n      validations {\n        name\n        value\n      }\n      access {\n        admin\n        storefront\n        customerAccount\n      }\n      capabilities {\n        adminFilterable {\n          enabled\n          eligible\n          status\n        }\n        smartCollectionCondition {\n          enabled\n          eligible\n        }\n        uniqueValues {\n          enabled\n          eligible\n        }\n      }\n      constraints {\n        key\n        values(first: 50) {\n          nodes {\n            value\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pinnedPosition\n      standardTemplate {\n        id\n      }\n      validationStatus\n      metafieldsCount\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
+      "query": "query MetafieldDefinitionsHydrateResourceScope(\n  $ownerType: MetafieldOwnerType!\n  $query: String!\n  $first: Int!\n  $after: String\n) {\n  metafieldDefinitions(ownerType: $ownerType, query: $query, first: $first, after: $after, sortKey: ID) {\n    nodes {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      description\n      validations {\n        name\n        value\n      }\n      access {\n        admin\n        storefront\n        customerAccount\n      }\n      capabilities {\n        adminFilterable {\n          enabled\n          eligible\n          status\n        }\n        smartCollectionCondition {\n          enabled\n          eligible\n        }\n        uniqueValues {\n          enabled\n          eligible\n        }\n      }\n      constraints {\n        key\n        values(first: 50) {\n          nodes {\n            value\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pinnedPosition\n      standardTemplate {\n        id\n      }\n      validationStatus\n      metafieldsCount\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -3520,7 +3520,7 @@
               "actualQueryCost": 31,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1959,
+                "currentlyAvailable": 1898,
                 "restoreRate": 100
               }
             }
@@ -3536,7 +3536,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "partial_mrtwve5o",
+          "namespace": "partial_ms4ux8hj",
           "key": "local"
         }
       },
@@ -3553,7 +3553,7 @@
               "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1997,
+                "currentlyAvailable": 1949,
                 "restoreRate": 100
               }
             }
@@ -3569,7 +3569,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "partial_other_mrtwve5o",
+          "namespace": "partial_other_ms4ux8hj",
           "key": "other"
         }
       },
@@ -3579,9 +3579,9 @@
         "body": {
           "data": {
             "metafieldDefinition": {
-              "id": "gid://shopify/MetafieldDefinition/227587948850",
+              "id": "gid://shopify/MetafieldDefinition/229597708594",
               "name": "Unrelated partial definition",
-              "namespace": "partial_other_mrtwve5o",
+              "namespace": "partial_other_ms4ux8hj",
               "key": "other",
               "ownerType": "PRODUCT",
               "type": {
@@ -3634,7 +3634,7 @@
               "actualQueryCost": 19,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1981,
+                "currentlyAvailable": 1945,
                 "restoreRate": 100
               }
             }
@@ -3650,7 +3650,7 @@
       "variables": {
         "ownerType": "PRODUCT",
         "key": "real",
-        "namespace": "partial_mrtwve5o",
+        "namespace": "partial_ms4ux8hj",
         "pinnedStatus": "ANY",
         "constraintSubtype": null,
         "constraintStatus": null,
@@ -3670,11 +3670,11 @@
             "metafieldDefinitions": {
               "edges": [
                 {
-                  "cursor": "eyJsYXN0X2lkIjoyMjc1ODc5MTYwODIsImxhc3RfdmFsdWUiOiIyMjc1ODc5MTYwODIifQ==",
+                  "cursor": "eyJsYXN0X2lkIjoyMjk1OTc2NDMwNTgsImxhc3RfdmFsdWUiOiIyMjk1OTc2NDMwNTgifQ==",
                   "node": {
-                    "id": "gid://shopify/MetafieldDefinition/227587916082",
+                    "id": "gid://shopify/MetafieldDefinition/229597643058",
                     "name": "Alpha partial real definition",
-                    "namespace": "partial_mrtwve5o",
+                    "namespace": "partial_ms4ux8hj",
                     "key": "real",
                     "ownerType": "PRODUCT",
                     "type": {
@@ -3725,8 +3725,8 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoyMjc1ODc5MTYwODIsImxhc3RfdmFsdWUiOiIyMjc1ODc5MTYwODIifQ==",
-                "endCursor": "eyJsYXN0X2lkIjoyMjc1ODc5MTYwODIsImxhc3RfdmFsdWUiOiIyMjc1ODc5MTYwODIifQ=="
+                "startCursor": "eyJsYXN0X2lkIjoyMjk1OTc2NDMwNTgsImxhc3RfdmFsdWUiOiIyMjk1OTc2NDMwNTgifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoyMjk1OTc2NDMwNTgsImxhc3RfdmFsdWUiOiIyMjk1OTc2NDMwNTgifQ=="
               }
             }
           },
@@ -3736,7 +3736,7 @@
               "actualQueryCost": 11,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1980,
+                "currentlyAvailable": 1945,
                 "restoreRate": 100
               }
             }
@@ -3752,7 +3752,7 @@
       "variables": {
         "ownerType": "PRODUCT",
         "key": "local",
-        "namespace": "partial_mrtwve5o",
+        "namespace": "partial_ms4ux8hj",
         "pinnedStatus": "ANY",
         "constraintSubtype": null,
         "constraintStatus": null,
@@ -3772,11 +3772,11 @@
             "metafieldDefinitions": {
               "edges": [
                 {
-                  "cursor": "eyJsYXN0X2lkIjoyMjc1ODc5ODE2MTgsImxhc3RfdmFsdWUiOiIyMjc1ODc5ODE2MTgifQ==",
+                  "cursor": "eyJsYXN0X2lkIjoyMjk1OTc3NzQxMzAsImxhc3RfdmFsdWUiOiIyMjk1OTc3NzQxMzAifQ==",
                   "node": {
-                    "id": "gid://shopify/MetafieldDefinition/227587981618",
+                    "id": "gid://shopify/MetafieldDefinition/229597774130",
                     "name": "Omega partial local definition",
-                    "namespace": "partial_mrtwve5o",
+                    "namespace": "partial_ms4ux8hj",
                     "key": "local",
                     "ownerType": "PRODUCT",
                     "type": {
@@ -3827,8 +3827,8 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoyMjc1ODc5ODE2MTgsImxhc3RfdmFsdWUiOiIyMjc1ODc5ODE2MTgifQ==",
-                "endCursor": "eyJsYXN0X2lkIjoyMjc1ODc5ODE2MTgsImxhc3RfdmFsdWUiOiIyMjc1ODc5ODE2MTgifQ=="
+                "startCursor": "eyJsYXN0X2lkIjoyMjk1OTc3NzQxMzAsImxhc3RfdmFsdWUiOiIyMjk1OTc3NzQxMzAifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoyMjk1OTc3NzQxMzAsImxhc3RfdmFsdWUiOiIyMjk1OTc3NzQxMzAifQ=="
               }
             }
           },
@@ -3838,7 +3838,7 @@
               "actualQueryCost": 11,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1980,
+                "currentlyAvailable": 1944,
                 "restoreRate": 100
               }
             }
@@ -3854,7 +3854,7 @@
       "variables": {
         "ownerType": "PRODUCT",
         "key": null,
-        "namespace": "partial_other_mrtwve5o",
+        "namespace": "partial_other_ms4ux8hj",
         "pinnedStatus": "ANY",
         "constraintSubtype": null,
         "constraintStatus": null,
@@ -3874,11 +3874,11 @@
             "metafieldDefinitions": {
               "edges": [
                 {
-                  "cursor": "eyJsYXN0X2lkIjoyMjc1ODc5NDg4NTAsImxhc3RfdmFsdWUiOiIyMjc1ODc5NDg4NTAifQ==",
+                  "cursor": "eyJsYXN0X2lkIjoyMjk1OTc3MDg1OTQsImxhc3RfdmFsdWUiOiIyMjk1OTc3MDg1OTQifQ==",
                   "node": {
-                    "id": "gid://shopify/MetafieldDefinition/227587948850",
+                    "id": "gid://shopify/MetafieldDefinition/229597708594",
                     "name": "Unrelated partial definition",
-                    "namespace": "partial_other_mrtwve5o",
+                    "namespace": "partial_other_ms4ux8hj",
                     "key": "other",
                     "ownerType": "PRODUCT",
                     "type": {
@@ -3929,8 +3929,8 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoyMjc1ODc5NDg4NTAsImxhc3RfdmFsdWUiOiIyMjc1ODc5NDg4NTAifQ==",
-                "endCursor": "eyJsYXN0X2lkIjoyMjc1ODc5NDg4NTAsImxhc3RfdmFsdWUiOiIyMjc1ODc5NDg4NTAifQ=="
+                "startCursor": "eyJsYXN0X2lkIjoyMjk1OTc3MDg1OTQsImxhc3RfdmFsdWUiOiIyMjk1OTc3MDg1OTQifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoyMjk1OTc3MDg1OTQsImxhc3RfdmFsdWUiOiIyMjk1OTc3MDg1OTQifQ=="
               }
             }
           },
@@ -3940,7 +3940,7 @@
               "actualQueryCost": 11,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1979,
+                "currentlyAvailable": 1944,
                 "restoreRate": 100
               }
             }
@@ -3956,7 +3956,7 @@
       "variables": {
         "ownerType": "PRODUCT",
         "key": "real",
-        "namespace": "partial_mrtwve5o",
+        "namespace": "partial_ms4ux8hj",
         "pinnedStatus": "ANY",
         "constraintSubtype": null,
         "constraintStatus": null,
@@ -3989,7 +3989,7 @@
               "actualQueryCost": 2,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1987,
+                "currentlyAvailable": 1960,
                 "restoreRate": 100
               }
             }
@@ -4005,7 +4005,7 @@
       "variables": {
         "ownerType": "PRODUCT",
         "key": "local",
-        "namespace": "partial_mrtwve5o",
+        "namespace": "partial_ms4ux8hj",
         "pinnedStatus": "ANY",
         "constraintSubtype": null,
         "constraintStatus": null,
@@ -4025,11 +4025,11 @@
             "metafieldDefinitions": {
               "edges": [
                 {
-                  "cursor": "eyJsYXN0X2lkIjoyMjc1ODc5ODE2MTgsImxhc3RfdmFsdWUiOiIyMjc1ODc5ODE2MTgifQ==",
+                  "cursor": "eyJsYXN0X2lkIjoyMjk1OTc3NzQxMzAsImxhc3RfdmFsdWUiOiIyMjk1OTc3NzQxMzAifQ==",
                   "node": {
-                    "id": "gid://shopify/MetafieldDefinition/227587981618",
+                    "id": "gid://shopify/MetafieldDefinition/229597774130",
                     "name": "Omega partial local definition",
-                    "namespace": "partial_mrtwve5o",
+                    "namespace": "partial_ms4ux8hj",
                     "key": "local",
                     "ownerType": "PRODUCT",
                     "type": {
@@ -4080,8 +4080,8 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoyMjc1ODc5ODE2MTgsImxhc3RfdmFsdWUiOiIyMjc1ODc5ODE2MTgifQ==",
-                "endCursor": "eyJsYXN0X2lkIjoyMjc1ODc5ODE2MTgsImxhc3RfdmFsdWUiOiIyMjc1ODc5ODE2MTgifQ=="
+                "startCursor": "eyJsYXN0X2lkIjoyMjk1OTc3NzQxMzAsImxhc3RfdmFsdWUiOiIyMjk1OTc3NzQxMzAifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoyMjk1OTc3NzQxMzAsImxhc3RfdmFsdWUiOiIyMjk1OTc3NzQxMzAifQ=="
               }
             }
           },
@@ -4091,7 +4091,7 @@
               "actualQueryCost": 13,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1985,
+                "currentlyAvailable": 1956,
                 "restoreRate": 100
               }
             }
@@ -4107,7 +4107,7 @@
       "variables": {
         "ownerType": "PRODUCT",
         "key": null,
-        "namespace": "partial_other_mrtwve5o",
+        "namespace": "partial_other_ms4ux8hj",
         "pinnedStatus": "ANY",
         "constraintSubtype": null,
         "constraintStatus": null,
@@ -4127,11 +4127,11 @@
             "metafieldDefinitions": {
               "edges": [
                 {
-                  "cursor": "eyJsYXN0X2lkIjoyMjc1ODc5NDg4NTAsImxhc3RfdmFsdWUiOiIyMjc1ODc5NDg4NTAifQ==",
+                  "cursor": "eyJsYXN0X2lkIjoyMjk1OTc3MDg1OTQsImxhc3RfdmFsdWUiOiIyMjk1OTc3MDg1OTQifQ==",
                   "node": {
-                    "id": "gid://shopify/MetafieldDefinition/227587948850",
+                    "id": "gid://shopify/MetafieldDefinition/229597708594",
                     "name": "Unrelated partial definition",
-                    "namespace": "partial_other_mrtwve5o",
+                    "namespace": "partial_other_ms4ux8hj",
                     "key": "other",
                     "ownerType": "PRODUCT",
                     "type": {
@@ -4182,8 +4182,8 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoyMjc1ODc5NDg4NTAsImxhc3RfdmFsdWUiOiIyMjc1ODc5NDg4NTAifQ==",
-                "endCursor": "eyJsYXN0X2lkIjoyMjc1ODc5NDg4NTAsImxhc3RfdmFsdWUiOiIyMjc1ODc5NDg4NTAifQ=="
+                "startCursor": "eyJsYXN0X2lkIjoyMjk1OTc3MDg1OTQsImxhc3RfdmFsdWUiOiIyMjk1OTc3MDg1OTQifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoyMjk1OTc3MDg1OTQsImxhc3RfdmFsdWUiOiIyMjk1OTc3MDg1OTQifQ=="
               }
             }
           },
@@ -4193,7 +4193,7 @@
               "actualQueryCost": 13,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1983,
+                "currentlyAvailable": 1954,
                 "restoreRate": 100
               }
             }
@@ -4208,7 +4208,7 @@
       "request": {
         "query": "mutation MetafieldDefinitionLifecycleDelete($id: ID!, $deleteAllAssociatedMetafields: Boolean!) {\n  metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: $deleteAllAssociatedMetafields) {\n    deletedDefinitionId\n    deletedDefinition {\n      ownerType\n      namespace\n      key\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/MetafieldDefinition/227587981618",
+          "id": "gid://shopify/MetafieldDefinition/229597774130",
           "deleteAllAssociatedMetafields": true
         }
       },
@@ -4216,10 +4216,10 @@
       "response": {
         "data": {
           "metafieldDefinitionDelete": {
-            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227587981618",
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229597774130",
             "deletedDefinition": {
               "ownerType": "PRODUCT",
-              "namespace": "partial_mrtwve5o",
+              "namespace": "partial_ms4ux8hj",
               "key": "local"
             },
             "userErrors": []
@@ -4231,7 +4231,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1981,
+              "currentlyAvailable": 1955,
               "restoreRate": 100
             }
           }
@@ -4243,7 +4243,7 @@
       "request": {
         "query": "mutation MetafieldDefinitionLifecycleDelete($id: ID!, $deleteAllAssociatedMetafields: Boolean!) {\n  metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: $deleteAllAssociatedMetafields) {\n    deletedDefinitionId\n    deletedDefinition {\n      ownerType\n      namespace\n      key\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/MetafieldDefinition/227587948850",
+          "id": "gid://shopify/MetafieldDefinition/229597708594",
           "deleteAllAssociatedMetafields": true
         }
       },
@@ -4251,10 +4251,10 @@
       "response": {
         "data": {
           "metafieldDefinitionDelete": {
-            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227587948850",
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229597708594",
             "deletedDefinition": {
               "ownerType": "PRODUCT",
-              "namespace": "partial_other_mrtwve5o",
+              "namespace": "partial_other_ms4ux8hj",
               "key": "other"
             },
             "userErrors": []
@@ -4266,7 +4266,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1986,
+              "currentlyAvailable": 1961,
               "restoreRate": 100
             }
           }

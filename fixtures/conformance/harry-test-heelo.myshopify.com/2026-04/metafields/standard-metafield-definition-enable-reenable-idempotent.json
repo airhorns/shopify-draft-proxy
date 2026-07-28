@@ -2,7 +2,7 @@
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "variables": {
-    "namespace": "standard_reenable_mru3adtw",
+    "namespace": "standard_reenable_ms4v14pw",
     "standardTemplateId": "gid://shopify/StandardMetafieldDefinitionTemplate/1"
   },
   "baselinePinnedDefinitions": [
@@ -312,7 +312,7 @@
     "request": {
       "documentPath": "config/parity-requests/metafields/standard-metafield-definition-enable-reenable-idempotent.graphql",
       "variables": {
-        "namespace": "standard_reenable_mru3adtw",
+        "namespace": "standard_reenable_ms4v14pw",
         "standardTemplateId": "gid://shopify/StandardMetafieldDefinitionTemplate/1"
       }
     },
@@ -380,7 +380,7 @@
         },
         "standardInitial": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227646865714",
+            "id": "gid://shopify/MetafieldDefinition/229610291506",
             "namespace": "descriptors",
             "key": "subtitle",
             "pinnedPosition": null
@@ -389,7 +389,7 @@
         },
         "standardReenable": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227646865714",
+            "id": "gid://shopify/MetafieldDefinition/229610291506",
             "namespace": "descriptors",
             "key": "subtitle",
             "pinnedPosition": null
@@ -398,7 +398,7 @@
         },
         "standardReenablePin": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227646865714",
+            "id": "gid://shopify/MetafieldDefinition/229610291506",
             "namespace": "descriptors",
             "key": "subtitle",
             "pinnedPosition": 21
@@ -423,13 +423,13 @@
     "request": {
       "documentPath": "config/parity-requests/metafields/standard-metafield-definition-enable-reenable-read.graphql",
       "variables": {
-        "definitionId": "gid://shopify/MetafieldDefinition/227646865714"
+        "definitionId": "gid://shopify/MetafieldDefinition/229610291506"
       }
     },
     "response": {
       "data": {
         "definitionByOriginalId": {
-          "id": "gid://shopify/MetafieldDefinition/227646865714",
+          "id": "gid://shopify/MetafieldDefinition/229610291506",
           "namespace": "descriptors",
           "key": "subtitle",
           "pinnedPosition": 21
@@ -441,7 +441,7 @@
           "actualQueryCost": 1,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1885,
+            "currentlyAvailable": 1890,
             "restoreRate": 100
           }
         }
@@ -451,128 +451,128 @@
   "cleanup": {
     "deletedDefinitions": [
       {
-        "id": "gid://shopify/MetafieldDefinition/227646210354",
-        "namespace": "standard_reenable_mru3adtw",
+        "id": "gid://shopify/MetafieldDefinition/229609636146",
+        "namespace": "standard_reenable_ms4v14pw",
         "key": "pin_01",
         "pinnedPosition": 1
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227646243122",
-        "namespace": "standard_reenable_mru3adtw",
+        "id": "gid://shopify/MetafieldDefinition/229609668914",
+        "namespace": "standard_reenable_ms4v14pw",
         "key": "pin_02",
         "pinnedPosition": 2
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227646275890",
-        "namespace": "standard_reenable_mru3adtw",
+        "id": "gid://shopify/MetafieldDefinition/229609701682",
+        "namespace": "standard_reenable_ms4v14pw",
         "key": "pin_03",
         "pinnedPosition": 3
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227646308658",
-        "namespace": "standard_reenable_mru3adtw",
+        "id": "gid://shopify/MetafieldDefinition/229609734450",
+        "namespace": "standard_reenable_ms4v14pw",
         "key": "pin_04",
         "pinnedPosition": 4
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227646341426",
-        "namespace": "standard_reenable_mru3adtw",
+        "id": "gid://shopify/MetafieldDefinition/229609767218",
+        "namespace": "standard_reenable_ms4v14pw",
         "key": "pin_05",
         "pinnedPosition": 5
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227646374194",
-        "namespace": "standard_reenable_mru3adtw",
+        "id": "gid://shopify/MetafieldDefinition/229609799986",
+        "namespace": "standard_reenable_ms4v14pw",
         "key": "pin_06",
         "pinnedPosition": 6
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227646406962",
-        "namespace": "standard_reenable_mru3adtw",
+        "id": "gid://shopify/MetafieldDefinition/229609832754",
+        "namespace": "standard_reenable_ms4v14pw",
         "key": "pin_07",
         "pinnedPosition": 7
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227646439730",
-        "namespace": "standard_reenable_mru3adtw",
+        "id": "gid://shopify/MetafieldDefinition/229609865522",
+        "namespace": "standard_reenable_ms4v14pw",
         "key": "pin_08",
         "pinnedPosition": 8
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227646472498",
-        "namespace": "standard_reenable_mru3adtw",
+        "id": "gid://shopify/MetafieldDefinition/229609898290",
+        "namespace": "standard_reenable_ms4v14pw",
         "key": "pin_09",
         "pinnedPosition": 9
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227646505266",
-        "namespace": "standard_reenable_mru3adtw",
+        "id": "gid://shopify/MetafieldDefinition/229609931058",
+        "namespace": "standard_reenable_ms4v14pw",
         "key": "pin_10",
         "pinnedPosition": 10
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227646538034",
-        "namespace": "standard_reenable_mru3adtw",
+        "id": "gid://shopify/MetafieldDefinition/229609963826",
+        "namespace": "standard_reenable_ms4v14pw",
         "key": "pin_11",
         "pinnedPosition": 11
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227646570802",
-        "namespace": "standard_reenable_mru3adtw",
+        "id": "gid://shopify/MetafieldDefinition/229609996594",
+        "namespace": "standard_reenable_ms4v14pw",
         "key": "pin_12",
         "pinnedPosition": 12
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227646603570",
-        "namespace": "standard_reenable_mru3adtw",
+        "id": "gid://shopify/MetafieldDefinition/229610029362",
+        "namespace": "standard_reenable_ms4v14pw",
         "key": "pin_13",
         "pinnedPosition": 13
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227646636338",
-        "namespace": "standard_reenable_mru3adtw",
+        "id": "gid://shopify/MetafieldDefinition/229610062130",
+        "namespace": "standard_reenable_ms4v14pw",
         "key": "pin_14",
         "pinnedPosition": 14
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227646669106",
-        "namespace": "standard_reenable_mru3adtw",
+        "id": "gid://shopify/MetafieldDefinition/229610094898",
+        "namespace": "standard_reenable_ms4v14pw",
         "key": "pin_15",
         "pinnedPosition": 15
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227646701874",
-        "namespace": "standard_reenable_mru3adtw",
+        "id": "gid://shopify/MetafieldDefinition/229610127666",
+        "namespace": "standard_reenable_ms4v14pw",
         "key": "pin_16",
         "pinnedPosition": 16
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227646734642",
-        "namespace": "standard_reenable_mru3adtw",
+        "id": "gid://shopify/MetafieldDefinition/229610160434",
+        "namespace": "standard_reenable_ms4v14pw",
         "key": "pin_17",
         "pinnedPosition": 17
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227646767410",
-        "namespace": "standard_reenable_mru3adtw",
+        "id": "gid://shopify/MetafieldDefinition/229610193202",
+        "namespace": "standard_reenable_ms4v14pw",
         "key": "pin_18",
         "pinnedPosition": 18
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227646800178",
-        "namespace": "standard_reenable_mru3adtw",
+        "id": "gid://shopify/MetafieldDefinition/229610225970",
+        "namespace": "standard_reenable_ms4v14pw",
         "key": "pin_19",
         "pinnedPosition": 19
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227646832946",
-        "namespace": "standard_reenable_mru3adtw",
+        "id": "gid://shopify/MetafieldDefinition/229610258738",
+        "namespace": "standard_reenable_ms4v14pw",
         "key": "pin_20",
         "pinnedPosition": 20
       }
     ],
     "deletedStandardDefinition": {
-      "id": "gid://shopify/MetafieldDefinition/227646865714",
+      "id": "gid://shopify/MetafieldDefinition/229610291506",
       "namespace": "descriptors",
       "key": "subtitle",
       "pinnedPosition": 1
@@ -889,7 +889,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "standard_reenable_mru3adtw",
+          "namespace": "standard_reenable_ms4v14pw",
           "key": "pin_01"
         }
       },
@@ -925,7 +925,7 @@
         "first": 250,
         "after": null
       },
-      "query": "query MetafieldDefinitionsHydrateResourceScope(\n  $ownerType: MetafieldOwnerType!\n  $query: String!\n  $first: Int!\n  $after: String\n) {\n  metafieldDefinitions(\n    ownerType: $ownerType\n    query: $query\n    first: $first\n    after: $after\n    sortKey: ID\n  ) {\n    nodes {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      description\n      validations {\n        name\n        value\n      }\n      access {\n        admin\n        storefront\n        customerAccount\n      }\n      capabilities {\n        adminFilterable {\n          enabled\n          eligible\n          status\n        }\n        smartCollectionCondition {\n          enabled\n          eligible\n        }\n        uniqueValues {\n          enabled\n          eligible\n        }\n      }\n      constraints {\n        key\n        values(first: 50) {\n          nodes {\n            value\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pinnedPosition\n      standardTemplate {\n        id\n      }\n      validationStatus\n      metafieldsCount\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
+      "query": "query MetafieldDefinitionsHydrateResourceScope(\n  $ownerType: MetafieldOwnerType!\n  $query: String!\n  $first: Int!\n  $after: String\n) {\n  metafieldDefinitions(ownerType: $ownerType, query: $query, first: $first, after: $after, sortKey: ID) {\n    nodes {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      description\n      validations {\n        name\n        value\n      }\n      access {\n        admin\n        storefront\n        customerAccount\n      }\n      capabilities {\n        adminFilterable {\n          enabled\n          eligible\n          status\n        }\n        smartCollectionCondition {\n          enabled\n          eligible\n        }\n        uniqueValues {\n          enabled\n          eligible\n        }\n      }\n      constraints {\n        key\n        values(first: 50) {\n          nodes {\n            value\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pinnedPosition\n      standardTemplate {\n        id\n      }\n      validationStatus\n      metafieldsCount\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -3923,7 +3923,7 @@
       "variables": {
         "ownerType": "PRODUCT"
       },
-      "query": "query MetafieldDefinitionsHydratePinnedOwner($ownerType: MetafieldOwnerType!) {\n  metafieldDefinitions(\n    ownerType: $ownerType\n    pinnedStatus: PINNED\n    first: 50\n    sortKey: PINNED_POSITION\n  ) {\n    nodes {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      description\n      validations {\n        name\n        value\n      }\n      access {\n        admin\n        storefront\n        customerAccount\n      }\n      capabilities {\n        adminFilterable {\n          enabled\n          eligible\n          status\n        }\n        smartCollectionCondition {\n          enabled\n          eligible\n        }\n        uniqueValues {\n          enabled\n          eligible\n        }\n      }\n      constraints {\n        key\n        values(first: 50) {\n          nodes {\n            value\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pinnedPosition\n      standardTemplate {\n        id\n      }\n      validationStatus\n      metafieldsCount\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
+      "query": "query MetafieldDefinitionsHydratePinnedOwner($ownerType: MetafieldOwnerType!) {\n  metafieldDefinitions(ownerType: $ownerType, pinnedStatus: PINNED, first: 50, sortKey: PINNED_POSITION) {\n    nodes {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      description\n      validations {\n        name\n        value\n      }\n      access {\n        admin\n        storefront\n        customerAccount\n      }\n      capabilities {\n        adminFilterable {\n          enabled\n          eligible\n          status\n        }\n        smartCollectionCondition {\n          enabled\n          eligible\n        }\n        uniqueValues {\n          enabled\n          eligible\n        }\n      }\n      constraints {\n        key\n        values(first: 50) {\n          nodes {\n            value\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pinnedPosition\n      standardTemplate {\n        id\n      }\n      validationStatus\n      metafieldsCount\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -3958,7 +3958,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "standard_reenable_mru3adtw",
+          "namespace": "standard_reenable_ms4v14pw",
           "key": "pin_02"
         }
       },
@@ -3975,7 +3975,7 @@
               "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1998,
+                "currentlyAvailable": 1999,
                 "restoreRate": 100
               }
             }
@@ -3991,7 +3991,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "standard_reenable_mru3adtw",
+          "namespace": "standard_reenable_ms4v14pw",
           "key": "pin_03"
         }
       },
@@ -4024,7 +4024,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "standard_reenable_mru3adtw",
+          "namespace": "standard_reenable_ms4v14pw",
           "key": "pin_04"
         }
       },
@@ -4057,7 +4057,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "standard_reenable_mru3adtw",
+          "namespace": "standard_reenable_ms4v14pw",
           "key": "pin_05"
         }
       },
@@ -4090,7 +4090,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "standard_reenable_mru3adtw",
+          "namespace": "standard_reenable_ms4v14pw",
           "key": "pin_06"
         }
       },
@@ -4123,7 +4123,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "standard_reenable_mru3adtw",
+          "namespace": "standard_reenable_ms4v14pw",
           "key": "pin_07"
         }
       },
@@ -4156,7 +4156,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "standard_reenable_mru3adtw",
+          "namespace": "standard_reenable_ms4v14pw",
           "key": "pin_08"
         }
       },
@@ -4189,7 +4189,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "standard_reenable_mru3adtw",
+          "namespace": "standard_reenable_ms4v14pw",
           "key": "pin_09"
         }
       },
@@ -4222,7 +4222,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "standard_reenable_mru3adtw",
+          "namespace": "standard_reenable_ms4v14pw",
           "key": "pin_10"
         }
       },
@@ -4255,7 +4255,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "standard_reenable_mru3adtw",
+          "namespace": "standard_reenable_ms4v14pw",
           "key": "pin_11"
         }
       },
@@ -4288,7 +4288,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "standard_reenable_mru3adtw",
+          "namespace": "standard_reenable_ms4v14pw",
           "key": "pin_12"
         }
       },
@@ -4321,7 +4321,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "standard_reenable_mru3adtw",
+          "namespace": "standard_reenable_ms4v14pw",
           "key": "pin_13"
         }
       },
@@ -4354,7 +4354,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "standard_reenable_mru3adtw",
+          "namespace": "standard_reenable_ms4v14pw",
           "key": "pin_14"
         }
       },
@@ -4387,7 +4387,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "standard_reenable_mru3adtw",
+          "namespace": "standard_reenable_ms4v14pw",
           "key": "pin_15"
         }
       },
@@ -4420,7 +4420,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "standard_reenable_mru3adtw",
+          "namespace": "standard_reenable_ms4v14pw",
           "key": "pin_16"
         }
       },
@@ -4453,7 +4453,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "standard_reenable_mru3adtw",
+          "namespace": "standard_reenable_ms4v14pw",
           "key": "pin_17"
         }
       },
@@ -4486,7 +4486,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "standard_reenable_mru3adtw",
+          "namespace": "standard_reenable_ms4v14pw",
           "key": "pin_18"
         }
       },
@@ -4519,7 +4519,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "standard_reenable_mru3adtw",
+          "namespace": "standard_reenable_ms4v14pw",
           "key": "pin_19"
         }
       },
@@ -4552,7 +4552,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "standard_reenable_mru3adtw",
+          "namespace": "standard_reenable_ms4v14pw",
           "key": "pin_20"
         }
       },

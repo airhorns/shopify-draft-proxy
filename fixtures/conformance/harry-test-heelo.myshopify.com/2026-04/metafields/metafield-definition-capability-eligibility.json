@@ -2,13 +2,13 @@
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "variables": {
-    "namespace": "capability_eligibility_mrtxq46h"
+    "namespace": "capability_eligibility_ms4uw7ba"
   },
   "primary": {
     "request": {
       "documentPath": "config/parity-requests/metafields/metafield-definition-capability-eligibility.graphql",
       "variables": {
-        "namespace": "capability_eligibility_mrtxq46h"
+        "namespace": "capability_eligibility_ms4uw7ba"
       }
     },
     "response": {
@@ -35,8 +35,8 @@
         },
         "idCreate": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227609182514",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229593743666",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "external_id",
             "ownerType": "PRODUCT",
             "type": {
@@ -63,8 +63,8 @@
         },
         "jsonBase": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227609215282",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229593776434",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "json_payload",
             "ownerType": "PRODUCT",
             "type": {
@@ -102,8 +102,8 @@
         },
         "admin01": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227609248050",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229593809202",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_01",
             "ownerType": "PRODUCT",
             "type": {
@@ -130,8 +130,8 @@
         },
         "admin02": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227609280818",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229593841970",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_02",
             "ownerType": "PRODUCT",
             "type": {
@@ -158,8 +158,8 @@
         },
         "admin03": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227609313586",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229593874738",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_03",
             "ownerType": "PRODUCT",
             "type": {
@@ -186,8 +186,8 @@
         },
         "admin04": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227609346354",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229593907506",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_04",
             "ownerType": "PRODUCT",
             "type": {
@@ -214,8 +214,8 @@
         },
         "admin05": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227609379122",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229593940274",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_05",
             "ownerType": "PRODUCT",
             "type": {
@@ -242,8 +242,8 @@
         },
         "admin06": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227609411890",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229593973042",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_06",
             "ownerType": "PRODUCT",
             "type": {
@@ -270,8 +270,8 @@
         },
         "admin07": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227609444658",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229594005810",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_07",
             "ownerType": "PRODUCT",
             "type": {
@@ -298,8 +298,8 @@
         },
         "admin08": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227609477426",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229594038578",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_08",
             "ownerType": "PRODUCT",
             "type": {
@@ -326,8 +326,8 @@
         },
         "admin09": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227609510194",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229594071346",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_09",
             "ownerType": "PRODUCT",
             "type": {
@@ -354,8 +354,8 @@
         },
         "admin10": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227609542962",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229594104114",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_10",
             "ownerType": "PRODUCT",
             "type": {
@@ -382,8 +382,8 @@
         },
         "admin11": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227609575730",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229594136882",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_11",
             "ownerType": "PRODUCT",
             "type": {
@@ -410,8 +410,8 @@
         },
         "admin12": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227609608498",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229594169650",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_12",
             "ownerType": "PRODUCT",
             "type": {
@@ -438,8 +438,8 @@
         },
         "admin13": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227609641266",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229594202418",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_13",
             "ownerType": "PRODUCT",
             "type": {
@@ -466,8 +466,8 @@
         },
         "admin14": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227609674034",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229594235186",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_14",
             "ownerType": "PRODUCT",
             "type": {
@@ -494,8 +494,8 @@
         },
         "admin15": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227609706802",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229594267954",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_15",
             "ownerType": "PRODUCT",
             "type": {
@@ -522,8 +522,8 @@
         },
         "admin16": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227609739570",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229594300722",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_16",
             "ownerType": "PRODUCT",
             "type": {
@@ -550,8 +550,8 @@
         },
         "admin17": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227609772338",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229594333490",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_17",
             "ownerType": "PRODUCT",
             "type": {
@@ -578,8 +578,8 @@
         },
         "admin18": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227609805106",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229594366258",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_18",
             "ownerType": "PRODUCT",
             "type": {
@@ -606,8 +606,8 @@
         },
         "admin19": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227609837874",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229594399026",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_19",
             "ownerType": "PRODUCT",
             "type": {
@@ -634,8 +634,8 @@
         },
         "admin20": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227609870642",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229594431794",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_20",
             "ownerType": "PRODUCT",
             "type": {
@@ -662,8 +662,8 @@
         },
         "admin21": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227609903410",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229594464562",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_21",
             "ownerType": "PRODUCT",
             "type": {
@@ -690,8 +690,8 @@
         },
         "admin22": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227609936178",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229594497330",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_22",
             "ownerType": "PRODUCT",
             "type": {
@@ -718,8 +718,8 @@
         },
         "admin23": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227609968946",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229594530098",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_23",
             "ownerType": "PRODUCT",
             "type": {
@@ -746,8 +746,8 @@
         },
         "admin24": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227610001714",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229594562866",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_24",
             "ownerType": "PRODUCT",
             "type": {
@@ -774,8 +774,8 @@
         },
         "admin25": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227610034482",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229594595634",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_25",
             "ownerType": "PRODUCT",
             "type": {
@@ -802,8 +802,8 @@
         },
         "admin26": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227610067250",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229594628402",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_26",
             "ownerType": "PRODUCT",
             "type": {
@@ -830,8 +830,8 @@
         },
         "admin27": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227610100018",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229594661170",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_27",
             "ownerType": "PRODUCT",
             "type": {
@@ -858,8 +858,8 @@
         },
         "admin28": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227610132786",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229594693938",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_28",
             "ownerType": "PRODUCT",
             "type": {
@@ -886,8 +886,8 @@
         },
         "admin29": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227610165554",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229594726706",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_29",
             "ownerType": "PRODUCT",
             "type": {
@@ -914,8 +914,8 @@
         },
         "admin30": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227610198322",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229594759474",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_30",
             "ownerType": "PRODUCT",
             "type": {
@@ -942,8 +942,8 @@
         },
         "admin31": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227610231090",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229594792242",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_31",
             "ownerType": "PRODUCT",
             "type": {
@@ -970,8 +970,8 @@
         },
         "admin32": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227610263858",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229594825010",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_32",
             "ownerType": "PRODUCT",
             "type": {
@@ -998,8 +998,8 @@
         },
         "admin33": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227610296626",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229594857778",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_33",
             "ownerType": "PRODUCT",
             "type": {
@@ -1026,8 +1026,8 @@
         },
         "admin34": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227610329394",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229594890546",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_34",
             "ownerType": "PRODUCT",
             "type": {
@@ -1054,8 +1054,8 @@
         },
         "admin35": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227610362162",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229594923314",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_35",
             "ownerType": "PRODUCT",
             "type": {
@@ -1082,8 +1082,8 @@
         },
         "admin36": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227610394930",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229594956082",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_36",
             "ownerType": "PRODUCT",
             "type": {
@@ -1110,8 +1110,8 @@
         },
         "admin37": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227610427698",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229594988850",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_37",
             "ownerType": "PRODUCT",
             "type": {
@@ -1138,8 +1138,8 @@
         },
         "admin38": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227610460466",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229595021618",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_38",
             "ownerType": "PRODUCT",
             "type": {
@@ -1166,8 +1166,8 @@
         },
         "admin39": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227610493234",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229595054386",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_39",
             "ownerType": "PRODUCT",
             "type": {
@@ -1194,8 +1194,8 @@
         },
         "admin40": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227610526002",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229595087154",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_40",
             "ownerType": "PRODUCT",
             "type": {
@@ -1222,8 +1222,8 @@
         },
         "admin41": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227610558770",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229595119922",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_41",
             "ownerType": "PRODUCT",
             "type": {
@@ -1250,8 +1250,8 @@
         },
         "admin42": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227610591538",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229595152690",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_42",
             "ownerType": "PRODUCT",
             "type": {
@@ -1278,8 +1278,8 @@
         },
         "admin43": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227610624306",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229595185458",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_43",
             "ownerType": "PRODUCT",
             "type": {
@@ -1306,8 +1306,8 @@
         },
         "admin44": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227610657074",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229595218226",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_44",
             "ownerType": "PRODUCT",
             "type": {
@@ -1334,8 +1334,8 @@
         },
         "admin45": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227610689842",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229595250994",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_45",
             "ownerType": "PRODUCT",
             "type": {
@@ -1362,8 +1362,8 @@
         },
         "admin46": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227610722610",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229595283762",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_46",
             "ownerType": "PRODUCT",
             "type": {
@@ -1390,8 +1390,8 @@
         },
         "admin47": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227610755378",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229595316530",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_47",
             "ownerType": "PRODUCT",
             "type": {
@@ -1418,8 +1418,8 @@
         },
         "admin48": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227610788146",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229595349298",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_48",
             "ownerType": "PRODUCT",
             "type": {
@@ -1446,8 +1446,8 @@
         },
         "admin49": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227610820914",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229595382066",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_49",
             "ownerType": "PRODUCT",
             "type": {
@@ -1474,8 +1474,8 @@
         },
         "admin50": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227610853682",
-            "namespace": "capability_eligibility_mrtxq46h",
+            "id": "gid://shopify/MetafieldDefinition/229595414834",
+            "namespace": "capability_eligibility_ms4uw7ba",
             "key": "admin_50",
             "ownerType": "PRODUCT",
             "type": {
@@ -1538,8 +1538,8 @@
     "preflightAdminFilterableDefinitions": [],
     "createdDefinitions": [
       {
-        "id": "gid://shopify/MetafieldDefinition/227609182514",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229593743666",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "external_id",
         "ownerType": "PRODUCT",
         "type": {
@@ -1563,8 +1563,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227609215282",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229593776434",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "json_payload",
         "ownerType": "PRODUCT",
         "type": {
@@ -1588,8 +1588,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227609248050",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229593809202",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_01",
         "ownerType": "PRODUCT",
         "type": {
@@ -1613,8 +1613,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227609280818",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229593841970",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_02",
         "ownerType": "PRODUCT",
         "type": {
@@ -1638,8 +1638,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227609313586",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229593874738",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_03",
         "ownerType": "PRODUCT",
         "type": {
@@ -1663,8 +1663,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227609346354",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229593907506",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_04",
         "ownerType": "PRODUCT",
         "type": {
@@ -1688,8 +1688,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227609379122",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229593940274",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_05",
         "ownerType": "PRODUCT",
         "type": {
@@ -1713,8 +1713,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227609411890",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229593973042",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_06",
         "ownerType": "PRODUCT",
         "type": {
@@ -1738,8 +1738,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227609444658",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229594005810",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_07",
         "ownerType": "PRODUCT",
         "type": {
@@ -1763,8 +1763,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227609477426",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229594038578",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_08",
         "ownerType": "PRODUCT",
         "type": {
@@ -1788,8 +1788,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227609510194",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229594071346",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_09",
         "ownerType": "PRODUCT",
         "type": {
@@ -1813,8 +1813,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227609542962",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229594104114",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_10",
         "ownerType": "PRODUCT",
         "type": {
@@ -1838,8 +1838,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227609575730",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229594136882",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_11",
         "ownerType": "PRODUCT",
         "type": {
@@ -1863,8 +1863,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227609608498",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229594169650",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_12",
         "ownerType": "PRODUCT",
         "type": {
@@ -1888,8 +1888,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227609641266",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229594202418",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_13",
         "ownerType": "PRODUCT",
         "type": {
@@ -1913,8 +1913,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227609674034",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229594235186",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_14",
         "ownerType": "PRODUCT",
         "type": {
@@ -1938,8 +1938,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227609706802",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229594267954",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_15",
         "ownerType": "PRODUCT",
         "type": {
@@ -1963,8 +1963,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227609739570",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229594300722",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_16",
         "ownerType": "PRODUCT",
         "type": {
@@ -1988,8 +1988,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227609772338",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229594333490",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_17",
         "ownerType": "PRODUCT",
         "type": {
@@ -2013,8 +2013,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227609805106",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229594366258",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_18",
         "ownerType": "PRODUCT",
         "type": {
@@ -2038,8 +2038,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227609837874",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229594399026",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_19",
         "ownerType": "PRODUCT",
         "type": {
@@ -2063,8 +2063,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227609870642",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229594431794",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_20",
         "ownerType": "PRODUCT",
         "type": {
@@ -2088,8 +2088,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227609903410",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229594464562",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_21",
         "ownerType": "PRODUCT",
         "type": {
@@ -2113,8 +2113,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227609936178",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229594497330",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_22",
         "ownerType": "PRODUCT",
         "type": {
@@ -2138,8 +2138,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227609968946",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229594530098",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_23",
         "ownerType": "PRODUCT",
         "type": {
@@ -2163,8 +2163,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227610001714",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229594562866",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_24",
         "ownerType": "PRODUCT",
         "type": {
@@ -2188,8 +2188,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227610034482",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229594595634",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_25",
         "ownerType": "PRODUCT",
         "type": {
@@ -2213,8 +2213,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227610067250",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229594628402",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_26",
         "ownerType": "PRODUCT",
         "type": {
@@ -2238,8 +2238,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227610100018",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229594661170",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_27",
         "ownerType": "PRODUCT",
         "type": {
@@ -2263,8 +2263,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227610132786",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229594693938",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_28",
         "ownerType": "PRODUCT",
         "type": {
@@ -2288,8 +2288,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227610165554",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229594726706",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_29",
         "ownerType": "PRODUCT",
         "type": {
@@ -2313,8 +2313,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227610198322",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229594759474",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_30",
         "ownerType": "PRODUCT",
         "type": {
@@ -2338,8 +2338,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227610231090",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229594792242",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_31",
         "ownerType": "PRODUCT",
         "type": {
@@ -2363,8 +2363,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227610263858",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229594825010",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_32",
         "ownerType": "PRODUCT",
         "type": {
@@ -2388,8 +2388,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227610296626",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229594857778",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_33",
         "ownerType": "PRODUCT",
         "type": {
@@ -2413,8 +2413,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227610329394",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229594890546",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_34",
         "ownerType": "PRODUCT",
         "type": {
@@ -2438,8 +2438,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227610362162",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229594923314",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_35",
         "ownerType": "PRODUCT",
         "type": {
@@ -2463,8 +2463,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227610394930",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229594956082",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_36",
         "ownerType": "PRODUCT",
         "type": {
@@ -2488,8 +2488,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227610427698",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229594988850",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_37",
         "ownerType": "PRODUCT",
         "type": {
@@ -2513,8 +2513,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227610460466",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229595021618",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_38",
         "ownerType": "PRODUCT",
         "type": {
@@ -2538,8 +2538,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227610493234",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229595054386",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_39",
         "ownerType": "PRODUCT",
         "type": {
@@ -2563,8 +2563,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227610526002",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229595087154",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_40",
         "ownerType": "PRODUCT",
         "type": {
@@ -2588,8 +2588,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227610558770",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229595119922",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_41",
         "ownerType": "PRODUCT",
         "type": {
@@ -2613,8 +2613,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227610591538",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229595152690",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_42",
         "ownerType": "PRODUCT",
         "type": {
@@ -2638,8 +2638,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227610624306",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229595185458",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_43",
         "ownerType": "PRODUCT",
         "type": {
@@ -2663,8 +2663,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227610657074",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229595218226",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_44",
         "ownerType": "PRODUCT",
         "type": {
@@ -2688,8 +2688,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227610689842",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229595250994",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_45",
         "ownerType": "PRODUCT",
         "type": {
@@ -2713,8 +2713,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227610722610",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229595283762",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_46",
         "ownerType": "PRODUCT",
         "type": {
@@ -2738,8 +2738,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227610755378",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229595316530",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_47",
         "ownerType": "PRODUCT",
         "type": {
@@ -2763,8 +2763,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227610788146",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229595349298",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_48",
         "ownerType": "PRODUCT",
         "type": {
@@ -2788,8 +2788,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227610820914",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229595382066",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_49",
         "ownerType": "PRODUCT",
         "type": {
@@ -2813,8 +2813,8 @@
         }
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/227610853682",
-        "namespace": "capability_eligibility_mrtxq46h",
+        "id": "gid://shopify/MetafieldDefinition/229595414834",
+        "namespace": "capability_eligibility_ms4uw7ba",
         "key": "admin_50",
         "ownerType": "PRODUCT",
         "type": {
@@ -2843,7 +2843,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227609182514",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229593743666",
           "userErrors": []
         }
       },
@@ -2853,7 +2853,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1406,
+            "currentlyAvailable": 1431,
             "restoreRate": 100
           }
         }
@@ -2862,7 +2862,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227609215282",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229593776434",
           "userErrors": []
         }
       },
@@ -2872,7 +2872,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1408,
+            "currentlyAvailable": 1435,
             "restoreRate": 100
           }
         }
@@ -2881,7 +2881,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227609248050",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229593809202",
           "userErrors": []
         }
       },
@@ -2891,7 +2891,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1411,
+            "currentlyAvailable": 1440,
             "restoreRate": 100
           }
         }
@@ -2900,7 +2900,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227609280818",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229593841970",
           "userErrors": []
         }
       },
@@ -2910,7 +2910,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1414,
+            "currentlyAvailable": 1445,
             "restoreRate": 100
           }
         }
@@ -2919,7 +2919,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227609313586",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229593874738",
           "userErrors": []
         }
       },
@@ -2929,7 +2929,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1417,
+            "currentlyAvailable": 1451,
             "restoreRate": 100
           }
         }
@@ -2938,7 +2938,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227609346354",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229593907506",
           "userErrors": []
         }
       },
@@ -2948,7 +2948,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1420,
+            "currentlyAvailable": 1457,
             "restoreRate": 100
           }
         }
@@ -2957,216 +2957,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227609379122",
-          "userErrors": []
-        }
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 10,
-          "actualQueryCost": 10,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1424,
-            "restoreRate": 100
-          }
-        }
-      }
-    },
-    {
-      "data": {
-        "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227609411890",
-          "userErrors": []
-        }
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 10,
-          "actualQueryCost": 10,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1428,
-            "restoreRate": 100
-          }
-        }
-      }
-    },
-    {
-      "data": {
-        "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227609444658",
-          "userErrors": []
-        }
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 10,
-          "actualQueryCost": 10,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1430,
-            "restoreRate": 100
-          }
-        }
-      }
-    },
-    {
-      "data": {
-        "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227609477426",
-          "userErrors": []
-        }
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 10,
-          "actualQueryCost": 10,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1433,
-            "restoreRate": 100
-          }
-        }
-      }
-    },
-    {
-      "data": {
-        "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227609510194",
-          "userErrors": []
-        }
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 10,
-          "actualQueryCost": 10,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1436,
-            "restoreRate": 100
-          }
-        }
-      }
-    },
-    {
-      "data": {
-        "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227609542962",
-          "userErrors": []
-        }
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 10,
-          "actualQueryCost": 10,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1439,
-            "restoreRate": 100
-          }
-        }
-      }
-    },
-    {
-      "data": {
-        "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227609575730",
-          "userErrors": []
-        }
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 10,
-          "actualQueryCost": 10,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1442,
-            "restoreRate": 100
-          }
-        }
-      }
-    },
-    {
-      "data": {
-        "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227609608498",
-          "userErrors": []
-        }
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 10,
-          "actualQueryCost": 10,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1446,
-            "restoreRate": 100
-          }
-        }
-      }
-    },
-    {
-      "data": {
-        "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227609641266",
-          "userErrors": []
-        }
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 10,
-          "actualQueryCost": 10,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1449,
-            "restoreRate": 100
-          }
-        }
-      }
-    },
-    {
-      "data": {
-        "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227609674034",
-          "userErrors": []
-        }
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 10,
-          "actualQueryCost": 10,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1452,
-            "restoreRate": 100
-          }
-        }
-      }
-    },
-    {
-      "data": {
-        "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227609706802",
-          "userErrors": []
-        }
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 10,
-          "actualQueryCost": 10,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1456,
-            "restoreRate": 100
-          }
-        }
-      }
-    },
-    {
-      "data": {
-        "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227609739570",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229593940274",
           "userErrors": []
         }
       },
@@ -3185,7 +2976,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227609772338",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229593973042",
           "userErrors": []
         }
       },
@@ -3195,7 +2986,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1463,
+            "currentlyAvailable": 1466,
             "restoreRate": 100
           }
         }
@@ -3204,26 +2995,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227609805106",
-          "userErrors": []
-        }
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 10,
-          "actualQueryCost": 10,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1467,
-            "restoreRate": 100
-          }
-        }
-      }
-    },
-    {
-      "data": {
-        "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227609837874",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229594005810",
           "userErrors": []
         }
       },
@@ -3242,7 +3014,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227609870642",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229594038578",
           "userErrors": []
         }
       },
@@ -3252,7 +3024,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1472,
+            "currentlyAvailable": 1475,
             "restoreRate": 100
           }
         }
@@ -3261,45 +3033,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227609903410",
-          "userErrors": []
-        }
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 10,
-          "actualQueryCost": 10,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1474,
-            "restoreRate": 100
-          }
-        }
-      }
-    },
-    {
-      "data": {
-        "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227609936178",
-          "userErrors": []
-        }
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 10,
-          "actualQueryCost": 10,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1477,
-            "restoreRate": 100
-          }
-        }
-      }
-    },
-    {
-      "data": {
-        "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227609968946",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229594071346",
           "userErrors": []
         }
       },
@@ -3318,7 +3052,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227610001714",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229594104114",
           "userErrors": []
         }
       },
@@ -3328,7 +3062,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1484,
+            "currentlyAvailable": 1486,
             "restoreRate": 100
           }
         }
@@ -3337,45 +3071,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227610034482",
-          "userErrors": []
-        }
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 10,
-          "actualQueryCost": 10,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1487,
-            "restoreRate": 100
-          }
-        }
-      }
-    },
-    {
-      "data": {
-        "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227610067250",
-          "userErrors": []
-        }
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 10,
-          "actualQueryCost": 10,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1492,
-            "restoreRate": 100
-          }
-        }
-      }
-    },
-    {
-      "data": {
-        "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227610100018",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229594136882",
           "userErrors": []
         }
       },
@@ -3394,7 +3090,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227610132786",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229594169650",
           "userErrors": []
         }
       },
@@ -3413,7 +3109,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227610165554",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229594202418",
           "userErrors": []
         }
       },
@@ -3432,7 +3128,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227610198322",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229594235186",
           "userErrors": []
         }
       },
@@ -3442,7 +3138,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1505,
+            "currentlyAvailable": 1508,
             "restoreRate": 100
           }
         }
@@ -3451,7 +3147,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227610231090",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229594267954",
           "userErrors": []
         }
       },
@@ -3461,7 +3157,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1512,
+            "currentlyAvailable": 1511,
             "restoreRate": 100
           }
         }
@@ -3470,7 +3166,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227610263858",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229594300722",
           "userErrors": []
         }
       },
@@ -3489,7 +3185,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227610296626",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229594333490",
           "userErrors": []
         }
       },
@@ -3499,7 +3195,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1518,
+            "currentlyAvailable": 1519,
             "restoreRate": 100
           }
         }
@@ -3508,7 +3204,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227610329394",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229594366258",
           "userErrors": []
         }
       },
@@ -3518,7 +3214,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1520,
+            "currentlyAvailable": 1523,
             "restoreRate": 100
           }
         }
@@ -3527,7 +3223,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227610362162",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229594399026",
           "userErrors": []
         }
       },
@@ -3537,7 +3233,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1522,
+            "currentlyAvailable": 1527,
             "restoreRate": 100
           }
         }
@@ -3546,7 +3242,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227610394930",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229594431794",
           "userErrors": []
         }
       },
@@ -3556,7 +3252,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1525,
+            "currentlyAvailable": 1532,
             "restoreRate": 100
           }
         }
@@ -3565,45 +3261,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227610427698",
-          "userErrors": []
-        }
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 10,
-          "actualQueryCost": 10,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1531,
-            "restoreRate": 100
-          }
-        }
-      }
-    },
-    {
-      "data": {
-        "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227610460466",
-          "userErrors": []
-        }
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 10,
-          "actualQueryCost": 10,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1534,
-            "restoreRate": 100
-          }
-        }
-      }
-    },
-    {
-      "data": {
-        "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227610493234",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229594464562",
           "userErrors": []
         }
       },
@@ -3622,7 +3280,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227610526002",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229594497330",
           "userErrors": []
         }
       },
@@ -3632,7 +3290,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1541,
+            "currentlyAvailable": 1540,
             "restoreRate": 100
           }
         }
@@ -3641,7 +3299,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227610558770",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229594530098",
           "userErrors": []
         }
       },
@@ -3660,7 +3318,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227610591538",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229594562866",
           "userErrors": []
         }
       },
@@ -3670,7 +3328,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1546,
+            "currentlyAvailable": 1548,
             "restoreRate": 100
           }
         }
@@ -3679,26 +3337,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227610624306",
-          "userErrors": []
-        }
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 10,
-          "actualQueryCost": 10,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1549,
-            "restoreRate": 100
-          }
-        }
-      }
-    },
-    {
-      "data": {
-        "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227610657074",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229594595634",
           "userErrors": []
         }
       },
@@ -3717,7 +3356,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227610689842",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229594628402",
           "userErrors": []
         }
       },
@@ -3727,7 +3366,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1554,
+            "currentlyAvailable": 1556,
             "restoreRate": 100
           }
         }
@@ -3736,7 +3375,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227610722610",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229594661170",
           "userErrors": []
         }
       },
@@ -3746,7 +3385,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1558,
+            "currentlyAvailable": 1560,
             "restoreRate": 100
           }
         }
@@ -3755,26 +3394,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227610755378",
-          "userErrors": []
-        }
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 10,
-          "actualQueryCost": 10,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1561,
-            "restoreRate": 100
-          }
-        }
-      }
-    },
-    {
-      "data": {
-        "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227610788146",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229594693938",
           "userErrors": []
         }
       },
@@ -3793,7 +3413,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227610820914",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229594726706",
           "userErrors": []
         }
       },
@@ -3812,7 +3432,7 @@
     {
       "data": {
         "metafieldDefinitionDelete": {
-          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227610853682",
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229594759474",
           "userErrors": []
         }
       },
@@ -3822,7 +3442,387 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1570,
+            "currentlyAvailable": 1572,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229594792242",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1577,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229594825010",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1579,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229594857778",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1582,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229594890546",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1586,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229594923314",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1590,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229594956082",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1598,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229594988850",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1609,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229595021618",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1614,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229595054386",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1619,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229595087154",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1625,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229595119922",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1629,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229595152690",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1633,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229595185458",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1638,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229595218226",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1642,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229595250994",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1647,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229595283762",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1651,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229595316530",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1654,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229595349298",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1660,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229595382066",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1665,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229595414834",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1669,
             "restoreRate": 100
           }
         }
@@ -3838,7 +3838,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "external_id"
         }
       },
@@ -3855,7 +3855,7 @@
               "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1997,
+                "currentlyAvailable": 1999,
                 "restoreRate": 100
               }
             }
@@ -3871,7 +3871,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "json_payload"
         }
       },
@@ -3904,7 +3904,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_01"
         }
       },
@@ -3937,7 +3937,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_02"
         }
       },
@@ -3970,7 +3970,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_03"
         }
       },
@@ -4003,7 +4003,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_04"
         }
       },
@@ -4036,7 +4036,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_05"
         }
       },
@@ -4069,7 +4069,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_06"
         }
       },
@@ -4102,7 +4102,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_07"
         }
       },
@@ -4135,7 +4135,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_08"
         }
       },
@@ -4168,7 +4168,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_09"
         }
       },
@@ -4201,7 +4201,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_10"
         }
       },
@@ -4234,7 +4234,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_11"
         }
       },
@@ -4267,7 +4267,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_12"
         }
       },
@@ -4300,7 +4300,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_13"
         }
       },
@@ -4333,7 +4333,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_14"
         }
       },
@@ -4366,7 +4366,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_15"
         }
       },
@@ -4399,7 +4399,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_16"
         }
       },
@@ -4432,7 +4432,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_17"
         }
       },
@@ -4465,7 +4465,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_18"
         }
       },
@@ -4498,7 +4498,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_19"
         }
       },
@@ -4531,7 +4531,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_20"
         }
       },
@@ -4564,7 +4564,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_21"
         }
       },
@@ -4597,7 +4597,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_22"
         }
       },
@@ -4630,7 +4630,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_23"
         }
       },
@@ -4663,7 +4663,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_24"
         }
       },
@@ -4696,7 +4696,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_25"
         }
       },
@@ -4729,7 +4729,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_26"
         }
       },
@@ -4762,7 +4762,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_27"
         }
       },
@@ -4795,7 +4795,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_28"
         }
       },
@@ -4828,7 +4828,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_29"
         }
       },
@@ -4861,7 +4861,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_30"
         }
       },
@@ -4894,7 +4894,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_31"
         }
       },
@@ -4927,7 +4927,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_32"
         }
       },
@@ -4960,7 +4960,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_33"
         }
       },
@@ -4993,7 +4993,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_34"
         }
       },
@@ -5026,7 +5026,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_35"
         }
       },
@@ -5059,7 +5059,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_36"
         }
       },
@@ -5092,7 +5092,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_37"
         }
       },
@@ -5125,7 +5125,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_38"
         }
       },
@@ -5158,7 +5158,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_39"
         }
       },
@@ -5191,7 +5191,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_40"
         }
       },
@@ -5224,7 +5224,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_41"
         }
       },
@@ -5257,7 +5257,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_42"
         }
       },
@@ -5290,7 +5290,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_43"
         }
       },
@@ -5323,7 +5323,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_44"
         }
       },
@@ -5356,7 +5356,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_45"
         }
       },
@@ -5389,7 +5389,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_46"
         }
       },
@@ -5422,7 +5422,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_47"
         }
       },
@@ -5455,7 +5455,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_48"
         }
       },
@@ -5488,7 +5488,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_49"
         }
       },
@@ -5521,7 +5521,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_50"
         }
       },
@@ -5554,7 +5554,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "capability_eligibility_mrtxq46h",
+          "namespace": "capability_eligibility_ms4uw7ba",
           "key": "admin_51"
         }
       },
@@ -5829,7 +5829,7 @@
         "first": 250,
         "after": null
       },
-      "query": "query MetafieldDefinitionsHydrateResourceScope(\n  $ownerType: MetafieldOwnerType!\n  $query: String!\n  $first: Int!\n  $after: String\n) {\n  metafieldDefinitions(\n    ownerType: $ownerType\n    query: $query\n    first: $first\n    after: $after\n    sortKey: ID\n  ) {\n    nodes {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      description\n      validations {\n        name\n        value\n      }\n      access {\n        admin\n        storefront\n        customerAccount\n      }\n      capabilities {\n        adminFilterable {\n          enabled\n          eligible\n          status\n        }\n        smartCollectionCondition {\n          enabled\n          eligible\n        }\n        uniqueValues {\n          enabled\n          eligible\n        }\n      }\n      constraints {\n        key\n        values(first: 50) {\n          nodes {\n            value\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pinnedPosition\n      standardTemplate {\n        id\n      }\n      validationStatus\n      metafieldsCount\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
+      "query": "query MetafieldDefinitionsHydrateResourceScope(\n  $ownerType: MetafieldOwnerType!\n  $query: String!\n  $first: Int!\n  $after: String\n) {\n  metafieldDefinitions(ownerType: $ownerType, query: $query, first: $first, after: $after, sortKey: ID) {\n    nodes {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      description\n      validations {\n        name\n        value\n      }\n      access {\n        admin\n        storefront\n        customerAccount\n      }\n      capabilities {\n        adminFilterable {\n          enabled\n          eligible\n          status\n        }\n        smartCollectionCondition {\n          enabled\n          eligible\n        }\n        uniqueValues {\n          enabled\n          eligible\n        }\n      }\n      constraints {\n        key\n        values(first: 50) {\n          nodes {\n            value\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pinnedPosition\n      standardTemplate {\n        id\n      }\n      validationStatus\n      metafieldsCount\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -8811,7 +8811,7 @@
               "actualQueryCost": 31,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1962,
+                "currentlyAvailable": 1966,
                 "restoreRate": 100
               }
             }

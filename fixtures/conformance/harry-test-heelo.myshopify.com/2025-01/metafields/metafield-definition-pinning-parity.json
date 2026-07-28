@@ -1,13 +1,13 @@
 {
-  "capturedAt": "2026-07-21T00:31:41.968Z",
+  "capturedAt": "2026-07-28T16:15:59.597Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "response": {
     "data": {
       "byIdentifier": {
-        "id": "gid://shopify/MetafieldDefinition/227588079922",
+        "id": "gid://shopify/MetafieldDefinition/229599510834",
         "name": "HAR 256 pin_a",
-        "namespace": "metafield_definition_pin_mrtx4kqi",
+        "namespace": "metafield_definition_pin_ms4uxvz6",
         "key": "pin_a",
         "ownerType": "PRODUCT",
         "type": {
@@ -53,9 +53,9 @@
       "metafieldDefinitions": {
         "nodes": [
           {
-            "id": "gid://shopify/MetafieldDefinition/227588112690",
+            "id": "gid://shopify/MetafieldDefinition/229599543602",
             "name": "HAR 256 pin_b",
-            "namespace": "metafield_definition_pin_mrtx4kqi",
+            "namespace": "metafield_definition_pin_ms4uxvz6",
             "key": "pin_b",
             "ownerType": "PRODUCT",
             "type": {
@@ -96,12 +96,12 @@
               }
             },
             "pinnedPosition": null,
-            "validationStatus": "ALL_VALID"
+            "validationStatus": "IN_PROGRESS"
           },
           {
-            "id": "gid://shopify/MetafieldDefinition/227588079922",
+            "id": "gid://shopify/MetafieldDefinition/229599510834",
             "name": "HAR 256 pin_a",
-            "namespace": "metafield_definition_pin_mrtx4kqi",
+            "namespace": "metafield_definition_pin_ms4uxvz6",
             "key": "pin_a",
             "ownerType": "PRODUCT",
             "type": {
@@ -148,16 +148,16 @@
         "pageInfo": {
           "hasNextPage": false,
           "hasPreviousPage": false,
-          "startCursor": "eyJsYXN0X2lkIjoyMjc1ODgxMTI2OTAsImxhc3RfdmFsdWUiOiIwIn0=",
-          "endCursor": "eyJsYXN0X2lkIjoyMjc1ODgwNzk5MjIsImxhc3RfdmFsdWUiOiIwIn0="
+          "startCursor": "eyJsYXN0X2lkIjoyMjk1OTk1NDM2MDIsImxhc3RfdmFsdWUiOiIwIn0=",
+          "endCursor": "eyJsYXN0X2lkIjoyMjk1OTk1MTA4MzQsImxhc3RfdmFsdWUiOiIwIn0="
         }
       },
       "seedCatalog": {
         "nodes": [
           {
-            "id": "gid://shopify/MetafieldDefinition/227588112690",
+            "id": "gid://shopify/MetafieldDefinition/229599543602",
             "name": "HAR 256 pin_b",
-            "namespace": "metafield_definition_pin_mrtx4kqi",
+            "namespace": "metafield_definition_pin_ms4uxvz6",
             "key": "pin_b",
             "ownerType": "PRODUCT",
             "type": {
@@ -198,12 +198,12 @@
               }
             },
             "pinnedPosition": null,
-            "validationStatus": "ALL_VALID"
+            "validationStatus": "IN_PROGRESS"
           },
           {
-            "id": "gid://shopify/MetafieldDefinition/227588079922",
+            "id": "gid://shopify/MetafieldDefinition/229599510834",
             "name": "HAR 256 pin_a",
-            "namespace": "metafield_definition_pin_mrtx4kqi",
+            "namespace": "metafield_definition_pin_ms4uxvz6",
             "key": "pin_a",
             "ownerType": "PRODUCT",
             "type": {
@@ -2499,14 +2499,14 @@
         "actualQueryCost": 115,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1297,
+          "currentlyAvailable": 1115,
           "restoreRate": 100
         }
       }
     }
   },
   "downstreamReadVariables": {
-    "namespace": "metafield_definition_pin_mrtx4kqi"
+    "namespace": "metafield_definition_pin_ms4uxvz6"
   },
   "baselinePinnedDefinitions": [
     {
@@ -2711,14 +2711,14 @@
     }
   ],
   "createdDefinitionIds": {
-    "pinA": "gid://shopify/MetafieldDefinition/227588079922",
-    "pinB": "gid://shopify/MetafieldDefinition/227588112690"
+    "pinA": "gid://shopify/MetafieldDefinition/229599510834",
+    "pinB": "gid://shopify/MetafieldDefinition/229599543602"
   },
   "pinByIdentifier": {
     "variables": {
       "identifier": {
         "ownerType": "PRODUCT",
-        "namespace": "metafield_definition_pin_mrtx4kqi",
+        "namespace": "metafield_definition_pin_ms4uxvz6",
         "key": "pin_a"
       }
     },
@@ -2726,9 +2726,9 @@
       "data": {
         "metafieldDefinitionPin": {
           "pinnedDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227588079922",
+            "id": "gid://shopify/MetafieldDefinition/229599510834",
             "name": "HAR 256 pin_a",
-            "namespace": "metafield_definition_pin_mrtx4kqi",
+            "namespace": "metafield_definition_pin_ms4uxvz6",
             "key": "pin_a",
             "ownerType": "PRODUCT",
             "type": {
@@ -2780,7 +2780,7 @@
           "actualQueryCost": 24,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1288,
+            "currentlyAvailable": 1109,
             "restoreRate": 100
           }
         }
@@ -2791,7 +2791,7 @@
     "variables": {
       "identifier": {
         "ownerType": "PRODUCT",
-        "namespace": "metafield_definition_pin_mrtx4kqi",
+        "namespace": "metafield_definition_pin_ms4uxvz6",
         "key": "pin_a"
       }
     },
@@ -2814,7 +2814,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1290,
+            "currentlyAvailable": 1112,
             "restoreRate": 100
           }
         }
@@ -2824,9 +2824,9 @@
   "afterPinByIdentifierRead": {
     "data": {
       "byIdentifier": {
-        "id": "gid://shopify/MetafieldDefinition/227588079922",
+        "id": "gid://shopify/MetafieldDefinition/229599510834",
         "name": "HAR 256 pin_a",
-        "namespace": "metafield_definition_pin_mrtx4kqi",
+        "namespace": "metafield_definition_pin_ms4uxvz6",
         "key": "pin_a",
         "ownerType": "PRODUCT",
         "type": {
@@ -2872,9 +2872,9 @@
       "metafieldDefinitions": {
         "nodes": [
           {
-            "id": "gid://shopify/MetafieldDefinition/227588079922",
+            "id": "gid://shopify/MetafieldDefinition/229599510834",
             "name": "HAR 256 pin_a",
-            "namespace": "metafield_definition_pin_mrtx4kqi",
+            "namespace": "metafield_definition_pin_ms4uxvz6",
             "key": "pin_a",
             "ownerType": "PRODUCT",
             "type": {
@@ -2918,9 +2918,9 @@
             "validationStatus": "ALL_VALID"
           },
           {
-            "id": "gid://shopify/MetafieldDefinition/227588112690",
+            "id": "gid://shopify/MetafieldDefinition/229599543602",
             "name": "HAR 256 pin_b",
-            "namespace": "metafield_definition_pin_mrtx4kqi",
+            "namespace": "metafield_definition_pin_ms4uxvz6",
             "key": "pin_b",
             "ownerType": "PRODUCT",
             "type": {
@@ -2967,14 +2967,14 @@
         "pageInfo": {
           "hasNextPage": false,
           "hasPreviousPage": false,
-          "startCursor": "eyJsYXN0X2lkIjoyMjc1ODgwNzk5MjIsImxhc3RfdmFsdWUiOiIxIn0=",
-          "endCursor": "eyJsYXN0X2lkIjoyMjc1ODgxMTI2OTAsImxhc3RfdmFsdWUiOiIwIn0="
+          "startCursor": "eyJsYXN0X2lkIjoyMjk1OTk1MTA4MzQsImxhc3RfdmFsdWUiOiIxIn0=",
+          "endCursor": "eyJsYXN0X2lkIjoyMjk1OTk1NDM2MDIsImxhc3RfdmFsdWUiOiIwIn0="
         }
       },
       "pinned": {
         "nodes": [
           {
-            "id": "gid://shopify/MetafieldDefinition/227588079922",
+            "id": "gid://shopify/MetafieldDefinition/229599510834",
             "key": "pin_a",
             "pinnedPosition": 1
           }
@@ -2983,7 +2983,7 @@
       "unpinned": {
         "nodes": [
           {
-            "id": "gid://shopify/MetafieldDefinition/227588112690",
+            "id": "gid://shopify/MetafieldDefinition/229599543602",
             "key": "pin_b",
             "pinnedPosition": null
           }
@@ -2996,7 +2996,7 @@
         "actualQueryCost": 35,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1264,
+          "currentlyAvailable": 1094,
           "restoreRate": 100
         }
       }
@@ -3004,15 +3004,15 @@
   },
   "pinById": {
     "variables": {
-      "definitionId": "gid://shopify/MetafieldDefinition/227588112690"
+      "definitionId": "gid://shopify/MetafieldDefinition/229599543602"
     },
     "response": {
       "data": {
         "metafieldDefinitionPin": {
           "pinnedDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227588112690",
+            "id": "gid://shopify/MetafieldDefinition/229599543602",
             "name": "HAR 256 pin_b",
-            "namespace": "metafield_definition_pin_mrtx4kqi",
+            "namespace": "metafield_definition_pin_ms4uxvz6",
             "key": "pin_b",
             "ownerType": "PRODUCT",
             "type": {
@@ -3064,7 +3064,7 @@
           "actualQueryCost": 24,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1254,
+            "currentlyAvailable": 1083,
             "restoreRate": 100
           }
         }
@@ -3074,9 +3074,9 @@
   "afterPinByIdRead": {
     "data": {
       "byIdentifier": {
-        "id": "gid://shopify/MetafieldDefinition/227588079922",
+        "id": "gid://shopify/MetafieldDefinition/229599510834",
         "name": "HAR 256 pin_a",
-        "namespace": "metafield_definition_pin_mrtx4kqi",
+        "namespace": "metafield_definition_pin_ms4uxvz6",
         "key": "pin_a",
         "ownerType": "PRODUCT",
         "type": {
@@ -3122,9 +3122,9 @@
       "metafieldDefinitions": {
         "nodes": [
           {
-            "id": "gid://shopify/MetafieldDefinition/227588112690",
+            "id": "gid://shopify/MetafieldDefinition/229599543602",
             "name": "HAR 256 pin_b",
-            "namespace": "metafield_definition_pin_mrtx4kqi",
+            "namespace": "metafield_definition_pin_ms4uxvz6",
             "key": "pin_b",
             "ownerType": "PRODUCT",
             "type": {
@@ -3168,9 +3168,9 @@
             "validationStatus": "ALL_VALID"
           },
           {
-            "id": "gid://shopify/MetafieldDefinition/227588079922",
+            "id": "gid://shopify/MetafieldDefinition/229599510834",
             "name": "HAR 256 pin_a",
-            "namespace": "metafield_definition_pin_mrtx4kqi",
+            "namespace": "metafield_definition_pin_ms4uxvz6",
             "key": "pin_a",
             "ownerType": "PRODUCT",
             "type": {
@@ -3217,19 +3217,19 @@
         "pageInfo": {
           "hasNextPage": false,
           "hasPreviousPage": false,
-          "startCursor": "eyJsYXN0X2lkIjoyMjc1ODgxMTI2OTAsImxhc3RfdmFsdWUiOiIyIn0=",
-          "endCursor": "eyJsYXN0X2lkIjoyMjc1ODgwNzk5MjIsImxhc3RfdmFsdWUiOiIxIn0="
+          "startCursor": "eyJsYXN0X2lkIjoyMjk1OTk1NDM2MDIsImxhc3RfdmFsdWUiOiIyIn0=",
+          "endCursor": "eyJsYXN0X2lkIjoyMjk1OTk1MTA4MzQsImxhc3RfdmFsdWUiOiIxIn0="
         }
       },
       "pinned": {
         "nodes": [
           {
-            "id": "gid://shopify/MetafieldDefinition/227588112690",
+            "id": "gid://shopify/MetafieldDefinition/229599543602",
             "key": "pin_b",
             "pinnedPosition": 2
           },
           {
-            "id": "gid://shopify/MetafieldDefinition/227588079922",
+            "id": "gid://shopify/MetafieldDefinition/229599510834",
             "key": "pin_a",
             "pinnedPosition": 1
           }
@@ -3245,7 +3245,7 @@
         "actualQueryCost": 38,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1232,
+          "currentlyAvailable": 1068,
           "restoreRate": 100
         }
       }
@@ -3255,7 +3255,7 @@
     "variables": {
       "identifier": {
         "ownerType": "PRODUCT",
-        "namespace": "metafield_definition_pin_mrtx4kqi",
+        "namespace": "metafield_definition_pin_ms4uxvz6",
         "key": "pin_a"
       }
     },
@@ -3263,9 +3263,9 @@
       "data": {
         "metafieldDefinitionUnpin": {
           "unpinnedDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227588079922",
+            "id": "gid://shopify/MetafieldDefinition/229599510834",
             "name": "HAR 256 pin_a",
-            "namespace": "metafield_definition_pin_mrtx4kqi",
+            "namespace": "metafield_definition_pin_ms4uxvz6",
             "key": "pin_a",
             "ownerType": "PRODUCT",
             "type": {
@@ -3317,7 +3317,7 @@
           "actualQueryCost": 24,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1219,
+            "currentlyAvailable": 1055,
             "restoreRate": 100
           }
         }
@@ -3328,7 +3328,7 @@
     "variables": {
       "identifier": {
         "ownerType": "PRODUCT",
-        "namespace": "metafield_definition_pin_mrtx4kqi",
+        "namespace": "metafield_definition_pin_ms4uxvz6",
         "key": "pin_a"
       }
     },
@@ -3339,7 +3339,7 @@
           "userErrors": [
             {
               "field": null,
-              "message": "Definition 227588079922 isn't pinned.",
+              "message": "Definition 229599510834 isn't pinned.",
               "code": "NOT_PINNED"
             }
           ]
@@ -3351,7 +3351,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1222,
+            "currentlyAvailable": 1061,
             "restoreRate": 100
           }
         }
@@ -3361,9 +3361,9 @@
   "afterUnpinByIdentifierRead": {
     "data": {
       "byIdentifier": {
-        "id": "gid://shopify/MetafieldDefinition/227588079922",
+        "id": "gid://shopify/MetafieldDefinition/229599510834",
         "name": "HAR 256 pin_a",
-        "namespace": "metafield_definition_pin_mrtx4kqi",
+        "namespace": "metafield_definition_pin_ms4uxvz6",
         "key": "pin_a",
         "ownerType": "PRODUCT",
         "type": {
@@ -3409,9 +3409,9 @@
       "metafieldDefinitions": {
         "nodes": [
           {
-            "id": "gid://shopify/MetafieldDefinition/227588112690",
+            "id": "gid://shopify/MetafieldDefinition/229599543602",
             "name": "HAR 256 pin_b",
-            "namespace": "metafield_definition_pin_mrtx4kqi",
+            "namespace": "metafield_definition_pin_ms4uxvz6",
             "key": "pin_b",
             "ownerType": "PRODUCT",
             "type": {
@@ -3455,9 +3455,9 @@
             "validationStatus": "ALL_VALID"
           },
           {
-            "id": "gid://shopify/MetafieldDefinition/227588079922",
+            "id": "gid://shopify/MetafieldDefinition/229599510834",
             "name": "HAR 256 pin_a",
-            "namespace": "metafield_definition_pin_mrtx4kqi",
+            "namespace": "metafield_definition_pin_ms4uxvz6",
             "key": "pin_a",
             "ownerType": "PRODUCT",
             "type": {
@@ -3504,14 +3504,14 @@
         "pageInfo": {
           "hasNextPage": false,
           "hasPreviousPage": false,
-          "startCursor": "eyJsYXN0X2lkIjoyMjc1ODgxMTI2OTAsImxhc3RfdmFsdWUiOiIxIn0=",
-          "endCursor": "eyJsYXN0X2lkIjoyMjc1ODgwNzk5MjIsImxhc3RfdmFsdWUiOiIwIn0="
+          "startCursor": "eyJsYXN0X2lkIjoyMjk1OTk1NDM2MDIsImxhc3RfdmFsdWUiOiIxIn0=",
+          "endCursor": "eyJsYXN0X2lkIjoyMjk1OTk1MTA4MzQsImxhc3RfdmFsdWUiOiIwIn0="
         }
       },
       "pinned": {
         "nodes": [
           {
-            "id": "gid://shopify/MetafieldDefinition/227588112690",
+            "id": "gid://shopify/MetafieldDefinition/229599543602",
             "key": "pin_b",
             "pinnedPosition": 1
           }
@@ -3520,7 +3520,7 @@
       "unpinned": {
         "nodes": [
           {
-            "id": "gid://shopify/MetafieldDefinition/227588079922",
+            "id": "gid://shopify/MetafieldDefinition/229599510834",
             "key": "pin_a",
             "pinnedPosition": null
           }
@@ -3533,7 +3533,7 @@
         "actualQueryCost": 35,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1195,
+          "currentlyAvailable": 1035,
           "restoreRate": 100
         }
       }
@@ -3541,15 +3541,15 @@
   },
   "unpinById": {
     "variables": {
-      "definitionId": "gid://shopify/MetafieldDefinition/227588112690"
+      "definitionId": "gid://shopify/MetafieldDefinition/229599543602"
     },
     "response": {
       "data": {
         "metafieldDefinitionUnpin": {
           "unpinnedDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/227588112690",
+            "id": "gid://shopify/MetafieldDefinition/229599543602",
             "name": "HAR 256 pin_b",
-            "namespace": "metafield_definition_pin_mrtx4kqi",
+            "namespace": "metafield_definition_pin_ms4uxvz6",
             "key": "pin_b",
             "ownerType": "PRODUCT",
             "type": {
@@ -3601,7 +3601,7 @@
           "actualQueryCost": 24,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1183,
+            "currentlyAvailable": 1024,
             "restoreRate": 100
           }
         }
@@ -3611,9 +3611,9 @@
   "afterUnpinByIdRead": {
     "data": {
       "byIdentifier": {
-        "id": "gid://shopify/MetafieldDefinition/227588079922",
+        "id": "gid://shopify/MetafieldDefinition/229599510834",
         "name": "HAR 256 pin_a",
-        "namespace": "metafield_definition_pin_mrtx4kqi",
+        "namespace": "metafield_definition_pin_ms4uxvz6",
         "key": "pin_a",
         "ownerType": "PRODUCT",
         "type": {
@@ -3659,9 +3659,9 @@
       "metafieldDefinitions": {
         "nodes": [
           {
-            "id": "gid://shopify/MetafieldDefinition/227588112690",
+            "id": "gid://shopify/MetafieldDefinition/229599543602",
             "name": "HAR 256 pin_b",
-            "namespace": "metafield_definition_pin_mrtx4kqi",
+            "namespace": "metafield_definition_pin_ms4uxvz6",
             "key": "pin_b",
             "ownerType": "PRODUCT",
             "type": {
@@ -3705,9 +3705,9 @@
             "validationStatus": "ALL_VALID"
           },
           {
-            "id": "gid://shopify/MetafieldDefinition/227588079922",
+            "id": "gid://shopify/MetafieldDefinition/229599510834",
             "name": "HAR 256 pin_a",
-            "namespace": "metafield_definition_pin_mrtx4kqi",
+            "namespace": "metafield_definition_pin_ms4uxvz6",
             "key": "pin_a",
             "ownerType": "PRODUCT",
             "type": {
@@ -3754,8 +3754,8 @@
         "pageInfo": {
           "hasNextPage": false,
           "hasPreviousPage": false,
-          "startCursor": "eyJsYXN0X2lkIjoyMjc1ODgxMTI2OTAsImxhc3RfdmFsdWUiOiIwIn0=",
-          "endCursor": "eyJsYXN0X2lkIjoyMjc1ODgwNzk5MjIsImxhc3RfdmFsdWUiOiIwIn0="
+          "startCursor": "eyJsYXN0X2lkIjoyMjk1OTk1NDM2MDIsImxhc3RfdmFsdWUiOiIwIn0=",
+          "endCursor": "eyJsYXN0X2lkIjoyMjk1OTk1MTA4MzQsImxhc3RfdmFsdWUiOiIwIn0="
         }
       },
       "pinned": {
@@ -3764,12 +3764,12 @@
       "unpinned": {
         "nodes": [
           {
-            "id": "gid://shopify/MetafieldDefinition/227588112690",
+            "id": "gid://shopify/MetafieldDefinition/229599543602",
             "key": "pin_b",
             "pinnedPosition": null
           },
           {
-            "id": "gid://shopify/MetafieldDefinition/227588079922",
+            "id": "gid://shopify/MetafieldDefinition/229599510834",
             "key": "pin_a",
             "pinnedPosition": null
           }
@@ -3782,7 +3782,7 @@
         "actualQueryCost": 38,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1158,
+          "currentlyAvailable": 1000,
           "restoreRate": 100
         }
       }
@@ -3797,7 +3797,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "metafield_definition_pin_mrtx4kqi",
+          "namespace": "metafield_definition_pin_ms4uxvz6",
           "key": "pin_a"
         }
       },
@@ -3807,9 +3807,9 @@
         "body": {
           "data": {
             "metafieldDefinition": {
-              "id": "gid://shopify/MetafieldDefinition/227588079922",
+              "id": "gid://shopify/MetafieldDefinition/229599510834",
               "name": "HAR 256 pin_a",
-              "namespace": "metafield_definition_pin_mrtx4kqi",
+              "namespace": "metafield_definition_pin_ms4uxvz6",
               "key": "pin_a",
               "ownerType": "PRODUCT",
               "type": {
@@ -3862,7 +3862,7 @@
               "actualQueryCost": 19,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1303,
+                "currentlyAvailable": 1123,
                 "restoreRate": 100
               }
             }
@@ -3878,7 +3878,7 @@
       "variables": {
         "ownerType": "PRODUCT"
       },
-      "query": "query MetafieldDefinitionsHydratePinnedOwner($ownerType: MetafieldOwnerType!) {\n  metafieldDefinitions(\n    ownerType: $ownerType\n    pinnedStatus: PINNED\n    first: 50\n    sortKey: PINNED_POSITION\n  ) {\n    nodes {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      description\n      validations {\n        name\n        value\n      }\n      access {\n        admin\n        storefront\n        customerAccount\n      }\n      capabilities {\n        adminFilterable {\n          enabled\n          eligible\n          status\n        }\n        smartCollectionCondition {\n          enabled\n          eligible\n        }\n        uniqueValues {\n          enabled\n          eligible\n        }\n      }\n      constraints {\n        key\n        values(first: 50) {\n          nodes {\n            value\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pinnedPosition\n      standardTemplate {\n        id\n      }\n      validationStatus\n      metafieldsCount\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
+      "query": "query MetafieldDefinitionsHydratePinnedOwner($ownerType: MetafieldOwnerType!) {\n  metafieldDefinitions(ownerType: $ownerType, pinnedStatus: PINNED, first: 50, sortKey: PINNED_POSITION) {\n    nodes {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      description\n      validations {\n        name\n        value\n      }\n      access {\n        admin\n        storefront\n        customerAccount\n      }\n      capabilities {\n        adminFilterable {\n          enabled\n          eligible\n          status\n        }\n        smartCollectionCondition {\n          enabled\n          eligible\n        }\n        uniqueValues {\n          enabled\n          eligible\n        }\n      }\n      constraints {\n        key\n        values(first: 50) {\n          nodes {\n            value\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pinnedPosition\n      standardTemplate {\n        id\n      }\n      validationStatus\n      metafieldsCount\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -3897,7 +3897,7 @@
               "actualQueryCost": 9,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1303,
+                "currentlyAvailable": 1124,
                 "restoreRate": 100
               }
             }
@@ -3913,7 +3913,7 @@
       "variables": {
         "ownerType": "PRODUCT",
         "key": null,
-        "namespace": "metafield_definition_pin_mrtx4kqi",
+        "namespace": "metafield_definition_pin_ms4uxvz6",
         "pinnedStatus": "ANY",
         "constraintSubtype": null,
         "constraintStatus": null,
@@ -3933,11 +3933,11 @@
             "metafieldDefinitions": {
               "edges": [
                 {
-                  "cursor": "eyJsYXN0X2lkIjoyMjc1ODgwNzk5MjIsImxhc3RfdmFsdWUiOiIxIn0=",
+                  "cursor": "eyJsYXN0X2lkIjoyMjk1OTk1MTA4MzQsImxhc3RfdmFsdWUiOiIxIn0=",
                   "node": {
-                    "id": "gid://shopify/MetafieldDefinition/227588079922",
+                    "id": "gid://shopify/MetafieldDefinition/229599510834",
                     "name": "HAR 256 pin_a",
-                    "namespace": "metafield_definition_pin_mrtx4kqi",
+                    "namespace": "metafield_definition_pin_ms4uxvz6",
                     "key": "pin_a",
                     "ownerType": "PRODUCT",
                     "type": {
@@ -3985,11 +3985,11 @@
                   }
                 },
                 {
-                  "cursor": "eyJsYXN0X2lkIjoyMjc1ODgxMTI2OTAsImxhc3RfdmFsdWUiOiIwIn0=",
+                  "cursor": "eyJsYXN0X2lkIjoyMjk1OTk1NDM2MDIsImxhc3RfdmFsdWUiOiIwIn0=",
                   "node": {
-                    "id": "gid://shopify/MetafieldDefinition/227588112690",
+                    "id": "gid://shopify/MetafieldDefinition/229599543602",
                     "name": "HAR 256 pin_b",
-                    "namespace": "metafield_definition_pin_mrtx4kqi",
+                    "namespace": "metafield_definition_pin_ms4uxvz6",
                     "key": "pin_b",
                     "ownerType": "PRODUCT",
                     "type": {
@@ -4040,8 +4040,8 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoyMjc1ODgwNzk5MjIsImxhc3RfdmFsdWUiOiIxIn0=",
-                "endCursor": "eyJsYXN0X2lkIjoyMjc1ODgxMTI2OTAsImxhc3RfdmFsdWUiOiIwIn0="
+                "startCursor": "eyJsYXN0X2lkIjoyMjk1OTk1MTA4MzQsImxhc3RfdmFsdWUiOiIxIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoyMjk1OTk1NDM2MDIsImxhc3RfdmFsdWUiOiIwIn0="
               }
             }
           },
@@ -4051,7 +4051,7 @@
               "actualQueryCost": 13,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1286,
+                "currentlyAvailable": 1108,
                 "restoreRate": 100
               }
             }
@@ -4067,7 +4067,7 @@
       "variables": {
         "ownerType": "PRODUCT",
         "key": null,
-        "namespace": "metafield_definition_pin_mrtx4kqi",
+        "namespace": "metafield_definition_pin_ms4uxvz6",
         "pinnedStatus": "PINNED",
         "constraintSubtype": null,
         "constraintStatus": null,
@@ -4087,11 +4087,11 @@
             "metafieldDefinitions": {
               "edges": [
                 {
-                  "cursor": "eyJsYXN0X2lkIjoyMjc1ODgwNzk5MjIsImxhc3RfdmFsdWUiOiIxIn0=",
+                  "cursor": "eyJsYXN0X2lkIjoyMjk1OTk1MTA4MzQsImxhc3RfdmFsdWUiOiIxIn0=",
                   "node": {
-                    "id": "gid://shopify/MetafieldDefinition/227588079922",
+                    "id": "gid://shopify/MetafieldDefinition/229599510834",
                     "name": "HAR 256 pin_a",
-                    "namespace": "metafield_definition_pin_mrtx4kqi",
+                    "namespace": "metafield_definition_pin_ms4uxvz6",
                     "key": "pin_a",
                     "ownerType": "PRODUCT",
                     "type": {
@@ -4142,8 +4142,8 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoyMjc1ODgwNzk5MjIsImxhc3RfdmFsdWUiOiIxIn0=",
-                "endCursor": "eyJsYXN0X2lkIjoyMjc1ODgwNzk5MjIsImxhc3RfdmFsdWUiOiIxIn0="
+                "startCursor": "eyJsYXN0X2lkIjoyMjk1OTk1MTA4MzQsImxhc3RfdmFsdWUiOiIxIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoyMjk1OTk1MTA4MzQsImxhc3RfdmFsdWUiOiIxIn0="
               }
             }
           },
@@ -4153,7 +4153,7 @@
               "actualQueryCost": 8,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1287,
+                "currentlyAvailable": 1113,
                 "restoreRate": 100
               }
             }
@@ -4169,7 +4169,7 @@
       "variables": {
         "ownerType": "PRODUCT",
         "key": null,
-        "namespace": "metafield_definition_pin_mrtx4kqi",
+        "namespace": "metafield_definition_pin_ms4uxvz6",
         "pinnedStatus": "UNPINNED",
         "constraintSubtype": null,
         "constraintStatus": null,
@@ -4189,11 +4189,11 @@
             "metafieldDefinitions": {
               "edges": [
                 {
-                  "cursor": "eyJsYXN0X2lkIjoyMjc1ODgxMTI2OTAsImxhc3RfdmFsdWUiOiIwIn0=",
+                  "cursor": "eyJsYXN0X2lkIjoyMjk1OTk1NDM2MDIsImxhc3RfdmFsdWUiOiIwIn0=",
                   "node": {
-                    "id": "gid://shopify/MetafieldDefinition/227588112690",
+                    "id": "gid://shopify/MetafieldDefinition/229599543602",
                     "name": "HAR 256 pin_b",
-                    "namespace": "metafield_definition_pin_mrtx4kqi",
+                    "namespace": "metafield_definition_pin_ms4uxvz6",
                     "key": "pin_b",
                     "ownerType": "PRODUCT",
                     "type": {
@@ -4244,8 +4244,8 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoyMjc1ODgxMTI2OTAsImxhc3RfdmFsdWUiOiIwIn0=",
-                "endCursor": "eyJsYXN0X2lkIjoyMjc1ODgxMTI2OTAsImxhc3RfdmFsdWUiOiIwIn0="
+                "startCursor": "eyJsYXN0X2lkIjoyMjk1OTk1NDM2MDIsImxhc3RfdmFsdWUiOiIwIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoyMjk1OTk1NDM2MDIsImxhc3RfdmFsdWUiOiIwIn0="
               }
             }
           },
@@ -4255,7 +4255,7 @@
               "actualQueryCost": 8,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1289,
+                "currentlyAvailable": 1118,
                 "restoreRate": 100
               }
             }
@@ -4271,7 +4271,7 @@
       "variables": {
         "ownerType": "PRODUCT",
         "key": null,
-        "namespace": "metafield_definition_pin_mrtx4kqi",
+        "namespace": "metafield_definition_pin_ms4uxvz6",
         "pinnedStatus": "ANY",
         "constraintSubtype": null,
         "constraintStatus": null,
@@ -4291,11 +4291,11 @@
             "metafieldDefinitions": {
               "edges": [
                 {
-                  "cursor": "eyJsYXN0X2lkIjoyMjc1ODgxMTI2OTAsImxhc3RfdmFsdWUiOiIyIn0=",
+                  "cursor": "eyJsYXN0X2lkIjoyMjk1OTk1NDM2MDIsImxhc3RfdmFsdWUiOiIyIn0=",
                   "node": {
-                    "id": "gid://shopify/MetafieldDefinition/227588112690",
+                    "id": "gid://shopify/MetafieldDefinition/229599543602",
                     "name": "HAR 256 pin_b",
-                    "namespace": "metafield_definition_pin_mrtx4kqi",
+                    "namespace": "metafield_definition_pin_ms4uxvz6",
                     "key": "pin_b",
                     "ownerType": "PRODUCT",
                     "type": {
@@ -4343,11 +4343,11 @@
                   }
                 },
                 {
-                  "cursor": "eyJsYXN0X2lkIjoyMjc1ODgwNzk5MjIsImxhc3RfdmFsdWUiOiIxIn0=",
+                  "cursor": "eyJsYXN0X2lkIjoyMjk1OTk1MTA4MzQsImxhc3RfdmFsdWUiOiIxIn0=",
                   "node": {
-                    "id": "gid://shopify/MetafieldDefinition/227588079922",
+                    "id": "gid://shopify/MetafieldDefinition/229599510834",
                     "name": "HAR 256 pin_a",
-                    "namespace": "metafield_definition_pin_mrtx4kqi",
+                    "namespace": "metafield_definition_pin_ms4uxvz6",
                     "key": "pin_a",
                     "ownerType": "PRODUCT",
                     "type": {
@@ -4398,8 +4398,8 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoyMjc1ODgxMTI2OTAsImxhc3RfdmFsdWUiOiIyIn0=",
-                "endCursor": "eyJsYXN0X2lkIjoyMjc1ODgwNzk5MjIsImxhc3RfdmFsdWUiOiIxIn0="
+                "startCursor": "eyJsYXN0X2lkIjoyMjk1OTk1NDM2MDIsImxhc3RfdmFsdWUiOiIyIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoyMjk1OTk1MTA4MzQsImxhc3RfdmFsdWUiOiIxIn0="
               }
             }
           },
@@ -4409,7 +4409,7 @@
               "actualQueryCost": 12,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1254,
+                "currentlyAvailable": 1086,
                 "restoreRate": 100
               }
             }
@@ -4425,7 +4425,7 @@
       "variables": {
         "ownerType": "PRODUCT",
         "key": null,
-        "namespace": "metafield_definition_pin_mrtx4kqi",
+        "namespace": "metafield_definition_pin_ms4uxvz6",
         "pinnedStatus": "PINNED",
         "constraintSubtype": null,
         "constraintStatus": null,
@@ -4445,11 +4445,11 @@
             "metafieldDefinitions": {
               "edges": [
                 {
-                  "cursor": "eyJsYXN0X2lkIjoyMjc1ODgxMTI2OTAsImxhc3RfdmFsdWUiOiIyIn0=",
+                  "cursor": "eyJsYXN0X2lkIjoyMjk1OTk1NDM2MDIsImxhc3RfdmFsdWUiOiIyIn0=",
                   "node": {
-                    "id": "gid://shopify/MetafieldDefinition/227588112690",
+                    "id": "gid://shopify/MetafieldDefinition/229599543602",
                     "name": "HAR 256 pin_b",
-                    "namespace": "metafield_definition_pin_mrtx4kqi",
+                    "namespace": "metafield_definition_pin_ms4uxvz6",
                     "key": "pin_b",
                     "ownerType": "PRODUCT",
                     "type": {
@@ -4497,11 +4497,11 @@
                   }
                 },
                 {
-                  "cursor": "eyJsYXN0X2lkIjoyMjc1ODgwNzk5MjIsImxhc3RfdmFsdWUiOiIxIn0=",
+                  "cursor": "eyJsYXN0X2lkIjoyMjk1OTk1MTA4MzQsImxhc3RfdmFsdWUiOiIxIn0=",
                   "node": {
-                    "id": "gid://shopify/MetafieldDefinition/227588079922",
+                    "id": "gid://shopify/MetafieldDefinition/229599510834",
                     "name": "HAR 256 pin_a",
-                    "namespace": "metafield_definition_pin_mrtx4kqi",
+                    "namespace": "metafield_definition_pin_ms4uxvz6",
                     "key": "pin_a",
                     "ownerType": "PRODUCT",
                     "type": {
@@ -4552,8 +4552,8 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoyMjc1ODgxMTI2OTAsImxhc3RfdmFsdWUiOiIyIn0=",
-                "endCursor": "eyJsYXN0X2lkIjoyMjc1ODgwNzk5MjIsImxhc3RfdmFsdWUiOiIxIn0="
+                "startCursor": "eyJsYXN0X2lkIjoyMjk1OTk1NDM2MDIsImxhc3RfdmFsdWUiOiIyIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoyMjk1OTk1MTA4MzQsImxhc3RfdmFsdWUiOiIxIn0="
               }
             }
           },
@@ -4563,7 +4563,7 @@
               "actualQueryCost": 12,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1253,
+                "currentlyAvailable": 1086,
                 "restoreRate": 100
               }
             }
@@ -4579,7 +4579,7 @@
       "variables": {
         "ownerType": "PRODUCT",
         "key": null,
-        "namespace": "metafield_definition_pin_mrtx4kqi",
+        "namespace": "metafield_definition_pin_ms4uxvz6",
         "pinnedStatus": "UNPINNED",
         "constraintSubtype": null,
         "constraintStatus": null,
@@ -4612,7 +4612,7 @@
               "actualQueryCost": 2,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1262,
+                "currentlyAvailable": 1096,
                 "restoreRate": 100
               }
             }
