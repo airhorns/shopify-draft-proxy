@@ -342,6 +342,14 @@ impl DraftProxy {
                     location["deactivatable"] = json!(true);
                     location["deletable"] = json!(false);
                     self.stage_location(location.clone());
+                    if self
+                        .store
+                        .staged
+                        .observed_shipping_locations
+                        .contains_key(&location_id)
+                    {
+                        self.stage_observed_shipping_location(location.clone());
+                    }
                     location
                 } else {
                     source_location
@@ -470,6 +478,10 @@ impl DraftProxy {
             .staged
             .observed_shipping_locations
             .remove(location_id);
+        self.store
+            .staged
+            .observed_shipping_location_order
+            .retain(|observed_id| observed_id != location_id);
         self.store
             .staged
             .fulfillment_service_locations
@@ -1583,6 +1595,7 @@ impl DraftProxy {
             location["deletable"] = json!(true);
             location["deactivatable"] = json!(true);
             self.stage_location(location.clone());
+            self.stage_observed_shipping_location(location.clone());
             location
         } else {
             source_location
@@ -1814,7 +1827,7 @@ pub(in crate::proxy) fn location_connection_value(
 
 fn location_staged_sort_key(location: &Value, sort_key: Option<&str>) -> StagedSortKey {
     match sort_key.unwrap_or("NAME") {
-        "ID" => vec![location_gid_tail_sort_value(location)],
+        "ID" => location_gid_tail_sort_key(location),
         "CREATED_AT" => vec![location_sort_string(location, "createdAt")],
         "UPDATED_AT" => vec![location_sort_string(location, "updatedAt")],
         "NAME" | "RELEVANCE" => vec![location_sort_string(location, "name")],
@@ -1822,9 +1835,12 @@ fn location_staged_sort_key(location: &Value, sort_key: Option<&str>) -> StagedS
     }
 }
 
-fn location_gid_tail_sort_value(location: &Value) -> StagedSortValue {
+fn location_gid_tail_sort_key(location: &Value) -> StagedSortKey {
     let id = location_value_string(location, "id");
-    resource_id_tail_sort_value(Some(&id))
+    vec![
+        StagedSortValue::I64(i64::from(is_synthetic_gid(&id))),
+        resource_id_tail_sort_value(Some(&id)),
+    ]
 }
 
 fn location_sort_string(location: &Value, field: &str) -> StagedSortValue {
