@@ -126,10 +126,13 @@ location catalog includes inactive and legacy rows needed for effective counts,
 duplicate-name checks, and the shop's active merchant-managed location limit.
 
 Practical rule: hydrate and retain the two catalogs separately. General staged
-location lifecycle changes overlay the normalized `locations` baseline;
-delivery-profile reads overlay a staged row only when that ID was already in the
-hydrated eligibility catalog. The captured
-`location-catalog-overlay-lifecycle` scenario also confirms that quoted
+location lifecycle changes overlay the normalized `locations` baseline. A
+staged add stays absent from delivery-profile eligibility at first, but the
+fresh `location-catalog-overlay-lifecycle` capture shows Shopify adds that row
+after deactivation with `isActive: false` and retains it after reactivation with
+`isActive: true`; deletion removes the derived row. Other delivery-profile
+reads overlay a staged row only after its ID enters the hydrated or captured
+lifecycle eligibility catalog. The same scenario also confirms that quoted
 multi-word `name:` expressions must remain one search term rather than being
 split on whitespace.
 

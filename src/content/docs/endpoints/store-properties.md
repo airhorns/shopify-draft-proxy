@@ -107,12 +107,15 @@ errors. Effective `location`, `locationByIdentifier`, `locations`, and
 updates, exclude tombstones, and apply Shopify-like name filtering, sort keys,
 `reverse`, cursor windows, and `pageInfo`. The separately hydrated
 `locationsAvailableForDeliveryProfilesConnection` eligibility catalog keeps
-Shopify's ID ordering and overlays staged fields only for locations already in
-that catalog; a staged `locationAdd` does not invent delivery-profile
-eligibility. Successful location mutation slices stage local state, preserve
-the raw GraphQL request for commit replay, and expose read-after-write behavior
-through these reads, inventory-level location projection, and meta state/log
-inspection. Successful `locationDeactivate` calls with a
+Shopify's ID ordering. A staged `locationAdd` does not initially invent
+delivery-profile eligibility, but captured lifecycle behavior adds the location
+to that catalog after successful deactivation and preserves the eligible row
+when the location is reactivated; deletion removes it. Other staged field
+updates overlay locations already in the eligibility catalog. Successful
+location mutation slices stage local state, preserve the raw GraphQL request
+for commit replay, and expose read-after-write behavior through these reads,
+inventory-level location projection, and meta state/log inspection. Successful
+`locationDeactivate` calls with a
 `destinationLocationId` relocate source-location inventory levels into the
 destination in the modeled slice, merge same-name quantity rows when a
 destination level already exists, remove the source level from downstream
