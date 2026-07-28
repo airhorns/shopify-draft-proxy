@@ -23,9 +23,8 @@ const METAFIELD_DEFINITION_HYDRATE_RESOURCE_SCOPE_QUERY: &str = include_str!(
 const METAFIELD_DEFINITION_HYDRATE_PINNED_OWNER_QUERY: &str = include_str!(
     "../runtime_graphql/metafields/metafield-definitions-hydrate-pinned-owner.graphql"
 );
-const METAFIELD_DEFINITION_HYDRATE_WINDOW_QUERY: &str = include_str!(
-    "../runtime_graphql/metafields/metafield-definitions-hydrate-window.graphql"
-);
+const METAFIELD_DEFINITION_HYDRATE_WINDOW_QUERY: &str =
+    include_str!("../runtime_graphql/metafields/metafield-definitions-hydrate-window.graphql");
 const METAFIELD_DEFINITION_RESOURCE_SCOPE_PAGE_LIMIT: usize = 3;
 
 pub(in crate::proxy) fn metafield_definition_field_resolver_registrations(

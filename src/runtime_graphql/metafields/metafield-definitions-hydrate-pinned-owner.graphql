@@ -1,10 +1,5 @@
 query MetafieldDefinitionsHydratePinnedOwner($ownerType: MetafieldOwnerType!) {
-  metafieldDefinitions(
-    ownerType: $ownerType
-    pinnedStatus: PINNED
-    first: 50
-    sortKey: PINNED_POSITION
-  ) {
+  metafieldDefinitions(ownerType: $ownerType, pinnedStatus: PINNED, first: 50, sortKey: PINNED_POSITION) {
     nodes {
       id
       name

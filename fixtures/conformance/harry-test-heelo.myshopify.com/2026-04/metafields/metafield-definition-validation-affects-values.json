@@ -1,15 +1,15 @@
 {
-  "capturedAt": "2026-07-28T15:13:13.729Z",
+  "capturedAt": "2026-07-28T15:21:53.278Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "namespace": "validation_affects_ms4spby9",
+  "namespace": "validation_affects_ms4t0gn1",
   "key": "headline",
   "productCreate": {
     "request": {
       "query": "#graphql\nmutation ValidationAffectsValuesProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product { id title }\n    userErrors { field message }\n  }\n}\n",
       "variables": {
         "product": {
-          "title": "validation affects values ms4spby9"
+          "title": "validation affects values ms4t0gn1"
         }
       }
     },
@@ -18,8 +18,8 @@
       "data": {
         "productCreate": {
           "product": {
-            "id": "gid://shopify/Product/10252250448178",
-            "title": "validation affects values ms4spby9"
+            "id": "gid://shopify/Product/10252253004082",
+            "title": "validation affects values ms4t0gn1"
           },
           "userErrors": []
         }
@@ -43,7 +43,7 @@
       "variables": {
         "definition": {
           "name": "Validation Affects Values",
-          "namespace": "validation_affects_ms4spby9",
+          "namespace": "validation_affects_ms4t0gn1",
           "key": "headline",
           "ownerType": "PRODUCT",
           "type": "single_line_text_field"
@@ -55,8 +55,8 @@
       "data": {
         "metafieldDefinitionCreate": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/229580964146",
-            "namespace": "validation_affects_ms4spby9",
+            "id": "gid://shopify/MetafieldDefinition/229583159602",
+            "namespace": "validation_affects_ms4t0gn1",
             "key": "headline",
             "ownerType": "PRODUCT",
             "validations": [],
@@ -84,8 +84,8 @@
       "variables": {
         "metafields": [
           {
-            "ownerId": "gid://shopify/Product/10252250448178",
-            "namespace": "validation_affects_ms4spby9",
+            "ownerId": "gid://shopify/Product/10252253004082",
+            "namespace": "validation_affects_ms4t0gn1",
             "key": "headline",
             "type": "single_line_text_field",
             "value": "unbounded headline"
@@ -99,9 +99,9 @@
         "metafieldsSet": {
           "metafields": [
             {
-              "id": "gid://shopify/Metafield/45354248536370",
+              "id": "gid://shopify/Metafield/45354291167538",
               "ownerType": "PRODUCT",
-              "namespace": "validation_affects_ms4spby9",
+              "namespace": "validation_affects_ms4t0gn1",
               "key": "headline",
               "type": "single_line_text_field",
               "value": "unbounded headline"
@@ -128,7 +128,7 @@
       "documentPath": "config/parity-requests/metafield-definitions/validation-affects-values-update.graphql",
       "variables": {
         "definition": {
-          "namespace": "validation_affects_ms4spby9",
+          "namespace": "validation_affects_ms4t0gn1",
           "key": "headline",
           "ownerType": "PRODUCT",
           "validations": [
@@ -145,8 +145,8 @@
       "data": {
         "metafieldDefinitionUpdate": {
           "updatedDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/229580964146",
-            "namespace": "validation_affects_ms4spby9",
+            "id": "gid://shopify/MetafieldDefinition/229583159602",
+            "namespace": "validation_affects_ms4t0gn1",
             "key": "headline",
             "ownerType": "PRODUCT",
             "validations": [
@@ -159,7 +159,7 @@
           },
           "validationJob": {
             "__typename": "Job",
-            "id": "gid://shopify/Job/1396e8e0-f371-41b0-9400-31eb2dbe35b2",
+            "id": "gid://shopify/Job/c3c9456f-40d1-4741-8001-0996bb7bd7de",
             "done": false,
             "query": null
           },
@@ -185,8 +185,8 @@
       "variables": {
         "metafields": [
           {
-            "ownerId": "gid://shopify/Product/10252250448178",
-            "namespace": "validation_affects_ms4spby9",
+            "ownerId": "gid://shopify/Product/10252253004082",
+            "namespace": "validation_affects_ms4t0gn1",
             "key": "headline",
             "type": "single_line_text_field",
             "value": "too long"
@@ -201,11 +201,7 @@
           "metafields": [],
           "userErrors": [
             {
-              "field": [
-                "metafields",
-                "0",
-                "value"
-              ],
+              "field": ["metafields", "0", "value"],
               "message": "Value has a maximum length of 5.",
               "code": "INVALID_VALUE",
               "elementIndex": null
@@ -232,8 +228,8 @@
       "variables": {
         "metafields": [
           {
-            "ownerId": "gid://shopify/Product/10252250448178",
-            "namespace": "validation_affects_ms4spby9",
+            "ownerId": "gid://shopify/Product/10252253004082",
+            "namespace": "validation_affects_ms4t0gn1",
             "key": "headline",
             "type": "single_line_text_field",
             "value": "short"
@@ -247,9 +243,9 @@
         "metafieldsSet": {
           "metafields": [
             {
-              "id": "gid://shopify/Metafield/45354248536370",
+              "id": "gid://shopify/Metafield/45354291167538",
               "ownerType": "PRODUCT",
-              "namespace": "validation_affects_ms4spby9",
+              "namespace": "validation_affects_ms4t0gn1",
               "key": "headline",
               "type": "single_line_text_field",
               "value": "short"
@@ -275,8 +271,8 @@
     "request": {
       "documentPath": "config/parity-requests/metafield-definitions/validation-affects-values-read.graphql",
       "variables": {
-        "id": "gid://shopify/Product/10252250448178",
-        "namespace": "validation_affects_ms4spby9",
+        "id": "gid://shopify/Product/10252253004082",
+        "namespace": "validation_affects_ms4t0gn1",
         "key": "headline"
       }
     },
@@ -284,10 +280,10 @@
     "response": {
       "data": {
         "product": {
-          "id": "gid://shopify/Product/10252250448178",
+          "id": "gid://shopify/Product/10252253004082",
           "metafield": {
-            "id": "gid://shopify/Metafield/45354248536370",
-            "namespace": "validation_affects_ms4spby9",
+            "id": "gid://shopify/Metafield/45354291167538",
+            "namespace": "validation_affects_ms4t0gn1",
             "key": "headline",
             "type": "single_line_text_field",
             "value": "short"
@@ -295,8 +291,8 @@
           "metafields": {
             "nodes": [
               {
-                "id": "gid://shopify/Metafield/45354248536370",
-                "namespace": "validation_affects_ms4spby9",
+                "id": "gid://shopify/Metafield/45354291167538",
+                "namespace": "validation_affects_ms4t0gn1",
                 "key": "headline",
                 "type": "single_line_text_field",
                 "value": "short"
@@ -323,14 +319,14 @@
       "request": {
         "query": "#graphql\nmutation ValidationAffectsValuesDefinitionDelete($id: ID!) {\n  metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n    deletedDefinitionId\n    userErrors { field message code }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/MetafieldDefinition/229580964146"
+          "id": "gid://shopify/MetafieldDefinition/229583159602"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metafieldDefinitionDelete": {
-            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229580964146",
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229583159602",
             "userErrors": []
           }
         },
@@ -352,7 +348,7 @@
         "query": "#graphql\nmutation ValidationAffectsValuesProductDelete($input: ProductDeleteInput!) {\n  productDelete(input: $input) {\n    deletedProductId\n    userErrors { field message }\n  }\n}\n",
         "variables": {
           "input": {
-            "id": "gid://shopify/Product/10252250448178"
+            "id": "gid://shopify/Product/10252253004082"
           }
         }
       },
@@ -360,7 +356,7 @@
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10252250448178",
+            "deletedProductId": "gid://shopify/Product/10252253004082",
             "userErrors": []
           }
         },
@@ -387,7 +383,7 @@
       "variables": {
         "identifier": {
           "ownerType": "PRODUCT",
-          "namespace": "validation_affects_ms4spby9",
+          "namespace": "validation_affects_ms4t0gn1",
           "key": "headline"
         }
       },
@@ -3419,13 +3415,11 @@
       "path": "/admin/api/2026-04/graphql.json",
       "operationName": "OwnerMetafieldsHydrateNodes",
       "variables": {
-        "ids": [
-          "gid://shopify/Product/10252250448178"
-        ],
-        "metafield0Namespace": "validation_affects_ms4spby9",
+        "ids": ["gid://shopify/Product/10252253004082"],
+        "metafield0Namespace": "validation_affects_ms4t0gn1",
         "metafield0Key": "headline"
       },
-      "query": "query OwnerMetafieldsHydrateNodes($ids: [ID!]!, $metafield0Namespace: String!, $metafield0Key: String!) { nodes(ids: $ids) { __typename id ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType }  } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } } ... on Collection { id title handle metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } } ... on Customer { id displayName email metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } } ... on Order { id name metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } } ... on Company { id name metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } } ... on Shop { id metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } } } }",
+      "query": "query OwnerMetafieldsHydrateNodes($ids: [ID!]!, $metafield0Namespace: String!, $metafield0Key: String!) { nodes(ids: $ids) { __typename id ... on HasMetafields { metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } } ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt  } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } } ... on Collection { id title handle } ... on Customer { id displayName email } ... on Order { id name } ... on Company { id name } ... on Page { id title } ... on Article { id title } } }",
       "response": {
         "status": 200,
         "body": {
@@ -3433,36 +3427,56 @@
             "nodes": [
               {
                 "__typename": "Product",
-                "id": "gid://shopify/Product/10252250448178",
-                "title": "validation affects values ms4spby9",
-                "handle": "validation-affects-values-ms4spby9",
-                "status": "ACTIVE",
-                "totalInventory": 0,
-                "tracksInventory": false,
-                "createdAt": "2026-07-28T15:13:11Z",
-                "updatedAt": "2026-07-28T15:13:13Z",
+                "id": "gid://shopify/Product/10252253004082",
                 "metafield0": {
-                  "id": "gid://shopify/Metafield/45354248536370",
-                  "namespace": "validation_affects_ms4spby9",
+                  "id": "gid://shopify/Metafield/45354291167538",
+                  "namespace": "validation_affects_ms4t0gn1",
                   "key": "headline",
                   "type": "single_line_text_field",
                   "value": "short",
                   "jsonValue": "short",
                   "compareDigest": "f4d7686a97015f77785aed9a660e26685080b627e72895538245527892fa7bd2",
-                  "createdAt": "2026-07-28T15:13:12Z",
-                  "updatedAt": "2026-07-28T15:13:13Z",
-                  "ownerType": "PRODUCT"
-                }
+                  "createdAt": "2026-07-28T15:21:52Z",
+                  "updatedAt": "2026-07-28T15:21:52Z",
+                  "ownerType": "PRODUCT",
+                  "definition": {
+                    "id": "gid://shopify/MetafieldDefinition/229583159602",
+                    "name": "Validation Affects Values",
+                    "namespace": "validation_affects_ms4t0gn1",
+                    "key": "headline",
+                    "ownerType": "PRODUCT",
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    },
+                    "description": null,
+                    "validations": [
+                      {
+                        "name": "max",
+                        "value": "5"
+                      }
+                    ],
+                    "pinnedPosition": null,
+                    "validationStatus": "ALL_VALID"
+                  }
+                },
+                "title": "validation affects values ms4t0gn1",
+                "handle": "validation-affects-values-ms4t0gn1",
+                "status": "ACTIVE",
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "createdAt": "2026-07-28T15:21:50Z",
+                "updatedAt": "2026-07-28T15:21:51Z"
               }
             ]
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 5,
-              "actualQueryCost": 3,
+              "requestedQueryCost": 8,
+              "actualQueryCost": 6,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1997,
+                "currentlyAvailable": 1994,
                 "restoreRate": 100
               }
             }
