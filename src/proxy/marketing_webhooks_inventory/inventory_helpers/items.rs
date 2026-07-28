@@ -1,7 +1,7 @@
 use super::*;
 
 impl DraftProxy {
-    pub(super) fn effective_inventory_level(
+    pub(in crate::proxy) fn effective_inventory_level(
         &self,
         key: &(String, String),
     ) -> Option<&BTreeMap<String, i64>> {
@@ -12,7 +12,7 @@ impl DraftProxy {
             .or_else(|| self.store.base.inventory_levels.get(key))
     }
 
-    pub(super) fn stage_inventory_level_for_write(&mut self, key: &(String, String)) {
+    pub(in crate::proxy) fn stage_inventory_level_for_write(&mut self, key: &(String, String)) {
         if self.store.staged.inventory_levels.contains_key(key) {
             return;
         }
@@ -29,7 +29,7 @@ impl DraftProxy {
             .or_else(|| self.store.base.inventory_level_ids.get(key))
     }
 
-    pub(super) fn inventory_level_is_active(&self, key: &(String, String)) -> bool {
+    pub(in crate::proxy) fn inventory_level_is_active(&self, key: &(String, String)) -> bool {
         if self.store.staged.active_inventory_levels.contains(key) {
             return true;
         }
@@ -430,6 +430,21 @@ impl DraftProxy {
         };
         if let Some(variant) = node.get("variant") {
             self.stage_inventory_item_observed_variant(inventory_item_id, node, variant);
+        } else if let Some(mut variant) = self
+            .store
+            .product_variant_by_inventory_item_id(inventory_item_id)
+            .cloned()
+        {
+            if let Some(sku) = node.get("sku").and_then(Value::as_str) {
+                variant.sku = sku.to_string();
+            }
+            if let Some(tracked) = node.get("tracked").and_then(Value::as_bool) {
+                variant.inventory_item.tracked = tracked;
+            }
+            if let Some(requires_shipping) = node.get("requiresShipping").and_then(Value::as_bool) {
+                variant.inventory_item.requires_shipping = requires_shipping;
+            }
+            self.store.observe_base_product_variant(variant);
         }
         if let Some(levels) = node
             .get("inventoryLevels")
@@ -1474,7 +1489,7 @@ impl DraftProxy {
         variant
     }
 
-    fn active_inventory_levels_for_item(
+    pub(in crate::proxy) fn active_inventory_levels_for_item(
         &self,
         inventory_item_id: &str,
     ) -> Vec<(String, BTreeMap<String, i64>)> {
@@ -2677,7 +2692,7 @@ impl DraftProxy {
                     .any(|(item_id, _)| item_id == inventory_item_id))
     }
 
-    fn inventory_location_exists(&self, location_id: &str) -> bool {
+    pub(super) fn inventory_location_exists(&self, location_id: &str) -> bool {
         if location_id.is_empty() || !is_shopify_gid_of_type(location_id, "Location") {
             return false;
         }

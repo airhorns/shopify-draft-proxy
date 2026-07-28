@@ -1,0 +1,69 @@
+query MetafieldDefinitionsHydratePinnedOwner($ownerType: MetafieldOwnerType!) {
+  metafieldDefinitions(
+    ownerType: $ownerType
+    pinnedStatus: PINNED
+    first: 50
+    sortKey: PINNED_POSITION
+  ) {
+    nodes {
+      id
+      name
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      description
+      validations {
+        name
+        value
+      }
+      access {
+        admin
+        storefront
+        customerAccount
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+      constraints {
+        key
+        values(first: 50) {
+          nodes {
+            value
+          }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+            startCursor
+            endCursor
+          }
+        }
+      }
+      pinnedPosition
+      standardTemplate {
+        id
+      }
+      validationStatus
+      metafieldsCount
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}

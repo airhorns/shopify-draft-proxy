@@ -1,18 +1,18 @@
 {
-  "capturedAt": "2026-07-19T21:53:06.335Z",
+  "capturedAt": "2026-07-20T13:56:35.369Z",
   "scenarioId": "segment-live-hybrid-overlay",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "proxyVariables": {
     "create": {
-      "name": "Live Hybrid Staged segmentlivehybridoverlaymrsc0qgmd4fp2g",
-      "query": "customer_tags CONTAINS 'segmentlivehybridoverlaymrsc0qgmd4fp2g-staged'"
+      "name": "Live Hybrid Staged segmentlivehybridoverlaymrtafrxt1ht6vd",
+      "query": "customer_tags CONTAINS 'segmentlivehybridoverlaymrtafrxt1ht6vd-staged'"
     },
     "read": {
-      "realId": "gid://shopify/Segment/653744177458",
-      "catalogQuery": "segmentlivehybridoverlaymrsc0qgmd4fp2g",
-      "baseQuery": "Live Hybrid Base segmentlivehybridoverlaymrsc0qgmd4fp2g",
-      "stagedQuery": "Live Hybrid Staged segmentlivehybridoverlaymrsc0qgmd4fp2g",
+      "realId": "gid://shopify/Segment/653980270898",
+      "catalogQuery": "segmentlivehybridoverlaymrtafrxt1ht6vd",
+      "baseQuery": "Live Hybrid Base segmentlivehybridoverlaymrtafrxt1ht6vd",
+      "stagedQuery": "Live Hybrid Staged segmentlivehybridoverlaymrtafrxt1ht6vd",
       "first": 5
     }
   },
@@ -21,8 +21,8 @@
       "operationName": "SegmentLiveHybridOverlayBaseCreate",
       "query": "mutation SegmentLiveHybridOverlayCreate($name: String!, $query: String!) {\n  segmentCreate(name: $name, query: $query) {\n    segment {\n      id\n      name\n      query\n      creationDate\n      lastEditDate\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
       "variables": {
-        "name": "Live Hybrid Base segmentlivehybridoverlaymrsc0qgmd4fp2g",
-        "query": "customer_tags CONTAINS 'segmentlivehybridoverlaymrsc0qgmd4fp2g-base'"
+        "name": "Live Hybrid Base segmentlivehybridoverlaymrtafrxt1ht6vd",
+        "query": "customer_tags CONTAINS 'segmentlivehybridoverlaymrtafrxt1ht6vd-base'"
       },
       "response": {
         "status": 200,
@@ -30,11 +30,11 @@
           "data": {
             "segmentCreate": {
               "segment": {
-                "id": "gid://shopify/Segment/653744177458",
-                "name": "Live Hybrid Base segmentlivehybridoverlaymrsc0qgmd4fp2g",
-                "query": "customer_tags CONTAINS 'segmentlivehybridoverlaymrsc0qgmd4fp2g-base'",
-                "creationDate": "2026-07-19T21:52:55Z",
-                "lastEditDate": "2026-07-19T21:52:55Z"
+                "id": "gid://shopify/Segment/653980270898",
+                "name": "Live Hybrid Base segmentlivehybridoverlaymrtafrxt1ht6vd",
+                "query": "customer_tags CONTAINS 'segmentlivehybridoverlaymrtafrxt1ht6vd-base'",
+                "creationDate": "2026-07-20T13:56:24Z",
+                "lastEditDate": "2026-07-20T13:56:24Z"
               },
               "userErrors": []
             }
@@ -57,10 +57,10 @@
       "operationName": "SegmentLiveHybridOverlayRead",
       "query": "query SegmentLiveHybridOverlayRead(\n  $realId: ID!\n  $catalogQuery: String!\n  $baseQuery: String!\n  $stagedQuery: String!\n  $first: Int!\n) {\n  realSegment: segment(id: $realId) {\n    id\n    name\n    query\n    creationDate\n    lastEditDate\n  }\n  combinedWindow: segments(first: 1, query: $catalogQuery) {\n    edges {\n      cursor\n      node {\n        id\n        name\n        query\n        creationDate\n        lastEditDate\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  baseWindow: segments(first: $first, query: $baseQuery) {\n    edges {\n      cursor\n      node {\n        id\n        name\n        query\n        creationDate\n        lastEditDate\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  stagedWindow: segments(first: $first, query: $stagedQuery) {\n    edges {\n      cursor\n      node {\n        id\n        name\n        query\n        creationDate\n        lastEditDate\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  totalCount: segmentsCount {\n    count\n    precision\n  }\n}\n",
       "variables": {
-        "realId": "gid://shopify/Segment/653744177458",
-        "catalogQuery": "segmentlivehybridoverlaymrsc0qgmd4fp2g",
-        "baseQuery": "Live Hybrid Base segmentlivehybridoverlaymrsc0qgmd4fp2g",
-        "stagedQuery": "Live Hybrid Staged segmentlivehybridoverlaymrsc0qgmd4fp2g",
+        "realId": "gid://shopify/Segment/653980270898",
+        "catalogQuery": "segmentlivehybridoverlaymrtafrxt1ht6vd",
+        "baseQuery": "Live Hybrid Base segmentlivehybridoverlaymrtafrxt1ht6vd",
+        "stagedQuery": "Live Hybrid Staged segmentlivehybridoverlaymrtafrxt1ht6vd",
         "first": 5
       },
       "response": {
@@ -68,50 +68,50 @@
         "body": {
           "data": {
             "realSegment": {
-              "id": "gid://shopify/Segment/653744177458",
-              "name": "Live Hybrid Base segmentlivehybridoverlaymrsc0qgmd4fp2g",
-              "query": "customer_tags CONTAINS 'segmentlivehybridoverlaymrsc0qgmd4fp2g-base'",
-              "creationDate": "2026-07-19T21:52:55Z",
-              "lastEditDate": "2026-07-19T21:52:55Z"
+              "id": "gid://shopify/Segment/653980270898",
+              "name": "Live Hybrid Base segmentlivehybridoverlaymrtafrxt1ht6vd",
+              "query": "customer_tags CONTAINS 'segmentlivehybridoverlaymrtafrxt1ht6vd-base'",
+              "creationDate": "2026-07-20T13:56:24Z",
+              "lastEditDate": "2026-07-20T13:56:24Z"
             },
             "combinedWindow": {
               "edges": [
                 {
-                  "cursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM3NDQxNzc0NTgsImxhc3RfdmFsdWUiOlsiMTc4NDQ5Nzk3NTAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                  "cursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM5ODAyNzA4OTgsImxhc3RfdmFsdWUiOlsiMTc4NDU1NTc4NDAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
                   "node": {
-                    "id": "gid://shopify/Segment/653744177458",
-                    "name": "Live Hybrid Base segmentlivehybridoverlaymrsc0qgmd4fp2g",
-                    "query": "customer_tags CONTAINS 'segmentlivehybridoverlaymrsc0qgmd4fp2g-base'",
-                    "creationDate": "2026-07-19T21:52:55Z",
-                    "lastEditDate": "2026-07-19T21:52:55Z"
+                    "id": "gid://shopify/Segment/653980270898",
+                    "name": "Live Hybrid Base segmentlivehybridoverlaymrtafrxt1ht6vd",
+                    "query": "customer_tags CONTAINS 'segmentlivehybridoverlaymrtafrxt1ht6vd-base'",
+                    "creationDate": "2026-07-20T13:56:24Z",
+                    "lastEditDate": "2026-07-20T13:56:24Z"
                   }
                 }
               ],
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM3NDQxNzc0NTgsImxhc3RfdmFsdWUiOlsiMTc4NDQ5Nzk3NTAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                "endCursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM3NDQxNzc0NTgsImxhc3RfdmFsdWUiOlsiMTc4NDQ5Nzk3NTAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
+                "startCursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM5ODAyNzA4OTgsImxhc3RfdmFsdWUiOlsiMTc4NDU1NTc4NDAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                "endCursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM5ODAyNzA4OTgsImxhc3RfdmFsdWUiOlsiMTc4NDU1NTc4NDAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
               }
             },
             "baseWindow": {
               "edges": [
                 {
-                  "cursor": "eyJsaW1pdCI6NSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM3NDQxNzc0NTgsImxhc3RfdmFsdWUiOlsiMTc4NDQ5Nzk3NTAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                  "cursor": "eyJsaW1pdCI6NSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM5ODAyNzA4OTgsImxhc3RfdmFsdWUiOlsiMTc4NDU1NTc4NDAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
                   "node": {
-                    "id": "gid://shopify/Segment/653744177458",
-                    "name": "Live Hybrid Base segmentlivehybridoverlaymrsc0qgmd4fp2g",
-                    "query": "customer_tags CONTAINS 'segmentlivehybridoverlaymrsc0qgmd4fp2g-base'",
-                    "creationDate": "2026-07-19T21:52:55Z",
-                    "lastEditDate": "2026-07-19T21:52:55Z"
+                    "id": "gid://shopify/Segment/653980270898",
+                    "name": "Live Hybrid Base segmentlivehybridoverlaymrtafrxt1ht6vd",
+                    "query": "customer_tags CONTAINS 'segmentlivehybridoverlaymrtafrxt1ht6vd-base'",
+                    "creationDate": "2026-07-20T13:56:24Z",
+                    "lastEditDate": "2026-07-20T13:56:24Z"
                   }
                 }
               ],
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsaW1pdCI6NSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM3NDQxNzc0NTgsImxhc3RfdmFsdWUiOlsiMTc4NDQ5Nzk3NTAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                "endCursor": "eyJsaW1pdCI6NSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM3NDQxNzc0NTgsImxhc3RfdmFsdWUiOlsiMTc4NDQ5Nzk3NTAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
+                "startCursor": "eyJsaW1pdCI6NSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM5ODAyNzA4OTgsImxhc3RfdmFsdWUiOlsiMTc4NDU1NTc4NDAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                "endCursor": "eyJsaW1pdCI6NSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM5ODAyNzA4OTgsImxhc3RfdmFsdWUiOlsiMTc4NDU1NTc4NDAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
               }
             },
             "stagedWindow": {
@@ -147,8 +147,8 @@
     "operationName": "SegmentLiveHybridOverlayCreate",
     "query": "mutation SegmentLiveHybridOverlayCreate($name: String!, $query: String!) {\n  segmentCreate(name: $name, query: $query) {\n    segment {\n      id\n      name\n      query\n      creationDate\n      lastEditDate\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
     "variables": {
-      "name": "Live Hybrid Staged segmentlivehybridoverlaymrsc0qgmd4fp2g",
-      "query": "customer_tags CONTAINS 'segmentlivehybridoverlaymrsc0qgmd4fp2g-staged'"
+      "name": "Live Hybrid Staged segmentlivehybridoverlaymrtafrxt1ht6vd",
+      "query": "customer_tags CONTAINS 'segmentlivehybridoverlaymrtafrxt1ht6vd-staged'"
     },
     "response": {
       "status": 200,
@@ -156,11 +156,11 @@
         "data": {
           "segmentCreate": {
             "segment": {
-              "id": "gid://shopify/Segment/653744210226",
-              "name": "Live Hybrid Staged segmentlivehybridoverlaymrsc0qgmd4fp2g",
-              "query": "customer_tags CONTAINS 'segmentlivehybridoverlaymrsc0qgmd4fp2g-staged'",
-              "creationDate": "2026-07-19T21:53:01Z",
-              "lastEditDate": "2026-07-19T21:53:01Z"
+              "id": "gid://shopify/Segment/653980303666",
+              "name": "Live Hybrid Staged segmentlivehybridoverlaymrtafrxt1ht6vd",
+              "query": "customer_tags CONTAINS 'segmentlivehybridoverlaymrtafrxt1ht6vd-staged'",
+              "creationDate": "2026-07-20T13:56:30Z",
+              "lastEditDate": "2026-07-20T13:56:30Z"
             },
             "userErrors": []
           }
@@ -171,7 +171,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1981,
+              "currentlyAvailable": 1974,
               "restoreRate": 100
             }
           }
@@ -183,10 +183,10 @@
     "operationName": "SegmentLiveHybridOverlayRead",
     "query": "query SegmentLiveHybridOverlayRead(\n  $realId: ID!\n  $catalogQuery: String!\n  $baseQuery: String!\n  $stagedQuery: String!\n  $first: Int!\n) {\n  realSegment: segment(id: $realId) {\n    id\n    name\n    query\n    creationDate\n    lastEditDate\n  }\n  combinedWindow: segments(first: 1, query: $catalogQuery) {\n    edges {\n      cursor\n      node {\n        id\n        name\n        query\n        creationDate\n        lastEditDate\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  baseWindow: segments(first: $first, query: $baseQuery) {\n    edges {\n      cursor\n      node {\n        id\n        name\n        query\n        creationDate\n        lastEditDate\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  stagedWindow: segments(first: $first, query: $stagedQuery) {\n    edges {\n      cursor\n      node {\n        id\n        name\n        query\n        creationDate\n        lastEditDate\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  totalCount: segmentsCount {\n    count\n    precision\n  }\n}\n",
     "variables": {
-      "realId": "gid://shopify/Segment/653744177458",
-      "catalogQuery": "segmentlivehybridoverlaymrsc0qgmd4fp2g",
-      "baseQuery": "Live Hybrid Base segmentlivehybridoverlaymrsc0qgmd4fp2g",
-      "stagedQuery": "Live Hybrid Staged segmentlivehybridoverlaymrsc0qgmd4fp2g",
+      "realId": "gid://shopify/Segment/653980270898",
+      "catalogQuery": "segmentlivehybridoverlaymrtafrxt1ht6vd",
+      "baseQuery": "Live Hybrid Base segmentlivehybridoverlaymrtafrxt1ht6vd",
+      "stagedQuery": "Live Hybrid Staged segmentlivehybridoverlaymrtafrxt1ht6vd",
       "first": 5
     },
     "response": {
@@ -194,70 +194,70 @@
       "body": {
         "data": {
           "realSegment": {
-            "id": "gid://shopify/Segment/653744177458",
-            "name": "Live Hybrid Base segmentlivehybridoverlaymrsc0qgmd4fp2g",
-            "query": "customer_tags CONTAINS 'segmentlivehybridoverlaymrsc0qgmd4fp2g-base'",
-            "creationDate": "2026-07-19T21:52:55Z",
-            "lastEditDate": "2026-07-19T21:52:55Z"
+            "id": "gid://shopify/Segment/653980270898",
+            "name": "Live Hybrid Base segmentlivehybridoverlaymrtafrxt1ht6vd",
+            "query": "customer_tags CONTAINS 'segmentlivehybridoverlaymrtafrxt1ht6vd-base'",
+            "creationDate": "2026-07-20T13:56:24Z",
+            "lastEditDate": "2026-07-20T13:56:24Z"
           },
           "combinedWindow": {
             "edges": [
               {
-                "cursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM3NDQxNzc0NTgsImxhc3RfdmFsdWUiOlsiMTc4NDQ5Nzk3NTAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                "cursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM5ODAyNzA4OTgsImxhc3RfdmFsdWUiOlsiMTc4NDU1NTc4NDAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
                 "node": {
-                  "id": "gid://shopify/Segment/653744177458",
-                  "name": "Live Hybrid Base segmentlivehybridoverlaymrsc0qgmd4fp2g",
-                  "query": "customer_tags CONTAINS 'segmentlivehybridoverlaymrsc0qgmd4fp2g-base'",
-                  "creationDate": "2026-07-19T21:52:55Z",
-                  "lastEditDate": "2026-07-19T21:52:55Z"
+                  "id": "gid://shopify/Segment/653980270898",
+                  "name": "Live Hybrid Base segmentlivehybridoverlaymrtafrxt1ht6vd",
+                  "query": "customer_tags CONTAINS 'segmentlivehybridoverlaymrtafrxt1ht6vd-base'",
+                  "creationDate": "2026-07-20T13:56:24Z",
+                  "lastEditDate": "2026-07-20T13:56:24Z"
                 }
               }
             ],
             "pageInfo": {
               "hasNextPage": true,
               "hasPreviousPage": false,
-              "startCursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM3NDQxNzc0NTgsImxhc3RfdmFsdWUiOlsiMTc4NDQ5Nzk3NTAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-              "endCursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM3NDQxNzc0NTgsImxhc3RfdmFsdWUiOlsiMTc4NDQ5Nzk3NTAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
+              "startCursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM5ODAyNzA4OTgsImxhc3RfdmFsdWUiOlsiMTc4NDU1NTc4NDAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+              "endCursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM5ODAyNzA4OTgsImxhc3RfdmFsdWUiOlsiMTc4NDU1NTc4NDAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
             }
           },
           "baseWindow": {
             "edges": [
               {
-                "cursor": "eyJsaW1pdCI6NSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM3NDQxNzc0NTgsImxhc3RfdmFsdWUiOlsiMTc4NDQ5Nzk3NTAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                "cursor": "eyJsaW1pdCI6NSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM5ODAyNzA4OTgsImxhc3RfdmFsdWUiOlsiMTc4NDU1NTc4NDAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
                 "node": {
-                  "id": "gid://shopify/Segment/653744177458",
-                  "name": "Live Hybrid Base segmentlivehybridoverlaymrsc0qgmd4fp2g",
-                  "query": "customer_tags CONTAINS 'segmentlivehybridoverlaymrsc0qgmd4fp2g-base'",
-                  "creationDate": "2026-07-19T21:52:55Z",
-                  "lastEditDate": "2026-07-19T21:52:55Z"
+                  "id": "gid://shopify/Segment/653980270898",
+                  "name": "Live Hybrid Base segmentlivehybridoverlaymrtafrxt1ht6vd",
+                  "query": "customer_tags CONTAINS 'segmentlivehybridoverlaymrtafrxt1ht6vd-base'",
+                  "creationDate": "2026-07-20T13:56:24Z",
+                  "lastEditDate": "2026-07-20T13:56:24Z"
                 }
               }
             ],
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsaW1pdCI6NSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM3NDQxNzc0NTgsImxhc3RfdmFsdWUiOlsiMTc4NDQ5Nzk3NTAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-              "endCursor": "eyJsaW1pdCI6NSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM3NDQxNzc0NTgsImxhc3RfdmFsdWUiOlsiMTc4NDQ5Nzk3NTAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
+              "startCursor": "eyJsaW1pdCI6NSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM5ODAyNzA4OTgsImxhc3RfdmFsdWUiOlsiMTc4NDU1NTc4NDAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+              "endCursor": "eyJsaW1pdCI6NSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM5ODAyNzA4OTgsImxhc3RfdmFsdWUiOlsiMTc4NDU1NTc4NDAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
             }
           },
           "stagedWindow": {
             "edges": [
               {
-                "cursor": "eyJsaW1pdCI6NSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM3NDQyMTAyMjYsImxhc3RfdmFsdWUiOlsiMTc4NDQ5Nzk4MTAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                "cursor": "eyJsaW1pdCI6NSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM5ODAzMDM2NjYsImxhc3RfdmFsdWUiOlsiMTc4NDU1NTc5MDAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
                 "node": {
-                  "id": "gid://shopify/Segment/653744210226",
-                  "name": "Live Hybrid Staged segmentlivehybridoverlaymrsc0qgmd4fp2g",
-                  "query": "customer_tags CONTAINS 'segmentlivehybridoverlaymrsc0qgmd4fp2g-staged'",
-                  "creationDate": "2026-07-19T21:53:01Z",
-                  "lastEditDate": "2026-07-19T21:53:01Z"
+                  "id": "gid://shopify/Segment/653980303666",
+                  "name": "Live Hybrid Staged segmentlivehybridoverlaymrtafrxt1ht6vd",
+                  "query": "customer_tags CONTAINS 'segmentlivehybridoverlaymrtafrxt1ht6vd-staged'",
+                  "creationDate": "2026-07-20T13:56:30Z",
+                  "lastEditDate": "2026-07-20T13:56:30Z"
                 }
               }
             ],
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsaW1pdCI6NSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM3NDQyMTAyMjYsImxhc3RfdmFsdWUiOlsiMTc4NDQ5Nzk4MTAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-              "endCursor": "eyJsaW1pdCI6NSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM3NDQyMTAyMjYsImxhc3RfdmFsdWUiOlsiMTc4NDQ5Nzk4MTAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
+              "startCursor": "eyJsaW1pdCI6NSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM5ODAzMDM2NjYsImxhc3RfdmFsdWUiOlsiMTc4NDU1NTc5MDAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+              "endCursor": "eyJsaW1pdCI6NSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM5ODAzMDM2NjYsImxhc3RfdmFsdWUiOlsiMTc4NDU1NTc5MDAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
             }
           },
           "totalCount": {
@@ -283,14 +283,14 @@
     "staged": {
       "query": "#graphql\nmutation SegmentLiveHybridOverlayCleanup($id: ID!) {\n  segmentDelete(id: $id) {\n    deletedSegmentId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/Segment/653744210226"
+        "id": "gid://shopify/Segment/653980303666"
       },
       "response": {
         "status": 200,
         "body": {
           "data": {
             "segmentDelete": {
-              "deletedSegmentId": "gid://shopify/Segment/653744210226",
+              "deletedSegmentId": "gid://shopify/Segment/653980303666",
               "userErrors": []
             }
           },
@@ -300,7 +300,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1981,
+                "currentlyAvailable": 1980,
                 "restoreRate": 100
               }
             }
@@ -311,14 +311,14 @@
     "base": {
       "query": "#graphql\nmutation SegmentLiveHybridOverlayCleanup($id: ID!) {\n  segmentDelete(id: $id) {\n    deletedSegmentId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/Segment/653744177458"
+        "id": "gid://shopify/Segment/653980270898"
       },
       "response": {
         "status": 200,
         "body": {
           "data": {
             "segmentDelete": {
-              "deletedSegmentId": "gid://shopify/Segment/653744177458",
+              "deletedSegmentId": "gid://shopify/Segment/653980270898",
               "userErrors": []
             }
           },
@@ -328,7 +328,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1982,
+                "currentlyAvailable": 1983,
                 "restoreRate": 100
               }
             }
@@ -343,12 +343,51 @@
       "path": "/admin/api/2025-01/graphql.json",
       "apiSurface": "admin",
       "apiVersion": "2025-01",
+      "operationName": "SegmentAuthoritativePrerequisites",
+      "variables": {
+        "name0": "name:\"Live Hybrid Staged segmentlivehybridoverlaymrtafrxt1ht6vd\""
+      },
+      "query": "query SegmentAuthoritativePrerequisites($name0: String!) {\n  count: segmentsCount(limit: 6000) { count precision }\n  name0: segments(first: 101, query: $name0) {\n    nodes { id name query creationDate lastEditDate }\n    pageInfo { hasNextPage }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "count": {
+              "count": 1,
+              "precision": "EXACT"
+            },
+            "name0": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 21,
+              "actualQueryCost": 21,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1974,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2025-01/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
       "operationName": "SegmentLiveHybridOverlayRead",
       "variables": {
-        "realId": "gid://shopify/Segment/653744177458",
-        "catalogQuery": "segmentlivehybridoverlaymrsc0qgmd4fp2g",
-        "baseQuery": "Live Hybrid Base segmentlivehybridoverlaymrsc0qgmd4fp2g",
-        "stagedQuery": "Live Hybrid Staged segmentlivehybridoverlaymrsc0qgmd4fp2g",
+        "realId": "gid://shopify/Segment/653980270898",
+        "catalogQuery": "segmentlivehybridoverlaymrtafrxt1ht6vd",
+        "baseQuery": "Live Hybrid Base segmentlivehybridoverlaymrtafrxt1ht6vd",
+        "stagedQuery": "Live Hybrid Staged segmentlivehybridoverlaymrtafrxt1ht6vd",
         "first": 5
       },
       "query": "query SegmentLiveHybridOverlayRead(\n  $realId: ID!\n  $catalogQuery: String!\n  $baseQuery: String!\n  $stagedQuery: String!\n  $first: Int!\n) {\n  realSegment: segment(id: $realId) {\n    id\n    name\n    query\n    creationDate\n    lastEditDate\n  }\n  combinedWindow: segments(first: 1, query: $catalogQuery) {\n    edges {\n      cursor\n      node {\n        id\n        name\n        query\n        creationDate\n        lastEditDate\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  baseWindow: segments(first: $first, query: $baseQuery) {\n    edges {\n      cursor\n      node {\n        id\n        name\n        query\n        creationDate\n        lastEditDate\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  stagedWindow: segments(first: $first, query: $stagedQuery) {\n    edges {\n      cursor\n      node {\n        id\n        name\n        query\n        creationDate\n        lastEditDate\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  totalCount: segmentsCount {\n    count\n    precision\n  }\n}\n",
@@ -357,50 +396,50 @@
         "body": {
           "data": {
             "realSegment": {
-              "id": "gid://shopify/Segment/653744177458",
-              "name": "Live Hybrid Base segmentlivehybridoverlaymrsc0qgmd4fp2g",
-              "query": "customer_tags CONTAINS 'segmentlivehybridoverlaymrsc0qgmd4fp2g-base'",
-              "creationDate": "2026-07-19T21:52:55Z",
-              "lastEditDate": "2026-07-19T21:52:55Z"
+              "id": "gid://shopify/Segment/653980270898",
+              "name": "Live Hybrid Base segmentlivehybridoverlaymrtafrxt1ht6vd",
+              "query": "customer_tags CONTAINS 'segmentlivehybridoverlaymrtafrxt1ht6vd-base'",
+              "creationDate": "2026-07-20T13:56:24Z",
+              "lastEditDate": "2026-07-20T13:56:24Z"
             },
             "combinedWindow": {
               "edges": [
                 {
-                  "cursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM3NDQxNzc0NTgsImxhc3RfdmFsdWUiOlsiMTc4NDQ5Nzk3NTAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                  "cursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM5ODAyNzA4OTgsImxhc3RfdmFsdWUiOlsiMTc4NDU1NTc4NDAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
                   "node": {
-                    "id": "gid://shopify/Segment/653744177458",
-                    "name": "Live Hybrid Base segmentlivehybridoverlaymrsc0qgmd4fp2g",
-                    "query": "customer_tags CONTAINS 'segmentlivehybridoverlaymrsc0qgmd4fp2g-base'",
-                    "creationDate": "2026-07-19T21:52:55Z",
-                    "lastEditDate": "2026-07-19T21:52:55Z"
+                    "id": "gid://shopify/Segment/653980270898",
+                    "name": "Live Hybrid Base segmentlivehybridoverlaymrtafrxt1ht6vd",
+                    "query": "customer_tags CONTAINS 'segmentlivehybridoverlaymrtafrxt1ht6vd-base'",
+                    "creationDate": "2026-07-20T13:56:24Z",
+                    "lastEditDate": "2026-07-20T13:56:24Z"
                   }
                 }
               ],
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM3NDQxNzc0NTgsImxhc3RfdmFsdWUiOlsiMTc4NDQ5Nzk3NTAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                "endCursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM3NDQxNzc0NTgsImxhc3RfdmFsdWUiOlsiMTc4NDQ5Nzk3NTAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
+                "startCursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM5ODAyNzA4OTgsImxhc3RfdmFsdWUiOlsiMTc4NDU1NTc4NDAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                "endCursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM5ODAyNzA4OTgsImxhc3RfdmFsdWUiOlsiMTc4NDU1NTc4NDAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
               }
             },
             "baseWindow": {
               "edges": [
                 {
-                  "cursor": "eyJsaW1pdCI6NSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM3NDQxNzc0NTgsImxhc3RfdmFsdWUiOlsiMTc4NDQ5Nzk3NTAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                  "cursor": "eyJsaW1pdCI6NSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM5ODAyNzA4OTgsImxhc3RfdmFsdWUiOlsiMTc4NDU1NTc4NDAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
                   "node": {
-                    "id": "gid://shopify/Segment/653744177458",
-                    "name": "Live Hybrid Base segmentlivehybridoverlaymrsc0qgmd4fp2g",
-                    "query": "customer_tags CONTAINS 'segmentlivehybridoverlaymrsc0qgmd4fp2g-base'",
-                    "creationDate": "2026-07-19T21:52:55Z",
-                    "lastEditDate": "2026-07-19T21:52:55Z"
+                    "id": "gid://shopify/Segment/653980270898",
+                    "name": "Live Hybrid Base segmentlivehybridoverlaymrtafrxt1ht6vd",
+                    "query": "customer_tags CONTAINS 'segmentlivehybridoverlaymrtafrxt1ht6vd-base'",
+                    "creationDate": "2026-07-20T13:56:24Z",
+                    "lastEditDate": "2026-07-20T13:56:24Z"
                   }
                 }
               ],
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsaW1pdCI6NSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM3NDQxNzc0NTgsImxhc3RfdmFsdWUiOlsiMTc4NDQ5Nzk3NTAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                "endCursor": "eyJsaW1pdCI6NSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM3NDQxNzc0NTgsImxhc3RfdmFsdWUiOlsiMTc4NDQ5Nzk3NTAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
+                "startCursor": "eyJsaW1pdCI6NSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM5ODAyNzA4OTgsImxhc3RfdmFsdWUiOlsiMTc4NDU1NTc4NDAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                "endCursor": "eyJsaW1pdCI6NSwic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo2NTM5ODAyNzA4OTgsImxhc3RfdmFsdWUiOlsiMTc4NDU1NTc4NDAwMCJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
               }
             },
             "stagedWindow": {
@@ -434,6 +473,6 @@
   ],
   "notes": [
     "Live Shopify evidence for LiveHybrid segment overlay after segmentCreate.",
-    "Proxy replay stages only the second segment locally, while the upstreamCalls cassette records the base-only segment(id:)/segments/segmentsCount read captured before the second segment existed."
+    "Proxy replay stages only the second segment locally, while the upstreamCalls cassette records its authoritative count/name prerequisites and the base-only segment(id:)/segments/segmentsCount read captured before the second segment existed."
   ]
 }

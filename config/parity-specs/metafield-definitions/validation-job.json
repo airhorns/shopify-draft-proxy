@@ -1,8 +1,18 @@
 {
   "scenarioId": "metafield-definition-validation-job",
-  "operationNames": ["metafieldDefinitionCreate", "metafieldsSet", "metafieldDefinitionUpdate", "job"],
+  "operationNames": [
+    "metafieldDefinitionCreate",
+    "metafieldsSet",
+    "metafieldDefinitionUpdate",
+    "job"
+  ],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "validation-backfill-job", "async-job-readback", "null-noop-job"],
+  "assertionKinds": [
+    "payload-shape",
+    "validation-backfill-job",
+    "async-job-readback",
+    "null-noop-job"
+  ],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-validation-job.json"
   ],

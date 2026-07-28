@@ -1,5 +1,6 @@
 use super::common::*;
 use pretty_assertions::assert_eq;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 const DEFAULT_ORDER_UNFULFILLED_ID: &str =
     "gid://shopify/SavedSearch/default-order-unfulfilled?shopify-draft-proxy=synthetic";
@@ -197,6 +198,733 @@ fn product_money_ranges_hydrate_shop_currency_in_live_hybrid() {
         json!("JPY")
     );
     assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+}
+
+fn mutation_hydrate_variant(product_id: &str, index: usize) -> Value {
+    json!({
+        "id": format!("gid://shopify/ProductVariant/{index}"),
+        "title": format!("Variant {index}"),
+        "sku": format!("SKU-{index:03}"),
+        "barcode": format!("BAR-{index:03}"),
+        "price": format!("{index}.00"),
+        "compareAtPrice": Value::Null,
+        "taxable": true,
+        "taxCode": "P0000000",
+        "inventoryPolicy": "DENY",
+        "inventoryQuantity": index as i64,
+        "requiresComponents": true,
+        "showUnitPrice": true,
+        "unitPriceMeasurement": {
+            "quantityValue": 2.5,
+            "quantityUnit": "L",
+            "referenceValue": 1.0,
+            "referenceUnit": "L"
+        },
+        "metafields": {
+            "nodes": [{
+                "id": format!("gid://shopify/Metafield/{index}"),
+                "namespace": "specs",
+                "key": "hydrated",
+                "type": "single_line_text_field",
+                "value": "preserved",
+                "compareDigest": Value::Null,
+                "jsonValue": "preserved",
+                "createdAt": "2024-02-03T04:05:06Z",
+                "updatedAt": "2024-03-04T05:06:07Z",
+                "ownerType": "PRODUCTVARIANT"
+            }]
+        },
+        "selectedOptions": [
+            { "name": "Color", "value": if index.is_multiple_of(2) { "Blue" } else { "Red" } },
+            { "name": "Size", "value": if index.is_multiple_of(2) { "Large" } else { "Small" } }
+        ],
+        "inventoryItem": {
+            "id": format!("gid://shopify/InventoryItem/{index}"),
+            "tracked": true,
+            "requiresShipping": true,
+            "countryCodeOfOrigin": "US",
+            "provinceCodeOfOrigin": "CA",
+            "harmonizedSystemCode": "123456",
+            "measurement": { "weight": { "unit": "KILOGRAMS", "value": 0.5 } }
+        },
+        "position": index,
+        "product": { "id": product_id }
+    })
+}
+
+fn mutation_hydrate_product_page(product_id: &str, variants_after: Option<&str>) -> Value {
+    let (variants, has_next_page, start_cursor, end_cursor) = if variants_after.is_none() {
+        (
+            (1..=250)
+                .map(|index| mutation_hydrate_variant(product_id, index))
+                .collect::<Vec<_>>(),
+            true,
+            Some("variant-1"),
+            Some("variant-250"),
+        )
+    } else {
+        (
+            vec![mutation_hydrate_variant(product_id, 251)],
+            false,
+            Some("variant-251"),
+            Some("variant-251"),
+        )
+    };
+    json!({
+        "__typename": "Product",
+        "id": product_id,
+        "legacyResourceId": "987654321",
+        "createdAt": "2024-02-03T04:05:06Z",
+        "updatedAt": "2024-03-04T05:06:07Z",
+        "title": "Rich upstream product",
+        "handle": "rich-upstream-product",
+        "status": "ACTIVE",
+        "publishedAt": "2024-02-03T04:05:06Z",
+        "descriptionHtml": "<p>Preserve this description</p>",
+        "vendor": "Rich Vendor",
+        "productType": "Hydrated",
+        "tags": ["alpha", "beta"],
+        "templateSuffix": "rich",
+        "seo": {
+            "title": "Rich SEO title",
+            "description": "Rich SEO description"
+        },
+        "totalInventory": 31626,
+        "tracksInventory": true,
+        "onlineStorePreviewUrl": "https://example.myshopify.com/products/rich-upstream-product",
+        "requiresSellingPlan": false,
+        "isGiftCard": false,
+        "giftCardTemplateSuffix": Value::Null,
+        "category": Value::Null,
+        "options": [
+            {
+                "id": "gid://shopify/ProductOption/color",
+                "name": "Color",
+                "position": 1,
+                "optionValues": [
+                    { "id": "gid://shopify/ProductOptionValue/red", "name": "Red", "hasVariants": true },
+                    { "id": "gid://shopify/ProductOptionValue/blue", "name": "Blue", "hasVariants": true }
+                ]
+            },
+            {
+                "id": "gid://shopify/ProductOption/size",
+                "name": "Size",
+                "position": 2,
+                "optionValues": [
+                    { "id": "gid://shopify/ProductOptionValue/small", "name": "Small", "hasVariants": true },
+                    { "id": "gid://shopify/ProductOptionValue/large", "name": "Large", "hasVariants": true }
+                ]
+            }
+        ],
+        "variants": {
+            "nodes": variants,
+            "pageInfo": {
+                "hasNextPage": has_next_page,
+                "hasPreviousPage": variants_after.is_some(),
+                "startCursor": start_cursor,
+                "endCursor": end_cursor
+            }
+        },
+        "media": {
+            "nodes": [{
+                "__typename": "MediaImage",
+                "id": "gid://shopify/MediaImage/rich",
+                "alt": "Rich image",
+                "mediaContentType": "IMAGE",
+                "status": "READY",
+                "preview": { "image": { "url": "https://cdn.shopify.com/rich.png", "width": 800, "height": 600 } },
+                "image": { "url": "https://cdn.shopify.com/rich.png", "width": 800, "height": 600 }
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "media-1",
+                "endCursor": "media-1"
+            }
+        },
+        "collections": {
+            "nodes": [{
+                "id": "gid://shopify/Collection/rich",
+                "title": "Rich collection",
+                "handle": "rich-collection"
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "collection-1",
+                "endCursor": "collection-1"
+            }
+        }
+    })
+}
+
+fn mutation_hydrate_upstream_response(request: &Request, product_id: &str) -> Response {
+    assert_eq!(request.path, "/admin/api/2026-01/graphql.json");
+    assert_eq!(
+        request
+            .headers
+            .get("x-shopify-access-token")
+            .map(String::as_str),
+        Some("mutation-hydrate-token")
+    );
+    assert_eq!(
+        request.headers.get("x-request-id").map(String::as_str),
+        Some("mutation-hydrate-request")
+    );
+    let body: Value = serde_json::from_str(&request.body).expect("hydrate body should parse");
+    let query = body["query"]
+        .as_str()
+        .expect("hydrate query should be a string");
+    if query.contains("ProductMutationPreflightHydrate") {
+        for required in [
+            "createdAt",
+            "updatedAt",
+            "descriptionHtml",
+            "vendor",
+            "productType",
+            "tags",
+            "templateSuffix",
+            "seo",
+            "options",
+            "variants(first: 250",
+            "taxCode",
+            "requiresComponents",
+            "showUnitPrice",
+            "unitPriceMeasurement",
+            "metafields(first: 250)",
+            "countryCodeOfOrigin",
+            "harmonizedSystemCode",
+            "media(first: 250",
+            "collections(first: 250",
+            "pageInfo",
+        ] {
+            assert!(query.contains(required), "hydrate query omitted {required}");
+        }
+        let variants_after = body["variables"]["variantsAfter"].as_str();
+        return Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "product": mutation_hydrate_product_page(product_id, variants_after)
+                }
+            }),
+        };
+    }
+    if query.contains("ProductOptionsHydrateNodes") {
+        let mut product = mutation_hydrate_product_page(product_id, None);
+        product["variants"]["nodes"] = Value::Array(
+            (1..=100)
+                .map(|index| mutation_hydrate_variant(product_id, index))
+                .collect(),
+        );
+        return Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": { "nodes": [product] } }),
+        };
+    }
+    assert!(
+        query.contains("ProductsHydrateNodes"),
+        "unexpected hydrate query: {query}"
+    );
+    let mut product = mutation_hydrate_product_page(product_id, None);
+    let product_object = product
+        .as_object_mut()
+        .expect("test product should be an object");
+    product_object.retain(|key, _| {
+        matches!(
+            key.as_str(),
+            "__typename"
+                | "id"
+                | "title"
+                | "handle"
+                | "status"
+                | "totalInventory"
+                | "tracksInventory"
+                | "variants"
+                | "collections"
+        )
+    });
+    product["variants"]["nodes"] = Value::Array(
+        (1..=10)
+            .map(|index| mutation_hydrate_variant(product_id, index))
+            .collect(),
+    );
+    let ids = body["variables"]["ids"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let mut nodes = vec![product];
+    if ids
+        .iter()
+        .any(|id| id.as_str() == Some("gid://shopify/ProductVariant/251"))
+    {
+        nodes.push(mutation_hydrate_variant(product_id, 251));
+    }
+    Response {
+        status: 200,
+        headers: Default::default(),
+        body: json!({ "data": { "nodes": nodes } }),
+    }
+}
+
+fn mutation_request(query: &str, variables: Value) -> Request {
+    Request {
+        method: "POST".to_string(),
+        path: "/admin/api/2026-01/graphql.json".to_string(),
+        headers: std::collections::BTreeMap::from([
+            (
+                "x-shopify-access-token".to_string(),
+                "mutation-hydrate-token".to_string(),
+            ),
+            (
+                "x-request-id".to_string(),
+                "mutation-hydrate-request".to_string(),
+            ),
+        ]),
+        body: json!({ "query": query, "variables": variables }).to_string(),
+    }
+}
+
+#[test]
+fn product_and_variant_mutations_hydrate_rich_products_through_the_last_variant_page() {
+    let product_id = "gid://shopify/Product/rich-hydration";
+    let target_variant_id = "gid://shopify/ProductVariant/251";
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured_requests.lock().unwrap().push(request.clone());
+            mutation_hydrate_upstream_response(&request, product_id)
+        });
+
+    let update = proxy.process_request(mutation_request(
+        r#"
+        mutation NarrowRichProductUpdate($product: ProductUpdateInput!) {
+          productUpdate(product: $product) {
+            product {
+              id title vendor productType tags descriptionHtml templateSuffix
+              seo { title description }
+              media(first: 10) { nodes { id alt } }
+              collections(first: 10) { nodes { id title } }
+              variants(first: 300) { nodes { id sku } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "id": product_id,
+                "title": "Narrowly updated",
+                "seo": {
+                    "title": "Updated SEO title",
+                    "description": "Updated SEO description"
+                }
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["productUpdate"]["userErrors"],
+        json!([])
+    );
+    let product = &update.body["data"]["productUpdate"]["product"];
+    assert_eq!(product["title"], json!("Narrowly updated"));
+    assert_eq!(product["vendor"], json!("Rich Vendor"));
+    assert_eq!(product["productType"], json!("Hydrated"));
+    assert_eq!(product["tags"], json!(["alpha", "beta"]));
+    assert_eq!(
+        product["descriptionHtml"],
+        json!("<p>Preserve this description</p>")
+    );
+    assert_eq!(product["templateSuffix"], json!("rich"));
+    assert_eq!(product["seo"]["title"], json!("Updated SEO title"));
+    assert_eq!(
+        product["seo"]["description"],
+        json!("Updated SEO description")
+    );
+    assert_eq!(product["media"]["nodes"].as_array().map(Vec::len), Some(1));
+    assert_eq!(
+        product["collections"]["nodes"].as_array().map(Vec::len),
+        Some(1)
+    );
+    assert_eq!(
+        product["variants"]["nodes"].as_array().map(Vec::len),
+        Some(251)
+    );
+
+    let variant_update = proxy.process_request(mutation_request(
+        r#"
+        mutation UpdateHydratedLastVariant($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+            product { id variants(first: 300) { nodes { id price } } }
+            productVariants {
+              id price taxCode requiresComponents showUnitPrice
+              unitPriceMeasurement { quantityValue quantityUnit referenceValue referenceUnit }
+              inventoryItem {
+                id countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode
+                measurement { weight { unit value } }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "variants": [{ "id": target_variant_id, "price": "999.00" }]
+        }),
+    ));
+    assert_eq!(
+        variant_update.body["data"]["productVariantsBulkUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        variant_update.body["data"]["productVariantsBulkUpdate"]["productVariants"][0],
+        json!({
+            "id": target_variant_id,
+            "price": "999.00",
+            "taxCode": "P0000000",
+            "requiresComponents": true,
+            "showUnitPrice": true,
+            "unitPriceMeasurement": {
+                "quantityValue": 2.5,
+                "quantityUnit": "L",
+                "referenceValue": 1.0,
+                "referenceUnit": "L"
+            },
+            "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/251",
+                "countryCodeOfOrigin": "US",
+                "provinceCodeOfOrigin": "CA",
+                "harmonizedSystemCode": "123456",
+                "measurement": { "weight": { "unit": "KILOGRAMS", "value": 0.5 } }
+            }
+        })
+    );
+    assert_eq!(
+        variant_update.body["data"]["productVariantsBulkUpdate"]["product"]["variants"]["nodes"]
+            .as_array()
+            .map(Vec::len),
+        Some(251)
+    );
+
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(
+        requests.len(),
+        2,
+        "only the two paginated preflight reads should go upstream"
+    );
+    let bodies = requests
+        .iter()
+        .map(|request| serde_json::from_str::<Value>(&request.body).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(bodies[0]["variables"]["variantsAfter"], Value::Null);
+    assert_eq!(
+        bodies[1]["variables"]["variantsAfter"],
+        json!("variant-250")
+    );
+}
+
+#[test]
+fn sparse_product_update_survives_delayed_complete_hydration() {
+    let product_id = "gid://shopify/Product/sparse-hydration";
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let complete_hydrate_attempts = Arc::new(AtomicUsize::new(0));
+    let captured_complete_hydrate_attempts = Arc::clone(&complete_hydrate_attempts);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream body should parse");
+            captured_requests.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("ProductMutationPreflightHydrate") {
+                if captured_complete_hydrate_attempts.fetch_add(1, Ordering::SeqCst) == 0 {
+                    return Response {
+                        status: 500,
+                        headers: Default::default(),
+                        body: json!({ "errors": [{ "message": "temporary hydrate failure" }] }),
+                    };
+                }
+                let mut product = mutation_hydrate_product_page(product_id, None);
+                product["variants"]["nodes"] =
+                    Value::Array(vec![mutation_hydrate_variant(product_id, 1)]);
+                product["variants"]["pageInfo"] = json!({
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "variant-1",
+                    "endCursor": "variant-1"
+                });
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "product": product } }),
+                };
+            }
+            assert!(query.contains("ProductsHydrateNodes"));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "nodes": [{
+                            "__typename": "Product",
+                            "id": product_id,
+                            "title": "Sparse upstream title",
+                            "handle": "sparse-upstream-title",
+                            "status": "ACTIVE",
+                            "totalInventory": 0,
+                            "tracksInventory": false,
+                            "variants": {
+                                "nodes": [mutation_hydrate_variant(product_id, 1)],
+                                "pageInfo": { "hasNextPage": false, "hasPreviousPage": false }
+                            },
+                            "collections": {
+                                "nodes": [],
+                                "pageInfo": { "hasNextPage": false, "hasPreviousPage": false }
+                            }
+                        }]
+                    }
+                }),
+            }
+        });
+
+    let sparse_update = proxy.process_request(mutation_request(
+        r#"
+        mutation SparseProductUpdate($product: ProductUpdateInput!) {
+          productUpdate(product: $product) {
+            product { id title handle status tags }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "id": product_id,
+                "title": "Locally staged title",
+                "handle": "locally-staged-title",
+                "tags": ["locally-staged"]
+            }
+        }),
+    ));
+    assert_eq!(sparse_update.status, 200);
+    assert_eq!(
+        sparse_update.body["data"]["productUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        sparse_update.body["data"]["productUpdate"]["product"]["title"],
+        json!("Locally staged title")
+    );
+
+    let hydrated_update = proxy.process_request(mutation_request(
+        r#"
+        mutation HydratedProductUpdate($product: ProductUpdateInput!) {
+          productUpdate(product: $product) {
+            product {
+              id title handle tags vendor productType descriptionHtml
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "id": product_id,
+                "productType": "Locally updated type"
+            }
+        }),
+    ));
+    assert_eq!(hydrated_update.status, 200);
+    assert_eq!(
+        hydrated_update.body["data"]["productUpdate"]["userErrors"],
+        json!([])
+    );
+    let product = &hydrated_update.body["data"]["productUpdate"]["product"];
+    assert_eq!(product["title"], json!("Locally staged title"));
+    assert_eq!(product["handle"], json!("locally-staged-title"));
+    assert_eq!(product["tags"], json!(["locally-staged"]));
+    assert_eq!(product["vendor"], json!("Rich Vendor"));
+    assert_eq!(product["productType"], json!("Locally updated type"));
+    assert_eq!(
+        product["descriptionHtml"],
+        json!("<p>Preserve this description</p>")
+    );
+    assert_eq!(complete_hydrate_attempts.load(Ordering::SeqCst), 2);
+    assert_eq!(upstream_requests.lock().unwrap().len(), 3);
+}
+
+#[test]
+fn variant_delete_and_reorder_hydrate_the_complete_cold_product_catalog() {
+    let product_id = "gid://shopify/Product/variant-family-hydration";
+    let target_variant_id = "gid://shopify/ProductVariant/251";
+    let cases = [
+        (
+            "productVariantsBulkDelete",
+            r#"
+            mutation DeleteHydratedLastVariant($productId: ID!, $variantsIds: [ID!]!) {
+              productVariantsBulkDelete(productId: $productId, variantsIds: $variantsIds) {
+                product { id variants(first: 300) { nodes { id position } } }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "productId": product_id, "variantsIds": [target_variant_id] }),
+            250,
+            "gid://shopify/ProductVariant/1",
+        ),
+        (
+            "productVariantsBulkReorder",
+            r#"
+            mutation ReorderHydratedLastVariant(
+              $productId: ID!
+              $positions: [ProductVariantPositionInput!]!
+            ) {
+              productVariantsBulkReorder(productId: $productId, positions: $positions) {
+                product { id variants(first: 300) { nodes { id position } } }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "productId": product_id,
+                "positions": [{ "id": target_variant_id, "position": 1 }]
+            }),
+            251,
+            target_variant_id,
+        ),
+    ];
+
+    for (root, mutation, variables, expected_count, expected_first_id) in cases {
+        let upstream_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
+        let captured_requests = Arc::clone(&upstream_requests);
+        let mut proxy =
+            configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+                captured_requests.lock().unwrap().push(request.clone());
+                mutation_hydrate_upstream_response(&request, product_id)
+            });
+        let response = proxy.process_request(mutation_request(mutation, variables));
+        assert_eq!(response.status, 200, "{root}: {}", response.body);
+        assert_eq!(
+            response.body["data"][root]["userErrors"],
+            json!([]),
+            "{root}"
+        );
+        let nodes = response.body["data"][root]["product"]["variants"]["nodes"]
+            .as_array()
+            .expect("variant mutation should return the complete product catalog");
+        assert_eq!(nodes.len(), expected_count, "{root}");
+        assert_eq!(nodes[0]["id"], json!(expected_first_id), "{root}");
+        let requests = upstream_requests.lock().unwrap();
+        assert_eq!(requests.len(), 2, "{root} should paginate exactly once");
+    }
+}
+
+#[test]
+fn option_mutations_hydrate_partial_products_with_request_context_and_complete_variants() {
+    let product_id = "gid://shopify/Product/options-hydration";
+    let target_variant_id = "gid://shopify/ProductVariant/251";
+    let cases = [
+        (
+            "productOptionUpdate",
+            r#"
+            mutation UpdateColdProductOption(
+              $productId: ID!
+              $option: OptionUpdateInput!
+            ) {
+              productOptionUpdate(productId: $productId, option: $option) {
+                product { id }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "productId": product_id,
+                "option": { "id": "gid://shopify/ProductOption/color", "name": "Tone" }
+            }),
+            json!([
+                { "name": "Tone", "value": "Red" },
+                { "name": "Size", "value": "Small" }
+            ]),
+        ),
+        (
+            "productOptionsDelete",
+            r#"
+            mutation DeleteColdProductOption($productId: ID!, $options: [ID!]!) {
+              productOptionsDelete(productId: $productId, options: $options) {
+                product { id }
+                deletedOptionsIds
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "productId": product_id,
+                "options": ["gid://shopify/ProductOption/size"]
+            }),
+            json!([{ "name": "Color", "value": "Red" }]),
+        ),
+        (
+            "productOptionsReorder",
+            r#"
+            mutation ReorderColdProductOptions($productId: ID!, $options: [OptionReorderInput!]!) {
+              productOptionsReorder(productId: $productId, options: $options) {
+                product { id }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "productId": product_id,
+                "options": [
+                    { "id": "gid://shopify/ProductOption/size" },
+                    { "id": "gid://shopify/ProductOption/color" }
+                ]
+            }),
+            json!([
+                { "name": "Size", "value": "Small" },
+                { "name": "Color", "value": "Red" }
+            ]),
+        ),
+    ];
+
+    for (root, mutation, variables, expected_selected_options) in cases {
+        let upstream_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
+        let captured_requests = Arc::clone(&upstream_requests);
+        let mut proxy =
+            configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+                captured_requests.lock().unwrap().push(request.clone());
+                mutation_hydrate_upstream_response(&request, product_id)
+            });
+        let response = proxy.process_request(mutation_request(mutation, variables));
+        assert_eq!(response.status, 200, "{root}: {}", response.body);
+        assert_eq!(
+            response.body["data"][root]["userErrors"],
+            json!([]),
+            "{root}"
+        );
+
+        let read = proxy.process_request(mutation_request(
+            r#"
+            query ReadLastHydratedVariant($id: ID!) {
+              productVariant(id: $id) {
+                id
+                selectedOptions { name value }
+              }
+            }
+            "#,
+            json!({ "id": target_variant_id }),
+        ));
+        assert_eq!(
+            read.body["data"]["productVariant"]["selectedOptions"], expected_selected_options,
+            "{root} should update the variant beyond the first page"
+        );
+        let requests = upstream_requests.lock().unwrap();
+        assert_eq!(requests.len(), 2, "{root} should paginate exactly once");
+    }
 }
 
 #[test]
@@ -4406,14 +5134,38 @@ fn product_variants_bulk_update_sorts_user_errors_by_field_and_code() {
 }
 
 #[test]
-fn product_media_roots_without_store_backed_handlers_fail_closed() {
+fn snapshot_variant_media_and_create_media_honor_local_prerequisite_boundaries() {
     let mut proxy = snapshot_proxy();
 
-    for (root, query) in [
+    for (root, error_field, query) in [
         (
             "productCreateMedia",
+            "mediaUserErrors",
             r#"mutation { productCreateMedia(productId: "gid://shopify/Product/optioned", media: [{ originalSource: "not-a-url", mediaContentType: IMAGE }]) { media { id } mediaUserErrors { message } } }"#,
         ),
+        (
+            "productVariantAppendMedia",
+            "userErrors",
+            r#"mutation { productVariantAppendMedia(productId: "gid://shopify/Product/optioned", variantMedia: [{ variantId: "gid://shopify/ProductVariant/child", mediaIds: ["gid://shopify/MediaImage/ready"] }]) { productVariants { id } userErrors { message } } }"#,
+        ),
+        (
+            "productVariantDetachMedia",
+            "userErrors",
+            r#"mutation { productVariantDetachMedia(productId: "gid://shopify/Product/optioned", variantMedia: [{ variantId: "gid://shopify/ProductVariant/default", mediaIds: ["gid://shopify/MediaImage/ready"] }]) { productVariants { id } userErrors { message } } }"#,
+        ),
+    ] {
+        let response = proxy.process_request(json_graphql_request(query, json!({})));
+        assert_eq!(response.status, 200, "{root} should return a payload error");
+        assert!(
+            response.body["data"][root][error_field]
+                .as_array()
+                .is_some_and(|errors| !errors.is_empty()),
+            "{root} should report its missing prerequisite through {error_field}: {}",
+            response.body
+        );
+    }
+
+    for (root, query) in [
         (
             "productUpdateMedia",
             r#"mutation { productUpdateMedia(productId: "gid://shopify/Product/optioned", media: [{ id: "gid://shopify/MediaImage/missing", alt: "Missing" }]) { media { id } mediaUserErrors { message } } }"#,
@@ -4426,17 +5178,12 @@ fn product_media_roots_without_store_backed_handlers_fail_closed() {
             "productReorderMedia",
             r#"mutation { productReorderMedia(id: "gid://shopify/Product/optioned", moves: [{ id: "gid://shopify/MediaImage/missing", newPosition: "0" }]) { job { id } mediaUserErrors { message } } }"#,
         ),
-        (
-            "productVariantAppendMedia",
-            r#"mutation { productVariantAppendMedia(productId: "gid://shopify/Product/optioned", variantMedia: [{ variantId: "gid://shopify/ProductVariant/child", mediaIds: ["gid://shopify/MediaImage/ready"] }]) { productVariants { id } userErrors { message } } }"#,
-        ),
-        (
-            "productVariantDetachMedia",
-            r#"mutation { productVariantDetachMedia(productId: "gid://shopify/Product/optioned", variantMedia: [{ variantId: "gid://shopify/ProductVariant/default", mediaIds: ["gid://shopify/MediaImage/ready"] }]) { productVariants { id } userErrors { message } } }"#,
-        ),
     ] {
         let response = proxy.process_request(json_graphql_request(query, json!({})));
-        assert_eq!(response.status, 400, "{root} should fail closed");
+        assert_eq!(
+            response.status, 400,
+            "{root} should retain its partial boundary"
+        );
         assert_engine_resolver_failure(
             &response,
             root,
@@ -4444,6 +5191,212 @@ fn product_media_roots_without_store_backed_handlers_fail_closed() {
         );
     }
     assert_eq!(log_snapshot(&proxy), json!({ "entries": [] }));
+}
+
+#[test]
+fn snapshot_variant_media_lifecycle_uses_public_graphql_prerequisites() {
+    let mut proxy = snapshot_proxy()
+        .with_upstream_transport(|_| panic!("snapshot variant media lifecycle must stay local"));
+
+    let (product_id, variant_id) =
+        create_product_for_relationship_test(&mut proxy, "Snapshot variant media", None);
+    let (other_product_id, other_variant_id) =
+        create_product_for_relationship_test(&mut proxy, "Other snapshot variant media", None);
+    let ready_media_id =
+        create_product_media_for_test(&mut proxy, &product_id, "IMAGE", "Ready image");
+    let external_video_id =
+        create_product_media_for_test(&mut proxy, &product_id, "EXTERNAL_VIDEO", "External video");
+    let other_media_id =
+        create_product_media_for_test(&mut proxy, &other_product_id, "IMAGE", "Other image");
+
+    let media_read = proxy.process_request(json_graphql_request(
+        r#"
+        query PollSnapshotProductMedia($id: ID!) {
+          product(id: $id) {
+            media(first: 10) { nodes { id status } }
+          }
+        }
+        "#,
+        json!({ "id": product_id }),
+    ));
+    assert_eq!(media_read.status, 200);
+    assert_eq!(
+        media_read.body["data"]["product"]["media"]["nodes"][0],
+        json!({ "id": ready_media_id, "status": "READY" })
+    );
+
+    let log_before_controls = log_snapshot(&proxy);
+    let missing_product_errors = append_variant_media_for_test(
+        &mut proxy,
+        "gid://shopify/Product/missing",
+        json!([{ "variantId": variant_id, "mediaIds": [ready_media_id] }]),
+    );
+    assert_eq!(
+        missing_product_errors[0]["code"],
+        json!("PRODUCT_VARIANT_DOES_NOT_EXIST_ON_PRODUCT")
+    );
+    assert_eq!(log_snapshot(&proxy), log_before_controls);
+
+    let control_cases = [
+        (
+            json!([{ "variantId": "gid://shopify/ProductVariant/missing", "mediaIds": [ready_media_id] }]),
+            "PRODUCT_VARIANT_DOES_NOT_EXIST_ON_PRODUCT",
+        ),
+        (
+            json!([{ "variantId": other_variant_id, "mediaIds": [ready_media_id] }]),
+            "PRODUCT_VARIANT_DOES_NOT_EXIST_ON_PRODUCT",
+        ),
+        (
+            json!([{ "variantId": variant_id, "mediaIds": ["gid://shopify/MediaImage/missing"] }]),
+            "MEDIA_DOES_NOT_EXIST_ON_PRODUCT",
+        ),
+        (
+            json!([{ "variantId": variant_id, "mediaIds": [other_media_id] }]),
+            "MEDIA_DOES_NOT_EXIST_ON_PRODUCT",
+        ),
+        (
+            json!([{ "variantId": variant_id, "mediaIds": [external_video_id] }]),
+            "INVALID_MEDIA_TYPE",
+        ),
+        (
+            json!([
+                { "variantId": variant_id, "mediaIds": [ready_media_id] },
+                { "variantId": variant_id, "mediaIds": [ready_media_id] }
+            ]),
+            "PRODUCT_VARIANT_SPECIFIED_MULTIPLE_TIMES",
+        ),
+    ];
+    for (variant_media, expected_code) in control_cases {
+        let errors = append_variant_media_for_test(&mut proxy, &product_id, variant_media);
+        assert_eq!(errors[0]["code"], json!(expected_code));
+        assert_eq!(
+            log_snapshot(&proxy),
+            log_before_controls,
+            "rejected append {expected_code} must not stage a mutation log entry"
+        );
+    }
+
+    let detached_errors = detach_variant_media_for_test(
+        &mut proxy,
+        &product_id,
+        json!([{ "variantId": variant_id, "mediaIds": [ready_media_id] }]),
+    );
+    assert_eq!(
+        detached_errors[0]["code"],
+        json!("MEDIA_IS_NOT_ATTACHED_TO_VARIANT")
+    );
+    assert_eq!(log_snapshot(&proxy), log_before_controls);
+
+    assert_eq!(
+        append_variant_media_for_test(
+            &mut proxy,
+            &product_id,
+            json!([{ "variantId": variant_id, "mediaIds": [ready_media_id] }]),
+        ),
+        json!([])
+    );
+    let attached_read = proxy.process_request(json_graphql_request(
+        r#"
+        query SnapshotVariantMediaAttached($id: ID!) {
+          productVariant(id: $id) {
+            media(first: 10) { nodes { id alt mediaContentType status } }
+          }
+        }
+        "#,
+        json!({ "id": variant_id }),
+    ));
+    assert_eq!(attached_read.status, 200);
+    assert_eq!(
+        attached_read.body["data"]["productVariant"]["media"]["nodes"],
+        json!([{
+            "id": ready_media_id,
+            "alt": "Ready image",
+            "mediaContentType": "IMAGE",
+            "status": "READY"
+        }])
+    );
+
+    let log_after_append = log_snapshot(&proxy);
+    let duplicate_errors = append_variant_media_for_test(
+        &mut proxy,
+        &product_id,
+        json!([{ "variantId": variant_id, "mediaIds": [ready_media_id] }]),
+    );
+    assert_eq!(
+        duplicate_errors[0]["code"],
+        json!("PRODUCT_VARIANT_ALREADY_HAS_MEDIA")
+    );
+    assert_eq!(log_snapshot(&proxy), log_after_append);
+
+    assert_eq!(
+        detach_variant_media_for_test(
+            &mut proxy,
+            &product_id,
+            json!([{ "variantId": variant_id, "mediaIds": [ready_media_id] }]),
+        ),
+        json!([])
+    );
+    let detached_read = proxy.process_request(json_graphql_request(
+        r#"
+        query SnapshotVariantMediaDetached($productId: ID!, $variantId: ID!) {
+          product(id: $productId) {
+            media(first: 10) { nodes { id } }
+          }
+          productVariant(id: $variantId) {
+            media(first: 10) { nodes { id } }
+          }
+        }
+        "#,
+        json!({ "productId": product_id, "variantId": variant_id }),
+    ));
+    assert_eq!(detached_read.status, 200);
+    assert_eq!(
+        detached_read.body["data"]["productVariant"]["media"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        detached_read.body["data"]["product"]["media"]["nodes"],
+        json!([{ "id": ready_media_id }, { "id": external_video_id }]),
+        "detaching variant media must not remove it from the product media library"
+    );
+
+    let log_after_detach = log_snapshot(&proxy);
+    let detached_again_errors = detach_variant_media_for_test(
+        &mut proxy,
+        &product_id,
+        json!([{ "variantId": variant_id, "mediaIds": [ready_media_id] }]),
+    );
+    assert_eq!(
+        detached_again_errors[0]["code"],
+        json!("MEDIA_IS_NOT_ATTACHED_TO_VARIANT")
+    );
+    assert_eq!(log_snapshot(&proxy), log_after_detach);
+
+    let entries = log_after_detach["entries"].as_array().expect("log entries");
+    let roots = entries
+        .iter()
+        .map(|entry| entry["interpreted"]["primaryRootField"].as_str().unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        roots,
+        vec![
+            "productCreate",
+            "productCreate",
+            "productCreateMedia",
+            "productCreateMedia",
+            "productCreateMedia",
+            "productVariantAppendMedia",
+            "productVariantDetachMedia"
+        ]
+    );
+    assert!(entries[5]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("productVariantAppendMedia"));
+    assert!(entries[6]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("productVariantDetachMedia"));
 }
 
 #[test]
@@ -4578,6 +5531,26 @@ fn product_variant_media_validation_guards_match_captured_shopify_errors() {
             "field": ["variantMedia", "0", "variantId"],
             "message": "The given variant already has attached media.",
             "code": "PRODUCT_VARIANT_ALREADY_HAS_MEDIA"
+        }])
+    );
+    assert_eq!(
+        detach_variant_media_for_test(
+            &mut proxy,
+            product_id,
+            json!([{ "variantId": variant_id, "mediaIds": [ready_media_id] }]),
+        ),
+        json!([])
+    );
+    assert_eq!(
+        detach_variant_media_for_test(
+            &mut proxy,
+            product_id,
+            json!([{ "variantId": variant_id, "mediaIds": [ready_media_id] }]),
+        ),
+        json!([{
+            "field": ["variantMedia", "0", "variantId"],
+            "message": "The specified media is not attached to the specified variant.",
+            "code": "MEDIA_IS_NOT_ATTACHED_TO_VARIANT"
         }])
     );
     assert_eq!(*forwarded.lock().unwrap(), 0);
@@ -6827,15 +7800,16 @@ fn product_reorder_media_without_store_backed_handler_fails_closed() {
 }
 
 #[test]
-fn product_create_and_delete_media_without_store_backed_handlers_fail_closed() {
-    let mut proxy = snapshot_proxy();
+fn snapshot_create_media_returns_payload_errors_while_delete_media_fails_closed() {
+    let mut proxy = snapshot_proxy()
+        .with_upstream_transport(|_| panic!("snapshot product media must not hydrate upstream"));
 
     let create = proxy.process_request(json_graphql_request(
         r#"
         mutation ProductCreateMediaParityPlan($productId: ID!, $media: [CreateMediaInput!]!) {
           productCreateMedia(productId: $productId, media: $media) {
             media { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } }
-            mediaUserErrors { field message }
+            mediaUserErrors { field message code }
             product { id media(first: 10) { nodes { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } } } }
           }
         }
@@ -6849,11 +7823,18 @@ fn product_create_and_delete_media_without_store_backed_handlers_fail_closed() {
             }]
         }),
     ));
-    assert_eq!(create.status, 400);
-    assert_engine_resolver_failure(
-        &create,
-        "productCreateMedia",
-        "No mutation dispatcher implemented for root field: productCreateMedia",
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productCreateMedia"],
+        json!({
+            "media": Value::Null,
+            "mediaUserErrors": [{
+                "field": ["productId"],
+                "message": "Product does not exist",
+                "code": "PRODUCT_DOES_NOT_EXIST"
+            }],
+            "product": Value::Null
+        })
     );
 
     let create_read = proxy.process_request(json_graphql_request(
@@ -10122,6 +11103,611 @@ fn live_hybrid_observed_product_does_not_make_catalog_reads_local() {
 }
 
 #[test]
+fn live_hybrid_product_overlay_uses_a_bounded_upstream_window_for_a_small_page() {
+    let calls = Arc::new(Mutex::new(Vec::<String>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let calls = Arc::clone(&calls);
+        move |request| {
+            calls.lock().unwrap().push(request.body.clone());
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            let after = body.pointer("/variables/after").and_then(Value::as_str);
+            let (id, title, has_next_page, end_cursor) = match after {
+                None => (
+                    "gid://shopify/Product/upstream-1",
+                    "Zulu upstream one",
+                    true,
+                    Some("upstream-page-1"),
+                ),
+                Some("upstream-page-1") => (
+                    "gid://shopify/Product/upstream-2",
+                    "Zulu upstream two",
+                    true,
+                    Some("upstream-page-2"),
+                ),
+                _ => (
+                    "gid://shopify/Product/upstream-3",
+                    "Zulu upstream three",
+                    false,
+                    None,
+                ),
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "products": {
+                            "edges": [{
+                                "cursor": end_cursor,
+                                "node": {
+                                    "id": id,
+                                    "title": title,
+                                    "handle": id.rsplit('/').next().unwrap_or_default(),
+                                    "status": "ACTIVE",
+                                    "createdAt": "2024-01-01T00:00:00Z",
+                                    "updatedAt": "2024-01-01T00:00:00Z",
+                                    "descriptionHtml": "",
+                                    "vendor": "",
+                                    "productType": "",
+                                    "tags": [],
+                                    "totalInventory": 0,
+                                    "tracksInventory": false,
+                                    "variants": { "nodes": [] }
+                                }
+                            }],
+                            "nodes": [{
+                                "id": id,
+                                "title": title,
+                                "handle": id.rsplit('/').next().unwrap_or_default(),
+                                "status": "ACTIVE",
+                                "createdAt": "2024-01-01T00:00:00Z",
+                                "updatedAt": "2024-01-01T00:00:00Z",
+                                "descriptionHtml": "",
+                                "vendor": "",
+                                "productType": "",
+                                "tags": [],
+                                "totalInventory": 0,
+                                "tracksInventory": false,
+                                "variants": { "nodes": [] }
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": has_next_page,
+                                "hasPreviousPage": after.is_some(),
+                                "startCursor": end_cursor,
+                                "endCursor": end_cursor
+                            }
+                        }
+                    }
+                }),
+            }
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageBoundedCatalogProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "Alpha staged" } }),
+    ));
+    assert_eq!(
+        create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query BoundedLiveHybridProductPage {
+          products(first: 1, sortKey: TITLE) {
+            nodes { title }
+            pageInfo { hasNextPage }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["products"]["nodes"],
+        json!([{ "title": "Alpha staged" }])
+    );
+    assert_eq!(
+        read.body["data"]["products"]["pageInfo"]["hasNextPage"],
+        true
+    );
+
+    let calls = calls.lock().unwrap();
+    assert_eq!(
+        calls.len(),
+        1,
+        "serving first: 1 must not traverse every upstream catalog page"
+    );
+    let upstream_request: Value = serde_json::from_str(&calls[0]).unwrap();
+    assert!(
+        upstream_request.pointer("/variables/first").and_then(Value::as_u64) <= Some(3),
+        "the upstream window should be page size + staged impact + one lookahead: {upstream_request}"
+    );
+}
+
+#[test]
+fn live_hybrid_product_catalog_overlays_staged_create_update_and_delete() {
+    let update_id = "gid://shopify/Product/upstream-update";
+    let delete_id = "gid://shopify/Product/upstream-delete";
+    let unrelated_id = "gid://shopify/Product/upstream-unrelated";
+    let saved_search_id = "gid://shopify/SavedSearch/product-overlay";
+    let mut update_product = seed_product(update_id);
+    update_product.title = "Alpha original".to_string();
+    update_product.handle = "alpha-original".to_string();
+    update_product.tags = vec!["upstream".to_string()];
+    let mut delete_product = seed_product(delete_id);
+    delete_product.title = "Delete upstream".to_string();
+    delete_product.handle = "delete-upstream".to_string();
+
+    let upstream_products = json!([
+        {
+            "id": update_id,
+            "title": "Alpha original",
+            "handle": "alpha-original",
+            "status": "ACTIVE",
+            "createdAt": "2024-01-01T00:00:00Z",
+            "updatedAt": "2024-01-01T00:00:00Z",
+            "descriptionHtml": "",
+            "vendor": "Upstream vendor",
+            "productType": "Upstream type",
+            "tags": ["upstream"],
+            "totalInventory": 0,
+            "tracksInventory": false,
+            "variants": { "nodes": [] }
+        },
+        {
+            "id": delete_id,
+            "title": "Delete upstream",
+            "handle": "delete-upstream",
+            "status": "ACTIVE",
+            "createdAt": "2024-01-02T00:00:00Z",
+            "updatedAt": "2024-01-02T00:00:00Z",
+            "descriptionHtml": "",
+            "vendor": "Upstream vendor",
+            "productType": "Upstream type",
+            "tags": ["upstream"],
+            "totalInventory": 0,
+            "tracksInventory": false,
+            "variants": { "nodes": [] }
+        },
+        {
+            "id": unrelated_id,
+            "title": "Zulu unrelated",
+            "handle": "zulu-unrelated",
+            "status": "ACTIVE",
+            "createdAt": "2024-01-03T00:00:00Z",
+            "updatedAt": "2024-01-03T00:00:00Z",
+            "descriptionHtml": "",
+            "vendor": "Upstream vendor",
+            "productType": "Upstream type",
+            "tags": ["upstream"],
+            "totalInventory": 0,
+            "tracksInventory": false,
+            "variants": { "nodes": [] }
+        }
+    ]);
+    let upstream_products_for_transport = upstream_products.clone();
+    let calls = Arc::new(Mutex::new(Vec::<String>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![update_product, delete_product])
+        .with_upstream_transport({
+            let calls = Arc::clone(&calls);
+            move |request| {
+                calls.lock().unwrap().push(request.body.clone());
+                let request_body: Value = serde_json::from_str(&request.body).unwrap();
+                let body = if request
+                    .body
+                    .contains("DraftProxyProductSavedSearchHydration")
+                {
+                    json!({
+                        "data": {
+                            "node": {
+                                "id": saved_search_id,
+                                "name": "Overlay products",
+                                "query": "tag:overlay\\-tag",
+                                "resourceType": "PRODUCT"
+                            }
+                        }
+                    })
+                } else if request.body.contains("DraftProxyProductCatalogWindow") {
+                    let query = request_body
+                        .pointer("/variables/query")
+                        .and_then(Value::as_str);
+                    let mut nodes = upstream_products_for_transport
+                        .as_array()
+                        .expect("upstream products should be an array")
+                        .iter()
+                        .filter(|product| {
+                            !query.is_some_and(|query| query.contains("tag:overlay"))
+                                || product["tags"]
+                                    .as_array()
+                                    .is_some_and(|tags| tags.iter().any(|tag| tag == "overlay-tag"))
+                        })
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    nodes.sort_by(|left, right| {
+                        left["title"]
+                            .as_str()
+                            .unwrap_or_default()
+                            .cmp(right["title"].as_str().unwrap_or_default())
+                    });
+                    if request_body
+                        .pointer("/variables/reverse")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false)
+                    {
+                        nodes.reverse();
+                    }
+                    let after = request_body
+                        .pointer("/variables/after")
+                        .and_then(Value::as_str);
+                    let start = after
+                        .and_then(|after| {
+                            nodes.iter().position(|node| {
+                                format!("cursor:{}", node["id"].as_str().unwrap_or_default())
+                                    == after
+                            })
+                        })
+                        .map(|index| index + 1)
+                        .unwrap_or(0);
+                    let first = request_body
+                        .pointer("/variables/first")
+                        .and_then(Value::as_u64)
+                        .unwrap_or(50) as usize;
+                    let page = nodes
+                        .iter()
+                        .skip(start)
+                        .take(first)
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    let edges = page
+                        .iter()
+                        .map(|node| {
+                            json!({
+                                "cursor": format!(
+                                    "cursor:{}",
+                                    node["id"].as_str().unwrap_or_default()
+                                ),
+                                "node": node,
+                            })
+                        })
+                        .collect::<Vec<_>>();
+                    let end_cursor = edges
+                        .last()
+                        .and_then(|edge| edge["cursor"].as_str())
+                        .map(str::to_string);
+                    json!({
+                        "data": {
+                            "products": {
+                                "edges": edges,
+                                "pageInfo": {
+                                    "hasNextPage": start + page.len() < nodes.len(),
+                                    "hasPreviousPage": start > 0,
+                                    "startCursor": edges
+                                        .first()
+                                        .and_then(|edge| edge["cursor"].as_str()),
+                                    "endCursor": end_cursor
+                                }
+                            }
+                        }
+                    })
+                } else if request.body.contains("DraftProxyProductCatalogCount") {
+                    let query = request_body
+                        .pointer("/variables/query")
+                        .and_then(Value::as_str);
+                    let count = if query.is_some_and(|query| query.contains("tag:overlay")) {
+                        0
+                    } else {
+                        3
+                    };
+                    json!({
+                        "data": {
+                            "productsCount": { "count": count, "precision": "EXACT" }
+                        }
+                    })
+                } else {
+                    json!({
+                        "data": {
+                            "unobserved": {
+                                "id": "gid://shopify/Product/unobserved-sibling",
+                                "title": "Unobserved sibling"
+                            }
+                        }
+                    })
+                };
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body,
+                }
+            }
+        });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageCatalogCreate($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id title handle tags }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "title": "Bravo created",
+                "handle": "bravo-created",
+                "tags": ["overlay-tag"]
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let created_id = create.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .expect("productCreate should return an id")
+        .to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageCatalogUpdate($product: ProductUpdateInput!) {
+          productUpdate(product: $product) {
+            product { id title handle tags }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "id": update_id,
+                "title": "Alpha updated",
+                "handle": "alpha-updated",
+                "tags": ["overlay-tag"]
+            }
+        }),
+    ));
+    assert_eq!(
+        update.body["data"]["productUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageCatalogDelete($input: ProductDeleteInput!) {
+          productDelete(input: $input) {
+            deletedProductId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": delete_id } }),
+    ));
+    assert_eq!(
+        delete.body["data"]["productDelete"]["userErrors"],
+        json!([])
+    );
+
+    let catalog = proxy.process_request(json_graphql_request(
+        r#"
+        query LiveHybridProductOverlayRead($savedSearchId: ID!) {
+          catalog: products(first: 10, sortKey: TITLE) {
+            nodes { id title handle tags }
+          }
+          total: productsCount(limit: 2) { count precision }
+          overlayMatches: products(first: 1, query: "tag:overlay", sortKey: TITLE, reverse: true) {
+            nodes { id title }
+          }
+          firstPage: products(first: 1, query: "tag:overlay", sortKey: TITLE) {
+            nodes { id title }
+            pageInfo { hasNextPage endCursor }
+          }
+          overlayCount: productsCount(query: "tag:overlay") { count precision }
+          savedSearchMatches: products(first: 10, savedSearchId: $savedSearchId, sortKey: TITLE) {
+            nodes { id title }
+          }
+          unobserved: product(id: "gid://shopify/Product/unobserved-sibling") {
+            id
+            title
+          }
+        }
+        "#,
+        json!({ "savedSearchId": saved_search_id }),
+    ));
+
+    assert_eq!(catalog.status, 200, "catalog response: {}", catalog.body);
+    assert_eq!(
+        catalog.body["data"]["catalog"]["nodes"],
+        json!([
+            {
+                "id": update_id,
+                "title": "Alpha updated",
+                "handle": "alpha-updated",
+                "tags": ["overlay-tag"]
+            },
+            {
+                "id": created_id,
+                "title": "Bravo created",
+                "handle": "bravo-created",
+                "tags": ["overlay-tag"]
+            },
+            {
+                "id": unrelated_id,
+                "title": "Zulu unrelated",
+                "handle": "zulu-unrelated",
+                "tags": ["upstream"]
+            }
+        ])
+    );
+    assert_eq!(
+        catalog.body["data"]["total"],
+        json!({ "count": 2, "precision": "AT_LEAST" })
+    );
+    assert_eq!(
+        catalog.body["data"]["firstPage"]["nodes"],
+        json!([{ "id": update_id, "title": "Alpha updated" }])
+    );
+    assert_eq!(
+        catalog.body["data"]["firstPage"]["pageInfo"]["hasNextPage"],
+        true
+    );
+    assert_eq!(
+        catalog.body["data"]["overlayMatches"]["nodes"],
+        json!([{ "id": created_id, "title": "Bravo created" }])
+    );
+    assert_eq!(
+        catalog.body["data"]["overlayCount"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+    assert_eq!(
+        catalog.body["data"]["savedSearchMatches"]["nodes"],
+        json!([
+            { "id": update_id, "title": "Alpha updated" },
+            { "id": created_id, "title": "Bravo created" }
+        ])
+    );
+    assert_eq!(
+        catalog.body["data"]["unobserved"],
+        json!({
+            "id": "gid://shopify/Product/unobserved-sibling",
+            "title": "Unobserved sibling"
+        }),
+        "an unobserved singular sibling should merge upstream without bypassing the local catalog overlay"
+    );
+    let first_page_cursor = catalog.body["data"]["firstPage"]["pageInfo"]["endCursor"]
+        .as_str()
+        .expect("the first effective page should expose a continuation cursor")
+        .to_string();
+    let recorded_calls = calls.lock().unwrap();
+    assert_eq!(
+        recorded_calls
+            .iter()
+            .filter(|body| body.contains("DraftProxyProductCatalogWindow"))
+            .count(),
+        4,
+        "each product root should fetch only its own bounded upstream candidate window"
+    );
+    assert_eq!(
+        recorded_calls
+            .iter()
+            .filter(|body| body.contains("DraftProxyProductSavedSearchHydration"))
+            .count(),
+        1,
+        "savedSearchId should hydrate its PRODUCT saved-search query once"
+    );
+    drop(recorded_calls);
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query LiveHybridProductOverlaySecondPage($after: String!) {
+          products(first: 1, after: $after, query: "tag:overlay", sortKey: TITLE) {
+            nodes { id title }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+        }
+        "#,
+        json!({ "after": first_page_cursor }),
+    ));
+    assert_eq!(
+        second_page.body["data"]["products"]["nodes"],
+        json!([{ "id": created_id, "title": "Bravo created" }])
+    );
+    assert_eq!(
+        second_page.body["data"]["products"]["pageInfo"],
+        json!({ "hasNextPage": false, "hasPreviousPage": true })
+    );
+    assert_eq!(
+        calls
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|body| body.contains("DraftProxyProductCatalogWindow"))
+            .count(),
+        5,
+        "the continuation should resume from encoded upstream/staged state with one bounded call"
+    );
+}
+
+#[test]
+fn live_hybrid_variant_only_mutation_does_not_claim_product_lifecycle_catalog_overlay() {
+    let product_id = "gid://shopify/Product/variant-only-catalog-boundary";
+    let upstream_product_id = "gid://shopify/Product/upstream-catalog-product";
+    let upstream_response = json!({
+        "data": {
+            "product": {
+                "id": product_id,
+                "variants": { "nodes": [{ "id": "gid://shopify/ProductVariant/upstream" }] }
+            },
+            "products": {
+                "nodes": [{ "id": upstream_product_id, "title": "Upstream catalog product" }]
+            },
+            "productsCount": { "count": 1, "precision": "EXACT" }
+        }
+    });
+    let calls = Arc::new(Mutex::new(Vec::<String>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![seed_product(product_id)])
+        .with_upstream_transport({
+            let calls = Arc::clone(&calls);
+            let upstream_response = upstream_response.clone();
+            move |request| {
+                calls.lock().unwrap().push(request.body);
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: upstream_response.clone(),
+                }
+            }
+        });
+
+    let variant = create_legacy_variant(&mut proxy, product_id, "VARIANT-ONLY", "10.00");
+    let variant_id = variant["id"].as_str().unwrap().to_string();
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteVariantOnlyCatalogChange($productId: ID!, $variantsIds: [ID!]!) {
+          productVariantsBulkDelete(productId: $productId, variantsIds: $variantsIds) {
+            product { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "productId": product_id, "variantsIds": [variant_id] }),
+    ));
+    assert_eq!(
+        delete.body["data"]["productVariantsBulkDelete"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query VariantOnlyCatalogBoundary($id: ID!) {
+          product(id: $id) { id variants(first: 10) { nodes { id } } }
+          products(first: 10) { nodes { id title } }
+          productsCount { count precision }
+        }
+        "#,
+        json!({ "id": product_id }),
+    ));
+
+    assert_eq!(read.body, upstream_response);
+    let calls = calls.lock().unwrap();
+    assert_eq!(
+        calls.len(),
+        1,
+        "the mixed catalog read should retain the existing passthrough boundary"
+    );
+    assert!(calls[0].contains("VariantOnlyCatalogBoundary"));
+    assert!(!calls[0].contains("DraftProxyProductCatalogWindow"));
+}
+
+#[test]
 fn live_hybrid_handle_and_barcode_searches_forward_with_partial_overlay_state() {
     let calls = Arc::new(Mutex::new(Vec::<String>::new()));
     let upstream_search = json!({
@@ -10571,9 +12157,9 @@ fn product_tag_mutations_keep_product_search_filters_in_sync_with_effective_tags
 }
 
 #[test]
-fn commit_replay_rewrites_canonical_alias_from_later_staged_mutation() {
+fn commit_replay_does_not_rewrite_authoritative_id_after_synthetic_collision_skip() {
     const CANONICAL_PRODUCT_ID: &str = "gid://shopify/Product/1";
-    const SYNTHETIC_PRODUCT_ID: &str = "gid://shopify/Product/1?shopify-draft-proxy=synthetic";
+    const SYNTHETIC_PRODUCT_ID: &str = "gid://shopify/Product/2?shopify-draft-proxy=synthetic";
     const AUTHORITATIVE_PRODUCT_ID: &str = "gid://shopify/Product/9000000001";
 
     let replayed = Arc::new(Mutex::new(Vec::new()));
@@ -10668,11 +12254,11 @@ fn commit_replay_rewrites_canonical_alias_from_later_staged_mutation() {
         serde_json::from_str::<Value>(&replayed[1]).expect("second replay body should parse");
     assert_eq!(
         second_replay["variables"]["id"],
-        json!(AUTHORITATIVE_PRODUCT_ID)
+        json!(CANONICAL_PRODUCT_ID)
     );
     assert!(
-        !replayed[1].contains(&format!("\"{CANONICAL_PRODUCT_ID}\"")),
-        "canonical alias should not be sent upstream in second replay: {}",
+        !replayed[1].contains(&format!("\"{AUTHORITATIVE_PRODUCT_ID}\"")),
+        "authoritative base identity must not be rewritten to the created product: {}",
         replayed[1]
     );
 
@@ -11423,7 +13009,7 @@ fn product_mutations_preserve_root_alias_response_keys() {
             "data": {
                 "createResult": {
                     "product": {
-                        "id": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                        "id": "gid://shopify/Product/2?shopify-draft-proxy=synthetic",
                         "title": "Alias product"
                     },
                     "userErrors": []
@@ -11613,35 +13199,43 @@ fn saved_search_roots_live_hybrid_hydrate_base_rows_before_defaults() {
 
 #[test]
 fn saved_search_live_hybrid_preserves_an_unmodified_opaque_page() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
     let mut proxy =
-        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|_| Response {
-            status: 200,
-            headers: Default::default(),
-            body: json!({
-                "data": {
-                    "productSavedSearches": {
-                        "nodes": [{
-                            "id": "gid://shopify/SavedSearch/1001",
-                            "name": "Upstream first",
-                            "query": "vendor:Acme",
-                            "resourceType": "PRODUCT"
-                        }],
-                        "edges": [{
-                            "cursor": "opaque-saved-search-one",
-                            "node": {
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured_requests
+                .lock()
+                .unwrap()
+                .push(serde_json::from_str(&request.body).expect("upstream request body parses"));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "productSavedSearches": {
+                            "nodes": [{
                                 "id": "gid://shopify/SavedSearch/1001",
-                                "name": "Upstream first"
+                                "name": "Upstream first",
+                                "query": "vendor:Acme",
+                                "resourceType": "PRODUCT"
+                            }],
+                            "edges": [{
+                                "cursor": "opaque-saved-search-one",
+                                "node": {
+                                    "id": "gid://shopify/SavedSearch/1001",
+                                    "name": "Upstream first"
+                                }
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": true,
+                                "hasPreviousPage": false,
+                                "startCursor": "opaque-saved-search-one",
+                                "endCursor": "opaque-saved-search-one"
                             }
-                        }],
-                        "pageInfo": {
-                            "hasNextPage": true,
-                            "hasPreviousPage": false,
-                            "startCursor": "opaque-saved-search-one",
-                            "endCursor": "opaque-saved-search-one"
                         }
                     }
-                }
-            }),
+                }),
+            }
         });
 
     let response = proxy.process_request(json_graphql_request(
@@ -11679,6 +13273,334 @@ fn saved_search_live_hybrid_preserves_an_unmodified_opaque_page() {
             }
         })
     );
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(requests.len(), 1);
+    assert!(requests[0]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("query SavedSearchOpaquePage")));
+}
+
+#[test]
+fn saved_search_live_hybrid_overlay_keeps_partial_page_work_bounded() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_requests.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().expect("upstream query");
+            let window_query = query.contains("SavedSearchConnectionWindow");
+            let continuation = body["variables"]["after"] == json!("opaque-saved-search-two");
+            let (root, edges, has_next_page) = if window_query {
+                assert_eq!(body["variables"]["first"], json!(2));
+                (
+                    "savedSearchWindow",
+                    vec![
+                        json!({
+                            "cursor": "opaque-saved-search-one",
+                            "node": {
+                                "id": "gid://shopify/SavedSearch/3001",
+                                "name": "Upstream first",
+                                "query": "vendor:Alpha",
+                                "resourceType": "PRODUCT"
+                            }
+                        }),
+                        json!({
+                            "cursor": "opaque-saved-search-two",
+                            "node": {
+                                "id": "gid://shopify/SavedSearch/3002",
+                                "name": "Upstream second",
+                                "query": "vendor:Beta",
+                                "resourceType": "PRODUCT"
+                            }
+                        }),
+                    ],
+                    true,
+                )
+            } else if query.contains("SavedSearchConnectionBaseline") && continuation {
+                (
+                    "savedSearchBaseline",
+                    vec![json!({
+                        "cursor": "opaque-saved-search-three",
+                        "node": {
+                            "id": "gid://shopify/SavedSearch/3003",
+                            "name": "Upstream third",
+                            "query": "vendor:Gamma",
+                            "resourceType": "PRODUCT"
+                        }
+                    })],
+                    false,
+                )
+            } else if query.contains("SavedSearchConnectionBaseline") {
+                (
+                    "savedSearchBaseline",
+                    vec![
+                        json!({
+                            "cursor": "opaque-saved-search-one",
+                            "node": {
+                                "id": "gid://shopify/SavedSearch/3001",
+                                "name": "Upstream first",
+                                "query": "vendor:Alpha",
+                                "resourceType": "PRODUCT"
+                            }
+                        }),
+                        json!({
+                            "cursor": "opaque-saved-search-two",
+                            "node": {
+                                "id": "gid://shopify/SavedSearch/3002",
+                                "name": "Upstream second",
+                                "query": "vendor:Beta",
+                                "resourceType": "PRODUCT"
+                            }
+                        }),
+                    ],
+                    true,
+                )
+            } else {
+                (
+                    "productSavedSearches",
+                    vec![json!({
+                        "cursor": "opaque-saved-search-one",
+                        "node": {
+                            "id": "gid://shopify/SavedSearch/3001",
+                            "name": "Upstream first"
+                        }
+                    })],
+                    true,
+                )
+            };
+            let start_cursor = edges
+                .first()
+                .and_then(|edge| edge["cursor"].as_str())
+                .map(str::to_string);
+            let end_cursor = edges
+                .last()
+                .and_then(|edge| edge["cursor"].as_str())
+                .map(str::to_string);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        root: {
+                            "edges": edges,
+                            "pageInfo": {
+                                "hasNextPage": has_next_page,
+                                "hasPreviousPage": false,
+                                "startCursor": start_cursor,
+                                "endCursor": end_cursor
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateBoundedOverlaySavedSearch($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {
+            "resourceType": "PRODUCT",
+            "name": "Local tail",
+            "query": "vendor:Local"
+        }}),
+    ));
+    assert_eq!(
+        create.body["data"]["savedSearchCreate"]["userErrors"],
+        json!([])
+    );
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query BoundedSavedSearchOverlay {
+          productSavedSearches(first: 1) {
+            edges { cursor node { id name } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        response.body["data"]["productSavedSearches"],
+        json!({
+            "edges": [{
+                "cursor": "opaque-saved-search-one",
+                "node": {
+                    "id": "gid://shopify/SavedSearch/3001",
+                    "name": "Upstream first"
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "opaque-saved-search-one",
+                "endCursor": "opaque-saved-search-one"
+            }
+        })
+    );
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(
+        requests.len(),
+        2,
+        "the caller document plus one requested-window overlay read must be sufficient"
+    );
+    assert_eq!(
+        requests
+            .iter()
+            .filter(|body| body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("query BoundedSavedSearchOverlay")))
+            .count(),
+        1,
+        "the complete caller document must be forwarded exactly once"
+    );
+}
+
+#[test]
+fn saved_search_live_hybrid_filtered_or_sorted_overlay_preserves_authoritative_scope() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let filtered_connection = json!({
+        "edges": [{
+            "cursor": "opaque-filtered-discount-search",
+            "node": {
+                "id": "gid://shopify/SavedSearch/3101",
+                "name": "Authoritative filtered search"
+            }
+        }],
+        "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "opaque-filtered-discount-search",
+            "endCursor": "opaque-filtered-discount-search"
+        }
+    });
+    let sorted_connection = json!({
+        "edges": [{
+            "cursor": "opaque-code-sorted-discount-search",
+            "node": {
+                "id": "gid://shopify/SavedSearch/3201",
+                "name": "Authoritative code-sorted search"
+            }
+        }],
+        "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": "opaque-code-sorted-discount-search",
+            "endCursor": "opaque-code-sorted-discount-search"
+        }
+    });
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let filtered_connection = filtered_connection.clone();
+        let sorted_connection = sorted_connection.clone();
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_requests.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().expect("upstream query");
+            let data = if query.contains("FilteredDiscountSavedSearchScope") {
+                json!({"discountRedeemCodeSavedSearches": filtered_connection})
+            } else if query.contains("SortedDiscountSavedSearchScope") {
+                json!({"discountRedeemCodeSavedSearches": sorted_connection})
+            } else if query.contains("SavedSearchConnectionWindow") {
+                json!({
+                    "savedSearchWindow": {
+                        "edges": [{
+                            "cursor": "opaque-unscoped-window",
+                            "node": {
+                                "id": "gid://shopify/SavedSearch/3301",
+                                "name": "Unscoped authoritative search",
+                                "query": "times_used:0",
+                                "resourceType": "DISCOUNT_REDEEM_CODE"
+                            }
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": true,
+                            "hasPreviousPage": false,
+                            "startCursor": "opaque-unscoped-window",
+                            "endCursor": "opaque-unscoped-window"
+                        }
+                    }
+                })
+            } else {
+                panic!("unexpected upstream saved-search document: {query}")
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({"data": data}),
+            }
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDiscountSavedSearchOverlay($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {
+            "resourceType": "DISCOUNT_REDEEM_CODE",
+            "name": "Local discount search",
+            "query": ""
+        }}),
+    ));
+    assert_eq!(
+        create.body["data"]["savedSearchCreate"]["userErrors"],
+        json!([])
+    );
+
+    let filtered = proxy.process_request(json_graphql_request(
+        r#"
+        query FilteredDiscountSavedSearchScope {
+          discountRedeemCodeSavedSearches(first: 1, query: "Authoritative") {
+            edges { cursor node { id name } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        filtered.body["data"]["discountRedeemCodeSavedSearches"],
+        filtered_connection
+    );
+
+    let sorted = proxy.process_request(json_graphql_request(
+        r#"
+        query SortedDiscountSavedSearchScope {
+          discountRedeemCodeSavedSearches(first: 1, sortKey: CODE) {
+            edges { cursor node { id name } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        sorted.body["data"]["discountRedeemCodeSavedSearches"],
+        sorted_connection
+    );
+
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(
+        requests.len(),
+        2,
+        "filtered and non-ID sorted reads each forward only their caller document"
+    );
+    assert!(requests.iter().all(|body| !body["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("SavedSearchConnectionWindow"))));
 }
 
 #[test]
@@ -11703,40 +13625,74 @@ fn saved_search_live_hybrid_overlay_windows_a_complete_opaque_baseline() {
         move |request| {
             let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
             captured_requests.lock().unwrap().push(body.clone());
-            let complete_baseline = body
+            let overlay_window = body
                 .get("query")
                 .and_then(Value::as_str)
-                .is_some_and(|query| query.contains("SavedSearchConnectionBaseline"));
-            let connection = if complete_baseline {
-                json!({
-                    "nodes": [upstream_first.clone(), upstream_second.clone()],
-                    "edges": [
-                        {"cursor": "opaque-saved-search-one", "node": upstream_first.clone()},
-                        {"cursor": "opaque-saved-search-two", "node": upstream_second.clone()}
-                    ],
-                    "pageInfo": {
-                        "hasNextPage": false,
-                        "hasPreviousPage": false,
-                        "startCursor": "opaque-saved-search-one",
-                        "endCursor": "opaque-saved-search-two"
+                .is_some_and(|query| query.contains("SavedSearchConnectionWindow"));
+            let (root, connection) = if overlay_window {
+                let mut rows = [
+                    ("opaque-saved-search-one", upstream_first.clone()),
+                    ("opaque-saved-search-two", upstream_second.clone()),
+                ];
+                if body["variables"]["reverse"].as_bool() == Some(true) {
+                    rows.reverse();
+                }
+                let cursors = rows.iter().map(|(cursor, _)| *cursor).collect::<Vec<_>>();
+                let mut start = 0;
+                let mut end = rows.len();
+                if let Some(after) = body["variables"]["after"].as_str() {
+                    if let Some(position) = cursors.iter().position(|cursor| *cursor == after) {
+                        start = position + 1;
                     }
-                })
+                }
+                if let Some(before) = body["variables"]["before"].as_str() {
+                    if let Some(position) = cursors.iter().position(|cursor| *cursor == before) {
+                        end = end.min(position);
+                    }
+                }
+                if let Some(first) = body["variables"]["first"].as_u64() {
+                    end = end.min(start + first as usize);
+                }
+                if let Some(last) = body["variables"]["last"].as_u64() {
+                    start = start.max(end.saturating_sub(last as usize));
+                }
+                let selected = &rows[start..end];
+                let edges = selected
+                    .iter()
+                    .map(|(cursor, node)| json!({"cursor": cursor, "node": node}))
+                    .collect::<Vec<_>>();
+                (
+                    "savedSearchWindow",
+                    json!({
+                        "nodes": selected.iter().map(|(_, node)| node).collect::<Vec<_>>(),
+                        "edges": edges,
+                        "pageInfo": {
+                            "hasNextPage": end < rows.len(),
+                            "hasPreviousPage": start > 0,
+                            "startCursor": selected.first().map(|(cursor, _)| cursor),
+                            "endCursor": selected.last().map(|(cursor, _)| cursor)
+                        }
+                    }),
+                )
             } else {
-                json!({
-                    "nodes": [upstream_first.clone()],
-                    "edges": [{"cursor": "opaque-saved-search-one", "node": upstream_first.clone()}],
-                    "pageInfo": {
-                        "hasNextPage": true,
-                        "hasPreviousPage": false,
-                        "startCursor": "opaque-saved-search-one",
-                        "endCursor": "opaque-saved-search-one"
-                    }
-                })
+                (
+                    "productSavedSearches",
+                    json!({
+                        "nodes": [upstream_first.clone()],
+                        "edges": [{"cursor": "opaque-saved-search-one", "node": upstream_first.clone()}],
+                        "pageInfo": {
+                            "hasNextPage": true,
+                            "hasPreviousPage": false,
+                            "startCursor": "opaque-saved-search-one",
+                            "endCursor": "opaque-saved-search-one"
+                        }
+                    }),
+                )
             };
             Response {
                 status: 200,
                 headers: Default::default(),
-                body: json!({"data": {"savedSearchBaseline": connection, "productSavedSearches": connection}}),
+                body: json!({"data": {root: connection}}),
             }
         }
     });
@@ -11849,8 +13805,245 @@ fn saved_search_live_hybrid_overlay_windows_a_complete_opaque_baseline() {
             .iter()
             .any(|body| body["query"]
                 .as_str()
-                .is_some_and(|query| query.contains("SavedSearchConnectionBaseline"))),
-        "staged overlay should fetch a proven-complete baseline"
+                .is_some_and(|query| query.contains("SavedSearchConnectionWindow"))),
+        "staged overlay should fetch only a bounded authoritative window"
+    );
+}
+
+#[test]
+fn saved_search_live_hybrid_partial_page_refills_after_update_and_delete() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let upstream_first = json!({
+        "id": "gid://shopify/SavedSearch/4001",
+        "name": "Upstream first",
+        "query": "vendor:Alpha",
+        "resourceType": "PRODUCT"
+    });
+    let upstream_second = json!({
+        "id": "gid://shopify/SavedSearch/4002",
+        "name": "Upstream second",
+        "query": "vendor:Beta",
+        "resourceType": "PRODUCT"
+    });
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_first = upstream_first.clone();
+        let upstream_second = upstream_second.clone();
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_requests.lock().unwrap().push(body.clone());
+            let window = body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("SavedSearchConnectionWindow"));
+            let (root, edges) = if window {
+                assert_eq!(body["variables"]["first"], json!(2));
+                (
+                    "savedSearchWindow",
+                    vec![
+                        json!({"cursor": "opaque-update-one", "node": upstream_first.clone()}),
+                        json!({"cursor": "opaque-update-two", "node": upstream_second.clone()}),
+                    ],
+                )
+            } else {
+                (
+                    "productSavedSearches",
+                    vec![json!({"cursor": "opaque-update-one", "node": upstream_first.clone()})],
+                )
+            };
+            let start_cursor = edges
+                .first()
+                .and_then(|edge| edge["cursor"].as_str())
+                .map(str::to_string);
+            let end_cursor = edges
+                .last()
+                .and_then(|edge| edge["cursor"].as_str())
+                .map(str::to_string);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        root: {
+                            "edges": edges,
+                            "pageInfo": {
+                                "hasNextPage": true,
+                                "hasPreviousPage": false,
+                                "startCursor": start_cursor,
+                                "endCursor": end_cursor
+                            }
+                        }
+                    }
+                }),
+            }
+        }
+    });
+
+    let cold = proxy.process_request(json_graphql_request(
+        r#"
+        query ObservePartialSavedSearchPage {
+          productSavedSearches(first: 1) {
+            edges { cursor node { id name query resourceType } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        cold.body["data"]["productSavedSearches"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateObservedSavedSearch($input: SavedSearchUpdateInput!) {
+          savedSearchUpdate(input: $input) {
+            savedSearch { id name query }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {
+            "id": "gid://shopify/SavedSearch/4001",
+            "name": "Locally updated first"
+        }}),
+    ));
+    assert_eq!(
+        update.body["data"]["savedSearchUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(upstream_requests.lock().unwrap().len(), 1);
+
+    let after_update = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadPartialSavedSearchAfterUpdate {
+          productSavedSearches(first: 1) {
+            edges { cursor node { id name query } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        after_update.body["data"]["productSavedSearches"],
+        json!({
+            "edges": [{
+                "cursor": "opaque-update-one",
+                "node": {
+                    "id": "gid://shopify/SavedSearch/4001",
+                    "name": "Locally updated first",
+                    "query": "vendor:Alpha"
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "opaque-update-one",
+                "endCursor": "opaque-update-one"
+            }
+        })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteObservedSavedSearch($input: SavedSearchDeleteInput!) {
+          savedSearchDelete(input: $input) {
+            deletedSavedSearchId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {"id": "gid://shopify/SavedSearch/4001"}}),
+    ));
+    assert_eq!(
+        delete.body["data"]["savedSearchDelete"]["deletedSavedSearchId"],
+        json!("gid://shopify/SavedSearch/4001")
+    );
+    assert_eq!(upstream_requests.lock().unwrap().len(), 3);
+
+    let after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query RefillPartialSavedSearchAfterDelete {
+          productSavedSearches(first: 1) {
+            edges { cursor node { id name } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        after_delete.body["data"]["productSavedSearches"],
+        json!({
+            "edges": [{
+                "cursor": "opaque-update-two",
+                "node": {
+                    "id": "gid://shopify/SavedSearch/4002",
+                    "name": "Upstream second"
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "opaque-update-two",
+                "endCursor": "opaque-update-two"
+            }
+        })
+    );
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(requests.len(), 5);
+    assert_eq!(
+        requests
+            .iter()
+            .filter(|body| body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("SavedSearchConnectionWindow")))
+            .count(),
+        2,
+        "update and delete overlays each use one bounded window request"
+    );
+}
+
+#[test]
+fn saved_search_snapshot_overlay_never_calls_upstream() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, None)
+        .with_upstream_transport(|_| panic!("snapshot saved-search reads must remain local"));
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateSnapshotSavedSearch($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {
+            "resourceType": "PRODUCT",
+            "name": "Snapshot local",
+            "query": "vendor:Snapshot"
+        }}),
+    ));
+    let local_id = create.body["data"]["savedSearchCreate"]["savedSearch"]["id"].clone();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query SnapshotSavedSearchOverlay {
+          productSavedSearches(first: 1, reverse: true) {
+            nodes { id name }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["productSavedSearches"]["nodes"],
+        json!([{ "id": local_id, "name": "Snapshot local" }])
+    );
+    assert_eq!(
+        read.body["data"]["productSavedSearches"]["pageInfo"]["hasNextPage"],
+        json!(false)
     );
 }
 
@@ -11880,9 +14073,9 @@ fn saved_search_update_live_hybrid_hydrates_a_mutation_first_target_by_id() {
                         ]
                     }
                 })
-            } else if query.contains("SavedSearchConnectionBaseline") {
+            } else if query.contains("SavedSearchConnectionWindow") {
                 json!({
-                    "savedSearchBaseline": {
+                    "savedSearchWindow": {
                         "edges": [
                             {
                                 "cursor": "authoritative-products",
@@ -12079,7 +14272,7 @@ fn saved_search_update_live_hybrid_hydrates_a_mutation_first_target_by_id() {
     assert_eq!(
         bodies.len(),
         3,
-        "cold mutation hydrates once, singular readback stays local, and list overlay fetches a complete baseline"
+        "cold mutation hydrates once, singular readback stays local, and list overlay fetches one bounded window"
     );
     assert_eq!(bodies[0]["variables"], json!({ "id": saved_search_id }));
     assert!(bodies.iter().all(|body| body["query"]
@@ -12110,9 +14303,9 @@ fn saved_search_delete_live_hybrid_hydrates_then_tombstones_singular_and_list_re
                         "filters": [{ "key": "tag", "value": "delete-me" }]
                     }
                 })
-            } else if query.contains("SavedSearchConnectionBaseline") {
+            } else if query.contains("SavedSearchConnectionWindow") {
                 json!({
-                    "savedSearchBaseline": {
+                    "savedSearchWindow": {
                         "edges": [
                             {
                                 "cursor": "delete-target",
@@ -12219,7 +14412,7 @@ fn saved_search_delete_live_hybrid_hydrates_then_tombstones_singular_and_list_re
     assert_eq!(
         bodies.len(),
         3,
-        "delete hydration and complete list baseline are reads; tombstoned singular read stays local"
+        "delete hydration and one bounded list window are reads; tombstoned singular read stays local"
     );
     assert!(bodies.iter().all(|body| body["query"]
         .as_str()
@@ -12405,7 +14598,22 @@ fn staged_segment_reads_preserve_upstream_catalog_roots() {
     let mut proxy =
         configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
             let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
-            captured_requests.lock().unwrap().push(body);
+            captured_requests.lock().unwrap().push(body.clone());
+            if body["operationName"] == json!("SegmentAuthoritativePrerequisites") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "count": { "count": 1, "precision": "EXACT" },
+                            "name0": {
+                                "nodes": [],
+                                "pageInfo": { "hasNextPage": false }
+                            }
+                        }
+                    }),
+                };
+            }
             Response {
                 status: 200,
                 headers: Default::default(),
@@ -12456,9 +14664,10 @@ fn staged_segment_reads_preserve_upstream_catalog_roots() {
         create.body["data"]["segmentCreate"]["userErrors"],
         json!([])
     );
-    assert!(
-        upstream_requests.lock().unwrap().is_empty(),
-        "segmentCreate should stage locally without upstream passthrough"
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        1,
+        "segmentCreate should use one query-only prerequisite call"
     );
 
     let read = proxy.process_request(json_graphql_request(
@@ -12546,7 +14755,22 @@ fn staged_segment_detail_miss_forwards_upstream_and_tombstone_wins() {
     let mut proxy =
         configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
             let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
-            captured_requests.lock().unwrap().push(body);
+            captured_requests.lock().unwrap().push(body.clone());
+            if body["operationName"] == json!("SegmentAuthoritativePrerequisites") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "count": { "count": 1, "precision": "EXACT" },
+                            "name0": {
+                                "nodes": [],
+                                "pageInfo": { "hasNextPage": false }
+                            }
+                        }
+                    }),
+                };
+            }
             Response {
                 status: 200,
                 headers: Default::default(),
@@ -12580,9 +14804,10 @@ fn staged_segment_detail_miss_forwards_upstream_and_tombstone_wins() {
         created.body["data"]["segmentCreate"]["userErrors"],
         json!([])
     );
-    assert!(
-        upstream_requests.lock().unwrap().is_empty(),
-        "segmentCreate should stage locally without upstream passthrough"
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        1,
+        "segmentCreate should use one query-only prerequisite call"
     );
 
     let read = proxy.process_request(json_graphql_request(
@@ -12608,7 +14833,7 @@ fn staged_segment_detail_miss_forwards_upstream_and_tombstone_wins() {
     );
     assert_eq!(
         upstream_requests.lock().unwrap().len(),
-        1,
+        2,
         "detail miss should forward upstream instead of fabricating NOT_FOUND"
     );
 
@@ -12656,7 +14881,7 @@ fn staged_segment_detail_miss_forwards_upstream_and_tombstone_wins() {
     );
     assert_eq!(
         upstream_requests.lock().unwrap().len(),
-        1,
+        2,
         "local segment tombstone should be authoritative"
     );
 }
@@ -13110,7 +15335,7 @@ fn segment_mutation_hydration_preserves_error_precedence_and_failed_state() {
         );
     }
 
-    assert_eq!(upstream_requests.lock().unwrap().len(), 3);
+    assert_eq!(upstream_requests.lock().unwrap().len(), 2);
     let state = state_snapshot(&proxy);
     assert_eq!(state["stagedState"]["segments"], json!({}));
     assert_eq!(state["stagedState"]["deletedSegmentIds"], json!([]));
@@ -13784,12 +16009,27 @@ fn segment_create_stages_neutral_operation_without_upstream_passthrough() {
     let upstream_called = Arc::new(Mutex::new(false));
     let upstream_called_for_proxy = Arc::clone(&upstream_called);
     let mut proxy =
-        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_| {
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
             *upstream_called_for_proxy.lock().unwrap() = true;
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            assert_eq!(
+                body["operationName"],
+                json!("SegmentAuthoritativePrerequisites")
+            );
+            assert!(body["query"].as_str().unwrap().starts_with("query"));
+            assert!(!body["query"].as_str().unwrap().contains("segmentCreate"));
             Response {
-                status: 599,
+                status: 200,
                 headers: Default::default(),
-                body: json!({ "errors": [{ "message": "segmentCreate must not proxy upstream" }] }),
+                body: json!({
+                    "data": {
+                        "count": { "count": 0, "precision": "EXACT" },
+                        "name0": {
+                            "nodes": [],
+                            "pageInfo": { "hasNextPage": false }
+                        }
+                    }
+                }),
             }
         });
     let create_query = r#"
@@ -13827,8 +16067,8 @@ fn segment_create_stages_neutral_operation_without_upstream_passthrough() {
     );
     assert_eq!(
         *upstream_called.lock().unwrap(),
-        false,
-        "supported segmentCreate must stage locally without live-hybrid passthrough"
+        true,
+        "supported segmentCreate may issue one query-only prerequisite call"
     );
 
     let log = log_snapshot(&proxy);

@@ -1,0 +1,9 @@
+mutation ProductLiveHybridOverlayDelete($input: ProductDeleteInput!) {
+  productDelete(input: $input) {
+    deletedProductId
+    userErrors {
+      field
+      message
+    }
+  }
+}

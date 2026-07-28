@@ -206,44 +206,38 @@ struct CustomerCustomIdUpstreamLookup {
     found_id: Option<String>,
 }
 
-// Shared with capture scripts so mutation-first customer hydration cassettes
-// byte-match the production read issued before a supported local mutation.
+// Runtime-owned cold-customer hydrate. Parity capture maintains a separate
+// byte-identical request for exact cassette replay.
 const CUSTOMER_HYDRATE_QUERY: &str =
-    include_str!("../../../config/parity-requests/customers/customer-hydrate.graphql");
-// Shared with the parity capture scripts via include_str! so recorded address-aware
-// `CustomerHydrate` cassettes byte-match the request forwarded when address nodes
-// are required for validation/output. The leading newline is significant: the
+    include_str!("../../runtime_graphql/customers/customer-hydrate.graphql.raw");
+// Runtime-owned address-aware customer preflight. Parity capture maintains a
+// separate byte-matching request. The leading newline is significant because the
 // cassette matcher only trims trailing whitespace.
 const CUSTOMER_ADDRESS_HYDRATE_QUERY: &str =
-    include_str!("../../../config/parity-requests/customers/customer-mutation-hydrate.graphql");
+    include_str!("../../runtime_graphql/customers/customer-mutation-hydrate.graphql.raw");
 
-// Shared with the parity capture scripts via include_str! so recorded
-// `CustomerDuplicateHydrate` dedupe cassettes byte-match what the create path forwards
-// upstream. The leading newline is significant: the cassette matcher only trims trailing
-// whitespace.
+// Runtime-owned customer dedupe preflight with a separate byte-matching parity
+// request. The leading newline is significant because the cassette matcher only
+// trims trailing whitespace.
 const CUSTOMER_DUPLICATE_HYDRATE_QUERY: &str =
-    include_str!("../../../config/parity-requests/customers/customer-duplicate-hydrate.graphql");
+    include_str!("../../runtime_graphql/customers/customer-duplicate-hydrate.graphql.raw");
 const CUSTOMER_CUSTOM_ID_LOOKUP_QUERY: &str =
-    include_str!("../../../config/parity-requests/customers/customer-custom-id-lookup.graphql");
+    include_str!("../../runtime_graphql/customers/customer-custom-id-lookup.graphql.raw");
 
-// Shared with the parity capture scripts so recorded `customerMerge` hydrate
-// cassettes byte-match the request forwarded by the runtime.
+// Runtime-owned customer merge preflight. Parity capture maintains separate
+// matching request documents for exact cassette replay.
 const CUSTOMER_MERGE_HYDRATE_QUERY: &str =
-    include_str!("../../../config/parity-requests/customers/customer-merge-hydrate.graphql");
-const CUSTOMER_MERGE_ATTACHED_HYDRATE_QUERY: &str = include_str!(
-    "../../../config/parity-requests/customers/customer-merge-attached-hydrate.graphql"
-);
+    include_str!("../../runtime_graphql/customers/customer-merge-hydrate.graphql.raw");
+const CUSTOMER_MERGE_ATTACHED_HYDRATE_QUERY: &str =
+    include_str!("../../runtime_graphql/customers/customer-merge-attached-hydrate.graphql.raw");
 const CUSTOMER_DELETE_SHOP_HYDRATE_QUERY: &str =
-    include_str!("../../../config/parity-requests/customers/customer-delete-shop-hydrate.graphql");
-const CUSTOMER_OVERLAY_CATALOG_HYDRATE_QUERY: &str = include_str!(
-    "../../../config/parity-requests/customers/customer-live-hybrid-overlay-hydrate.graphql"
-);
-const STORE_CREDIT_CUSTOMER_HYDRATE_QUERY: &str = include_str!(
-    "../../../config/parity-requests/customers/storeCreditCustomerHydrate-parity.graphql"
-);
-const STORE_CREDIT_ACCOUNT_HYDRATE_QUERY: &str = include_str!(
-    "../../../config/parity-requests/customers/storeCreditAccountHydrate-parity.graphql"
-);
+    include_str!("../../runtime_graphql/customers/customer-delete-shop-hydrate.graphql");
+const CUSTOMER_OVERLAY_CATALOG_HYDRATE_QUERY: &str =
+    include_str!("../../runtime_graphql/customers/customer-live-hybrid-overlay-hydrate.graphql");
+const STORE_CREDIT_CUSTOMER_HYDRATE_QUERY: &str =
+    include_str!("../../runtime_graphql/customers/store-credit-customer-hydrate.graphql");
+const STORE_CREDIT_ACCOUNT_HYDRATE_QUERY: &str =
+    include_str!("../../runtime_graphql/customers/store-credit-account-hydrate.graphql");
 const CUSTOMER_ACCOUNT_ACTIVATION_TOKEN_FIELD: &str = "__proxyAccountActivationToken";
 const CUSTOMER_ACCOUNT_INVITE_FIELD: &str = "__proxyAccountInvite";
 
@@ -290,11 +284,17 @@ impl DraftProxy {
             "customer" => resolved_string_field(arguments, "id").is_some_and(|id| {
                 self.store.staged.customers.contains_key(&id)
                     || self.store.staged.customers.is_tombstoned(&id)
+                    || self.store.base.b2b_customers.get(&id).is_some()
                     || self.store_credit_owner_has_accounts(&id)
                     || self.owner_has_metafield_local_effects(&id)
                     || requests_payment_methods
             }),
-            "customerByIdentifier" => !self.store.staged.customers.is_empty(),
+            "customerByIdentifier" => {
+                !self.store.staged.customers.is_empty()
+                    || resolved_object_field(arguments, "identifier").is_some_and(|identifier| {
+                        self.customer_staged_identifier_match(&identifier).is_some()
+                    })
+            }
             // A standalone `customers(query:)` / `customersCount` list read is
             // served from the staged overlay once this scenario has staged at
             // least one customer (e.g. a customerCreate or a privacy
@@ -319,7 +319,7 @@ impl DraftProxy {
         }
         match root_name {
             "customer" => resolved_string_field(arguments, "id").is_some_and(|id| {
-                !self.store.staged.customers.contains_key(&id)
+                self.b2b_effective_customer(&id).is_none()
                     && !self.store.staged.customers.is_tombstoned(&id)
             }),
             "customerByIdentifier" => {
@@ -530,6 +530,9 @@ impl DraftProxy {
         if let Some(customer) = self.store.staged.customers.get(&id) {
             return self.canonical_customer_value(&id, customer);
         }
+        if let Some(customer) = self.store.base.b2b_customers.get(&id) {
+            return self.canonical_customer_value(&id, customer);
+        }
         if let Some(customer) = upstream_value.filter(|customer| !customer.is_null()) {
             return self.canonical_customer_value(&id, customer);
         }
@@ -558,7 +561,7 @@ impl DraftProxy {
         if self.store.staged.customers.is_tombstoned(id) {
             return Some(Value::Null);
         }
-        self.store.staged.customers.get(id).cloned()
+        self.b2b_effective_customer(id)
     }
 
     pub(in crate::proxy) fn customer_address_node_value_by_id(&self, id: &str) -> Option<Value> {
@@ -1104,9 +1107,7 @@ impl DraftProxy {
     fn store_credit_owner_exists(&mut self, request: &Request, owner_id: &str) -> bool {
         match shopify_gid_resource_type(owner_id) {
             Some("Customer") => {
-                if self.store.staged.customers.contains_key(owner_id)
-                    && !self.store.staged.customers.is_tombstoned(owner_id)
-                {
+                if self.b2b_effective_customer(owner_id).is_some() {
                     true
                 } else {
                     self.hydrate_store_credit_customer_for_mutation(request, owner_id)
@@ -1123,18 +1124,10 @@ impl DraftProxy {
     fn store_credit_owner_json(&self, owner_id: &str) -> Value {
         match shopify_gid_resource_type(owner_id) {
             Some("Customer") => self
-                .store
-                .staged
-                .customers
-                .get(owner_id)
-                .cloned()
+                .b2b_effective_customer(owner_id)
                 .unwrap_or_else(|| json!({ "id": owner_id })),
             Some("CompanyLocation") => self
-                .store
-                .staged
-                .b2b_locations
-                .get(owner_id)
-                .cloned()
+                .b2b_effective_location(owner_id)
                 .unwrap_or_else(|| json!({ "id": owner_id })),
             _ => json!({ "id": owner_id }),
         }
@@ -1245,15 +1238,11 @@ impl DraftProxy {
     }
 
     fn next_store_credit_account_gid(&mut self) -> String {
-        let id = self.store.staged.next_store_credit_account_id;
-        self.store.staged.next_store_credit_account_id += 1;
-        synthetic_shopify_gid("StoreCreditAccount", id)
+        self.next_proxy_synthetic_gid("StoreCreditAccount")
     }
 
     fn next_store_credit_transaction_gid(&mut self) -> String {
-        let id = self.store.staged.next_store_credit_transaction_id;
-        self.store.staged.next_store_credit_transaction_id += 1;
-        synthetic_shopify_gid("StoreCreditAccountTransaction", id)
+        self.next_proxy_synthetic_gid("StoreCreditAccountTransaction")
     }
 
     /// `customers(first:, query:)` list root. Filters the live staged customers
@@ -1334,7 +1323,13 @@ impl DraftProxy {
             if self.store.staged.customers.is_tombstoned(&id) {
                 return Some(None);
             }
-            return self.store.staged.customers.get(&id).map(Some);
+            return self
+                .store
+                .staged
+                .customers
+                .get(&id)
+                .or_else(|| self.store.base.b2b_customers.get(&id))
+                .map(Some);
         }
         if let Some(custom_id) = customer_custom_id_from_identifier(identifier, None) {
             if self.customer_custom_id_has_local_valid_definition(&custom_id) {
@@ -1352,6 +1347,17 @@ impl DraftProxy {
             .iter()
             .find(|(id, customer)| self.customer_matches_identifier(id, customer, identifier))
             .map(|(_, customer)| Some(customer))
+            .or_else(|| {
+                self.store
+                    .base
+                    .b2b_customers
+                    .records
+                    .iter()
+                    .find(|(id, customer)| {
+                        self.customer_matches_identifier(id, customer, identifier)
+                    })
+                    .map(|(_, customer)| Some(customer))
+            })
     }
 
     fn customer_matches_identifier(
@@ -1449,6 +1455,15 @@ impl DraftProxy {
                 .cloned()
                 .unwrap_or(record);
             records_by_id.insert(id, record);
+        }
+        for id in &self.store.base.b2b_customers.order {
+            if records_by_id.contains_key(id) || self.store.staged.customers.is_tombstoned(id) {
+                continue;
+            }
+            if let Some(customer) = self.store.base.b2b_customers.get(id) {
+                ordered_ids.push(id.clone());
+                records_by_id.insert(id.clone(), customer.clone());
+            }
         }
         for (id, customer) in self.store.staged.customers.iter() {
             if self.store.staged.customers.is_tombstoned(id) {
@@ -2532,9 +2547,7 @@ impl DraftProxy {
             let existing = requested_id
                 .as_deref()
                 .and_then(|id| existing_by_id.get(id));
-            let validation_id = requested_id
-                .clone()
-                .unwrap_or_else(|| synthetic_shopify_gid("MailingAddress", index + 1));
+            let validation_id = requested_id.clone().unwrap_or_default();
             let (_, mut address_errors) =
                 customer_update_mailing_address(&input, index, existing, &validation_id);
             errors.append(&mut address_errors);
@@ -2757,7 +2770,7 @@ impl DraftProxy {
     }
 
     fn customer_input_validation_errors(
-        &self,
+        &mut self,
         request: &Request,
         input: &BTreeMap<String, ResolvedValue>,
         current_id: Option<&str>,
@@ -2930,8 +2943,13 @@ impl DraftProxy {
             normalized.tax_exemptions = Some(list_string_field(input, "taxExemptions"));
         }
         if let Some(address_values) = resolved_list_field(input, "addresses") {
-            let (addresses, address_errors) =
+            let (mut addresses, address_errors) =
                 customer_mailing_addresses(&address_values, customer_set);
+            if errors.is_empty() && address_errors.is_empty() {
+                for address in &mut addresses {
+                    address["id"] = json!(self.next_proxy_synthetic_gid("MailingAddress"));
+                }
+            }
             errors.extend(address_errors);
             normalized.addresses = Some(addresses);
         }

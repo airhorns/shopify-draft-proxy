@@ -5765,6 +5765,11 @@ fn functions_metadata_local_staging_updates_deletes_and_reads_validation_cart_an
             "userErrors": [{ "field": ["id"], "message": "Could not find cart transform with id: gid://shopify/CartTransform/999999999999", "code": "NOT_FOUND" }]
         })
     );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"],
+        json!([]),
+        "missing validation/cart-transform deletes must not enter commit replay"
+    );
 
     let stage_response = proxy.process_request(tax_app_graphql_request(stage, json!({
         "validation": { "functionHandle": "validation-local", "title": "Local validation", "enable": true, "blockOnFailure": true },
@@ -5800,6 +5805,7 @@ fn functions_metadata_local_staging_updates_deletes_and_reads_validation_cart_an
             "functionId": "gid://shopify/ShopifyFunction/cart-transform-local"
         })
     );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
 
     let update = r#"mutation UpdateFunctionValidation($id: ID!, $validation: ValidationUpdateInput!) { validationUpdate(id: $id, validation: $validation) { validation { id title enabled blockOnFailure shopifyFunction { handle } } userErrors { field message code } } }"#;
     let update_response = proxy.process_request(json_graphql_request(update, json!({
@@ -5826,6 +5832,7 @@ fn functions_metadata_local_staging_updates_deletes_and_reads_validation_cart_an
         update_response.body["data"]["validationUpdate"]["validation"]["shopifyFunction"]["handle"],
         json!("validation-local")
     );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 2);
 
     let read = r#"query ReadFunctionMetadata($validationId: ID!) { validation(id: $validationId) { id title enabled blockOnFailure shopifyFunction { id title handle apiType } } validations(first: 5) { nodes { id title enabled blockOnFailure } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } cartTransforms(first: 5) { nodes { id blockOnFailure functionId } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } validationFunctions: shopifyFunctions(first: 5, apiType: "VALIDATION") { nodes { id title handle apiType } } cartFunctions: shopifyFunctions(first: 5, apiType: "CART_TRANSFORM") { nodes { id title handle apiType } } cartFunction: shopifyFunction(id: "gid://shopify/ShopifyFunction/cart-transform-local") { id title handle apiType } }"#;
     let read_response = proxy.process_request(json_graphql_request(
@@ -5879,6 +5886,7 @@ fn functions_metadata_local_staging_updates_deletes_and_reads_validation_cart_an
         validation_delete_response.body["data"]["validationDelete"],
         json!({ "deletedId": validation_id, "userErrors": [] })
     );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 3);
 
     let delete_cart_transform = r#"mutation DeleteFunctionCartTransform($id: ID!) { cartTransformDelete(id: $id) { deletedId userErrors { field message code } } }"#;
     let cart_delete_response = proxy.process_request(json_graphql_request(
@@ -5889,6 +5897,7 @@ fn functions_metadata_local_staging_updates_deletes_and_reads_validation_cart_an
         cart_delete_response.body["data"]["cartTransformDelete"],
         json!({ "deletedId": cart_transform_id, "userErrors": [] })
     );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 4);
 
     let empty_read = r#"query ReadDeletedFunctionMetadata($validationId: ID!) { validation(id: $validationId) { id } validations(first: 5) { nodes { id } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } cartTransforms(first: 5) { nodes { id } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }"#;
     let empty_response = proxy.process_request(json_graphql_request(
@@ -6104,6 +6113,58 @@ fn tax_app_configure_requires_tax_calculations_app_authority() {
         json!("`write_taxes` access scope. Also: The caller must be a tax calculations app.")
     );
     assert_eq!(errors[0]["path"], json!(["taxAppConfigure"]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
+fn failed_function_mutation_does_not_block_later_valid_commit_replay() {
+    let replayed = Arc::new(Mutex::new(Vec::<String>::new()));
+    let replayed_for_transport = Arc::clone(&replayed);
+    let mut proxy = function_metadata_proxy().with_commit_transport(move |request| {
+        replayed_for_transport.lock().unwrap().push(request.body);
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": {} }),
+        }
+    });
+
+    let failed = proxy.process_request(json_graphql_request(
+        r#"mutation FailedFunctionBeforeValidCommit {
+          validationCreate(validation: {}) {
+            validation { id }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        failed.body["data"]["validationCreate"]["userErrors"][0]["code"],
+        json!("MISSING_FUNCTION_IDENTIFIER")
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+
+    let valid = proxy.process_request(tax_app_graphql_request(
+        r#"mutation ValidFunctionAfterFailure {
+          taxAppConfigure(ready: true) {
+            taxAppConfiguration { state }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        valid.body["data"]["taxAppConfigure"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+
+    let commit = proxy.process_request(request_with_body("POST", "/__meta/commit", ""));
+    assert_eq!(commit.body["committed"], json!(1));
+    let replayed = replayed.lock().unwrap();
+    assert_eq!(replayed.len(), 1);
+    assert!(replayed[0].contains("ValidFunctionAfterFailure"));
+    assert!(!replayed[0].contains("FailedFunctionBeforeValidCommit"));
 }
 
 #[test]
@@ -6251,6 +6312,11 @@ fn functions_validation_create_errors_return_null_and_do_not_stage_records() {
         json!({}),
     ));
     assert_eq!(read.body["data"]["validations"]["nodes"], json!([]));
+    assert_eq!(
+        log_snapshot(&proxy)["entries"],
+        json!([]),
+        "validation-only Function payloads must not enter commit replay"
+    );
 }
 
 #[test]
@@ -7594,6 +7660,8 @@ fn functions_validation_max_cap_update_defaults_and_metafield_rejection_preserve
         })
     );
 
+    let log_count_before_rejected_update =
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len();
     let rejected_metafield = proxy.process_request(json_graphql_request(
         r#"mutation ValidationMetafieldsInvalidUpdate($id: ID!) { validationUpdate(id: $id, validation: { metafields: [{ namespace: "custom", type: "single_line_text_field", value: "loose" }] }) { validation { id } userErrors { field message code } } }"#,
         json!({ "id": subject_id }),
@@ -7618,6 +7686,11 @@ fn functions_validation_max_cap_update_defaults_and_metafield_rejection_preserve
             "blockOnFailure": false,
             "metafields": { "nodes": [] }
         })
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        log_count_before_rejected_update,
+        "failed validationUpdate must not enter commit replay"
     );
 }
 
@@ -7688,6 +7761,11 @@ fn functions_cart_transform_create_validates_identifier_api_conflict_and_metafie
             "userErrors": [{ "field": ["metafields", "0", "value"], "message": "is invalid JSON: unexpected token 'not-json' at line 1 column 1.", "code": "INVALID_METAFIELDS" }]
         })
     );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"],
+        json!([]),
+        "all-error cart-transform creates must not enter commit replay"
+    );
 
     let create = proxy.process_request(json_graphql_request(
         r#"mutation CartTransformCreateSetup { cartTransformCreate(functionId: "019dd44b-127f-724b-a49c-70fc98ff4d72", blockOnFailure: false) { cartTransform { id functionId blockOnFailure } userErrors { field message code } } }"#,
@@ -7729,6 +7807,11 @@ fn functions_cart_transform_create_validates_identifier_api_conflict_and_metafie
             "cartTransform": null,
             "userErrors": [{ "field": ["base"], "message": "The maximum number of cart transforms per shop has been reached.", "code": "MAXIMUM_CART_TRANSFORMS" }]
         })
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        1,
+        "only the successful cart-transform create should enter commit replay"
     );
 }
 
@@ -7874,6 +7957,7 @@ fn functions_fulfillment_constraint_rules_stage_locally_and_read_after_write() {
             "userErrors": []
         })
     );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 2);
 
     let delete = proxy.process_request(json_graphql_request(
         r#"
@@ -7890,6 +7974,7 @@ fn functions_fulfillment_constraint_rules_stage_locally_and_read_after_write() {
         delete.body["data"]["fulfillmentConstraintRuleDelete"],
         json!({ "success": true, "userErrors": [] })
     );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 3);
 
     let empty_read = proxy.process_request(json_graphql_request(
         r#"query ReadDeletedFulfillmentConstraintRules { fulfillmentConstraintRules { id } }"#,
@@ -8239,6 +8324,13 @@ fn functions_fulfillment_constraint_rules_return_shopify_like_user_errors() {
             success
             userErrors { code field message }
           }
+          updateUnknown: fulfillmentConstraintRuleUpdate(
+            id: "gid://shopify/FulfillmentConstraintRule/999999999999"
+            deliveryMethodTypes: [SHIPPING]
+          ) {
+            fulfillmentConstraintRule { id }
+            userErrors { code field message }
+          }
         }
         "#,
         json!({}),
@@ -8302,6 +8394,14 @@ fn functions_fulfillment_constraint_rules_return_shopify_like_user_errors() {
                     "field": ["id"],
                     "message": "Could not find FulfillmentConstraintRule with id: gid://shopify/FulfillmentConstraintRule/999999999999"
                 }]
+            },
+            "updateUnknown": {
+                "fulfillmentConstraintRule": null,
+                "userErrors": [{
+                    "code": "NOT_FOUND",
+                    "field": ["id"],
+                    "message": "Could not find FulfillmentConstraintRule with id: gid://shopify/FulfillmentConstraintRule/999999999999"
+                }]
             }
         })
     );
@@ -8311,6 +8411,11 @@ fn functions_fulfillment_constraint_rules_return_shopify_like_user_errors() {
         json!({}),
     ));
     assert_eq!(read.body["data"]["fulfillmentConstraintRules"], json!([]));
+    assert_eq!(
+        log_snapshot(&proxy)["entries"],
+        json!([]),
+        "failed fulfillment-constraint mutations must not enter commit replay"
+    );
 }
 
 #[test]
@@ -8437,7 +8542,6 @@ fn localization_locale_and_translation_lifecycle_stages_reads_and_clears_locale_
         enable.body["data"]["shopLocaleEnable"]["userErrors"],
         json!([])
     );
-
     let registered = proxy.process_request(json_graphql_request(
         r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) { translationsRegister(resourceId: $resourceId, translations: $translations) { translations { key value locale outdated market { id } } userErrors { field message code } } }"#,
         json!({ "resourceId": resource_id.clone(), "translations": [{ "locale": "fr", "key": "title", "value": "Titre local", "translatableContentDigest": title_digest }] }),
@@ -9672,6 +9776,7 @@ fn localization_translations_remove_empty_keys_is_noop_and_preserves_read_after(
         expected_translations
     );
 
+    let log_count_before_noop = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
     let remove = proxy.process_request(json_graphql_request(
         r#"mutation LocalizationTranslationsRemoveEmptyKeys($resourceId: ID!, $keys: [String!]!, $locales: [String!]!) {
           translationsRemove(resourceId: $resourceId, translationKeys: $keys, locales: $locales) {
@@ -9697,6 +9802,11 @@ fn localization_translations_remove_empty_keys_is_noop_and_preserves_read_after(
     assert_eq!(
         read_after_remove.body["data"]["translatableResource"]["translations"],
         expected_translations
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        log_count_before_noop,
+        "captured empty-key translationsRemove success is a no-stage no-op"
     );
 }
 
@@ -9905,6 +10015,7 @@ fn localization_translations_register_rejects_invalid_product_key_without_stagin
         json!([])
     );
 
+    let log_count_before_register = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
     let registered = proxy.process_request(json_graphql_request(
         r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
           translationsRegister(resourceId: $resourceId, translations: $translations) {
@@ -9949,6 +10060,11 @@ fn localization_translations_register_rejects_invalid_product_key_without_stagin
         json!([
             { "key": "title", "value": "Titre valide", "locale": "fr", "outdated": false, "market": null }
         ])
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        log_count_before_register + 1,
+        "partial translationsRegister success must log exactly once"
     );
 }
 
@@ -10109,6 +10225,8 @@ fn localization_translations_reject_unknown_supported_product_resource_ids() {
         enable.body["data"]["shopLocaleEnable"]["userErrors"],
         json!([])
     );
+    let log_count_before_unknown_resource_mutations =
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len();
 
     let register = proxy.process_request(json_graphql_request(
         r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
@@ -10169,6 +10287,11 @@ fn localization_translations_reject_unknown_supported_product_resource_ids() {
                 "code": "RESOURCE_NOT_FOUND"
             }]
         })
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        log_count_before_unknown_resource_mutations,
+        "failed register/remove calls must not enter commit replay"
     );
 }
 
@@ -10514,6 +10637,10 @@ fn localization_target_existence_is_hydrated_not_sentinel_substring_routed() {
 fn localization_translations_register_validation_order_matches_shopify_precedence() {
     let mut locale_proxy = snapshot_proxy();
     let locale_resource_id = create_fallback_localization_product(&mut locale_proxy);
+    let locale_log_count = log_snapshot(&locale_proxy)["entries"]
+        .as_array()
+        .unwrap()
+        .len();
 
     let non_enabled_blank = locale_proxy.process_request(json_graphql_request(
         r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
@@ -10632,6 +10759,14 @@ fn localization_translations_register_validation_order_matches_shopify_precedenc
             }]
         })
     );
+    assert_eq!(
+        log_snapshot(&locale_proxy)["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        locale_log_count,
+        "all-error translationsRegister calls must not enter commit replay"
+    );
 
     let mut market_proxy = snapshot_proxy();
     let market_resource_id = create_fallback_localization_product(&mut market_proxy);
@@ -10645,6 +10780,10 @@ fn localization_translations_register_validation_order_matches_shopify_precedenc
         enable.body["data"]["shopLocaleEnable"]["userErrors"],
         json!([])
     );
+    let market_log_count = log_snapshot(&market_proxy)["entries"]
+        .as_array()
+        .unwrap()
+        .len();
     let unknown_market_blank = market_proxy.process_request(json_graphql_request(
         r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
           translationsRegister(resourceId: $resourceId, translations: $translations) {
@@ -10673,6 +10812,13 @@ fn localization_translations_register_validation_order_matches_shopify_precedenc
                 "code": "MARKET_DOES_NOT_EXIST"
             }]
         })
+    );
+    assert_eq!(
+        log_snapshot(&market_proxy)["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        market_log_count
     );
 }
 
@@ -11366,6 +11512,62 @@ fn localization_shop_locale_user_errors_reject_code_selection() {
             }
         })
     );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"],
+        json!([]),
+        "all-error locale mutations must not enter commit replay"
+    );
+}
+
+#[test]
+fn failed_localization_mutation_does_not_block_later_valid_commit_replay() {
+    let replayed = Arc::new(Mutex::new(Vec::<String>::new()));
+    let replayed_for_transport = Arc::clone(&replayed);
+    let mut proxy = snapshot_proxy().with_commit_transport(move |request| {
+        replayed_for_transport.lock().unwrap().push(request.body);
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": {} }),
+        }
+    });
+
+    let failed = proxy.process_request(json_graphql_request(
+        r#"mutation FailedLocalizationBeforeValidCommit {
+          shopLocaleEnable(locale: "tlh") {
+            shopLocale { locale }
+            userErrors { field message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        failed.body["data"]["shopLocaleEnable"]["userErrors"][0]["message"],
+        json!("Locale is invalid")
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+
+    let valid = proxy.process_request(json_graphql_request(
+        r#"mutation ValidLocalizationAfterFailure {
+          shopLocaleEnable(locale: "fr") {
+            shopLocale { locale }
+            userErrors { field message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        valid.body["data"]["shopLocaleEnable"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+
+    let commit = proxy.process_request(request_with_body("POST", "/__meta/commit", ""));
+    assert_eq!(commit.body["committed"], json!(1));
+    let replayed = replayed.lock().unwrap();
+    assert_eq!(replayed.len(), 1);
+    assert!(replayed[0].contains("ValidLocalizationAfterFailure"));
+    assert!(!replayed[0].contains("FailedLocalizationBeforeValidCommit"));
 }
 
 #[test]

@@ -192,6 +192,17 @@ fulfillment orders are recomputed from current status and assignment: terminal
 Split fulfillment orders preserve fulfillment-service actions observed on the
 source order, while merge recomputes peer-sensitive actions so `MERGE` is absent
 when no compatible open peer remains.
+Split and merge input batches are atomic across the local order graph. If any
+input fails validation, the mutation returns a null result list with Shopify's
+captured `userErrors` and preserves every fulfillment order, owning-order
+projection, supported-action list, timestamp cursor, synthetic identity
+counter, and mutation log exactly as they were before the batch. A fully valid
+multi-input batch stages every result in input order and retains one original
+raw mutation for commit replay. In LiveHybrid mode, split hydrates each cold
+source fulfillment order through query-only reads; merge performs one
+deduplicated `nodes(ids:)` hydration for all cold merge intents so sibling
+orders are validated from one bounded upstream request. Neither supported
+mutation sends its write upstream before explicit commit.
 `fulfillmentOrderLineItemsPreparedForPickup` stages pickup preparation for
 selected order-backed fulfillment orders that resolve from staged, observed, or
 LiveHybrid-hydrated order state. The local branch validates every requested
@@ -313,7 +324,14 @@ selectable on the captured Admin GraphQL 2026-04 `UserError` type. Location IDs
 supplied in delivery-profile location groups must resolve from staged, observed,
 or LiveHybrid-hydrated location state; unknown IDs return the public
 `The Location could not be found for this shop.` userError instead of creating a
-synthetic location. Delivery-profile `variantsToAssociate` inputs add
+synthetic location. LiveHybrid validation resolves submitted IDs through one
+deduplicated `nodes(ids:)` query. If that authoritative lookup is unavailable,
+the eligibility catalog fallback follows 250-row `pageInfo` cursors until all
+requested IDs resolve or the catalog is proven complete; interrupted lookups
+remain explicitly incomplete and fail closed without staging or reporting a
+false missing-location userError. Eligibility-catalog baselines use the same
+resumable pagination, including catalogs larger than 250 rows. Delivery-profile
+`variantsToAssociate` inputs add
 associations only for `ProductVariant` IDs resolved from staged/base product
 state or LiveHybrid `nodes(ids:)` hydration. Nonexistent, inaccessible, or
 wrong-shop variant lookups that hydrate as missing nodes are left unassociated;
@@ -357,16 +375,20 @@ resolve staged delivery customizations through the same normalized record,
 preserve `nodes(ids:)` input order, and return null for missing or deleted IDs.
 
 Local pickup mutations stage settings on active local locations and retain the
-original raw GraphQL request for commit replay. `locationLocalPickupEnable`
-accepts captured standard pickup times, rejects non-standard values with
-`CUSTOM_PICKUP_TIME_NOT_ALLOWED`, and rejects unknown or inactive locations with
-`ACTIVE_LOCATION_NOT_FOUND`. `locationLocalPickupDisable` clears the staged
-settings on active locations and rejects unknown or inactive locations with
-`ACTIVE_LOCATION_NOT_FOUND` on `locationId`; failed disable payloads return
-`locationId: null`. Pickup changes are visible through
+original raw GraphQL request for commit replay. In LiveHybrid mode, a
+mutation-first enable or disable query-hydrates its submitted location through
+the caller's Admin route and auth headers before validating it; Snapshot mode
+remains local-only. A confirmed missing or inactive location returns
+`ACTIVE_LOCATION_NOT_FOUND`, while an unresolved hydration stops without
+inventing that business error. `locationLocalPickupEnable` accepts captured
+standard pickup times and rejects non-standard values with
+`CUSTOM_PICKUP_TIME_NOT_ALLOWED`. `locationLocalPickupDisable` clears the
+staged settings and returns `locationId: null` on validation failure. Successful
+pickup staging preserves the hydrated location identity, name, active state,
+and fulfillment-service classification. Changes are visible through
 `Location.localPickupSettingsV2` and
-`locationsAvailableForDeliveryProfilesConnection` in snapshot mode and after
-LiveHybrid reads hydrate the existing shipping locations.
+`locationsAvailableForDeliveryProfilesConnection` without sending the
+supported mutation upstream.
 
 Shipping package slices stage changes on package records already present in the
 local staged/observed store or hydrated from Shopify in LiveHybrid mode, and

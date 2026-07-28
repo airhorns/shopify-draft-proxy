@@ -1,7 +1,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write status output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
@@ -41,6 +41,12 @@ const captureRequestPath = path.join(
   'parity-requests',
   'payments',
   'order-capture-validation-order-capture.graphql',
+);
+const orderHydrateRequestPath = path.join(
+  'config',
+  'parity-requests',
+  'payments',
+  'order-payment-transaction-hydrate-by-order.graphql',
 );
 
 const orderCreateDocument = `
@@ -248,6 +254,20 @@ async function runCapture(query: string, variables: JsonRecord, context: string)
   return { query, variables, response: response.payload };
 }
 
+async function runUpstreamCapture(query: string, variables: JsonRecord, context: string): Promise<JsonRecord> {
+  const response = await runGraphqlRequest<JsonRecord>(query, variables);
+  assertNoTopLevelErrors(response, context);
+  return {
+    operationName: 'OrderPaymentTransactionHydrateByOrder',
+    query,
+    variables,
+    response: {
+      status: response.status,
+      body: response.payload,
+    },
+  };
+}
+
 async function runOrderCapture(query: string, variables: JsonRecord, context: string): Promise<CaptureStep> {
   for (let attempt = 1; attempt <= 5; attempt += 1) {
     const step = await runCapture(query, variables, context);
@@ -390,6 +410,7 @@ async function cleanupOrder(orderId: string): Promise<unknown> {
 const stamp = Date.now();
 const cleanup: Record<string, unknown> = {};
 const orderIds: string[] = [];
+const orderHydrateDocument = await readFile(orderHydrateRequestPath, 'utf8');
 
 try {
   const createAuthorizationOrder = await runCapture(
@@ -416,6 +437,11 @@ try {
     orderCaptureDocument,
     captureInput(orderId, 'gid://shopify/OrderTransaction/999999999999999999', '5.00', { currency: 'USD' }),
     'orderCapture parent not found',
+  );
+  const parentNotFoundHydrate = await runUpstreamCapture(
+    orderHydrateDocument,
+    { id: orderId },
+    'orderCapture parent not found hydrate',
   );
   const invalidAmount = await runOrderCapture(
     orderCaptureDocument,
@@ -497,7 +523,7 @@ try {
       singleCurrencyZeroAmount,
     },
     cleanup,
-    upstreamCalls: [],
+    upstreamCalls: [parentNotFoundHydrate],
   });
   await writeJson(specPath, {
     scenarioId: 'order_capture_validation',

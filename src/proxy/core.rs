@@ -73,8 +73,8 @@ impl DraftProxy {
             log_entries: Vec::new(),
             registry: ResolverRegistry::new(default_registry()),
             store: Store::with_default_baseline(),
-            next_synthetic_id: 1,
             shop_sells_subscriptions: None,
+            product_catalog_base_records: BTreeMap::new(),
             clock: Arc::new(default_runtime_clock),
             last_mutation_timestamp: None,
             execution_session: ExecutionSession::default(),
@@ -149,6 +149,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn upstream_post(&self, request: &Request, body: Value) -> Response {
+        self.store.invalidate_synthetic_identity_cache();
         (self.upstream_transport)(Request {
             method: "POST".to_string(),
             path: request.path.clone(),
@@ -158,7 +159,19 @@ impl DraftProxy {
     }
 
     pub fn process_request(&mut self, request: Request) -> Response {
+        let log_start = self.log_entries.len();
         let mut response = self.dispatch_route(request);
+        // Successful local mutations can introduce authoritative relationship
+        // IDs through variables or inline GraphQL literals. Their log entries
+        // retain the raw request, so fold only the new entries into the
+        // broker's reservation set without rescanning the complete Store at
+        // the start of every request. Missing IDs used only by reads are not
+        // identities and therefore do not reserve allocator slots. Upstream
+        // hydration invalidates the cache in `upstream_post`, so the next
+        // allocation still refreshes from all newly observed state.
+        if let Some(new_entries) = self.log_entries.get(log_start..) {
+            self.store.observe_shopify_gid_identities(new_entries);
+        }
         // Stamp a cheap "has persistable state changed?" signal on every
         // response so embedders (e.g. the Ruby storage adapter) can decide
         // whether to persist without diffing or re-dumping the whole state on
@@ -183,7 +196,7 @@ impl DraftProxy {
             "{}:{}:{}",
             self.log_entries.len(),
             settled,
-            self.next_synthetic_id
+            self.store.synthetic_id_sequence()
         )
     }
 
@@ -199,8 +212,9 @@ impl DraftProxy {
             Route::MetaReset => {
                 self.log_entries.clear();
                 self.store.clear_staged();
-                self.next_synthetic_id = 1;
+                self.store.reset_synthetic_id_sequence();
                 self.shop_sells_subscriptions = None;
+                self.product_catalog_base_records.clear();
                 self.last_mutation_timestamp = None;
                 self.execution_session = ExecutionSession::default();
                 ok_json(json!({ "ok": true, "message": "state reset" }))
@@ -483,12 +497,20 @@ impl DraftProxy {
                 "deliveryPromiseCompleteNodeIds": self.store.base.delivery_promise_complete_node_ids.iter().cloned().collect::<Vec<_>>(),
                 "orders": self.store.base.orders.records.clone(),
                 "orderOrder": self.store.base.orders.order,
+                "returnPreconditionHydratedOrderIds": self.store.base.return_precondition_hydrated_order_ids.iter().cloned().collect::<Vec<_>>(),
                 "orderCountBaselines": self.store.base.order_count_baselines.clone(),
                 "discounts": self.store.base.discounts.records.clone(),
                 "discountOrder": self.store.base.discounts.order,
                 "discountCountBaselines": self.store.base.discount_count_baselines.clone(),
                 "segments": self.store.base.segments.records.clone(),
                 "segmentOrder": self.store.base.segments.order,
+                "segmentNameIds": self.store.base.segment_name_ids.clone(),
+                "segmentCompleteNameProbes": self.store.base.segment_complete_name_probes.iter().cloned().collect::<Vec<_>>(),
+                "segmentKnownMissingIds": self.store.base.segment_known_missing_ids.iter().cloned().collect::<Vec<_>>(),
+                "segmentCountBaseline": self.store.base.segment_count_baseline.clone().unwrap_or(Value::Null),
+                "segmentCatalogComplete": self.store.base.segment_catalog_complete,
+                "customerSegmentMemberQueries": self.store.base.customer_segment_member_queries.clone(),
+                "customerSegmentMemberQueryKnownMissingIds": self.store.base.customer_segment_member_query_known_missing_ids.iter().cloned().collect::<Vec<_>>(),
                 "bulkOperations": self.store.base.bulk_operations.records.clone(),
                 "bulkOperationOrder": self.store.base.bulk_operations.order.clone(),
                 "bulkOperationsObserved": self.store.base.bulk_operations_observed,
@@ -579,14 +601,11 @@ impl DraftProxy {
                 "storeCreditAccountOrder": self.store.staged.store_credit_accounts.order.clone(),
                 "storeCreditTransactions": self.store.staged.store_credit_transactions.clone(),
                 "storeCreditTransactionOrder": self.store.staged.store_credit_transaction_order.clone(),
-                "nextStoreCreditAccountId": self.store.staged.next_store_credit_account_id,
-                "nextStoreCreditTransactionId": self.store.staged.next_store_credit_transaction_id,
                 "giftCards": self.store.staged.gift_cards.clone(),
                 "taggableResources": self.store.staged.taggable_resources.clone(),
                 "abandonments": self.store.staged.abandonments.clone(),
                 "orders": self.store.staged.orders.records.clone(),
                 "deletedOrderIds": self.store.staged.orders.tombstones.iter().cloned().collect::<Vec<_>>(),
-                "nextDraftOrderId": self.store.staged.next_draft_order_id,
                 "draftOrderTags": self.store.staged.draft_order_tags.clone(),
                 "returns": self.store.staged.returns.clone(),
                 "returnsByOrder": self.store.staged.returns_by_order.clone(),
@@ -612,6 +631,7 @@ impl DraftProxy {
                 "segments": self.store.staged.segments.records.clone(),
                 "segmentOrder": self.store.staged.segments.order.clone(),
                 "deletedSegmentIds": self.store.staged.segments.tombstones.iter().cloned().collect::<Vec<_>>(),
+                "customerSegmentMemberQueries": self.store.staged.customer_segment_member_queries.clone(),
                 "publicationIds": self.store.staged.publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "createdPublicationIds": self.store.staged.created_publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "publications": self.store.staged.publications.clone(),
@@ -632,6 +652,12 @@ impl DraftProxy {
             "baseState": base_state,
             "stagedState": staged_state
         });
+        if self.store.staged.observed_shipping_locations_complete {
+            snapshot["stagedState"]["observedShippingLocationsComplete"] = json!(true);
+        }
+        if let Some(cursor) = &self.store.staged.observed_shipping_locations_next_cursor {
+            snapshot["stagedState"]["observedShippingLocationsNextCursor"] = json!(cursor);
+        }
         snapshot["baseState"]["draftOrders"] = json!(self.store.base.draft_orders.records.clone());
         snapshot["baseState"]["draftOrderOrder"] = json!(self.store.base.draft_orders.order);
         snapshot["baseState"]["draftOrderCountBaselines"] =
@@ -718,6 +744,31 @@ impl DraftProxy {
                 .iter()
                 .cloned()
                 .collect::<Vec<_>>());
+        }
+        if !self.store.base.b2b_customers.records.is_empty()
+            || !self.store.base.b2b_customers.order.is_empty()
+        {
+            snapshot["baseState"]["b2bCustomers"] =
+                json!(self.store.base.b2b_customers.records.clone());
+            snapshot["baseState"]["b2bCustomerOrder"] =
+                json!(self.store.base.b2b_customers.order.clone());
+        }
+        if !self.store.base.b2b_relationship_completeness.is_empty() {
+            snapshot["baseState"]["b2bRelationshipCompleteness"] =
+                json!(self.store.base.b2b_relationship_completeness.clone());
+        }
+        if !self.store.base.b2b_address_ids.is_empty() {
+            snapshot["baseState"]["b2bAddressIds"] = json!(self
+                .store
+                .base
+                .b2b_address_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if !self.store.base.b2b_address_location_ids.is_empty() {
+            snapshot["baseState"]["b2bAddressLocationIds"] =
+                json!(self.store.base.b2b_address_location_ids.clone());
         }
         if !self.store.base.function_metadata.is_empty() {
             snapshot["baseState"]["functionMetadata"] =
@@ -820,6 +871,18 @@ impl DraftProxy {
         if let Some(count) = self.store.staged.online_store_blogs_count_base {
             snapshot["stagedState"]["onlineStoreBlogsCountBase"] = json!(count);
         }
+        if !self
+            .store
+            .staged
+            .observed_online_store_blog_handle_owners
+            .is_empty()
+        {
+            snapshot["stagedState"]["observedOnlineStoreBlogHandleOwners"] = json!(self
+                .store
+                .staged
+                .observed_online_store_blog_handle_owners
+                .clone());
+        }
         if !self.store.staged.online_store_pages.is_empty() {
             snapshot["stagedState"]["onlineStorePages"] =
                 json!(self.store.staged.online_store_pages.clone());
@@ -837,6 +900,18 @@ impl DraftProxy {
         }
         if let Some(count) = self.store.staged.online_store_pages_count_base {
             snapshot["stagedState"]["onlineStorePagesCountBase"] = json!(count);
+        }
+        if !self
+            .store
+            .staged
+            .observed_online_store_page_handle_owners
+            .is_empty()
+        {
+            snapshot["stagedState"]["observedOnlineStorePageHandleOwners"] = json!(self
+                .store
+                .staged
+                .observed_online_store_page_handle_owners
+                .clone());
         }
         if !self.store.staged.online_store_articles.is_empty() {
             snapshot["stagedState"]["onlineStoreArticles"] =
@@ -857,6 +932,18 @@ impl DraftProxy {
                 .iter()
                 .cloned()
                 .collect::<Vec<_>>());
+        }
+        if !self
+            .store
+            .staged
+            .observed_online_store_article_handle_owners
+            .is_empty()
+        {
+            snapshot["stagedState"]["observedOnlineStoreArticleHandleOwners"] = json!(self
+                .store
+                .staged
+                .observed_online_store_article_handle_owners
+                .clone());
         }
         if !self.store.staged.online_store_comments.is_empty() {
             snapshot["stagedState"]["onlineStoreComments"] =
@@ -934,10 +1021,6 @@ impl DraftProxy {
         if self.store.staged.payment_customization_catalog_hydrated {
             snapshot["stagedState"]["paymentCustomizationCatalogHydrated"] = json!(true);
         }
-        if self.store.staged.next_customer_payment_method_id != 1 {
-            snapshot["stagedState"]["nextCustomerPaymentMethodId"] =
-                json!(self.store.staged.next_customer_payment_method_id);
-        }
         if !self.store.staged.order_customer_orders.is_empty() {
             snapshot["stagedState"]["orderCustomerOrders"] =
                 json!(self.store.staged.order_customer_orders.clone());
@@ -974,16 +1057,8 @@ impl DraftProxy {
                 .cloned()
                 .collect::<Vec<_>>());
         }
-        if self.store.staged.next_order_customer_order_id != 1 {
-            snapshot["stagedState"]["nextOrderCustomerOrderId"] =
-                json!(self.store.staged.next_order_customer_order_id);
-        }
         if self.store.staged.next_order_number != 1 {
             snapshot["stagedState"]["nextOrderNumber"] = json!(self.store.staged.next_order_number);
-        }
-        if self.store.staged.next_draft_order_bulk_tag_job_id != 1 {
-            snapshot["stagedState"]["nextDraftOrderBulkTagJobId"] =
-                json!(self.store.staged.next_draft_order_bulk_tag_job_id);
         }
         if self.has_staged_b2b_state() {
             snapshot["stagedState"]["b2bCompanies"] =
@@ -999,6 +1074,8 @@ impl DraftProxy {
                 json!(self.store.staged.b2b_role_assignments.clone());
             snapshot["stagedState"]["b2bStaffAssignments"] =
                 json!(self.store.staged.b2b_staff_assignments.clone());
+            snapshot["stagedState"]["b2bAddressLocationIds"] =
+                json!(self.store.staged.b2b_address_location_ids.clone());
             snapshot["stagedState"]["deletedB2bCompanyIds"] = json!(self
                 .store
                 .staged
@@ -1035,16 +1112,13 @@ impl DraftProxy {
                 .iter()
                 .cloned()
                 .collect::<Vec<_>>());
-            // These synthetic id counters MUST round-trip through dump/restore.
-            // The parity runner restores mainState before every target, so if a
-            // counter resets to 1 here a later companyCreate reuses an existing
-            // id and silently overwrites a previously-staged company/contact.
-            snapshot["stagedState"]["nextB2bCompanyId"] =
-                json!(self.store.staged.next_b2b_company_id);
-            snapshot["stagedState"]["nextB2bContactId"] =
-                json!(self.store.staged.next_b2b_contact_id);
-            snapshot["stagedState"]["nextB2bContactRoleAssignmentId"] =
-                json!(self.store.staged.next_b2b_contact_role_assignment_id);
+            snapshot["stagedState"]["deletedB2bAddressIds"] = json!(self
+                .store
+                .staged
+                .deleted_b2b_address_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
         }
         if !self.store.staged.inventory_levels.is_empty() {
             snapshot["stagedState"]["inventoryLevels"] =
@@ -1100,9 +1174,29 @@ impl DraftProxy {
                 .cloned()
                 .collect::<Vec<_>>());
         }
+        if !self.store.base.inventory_shipments.records.is_empty() {
+            snapshot["baseState"]["inventoryShipments"] =
+                serde_json::to_value(&self.store.base.inventory_shipments.records)
+                    .unwrap_or_default();
+            snapshot["baseState"]["inventoryShipmentOrder"] =
+                json!(self.store.base.inventory_shipments.order);
+        }
         if !self.store.staged.inventory_shipments.is_empty() {
             snapshot["stagedState"]["inventoryShipments"] =
-                serde_json::to_value(&self.store.staged.inventory_shipments).unwrap_or_default();
+                serde_json::to_value(&self.store.staged.inventory_shipments.records)
+                    .unwrap_or_default();
+            snapshot["stagedState"]["inventoryShipmentOrder"] =
+                json!(self.store.staged.inventory_shipments.order);
+        }
+        if !self.store.staged.inventory_shipments.tombstones.is_empty() {
+            snapshot["stagedState"]["deletedInventoryShipmentIds"] = json!(self
+                .store
+                .staged
+                .inventory_shipments
+                .tombstones
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
         }
         if !self.store.staged.inventory_quantity_updated_at.is_empty() {
             snapshot["stagedState"]["inventoryQuantityUpdatedAt"] =
@@ -1147,6 +1241,15 @@ impl DraftProxy {
                 .staged
                 .metaobjects
                 .tombstones
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if !self.store.staged.deleted_metaobject_types.is_empty() {
+            snapshot["stagedState"]["deletedMetaobjectTypes"] = json!(self
+                .store
+                .staged
+                .deleted_metaobject_types
                 .iter()
                 .cloned()
                 .collect::<Vec<_>>());
@@ -1449,6 +1552,8 @@ impl DraftProxy {
                 .staged
                 .deleted_b2b_staff_assignment_ids
                 .is_empty()
+            || !self.store.staged.b2b_address_location_ids.is_empty()
+            || !self.store.staged.deleted_b2b_address_ids.is_empty()
     }
 
     pub(in crate::proxy) fn dump_state(&self, request: &Request) -> Response {
@@ -1465,7 +1570,7 @@ impl DraftProxy {
             "createdAt": created_at,
             "state": self.state_snapshot(),
             "log": { "entries": self.log_entries },
-            "nextSyntheticId": self.next_synthetic_id
+            "nextSyntheticId": self.store.synthetic_id_sequence()
         }))
     }
 
@@ -1529,6 +1634,8 @@ impl DraftProxy {
                 .map(string_array_from_json)
                 .unwrap_or_default(),
         );
+        self.store.base.return_precondition_hydrated_order_ids =
+            string_set_from_json(state["baseState"].get("returnPreconditionHydratedOrderIds"));
         self.store.base.order_count_baselines =
             value_map_from_json(state["baseState"].get("orderCountBaselines"));
         self.store.base.draft_orders.replace_with_order(
@@ -1549,6 +1656,16 @@ impl DraftProxy {
                 .unwrap_or_default(),
             state["baseState"]
                 .get("inventoryTransferOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
+        self.store.base.inventory_shipments.replace_with_order(
+            state["baseState"]
+                .get("inventoryShipments")
+                .and_then(|value| serde_json::from_value(value.clone()).ok())
+                .unwrap_or_default(),
+            state["baseState"]
+                .get("inventoryShipmentOrder")
                 .map(string_array_from_json)
                 .unwrap_or_default(),
         );
@@ -1644,6 +1761,8 @@ impl DraftProxy {
             .get("onlineStoreBlogsCountBase")
             .and_then(Value::as_u64)
             .map(|count| count as usize);
+        self.store.staged.observed_online_store_blog_handle_owners =
+            string_map_from_json(state["stagedState"].get("observedOnlineStoreBlogHandleOwners"));
         self.store.staged.online_store_pages =
             value_map_from_json(state["stagedState"].get("onlineStorePages"));
         self.store.staged.online_store_page_order = state["stagedState"]
@@ -1660,6 +1779,8 @@ impl DraftProxy {
             .get("onlineStorePagesCountBase")
             .and_then(Value::as_u64)
             .map(|count| count as usize);
+        self.store.staged.observed_online_store_page_handle_owners =
+            string_map_from_json(state["stagedState"].get("observedOnlineStorePageHandleOwners"));
         self.store.staged.online_store_articles =
             value_map_from_json(state["stagedState"].get("onlineStoreArticles"));
         self.store.staged.online_store_article_order = state["stagedState"]
@@ -1672,6 +1793,11 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .collect();
+        self.store
+            .staged
+            .observed_online_store_article_handle_owners = nested_string_map_from_json(
+            state["stagedState"].get("observedOnlineStoreArticleHandleOwners"),
+        );
         self.store.staged.online_store_comments =
             value_map_from_json(state["stagedState"].get("onlineStoreComments"));
         self.store.staged.online_store_comment_order = state["stagedState"]
@@ -1745,6 +1871,43 @@ impl DraftProxy {
                 .map(string_array_from_json)
                 .unwrap_or_default(),
         );
+        self.store.base.segment_name_ids = state["baseState"]
+            .get("segmentNameIds")
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
+            .unwrap_or_default();
+        if self.store.base.segment_name_ids.is_empty() {
+            self.store.rebuild_segment_name_index();
+        }
+        self.store.base.segment_complete_name_probes = state["baseState"]
+            .get("segmentCompleteNameProbes")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.base.segment_known_missing_ids = state["baseState"]
+            .get("segmentKnownMissingIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.base.segment_count_baseline = state["baseState"]
+            .get("segmentCountBaseline")
+            .filter(|value| value.is_object())
+            .cloned();
+        self.store.base.segment_catalog_complete = state["baseState"]
+            .get("segmentCatalogComplete")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        self.store.base.customer_segment_member_queries =
+            value_map_from_json(state["baseState"].get("customerSegmentMemberQueries"));
+        self.store
+            .base
+            .customer_segment_member_query_known_missing_ids = state["baseState"]
+            .get("customerSegmentMemberQueryKnownMissingIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.base.gift_cards = value_map_from_json(state["baseState"].get("giftCards"));
         self.store.base.gift_card_configuration = state["baseState"]
             .get("giftCardConfiguration")
@@ -2111,6 +2274,26 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .collect();
+        self.store.base.b2b_customers.replace_with_order(
+            value_map_from_json(state["baseState"].get("b2bCustomers")),
+            state["baseState"]
+                .get("b2bCustomerOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
+        self.store.base.b2b_relationship_completeness = state["baseState"]
+            .get("b2bRelationshipCompleteness")
+            .cloned()
+            .and_then(|value| serde_json::from_value(value).ok())
+            .unwrap_or_default();
+        self.store.base.b2b_address_ids = state["baseState"]
+            .get("b2bAddressIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.base.b2b_address_location_ids =
+            string_map_from_json(state["baseState"].get("b2bAddressLocationIds"));
         self.store.staged.publication_ids =
             string_array_from_json(&state["stagedState"]["publicationIds"])
                 .into_iter()
@@ -2327,10 +2510,6 @@ impl DraftProxy {
                     .cloned()
                     .collect()
             });
-        self.store.staged.next_store_credit_account_id =
-            counter_from_json_with_floor(&state["stagedState"], "nextStoreCreditAccountId", 1);
-        self.store.staged.next_store_credit_transaction_id =
-            counter_from_json_with_floor(&state["stagedState"], "nextStoreCreditTransactionId", 1);
         self.store.staged.gift_cards = value_map_from_json(state["stagedState"].get("giftCards"));
         self.store.staged.taggable_resources =
             value_map_from_json(state["stagedState"].get("taggableResources"));
@@ -2362,8 +2541,6 @@ impl DraftProxy {
             .get("paymentCustomizationCatalogHydrated")
             .and_then(Value::as_bool)
             .unwrap_or(false);
-        self.store.staged.next_customer_payment_method_id =
-            counter_from_json_with_floor(&state["stagedState"], "nextCustomerPaymentMethodId", 1);
         self.store.staged.abandonments =
             value_map_from_json(state["stagedState"].get("abandonments"));
         self.store.staged.order_customer_orders =
@@ -2386,8 +2563,6 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .collect();
-        self.store.staged.next_order_customer_order_id =
-            counter_from_json_with_floor(&state["stagedState"], "nextOrderCustomerOrderId", 1);
         replace_staged_value_records(
             &mut self.store.staged.orders,
             &state["stagedState"],
@@ -2395,17 +2570,9 @@ impl DraftProxy {
             None,
             Some("deletedOrderIds"),
         );
-        self.store.staged.next_order_id =
-            counter_from_json_with_floor(&state["stagedState"], "nextOrderId", 1);
         self.store.staged.next_order_number =
             counter_from_json_with_floor(&state["stagedState"], "nextOrderNumber", 1);
-        self.store.staged.next_refund_id =
-            counter_from_json_with_floor(&state["stagedState"], "nextRefundId", 1);
-        self.store.staged.next_refund_line_item_id =
-            counter_from_json_with_floor(&state["stagedState"], "nextRefundLineItemId", 1);
-        self.store.staged.order_payment_next_transaction_id =
-            counter_from_json_with_floor(&state["stagedState"], "orderPaymentNextTransactionId", 3);
-        self.advance_order_counters_from_staged_orders();
+        self.advance_order_number_from_staged_orders();
         // Draft orders are dumped in the cursor-wrapped overlay format
         // ({ "id", "cursor", "data" }); unwrap `data` back to the staged record.
         // These MUST round-trip because the parity runner restores mainState
@@ -2442,11 +2609,6 @@ impl DraftProxy {
                     .into_iter()
                     .collect(),
             );
-        self.store.staged.next_draft_order_id =
-            counter_from_json_with_floor(&state["stagedState"], "nextDraftOrderId", 1);
-        self.advance_draft_order_counter_from_staged_draft_orders();
-        self.store.staged.next_draft_order_bulk_tag_job_id =
-            counter_from_json_with_floor(&state["stagedState"], "nextDraftOrderBulkTagJobId", 1);
         self.store.staged.draft_order_tags = state["stagedState"]["draftOrderTags"]
             .as_object()
             .map(|tags| {
@@ -2501,6 +2663,19 @@ impl DraftProxy {
                     .cloned()
                     .collect()
             });
+        self.store.staged.observed_shipping_locations_complete = state["stagedState"]
+            .get("observedShippingLocationsComplete")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        self.store.staged.observed_shipping_locations_next_cursor =
+            if self.store.staged.observed_shipping_locations_complete {
+                None
+            } else {
+                state["stagedState"]
+                    .get("observedShippingLocationsNextCursor")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            };
         replace_staged_value_records(
             &mut self.store.staged.locations,
             &state["stagedState"],
@@ -2543,6 +2718,8 @@ impl DraftProxy {
             Some("segmentOrder"),
             Some("deletedSegmentIds"),
         );
+        self.store.staged.customer_segment_member_queries =
+            value_map_from_json(state["stagedState"].get("customerSegmentMemberQueries"));
         self.store.staged.fulfillment_order_cursors = state["stagedState"]
             .get("fulfillmentOrderCursors")
             .and_then(|value| serde_json::from_value(value.clone()).ok())
@@ -2580,10 +2757,25 @@ impl DraftProxy {
                     .into_iter()
                     .collect(),
             );
-        self.store.staged.inventory_shipments = state["stagedState"]
-            .get("inventoryShipments")
-            .and_then(|value| serde_json::from_value(value.clone()).ok())
-            .unwrap_or_default();
+        self.store
+            .staged
+            .inventory_shipments
+            .replace_with_order_and_tombstones(
+                state["stagedState"]
+                    .get("inventoryShipments")
+                    .and_then(|value| serde_json::from_value(value.clone()).ok())
+                    .unwrap_or_default(),
+                state["stagedState"]
+                    .get("inventoryShipmentOrder")
+                    .map(string_array_from_json)
+                    .unwrap_or_default(),
+                state["stagedState"]
+                    .get("deletedInventoryShipmentIds")
+                    .map(string_array_from_json)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .collect(),
+            );
         self.store.staged.inventory_quantity_updated_at = inventory_quantity_updated_at_from_json(
             &state["stagedState"]["inventoryQuantityUpdatedAt"],
         );
@@ -2646,6 +2838,8 @@ impl DraftProxy {
             value_map_from_json(state["stagedState"].get("b2bRoleAssignments"));
         self.store.staged.b2b_staff_assignments =
             value_map_from_json(state["stagedState"].get("b2bStaffAssignments"));
+        self.store.staged.b2b_address_location_ids =
+            string_map_from_json(state["stagedState"].get("b2bAddressLocationIds"));
         replace_staged_value_records(
             &mut self.store.staged.metaobject_definitions,
             &state["stagedState"],
@@ -2660,6 +2854,12 @@ impl DraftProxy {
             None,
             Some("deletedMetaobjectIds"),
         );
+        self.store.staged.deleted_metaobject_types = state["stagedState"]
+            .get("deletedMetaobjectTypes")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.url_redirects =
             value_map_from_json(state["stagedState"].get("urlRedirects"));
         self.store.staged.url_redirect_order = state["stagedState"]
@@ -2791,15 +2991,12 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .collect();
-        self.store.staged.next_b2b_company_id =
-            counter_from_json_with_floor(&state["stagedState"], "nextB2bCompanyId", 1);
-        self.store.staged.next_b2b_contact_id =
-            counter_from_json_with_floor(&state["stagedState"], "nextB2bContactId", 1);
-        self.store.staged.next_b2b_contact_role_assignment_id = counter_from_json_with_floor(
-            &state["stagedState"],
-            "nextB2bContactRoleAssignmentId",
-            1,
-        );
+        self.store.staged.deleted_b2b_address_ids = state["stagedState"]
+            .get("deletedB2bAddressIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         // Markets-domain staged maps — symmetric with the conditional emit in
         // state_snapshot. Missing keys restore to empty (the default).
         self.store.staged.markets = value_map_from_json(state["stagedState"].get("markets"));
@@ -2936,64 +3133,23 @@ impl DraftProxy {
             .as_array()
             .cloned()
             .unwrap_or_default();
-        self.next_synthetic_id = next_synthetic_id;
+        self.store.restore_synthetic_id_sequence(next_synthetic_id);
 
         ok_json(json!({ "ok": true, "message": "state restored" }))
     }
 
-    fn advance_order_counters_from_staged_orders(&mut self) {
-        let mut next_order_id = self.store.staged.next_order_id.max(1);
-        let mut next_refund_id = self.store.staged.next_refund_id.max(1);
-        let mut next_refund_line_item_id = self.store.staged.next_refund_line_item_id.max(1);
-        let mut next_transaction_id = self.store.staged.order_payment_next_transaction_id.max(3);
+    fn advance_order_number_from_staged_orders(&mut self) {
         let mut next_order_number = self.store.staged.next_order_number.max(1);
 
-        for (order_id, order) in &self.store.staged.orders {
-            advance_counter_past_gid_tail(&mut next_order_id, order_id);
-            if let Some(record_id) = order.get("id").and_then(Value::as_str) {
-                advance_counter_past_gid_tail(&mut next_order_id, record_id);
-            }
+        for order in self.store.staged.orders.values() {
             if let Some(number) = order.get("orderNumber").and_then(Value::as_u64) {
                 next_order_number = next_order_number.max(number.saturating_add(1));
             } else if let Some(name) = order.get("name").and_then(Value::as_str) {
                 advance_order_number_past_order_name(&mut next_order_number, name);
             }
-            for transaction in json_records(&order["transactions"]) {
-                advance_counter_past_value_id(&mut next_transaction_id, transaction);
-            }
-            for refund in json_records(&order["refunds"]) {
-                advance_counter_past_value_id(&mut next_refund_id, refund);
-                for refund_line_item in json_records(&refund["refundLineItems"]) {
-                    advance_counter_past_value_id(&mut next_refund_line_item_id, refund_line_item);
-                }
-                for transaction in json_records(&refund["transactions"]) {
-                    advance_counter_past_value_id(&mut next_transaction_id, transaction);
-                }
-            }
         }
 
-        self.store.staged.next_order_id = next_order_id;
         self.store.staged.next_order_number = next_order_number;
-        self.store.staged.next_refund_id = next_refund_id;
-        self.store.staged.next_refund_line_item_id = next_refund_line_item_id;
-        self.store.staged.order_payment_next_transaction_id = next_transaction_id;
-    }
-
-    fn advance_draft_order_counter_from_staged_draft_orders(&mut self) {
-        let mut next_draft_order_id = self.store.staged.next_draft_order_id.max(1);
-        for (draft_order_id, draft_order) in &self.store.base.draft_orders.records {
-            advance_counter_past_gid_tail(&mut next_draft_order_id, draft_order_id);
-            if let Some(record_id) = draft_order.get("id").and_then(Value::as_str) {
-                advance_counter_past_gid_tail(&mut next_draft_order_id, record_id);
-            }
-        }
-        for (draft_order_id, draft_order) in &self.store.staged.draft_orders {
-            advance_counter_past_gid_tail(&mut next_draft_order_id, draft_order_id);
-            if let Some(record_id) = draft_order.get("id").and_then(Value::as_str) {
-                advance_counter_past_gid_tail(&mut next_draft_order_id, record_id);
-            }
-        }
-        self.store.staged.next_draft_order_id = next_draft_order_id;
     }
 }
 
@@ -3104,6 +3260,20 @@ fn string_map_from_json(value: Option<&Value>) -> BTreeMap<String, String> {
         .unwrap_or_default()
 }
 
+fn nested_string_map_from_json(
+    value: Option<&Value>,
+) -> BTreeMap<String, BTreeMap<String, String>> {
+    value
+        .and_then(Value::as_object)
+        .map(|records| {
+            records
+                .iter()
+                .map(|(key, value)| (key.clone(), string_map_from_json(Some(value))))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 fn string_array_map_from_json(value: Option<&Value>) -> BTreeMap<String, Vec<String>> {
     value
         .and_then(Value::as_object)
@@ -3161,18 +3331,6 @@ fn customer_payment_method_index_from_records(
     index
 }
 
-fn advance_counter_past_value_id(counter: &mut u64, value: &Value) {
-    if let Some(id) = value.get("id").and_then(Value::as_str) {
-        advance_counter_past_gid_tail(counter, id);
-    }
-}
-
-fn advance_counter_past_gid_tail(counter: &mut u64, id: &str) {
-    if let Ok(numeric) = resource_id_tail(id).parse::<u64>() {
-        *counter = (*counter).max(numeric.saturating_add(1));
-    }
-}
-
 fn advance_order_number_past_order_name(counter: &mut u64, name: &str) {
     let Some(number) = name
         .strip_prefix('#')
@@ -3181,23 +3339,6 @@ fn advance_order_number_past_order_name(counter: &mut u64, name: &str) {
         return;
     };
     *counter = (*counter).max(number.saturating_add(1));
-}
-
-fn json_records(value: &Value) -> Vec<&Value> {
-    let mut records = Vec::new();
-    if let Some(array) = value.as_array() {
-        records.extend(array.iter());
-    }
-    if let Some(nodes) = value.get("nodes").and_then(Value::as_array) {
-        records.extend(nodes.iter());
-    }
-    if let Some(edges) = value.get("edges").and_then(Value::as_array) {
-        records.extend(edges.iter().filter_map(|edge| edge.get("node")));
-    }
-    if records.is_empty() && value.get("id").and_then(Value::as_str).is_some() {
-        records.push(value);
-    }
-    records
 }
 
 fn inventory_levels_json(levels: &BTreeMap<(String, String), BTreeMap<String, i64>>) -> Value {

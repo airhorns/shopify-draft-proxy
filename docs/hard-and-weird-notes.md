@@ -81,6 +81,30 @@ the row without turning ordinary absence into a GraphQL error. The captured
 anchor is
 `config/parity-specs/segments/segment-mutation-first-hydration.json`.
 
+## Current: Segment prerequisites need scoped completeness, not catalog enumeration
+
+Live Admin GraphQL 2025-01 capture confirmed that a cold Segment name conflict
+can be resolved with `segments(first: 101, query: "name:\"…\"")`, while the
+6,000-Segment cap can be established with `segmentsCount(limit: 6000)`. At the
+cap Shopify returned `{ count: 6000, precision: AT_LEAST }`. Segment search is
+eventually indexed after create, so a temporarily empty name result is not
+evidence about a just-created row until the selected page is stable and
+`hasNextPage` is false.
+
+Cold identity reads also distinguish absence from failure. `segment(id:)` for a
+missing valid GID returned `data.segment: null` plus a top-level `NOT_FOUND`
+error, while transport, GraphQL, malformed-batch, and mismatched-node failures
+did not prove absence. `nodes(ids:)` returned persisted
+`CustomerSegmentMembersQuery` jobs with their current `currentCount`/`done`
+state.
+
+Practical rule: cache authoritative hits and confirmed misses only within the
+scope actually queried; keep unresolved failures retryable, apply staged
+create/delete deltas to the captured count threshold, and never page the whole
+Segment catalog to validate one mutation. The captured anchors are
+`config/parity-specs/segments/segment-authoritative-prerequisites.json` and
+`config/parity-specs/segments/segment-authoritative-limit-prerequisite.json`.
+
 ## Current: Shopify empty-data behavior is field-specific, not generic
 
 "Return empty data when missing" sounds simple, but in practice Shopify behavior depends on the field shape:
@@ -102,10 +126,13 @@ location catalog includes inactive and legacy rows needed for effective counts,
 duplicate-name checks, and the shop's active merchant-managed location limit.
 
 Practical rule: hydrate and retain the two catalogs separately. General staged
-location lifecycle changes overlay the normalized `locations` baseline;
-delivery-profile reads overlay a staged row only when that ID was already in the
-hydrated eligibility catalog. The captured
-`location-catalog-overlay-lifecycle` scenario also confirms that quoted
+location lifecycle changes overlay the normalized `locations` baseline. A
+staged add stays absent from delivery-profile eligibility at first, but the
+fresh `location-catalog-overlay-lifecycle` capture shows Shopify adds that row
+after deactivation with `isActive: false` and retains it after reactivation with
+`isActive: true`; deletion removes the derived row. Other delivery-profile
+reads overlay a staged row only after its ID enters the hydrated or captured
+lifecycle eligibility catalog. The same scenario also confirms that quoted
 multi-word `name:` expressions must remain one search term rather than being
 split on whitespace.
 
@@ -1714,19 +1741,6 @@ Useful behavior:
 
 Keep local storage keyed by owner type as well as namespace/key; filtering by owner type after a namespace/key lookup is not enough.
 
-## 19e. `constraintsUpdates` applies category values while projecting a null key
-
-A fresh Admin GraphQL 2026-04 capture of `metafieldDefinitionUpdate` showed that
-`constraintsUpdates: [{ key: "category", values: [...] }]` retains the submitted
-category values and changes constrained-definition behavior, but both the
-mutation payload and the downstream definition read return
-`constraints.key: null`. The older expectation that this projection echoes
-`"category"` is not current Shopify behavior.
-
-Keep the effective constraint values independently from the projected key. A
-null key in this response is not evidence that Shopify ignored or removed the
-constraint update.
-
 ## 20. Metaobject read no-data behavior is clean, but setup access has a trap
 
 HAR-240 captured the first Admin GraphQL 2026-04 metaobject read fixture against `harry-test-heelo.myshopify.com`.
@@ -1769,6 +1783,10 @@ HAR-246 live probes against Admin GraphQL 2026-04 added validation details:
 - unknown, stale, or already-deleted IDs for `metaobjectUpdate`, `metaobjectDelete`, `metaobjectDefinitionUpdate`, and `metaobjectDefinitionDelete` return `RECORD_NOT_FOUND` rather than the earlier local `NOT_FOUND` placeholder.
 - `metaobjectUpdate` handle redirects use `redirectNewHandle` inside `MetaobjectUpdateInput`; Admin GraphQL 2026-04 rejects a top-level `redirectNewHandle` argument. Redirect creation requires an online-store-renderable definition and row-level `onlineStore` capability. Definition `onlineStore.data.urlHandle` is globally unique and becomes the `/pages/<urlHandle>/<handle>` path segment. `UrlRedirect` reads expose `id`, `path`, and `target`; captured 2026-04 schema rejected `createdAt` / `updatedAt` on `UrlRedirect`.
 - 2026-04 `metaobjectBulkDelete` requires `where: MetaobjectBulkDeleteWhereCondition!`; direct `ids` is rejected by the GraphQL layer even though the local harness keeps the legacy direct-ids branch for prior replay evidence.
+- The explicit-ID list limit is atomic. A live 251-ID request returned `MAX_INPUT_SIZE_EXCEEDED` at `metaobjectBulkDelete.where.ids`, did not enqueue a job, and left the selected row and definition count unchanged. Do not truncate oversized selectors locally.
+- Type deletion is not limited to one `metaobjects(first: 250)` page. A live disposable type with 251 entries settled its job and hid both the first and 251st rows plus the filtered connection. A persisted type tombstone is a bounded alternative to unbounded hydration, provided later local creates of that type remain visible.
+- The same 251-entry capture reported `metaobjectsCount: 1` before and after deletion even though all selected reads were empty. Treat that positive count as observed index lag when it is already below the known hydrated row count; do not force every large-type deletion to zero or use the stale count to keep rows visible.
+- The mutation payload initially returned `job.done: false`; the settled `job(id:)` read returned `done: true` and `query.__typename: QueryRoot`. Store the completed local job behind the pending mutation payload so later job reads agree with Shopify's settled shape.
 
 HAR-675 live parity work replaces the old local definition-delete associated-entry guardrail:
 
@@ -2613,6 +2631,7 @@ Live evidence refreshed on this host:
 - custom collections return `ruleSet: null`; the captured smart collection returns a `ruleSet` with `appliedDisjunctively: false` and a `TITLE CONTAINS VANS` rule
 - both captured custom and smart collections currently return `sortOrder: BEST_SELLING`; the custom collection's blank description comes back as empty strings for both `description` and `descriptionHtml`, not `null`
 - the catalog fixture now selects the same rich metadata fields so `collections` parity covers the captured null/empty shapes alongside nested product connection shape
+- Repeated title-only `collectionCreate` calls reserve generated handles using two suffix branches. A nonnumeric generated handle keeps its base and appends `-1`, while a generated handle ending in digits increments that trailing number in place (`...-41` becomes `...-42`). Collection handle reservation must include both observed catalog rows and collections already staged in the current proxy session.
 - HAR-594 live probes against Admin GraphQL 2025-01 accepted collection titles that looked reserved from older Rails model notes. `Frontpage`, `All`, `Types`, `Vendors`, `Products`, and `Collections` all created collections successfully with empty `userErrors`; `Frontpage` deduped to `frontpage-2` when the shop already had the homepage collection handle. Do not add local reserved-title rejection unless a newer capture proves the GraphQL mutation surface rejects it.
 - The same HAR-594 capture showed `collectionAddProducts` and `collectionRemoveProducts` against a smart collection return `collection/job: null` with an `id`-scoped user error using the wording `Can't manually add products to a smart collection` / `Can't manually remove products from a smart collection`. A successful `collectionAddProducts` payload can still show `productsCount.count: 0` while the selected `products.nodes` includes the added product; the immediate downstream `collection(id:)` read returns the recomputed non-zero `productsCount`.
 - A refreshed 2025-01 capture shows re-adding an already-member product with `collectionAddProducts` returns the collection with the existing product connection and empty `userErrors`; duplicate membership is not a payload error.
@@ -2759,6 +2778,19 @@ can read the B2B company roots on that store. The capture showed:
 - `companies(first:, query:)` can be used for filtered empty-read evidence, but
   `companiesCount(query:)` is not accepted by Shopify 2026-04. Keep count
   behavior unfiltered unless a later schema version proves otherwise.
+- Shopify 2026-04 role-assignment connections accept indexed relationship
+  filters in both directions: `CompanyContact.roleAssignments` can filter by
+  `company_location_id:<numeric-tail>`, and
+  `CompanyLocation.roleAssignments` can filter by
+  `company_contact_id:<numeric-tail>`. Mutation preflight can therefore answer
+  one contact/location membership question without exhausting either
+  assignment catalog.
+- `CompanyAddress` exposes no owner or parent-location edge in the 2026-04
+  schema. A live `companyLocations(query:)` probe using the address ID did not
+  provide a usable indexed owner lookup. Address deletion preflight must use
+  direct address identity plus owner indexes learned from prior location reads;
+  it must not infer nonexistence from a partial location catalog or scan every
+  company location.
 
 Historical trap: the mutation roots were initially inventoried only as B2B
 blockers. Do not mark a B2B mutation supported from validation-only evidence;
@@ -2806,6 +2838,22 @@ Practical rule for the proxy:
 - require field-level `@idempotent(key: "...")` before activate/deactivate staging only on numeric Admin API routes `>= 2026-04`
 - require a valid active destination location before locally deactivating a stocked location, then move effective inventory levels to that destination
 - compute `locationDelete` guard userErrors from the effective local `Location` record and tombstone only successful deletes so downstream location and inventory-level reads stop exposing the deleted location while meta/log state retains the staged mutation evidence
+
+Cold 2026-04 mutation captures add an important evidence distinction. A
+`locationDeactivate` destination lookup that returned a real inactive Location
+produced `DESTINATION_LOCATION_NOT_FOUND_OR_INACTIVE`, while a successful
+`location(id:)` lookup returning `null` produced
+`DESTINATION_LOCATION_NOT_SHOPIFY_MANAGED`. Query transport or GraphQL failure
+does not prove either state. Local-pickup captures likewise show that
+mutation-first enable and disable must hydrate the submitted Location before
+returning `ACTIVE_LOCATION_NOT_FOUND`; an active fulfillment-service-managed
+Location remained eligible in the captured pickup flow.
+
+Practical rule: keep each submitted Location target in an independent found,
+confirmed-missing, or unresolved evidence state. Only a successful Shopify
+lookup may select a missing/inactive userError branch, and successful staging
+must merge over the hydrated record rather than replace its authoritative name
+or management fields.
 
 ### 47b. `location` detail reads should reuse the effective inventory graph
 
@@ -3251,7 +3299,16 @@ Observed current-version surface:
 
 - read roots: `customerPaymentMethod`, `orderPaymentStatus`, `paymentCustomization`, `paymentCustomizations`, `paymentTermsTemplates`, `shopPayPaymentRequestReceipt`, `shopPayPaymentRequestReceipts`, `shopifyPaymentsAccount`, and `tenderTransactions`
 - scaffold-only mutation roots: customer payment method create/update/revoke/update-url/duplication roots, `orderCapture`, `orderCreateMandatePayment`, payment customization create/update/delete/activation, `paymentReminderSend`, payment terms create/update/delete, `shopifyPaymentsPayoutAlternateCurrencyCreate`, and `transactionVoid`
-- payment-adjacent guardrail: `orderCreateManualPayment` now stages local manual-payment success for orders already present in proxy state, while still mirroring the captured access-denied branch for unhydrated/non-local orders without passthrough. Live success conformance remains blocked on the current credential because the available conformance shop reports `shop.plan.shopifyPlus: false`.
+- payment-adjacent guardrail: `orderCreateManualPayment` resolves store/app capability before order presence, query-only hydrates eligible cold orders, and stages successful payment effects locally. Amount-bearing calls require a confirmed `write_orders` scope and Shopify Plus; omitted/null amount calls require the scope but do not require Plus. Capability transport failure or absent snapshot context stays an explicit unknown outcome rather than being inferred from cache state.
+
+2026-07-20 live `orderCreateManualPayment` capture on `harry-test-heelo.myshopify.com` (Admin 2026-04):
+
+- the non-Plus store returned the same top-level `ACCESS_DENIED` envelope for amount-bearing calls whether the proxy replay began with a cold or already-observed order
+- with `write_orders` present and `amount` omitted, both cold and warm disposable orders succeeded, used the default `manual` gateway, paid the full outstanding balance, and exposed matching transaction/money/status state on the immediate downstream read
+- `gid://shopify/Order/0` with omitted `amount` returned `order: null` plus `userErrors[{ field: ["id"], message: "Order does not exist" }]`, confirming that eligible not-found behavior is distinct from access denial
+- a newly created order can briefly return `Order is temporarily unavailable to be modified.`; the registered recorder retries only that exact transient branch before recording the final manual-payment interaction
+- an arbitrary `paymentMethodName` returned `Payment provider is not configured on shop.` even though the no-amount capability gate passed; configured-provider validation is a separate fidelity slice from store/app eligibility
+- an unbound nullable `$amount` remains present in the raw GraphQL argument expression but has no resolved variable value, so the Plus gate must inspect preserved raw argument metadata rather than treating the coerced argument entry as a submitted amount
 
 2026-04-25 live probe on `harry-test-heelo.myshopify.com`:
 
@@ -3620,10 +3677,12 @@ Captured facts:
 - Closing an `OPEN` fulfillment order assigned to an API fulfillment-service location is still rejected by Shopify with `The fulfillment order is not in an in progress state.`; do not treat API-service assignment alone as sufficient for close success.
 - `fulfillmentOrderReschedule` has a local scheduled success model and read-after-write runtime tests, but the checked-in Shopify capture still only proves the non-scheduled reschedule guardrail. Do not present the scheduled reschedule success branch as live-captured parity until a real scheduled fulfillment-order setup and cassette exists.
 - `fulfillmentOrdersSetFulfillmentDeadline` accepts an existing fulfillment order after `fulfillmentOrderCancel` leaves it `CLOSED`; Shopify writes `fulfillBy` and returns `success: true` with empty `userErrors`. For syntactically valid but never-created fulfillment-order IDs, Admin GraphQL 2025-01 and 2026-04 return `success: false` with message `Fulfillment orders could not be found.`, `field: null`, and `code: null`; `gid://shopify/FulfillmentOrder/0` is a different top-level invalid-id branch. The checked-in anchor is `config/parity-specs/shipping-fulfillments/fulfillment-order-set-deadline-closed-not-found.json`.
+- Admin GraphQL 2026-04 rejects an entire `fulfillmentOrderSplit` or `fulfillmentOrderMerge` input batch when a valid first entry is followed by an excessive-quantity second entry. Both payloads return a null result list plus `field: null`, `code: null`, and `Invalid fulfillment order line item quantity requested.`; full downstream reads of both owning orders remain unchanged.
 
 Practical rule:
 
 - do not model fulfillment-order lifecycle roots as simple status patches; partial hold/move/cancel behavior affects line-item quantities and replacement fulfillment-order identities
+- validate split/merge batches against isolated state and publish the transaction only when every entry succeeds; rejected batches must not retain hydrated records, line changes, synthetic identities, timestamps, or replay entries
 - keep `fulfillmentOrdersReroute` unimplemented for full support until success-path fixtures exist, even if local guardrails are mirrored; `fulfillmentOrderClose` has captured API-service success parity, and `fulfillmentOrderReschedule` has local scheduled staging but still needs a live scheduled success cassette before broadening beyond that modeled slice
 
 ## 71. Fulfillment-order request lifecycles need an API fulfillment service to reach happy paths
@@ -4643,13 +4702,235 @@ Practical rule:
 - do not generalize this result to other validation buckets without equivalent
   captured mixed-batch evidence
 
-## 110. Admin 2025-01 rejects a null metafield-definition pinned filter
+## 110. Automated collection dependencies override metafield definition deletion flags
+
+Admin GraphQL 2026-04 live capture created a disposable product definition with
+`smartCollectionCondition` enabled, set a matching product metafield, and
+created an automated collection whose `PRODUCT_METAFIELD_DEFINITION` rule used
+the definition as its `conditionObjectId`. Deleting the definition with
+`deleteAllAssociatedMetafields: false` and then `true` returned the same error:
+
+- `deletedDefinitionId: null` and `deletedDefinition: null`
+- `field: null`
+- code `METAFIELD_DEFINITION_IN_USE`
+- message `Cannot proceed with this action. This definition is used in one or more automated collections.`
+
+After both rejections, the definition, product metafield value, collection, and
+rule-to-definition condition object were unchanged. Removing the collection
+first allowed cleanup to delete the definition and product. The checked-in
+evidence and strict replay contract are
+`config/parity-specs/metafields/metafield-definition-automated-collection-dependency.json`.
+
+Practical rule:
+
+- retain `conditionObjectId` as normalized collection-rule relationship state;
+  the visible condition object alone is not enough when selection sets omit it
+- check effective, non-tombstoned automated collection rules before every
+  definition delete, regardless of `deleteAllAssociatedMetafields`
+- return the dependency error before changing definitions, metafields,
+  collections, synthetic identity, pin positions, or replayable mutation logs
+
+## 111. Payment void amount and cold-hydration errors are not inferred from the authorization
+
+Admin GraphQL 2026-04 capture against a disposable manual authorization showed
+that a successful `transactionVoid` does not echo the authorization amount. The
+returned `VOID` transaction has `amountSet.shopMoney.amount: "0.0"`, while the
+downstream order restores the full authorization amount to
+`totalOutstandingSet`, clears capturable/received/net totals, and reports
+`displayFinancialStatus: VOIDED`.
+
+The same capture separated several errors that are easy to collapse into a
+single local not-found response:
+
+- a confirmed missing capture order returns `field: ["id"]` and `Order does not
+exist`
+- an existing order with no matching parent returns `field: null` and `Unable to
+find parent transaction`
+- using a successful `CAPTURE` as the capture parent returns `field: null` and
+  `Parent transaction should be a successful authorization`
+- recapturing a fully consumed authorization returns `field: null` and `Can only
+capture successful authorizations`
+- voiding a failed authorization returns `AUTH_NOT_SUCCESSFUL` and `Parent
+transaction must be a successful authorization`
+- repeating a void returns `AUTH_NOT_VOIDABLE` and the captured voidability
+  message
+
+Practical rule:
+
+- query-hydrate an unobserved real order or transaction before applying these
+  validation branches, but never send the supported mutation upstream
+- treat only an authoritative null order/node as confirmed missing; transport,
+  non-success HTTP, GraphQL-error, wrong-identity, and incomplete hydrate
+  responses remain unresolved and must not change state or logs
+- compute capture/void results from the hydrated transaction and order money
+  graph, including the zero-valued VOID transaction, rather than copying a
+  plausible amount into the mutation payload
+
+## 112. Return precondition absence needs a bounded identity probe
+
+Admin GraphQL 2026-04 live capture sent `returnCreate` and `returnRequest`
+batches whose first fulfillment line was valid and whose second line ID did not
+exist. Shopify rejected the whole batch with `NOT_FOUND`, the message
+`Fulfillment Line Item was not found.`, and a root-specific path to the second
+`fulfillmentLineItemId`. No partial Return was returned.
+
+A bounded order hydrate cannot establish that error by itself. A requested line
+missing from the first fulfillment slice might exist elsewhere on a large order,
+belong to another order, or not exist globally. Treating all three cases as the
+captured not-found branch would turn incomplete relationship evidence into a
+false validation result.
+
+Practical rule:
+
+- keep query-only order prerequisites in observed/base state, never in the
+  staged mutation overlay
+- batch only the absent requested IDs through an exact `nodes(ids:)` probe; a
+  null node confirms the captured missing-line branch, while an existing node
+  without a proven order relationship remains unresolved
+- validate and plan the entire batch before allocating Return graph identities,
+  reading timestamps, staging records, or appending replay entries
+- discard partial observations on transport, GraphQL, or malformed-response
+  failures so a retry begins from the same mutation state
+
+## 113. Product preview URLs are signed resource authority, not derivable links
+
+Live Admin GraphQL capture on an Online Store-enabled shop returned signed
+`shopifypreview.com/products_preview` URLs for the same extant product while it
+was DRAFT with `publishedAt: null` and after it became ARCHIVED. Admin API
+2025-01 and 2026-07 agreed on that availability boundary. After deletion, the
+same `product(id:)` query returned `product: null`; malformed global IDs failed
+at variable coercion.
+
+The URL contains opaque store/resource-specific preview and bypass material.
+It cannot be reconstructed from a product GID or safely reused for a different
+product. In particular, a staged `productDuplicate` must not inherit its
+hydrated source's URL, and a local-only `productSet` create has no Shopify URL
+to project.
+
+Practical rule:
+
+- preserve an exact observed URL only for the same effective product identity
+- keep locally created and duplicated product preview URLs `null`
+- let product tombstones resolve through the ordinary `product: null` boundary
+- never generate a preview hostname, copy a source product's signed URL, or
+  hardcode captured host, ID, preview key, or bypass material
+
+## 114. Standard linked metafield validation IDs are graph edges
+
+Admin GraphQL 2026-04 material and color-pattern lifecycle capture showed that
+the `metaobject_definition_id` returned by
+`standardMetafieldDefinitionEnable` is the shop-local definition identity, not
+an opaque validation hint. For each template, the same ID was returned by
+`metaobjectDefinition(id:)`, `metaobjectDefinitionByType(type:)`, generic
+`node(id:)`, created linked metaobjects, product metafield references, and the
+linked product-option workflow. The two templates had distinct definition IDs,
+and every downstream value retained its matching definition.
+
+This also makes an invented validation-only ID unsafe. A plausible GID that has
+no definition record breaks generic Node reads, field validation, and linked
+option semantics even when the initial metafield-definition payload looks
+correct.
+
+Practical rule:
+
+- in LiveHybrid, attempt to hydrate the shop-local standard definition by type
+  before staging; an explicit `null` proves absence, while a failed or
+  incomplete lookup may fall back only to the captured shop/version template
+- in snapshot mode, allocate an identity only when a captured standard template
+  can materialize the complete local definition record
+- run capability, pinning, and other enable validations before definition
+  lookup or staging so rejected writes preserve Shopify's error precedence
+- use that one effective definition for validation, direct/by-type/Node reads,
+  linked values, metafield references, and product options
+- return the captured `TEMPLATE_NOT_FOUND` null/error shape when no backed
+  definition is available; never emit a sentinel graph edge
+
+## 115. Storefront Node completeness is per ID, not per discovery domain
+
+Authenticated Admin plus Storefront GraphQL 2026-04 capture staged one Product
+locally while querying a different real Product, Collection, Page, and Menu
+through aliased `node` and mixed `nodes` roots. Shopify kept every unrelated
+resource visible, preserved duplicate IDs and null positions, and returned null
+only for the deliberately missing Page ID. The checked-in anchor is the
+`storefront-node-overlay-keeps-unrelated-real-resources-visible` target in
+`config/parity-specs/storefront/storefront-discovery.json`.
+
+Practical rule:
+
+- track generic Storefront Node knowledge by exact ID and resource type; the
+  existence of any Product, collection, content, metaobject, location, or menu
+  state does not prove another ID is absent
+- in live-hybrid mode, execute the complete caller query upstream at most once
+  for unresolved IDs, then overlay exact staged records and tombstones per ID
+- preserve `nodes(ids:)` order, duplicates, and null slots, and apply the same
+  effective lookup path to Menu and every other modeled Storefront Node type
+- keep snapshot misses local and null; snapshot mode must never hydrate
+
+## 116. Draft-order shipping-rate handles bind calculation to configured delivery state
+
+Admin GraphQL 2026-04 live capture created a disposable shippable variant and a
+US-only delivery profile with two fixed CAD rates. `draftOrderCalculate`
+returned both rates for a complete matching US address, and returned an empty
+`availableShippingRates` list both without a shipping address and for a Canadian
+address outside the configured zone. The matching entries contained their
+configured titles and shop-currency prices plus signed JWT-shaped opaque
+handles. Shopify accepted those handles in later `draftOrderCreate` and
+`draftOrderUpdate` calls and projected non-custom shipping lines with the same
+configured titles and CAD prices.
+
+The decoded Shopify handle payload included title, code, source, shop price and
+currency, and separate presentment price and currency fields. Its signature is
+shop-owned and cannot be reproduced locally. A structurally valid opaque handle
+therefore is not sufficient authority by itself: the effective delivery profile
+must still contain a rate with matching title, code, source, shop price, and
+currency. Carrier-backed participants were not part of this fixed-rate capture.
+
+Practical rule:
+
+- derive available fixed rates from the effective variant-to-profile
+  association, normalized country/province zone, active method definition,
+  subtotal condition, and observed shop currency
+- return empty rates when required address or delivery configuration does not
+  match instead of inventing a default profile, country, or rate
+- keep Shopify and local handle signatures opaque, but validate decoded rate
+  identity and money against effective store state before a later mutation uses
+  the handle
+- hydrate delivery-profile configuration through read-only LiveHybrid calls;
+  never send the supported draft-order mutation upstream or invoke carrier
+  participants during normal calculation
+
+## 117. Online Store handle collisions are scoped by resource and Blogs do not return TAKEN
+
+Admin GraphQL 2025-01 capture created colliding Pages, Blogs, and Articles and
+then exercised self-updates and updates into another record's handle. Generated
+handles used the next numeric suffix for all three resource families. Page and
+Blog reservations were shop-scoped, while an Article handle could be reused in
+a different Blog.
+
+Explicit collision behavior was not uniform. Page and Article create/update
+returned a null resource plus `TAKEN` on the resource's `handle` field. An
+explicit colliding Blog create succeeded with the next suffix instead. A Blog
+update into another Blog's handle returned the target Blog unchanged with no
+user error. Self-updates succeeded for every resource.
+
+Practical rule:
+
+- hydrate exact handle ownership with query-only requests before a mutation-first
+  create or update when effective local state cannot answer the collision check
+- reserve Page and Blog handles shop-wide and Article handles by parent Blog,
+  excluding the update target itself
+- advance trailing numeric suffixes instead of blindly appending another
+  `-1`
+- preserve Blog's distinct suffix/no-op behavior rather than sharing the Page
+  and Article `TAKEN` branch
+
+## 118. Admin 2025-01 rejects a null metafield-definition pinned filter
 
 Live read-only Admin GraphQL 2025-01 probes showed that a
 `metafieldDefinitions` connection document containing
 `pinnedStatus: $pinnedStatus` returns a top-level
-`INTERNAL_SERVER_ERROR` when `$pinnedStatus` is explicitly `null`. The
-same connection, variables, and selection succeed when the argument is omitted.
+`INTERNAL_SERVER_ERROR` when `$pinnedStatus` is explicitly `null`. The same
+connection, variables, and selection succeed when the argument is omitted.
 Supplying the schema-coerced default `ANY`, or an explicit `PINNED` or
 `UNPINNED`, succeeds and remains the correct bounded filter.
 
@@ -4661,7 +4942,7 @@ Practical rule:
   the document split is an upstream compatibility detail, not catalog
   completeness evidence
 
-## 111. Metafield-definition mutation limits can lead search indexing
+## 119. Metafield-definition mutation limits can lead search indexing
 
 Live Admin 2026-04 recording created disposable PRODUCT definitions until the
 authoritative create mutation returned `RESOURCE_TYPE_LIMIT_EXCEEDED` at the
