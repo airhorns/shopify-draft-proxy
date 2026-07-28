@@ -1,6 +1,9 @@
 use super::*;
 use crate::proxy::search::split_search_query_terms;
 
+const SAVED_SEARCH_MUTATION_TARGET_HYDRATE_QUERY: &str =
+    "query SavedSearchMutationTargetHydrate($id: ID!) {\n  node(id: $id) {\n    __typename\n    ... on SavedSearch {\n      id\n      legacyResourceId\n      name\n      query\n      resourceType\n      searchTerms\n      filters {\n        key\n        value\n      }\n    }\n  }\n}";
+
 impl DraftProxy {
     pub(crate) fn saved_search_query_root(
         &mut self,
@@ -26,36 +29,23 @@ impl DraftProxy {
                     );
                     return outcome;
                 }
-                let (query, variables) = saved_search_complete_baseline_request(
+                if saved_search_connection_has_unsupported_overlay_scope(&invocation.arguments) {
+                    return outcome;
+                }
+                let Some(window) = self.saved_search_upstream_window(
+                    invocation.request,
                     invocation.root_name,
                     &invocation.arguments,
-                );
-                let baseline = self
-                    .complete_upstream_connection(
-                        invocation.request,
-                        &query,
-                        "SavedSearchConnectionBaseline",
-                        variables,
-                        "/data/savedSearchBaseline",
-                        None,
-                    )
-                    .or_else(|| {
-                        let arguments = resolved_arguments_from_json(&invocation.arguments);
-                        upstream_page_is_complete_baseline(&outcome.value, &arguments)
-                            .then(|| outcome.value.clone())
-                    });
-                let Some(baseline) = baseline else {
+                    resource_type,
+                ) else {
                     return outcome;
                 };
-                self.observe_saved_search_connection(
-                    invocation.root_name,
-                    &api_client_id,
-                    &baseline,
-                );
-                outcome.value = self.saved_search_connection_value(
+                self.observe_saved_search_connection(invocation.root_name, &api_client_id, &window);
+                outcome.value = self.saved_search_overlay_connection_value(
                     invocation.root_name,
                     &invocation.arguments,
                     &api_client_id,
+                    &window,
                 );
                 outcome.value_source = crate::admin_graphql::ResolverValueSource::Local;
             }
@@ -77,6 +67,12 @@ impl DraftProxy {
         debug_assert_eq!(invocation.operation.operation_type, OperationType::Mutation);
         let api_client_id = saved_search_request_api_client_id(invocation.request);
         let input = invocation.arguments.get("input").and_then(Value::as_object);
+        if matches!(
+            invocation.root_name,
+            "savedSearchUpdate" | "savedSearchDelete"
+        ) {
+            self.hydrate_saved_search_mutation_target(invocation.request, input, &api_client_id);
+        }
         match invocation.root_name {
             "savedSearchCreate" => self.saved_search_create_outcome(input, &api_client_id),
             "savedSearchUpdate" => self.saved_search_update_outcome(input, &api_client_id),
@@ -85,6 +81,54 @@ impl DraftProxy {
                 ResolverOutcome::error(format!("Unknown saved-search mutation root `{root_name}`"))
             }
         }
+    }
+
+    fn hydrate_saved_search_mutation_target(
+        &mut self,
+        request: &Request,
+        input: Option<&serde_json::Map<String, Value>>,
+        api_client_id: &str,
+    ) {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return;
+        }
+        let Some(id) = input
+            .and_then(|input| input.get("id"))
+            .and_then(Value::as_str)
+            .filter(|id| !id.is_empty())
+        else {
+            return;
+        };
+        if self.store.saved_searches.staged.is_tombstoned(id)
+            || self.store.saved_search_by_id(id).is_some()
+        {
+            return;
+        }
+
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": SAVED_SEARCH_MUTATION_TARGET_HYDRATE_QUERY,
+                "variables": { "id": id },
+            }),
+        );
+        if !(200..300).contains(&response.status) || response.body.get("errors").is_some() {
+            return;
+        }
+        let node = &response.body["data"]["node"];
+        if node.get("__typename").and_then(Value::as_str) != Some("SavedSearch") {
+            return;
+        }
+        let Some(record) = saved_search_record_from_node(node, "", api_client_id) else {
+            return;
+        };
+        if record.id != id || self.store.saved_searches.staged.is_tombstoned(id) {
+            return;
+        }
+        self.store
+            .saved_searches
+            .base
+            .insert(record.id.clone(), record);
     }
 
     fn observe_saved_search_connection(
@@ -149,6 +193,241 @@ impl DraftProxy {
         )
     }
 
+    fn saved_search_upstream_window(
+        &self,
+        request: &Request,
+        root_name: &str,
+        arguments: &BTreeMap<String, Value>,
+        resource_type: &str,
+    ) -> Option<Value> {
+        let first = saved_search_non_negative_window_argument(arguments, "first");
+        let last = saved_search_non_negative_window_argument(arguments, "last");
+        let (direction, requested_size) = match (first, last) {
+            (Some(first), _) => (SavedSearchWindowDirection::Forward, first),
+            (None, Some(last)) => (SavedSearchWindowDirection::Backward, last),
+            (None, None) => return None,
+        };
+        let budget = requested_size
+            .saturating_add(self.saved_search_overlay_change_count(resource_type))
+            .max(1);
+        let document = saved_search_window_request(root_name, direction);
+        let reverse = arguments
+            .get("reverse")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let mut after = arguments
+            .get("after")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let mut before = arguments
+            .get("before")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let mut remaining = budget;
+        let mut rows = Vec::<ObservedConnectionRow>::new();
+        let mut seen = BTreeSet::new();
+        let mut has_previous_page = false;
+        let mut has_next_page = false;
+        let mut fetched_any_page = false;
+
+        while remaining > 0 {
+            let page_size = remaining.min(250);
+            let mut variables = serde_json::Map::from_iter([
+                (
+                    "after".to_string(),
+                    after.clone().map_or(Value::Null, Value::String),
+                ),
+                (
+                    "before".to_string(),
+                    before.clone().map_or(Value::Null, Value::String),
+                ),
+                ("reverse".to_string(), json!(reverse)),
+            ]);
+            variables.insert(direction.argument_name().to_string(), json!(page_size));
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": &document,
+                    "operationName": "SavedSearchConnectionWindow",
+                    "variables": variables
+                }),
+            );
+            if !(200..300).contains(&response.status) || response.body.get("errors").is_some() {
+                return None;
+            }
+            let page = response.body.pointer("/data/savedSearchWindow")?;
+            let page_rows = observed_connection_rows(page);
+            let page_has_previous = saved_search_page_info_bool(page, "hasPreviousPage");
+            let page_has_next = saved_search_page_info_bool(page, "hasNextPage");
+            if !fetched_any_page {
+                has_previous_page = page_has_previous;
+                has_next_page = page_has_next;
+                fetched_any_page = true;
+            }
+            match direction {
+                SavedSearchWindowDirection::Forward => {
+                    has_next_page = page_has_next;
+                    for row in page_rows.iter().cloned() {
+                        if seen.insert(saved_search_observed_row_identity(&row)) {
+                            rows.push(row);
+                        }
+                    }
+                }
+                SavedSearchWindowDirection::Backward => {
+                    has_previous_page = page_has_previous;
+                    let mut preceding = Vec::new();
+                    for row in page_rows.iter().cloned() {
+                        if seen.insert(saved_search_observed_row_identity(&row)) {
+                            preceding.push(row);
+                        }
+                    }
+                    preceding.extend(rows);
+                    rows = preceding;
+                }
+            }
+
+            let fetched = page_rows.len();
+            remaining = remaining.saturating_sub(fetched);
+            if fetched == 0 || remaining == 0 {
+                break;
+            }
+            match direction {
+                SavedSearchWindowDirection::Forward if page_has_next => {
+                    after = connection_end_cursor(page);
+                    after.as_ref()?;
+                }
+                SavedSearchWindowDirection::Backward if page_has_previous => {
+                    before = page
+                        .pointer("/pageInfo/startCursor")
+                        .and_then(Value::as_str)
+                        .map(str::to_string);
+                    before.as_ref()?;
+                }
+                _ => break,
+            }
+        }
+
+        fetched_any_page
+            .then(|| saved_search_observed_window_value(rows, has_next_page, has_previous_page))
+    }
+
+    fn saved_search_overlay_change_count(&self, resource_type: &str) -> usize {
+        let staged_records = self
+            .store
+            .saved_searches
+            .staged
+            .records
+            .values()
+            .filter(|record| record.resource_type == resource_type)
+            .count();
+        let tombstones = self
+            .store
+            .saved_searches
+            .staged
+            .tombstones
+            .iter()
+            .filter(|id| {
+                self.store
+                    .saved_searches
+                    .base
+                    .get(id)
+                    .is_some_and(|record| record.resource_type == resource_type)
+                    || default_saved_search_by_id(id)
+                        .is_some_and(|record| record.resource_type == resource_type)
+            })
+            .count();
+        staged_records.saturating_add(tombstones)
+    }
+
+    fn saved_search_overlay_connection_value(
+        &self,
+        root_name: &str,
+        arguments: &BTreeMap<String, Value>,
+        api_client_id: &str,
+        upstream_window: &Value,
+    ) -> Value {
+        let resource_type = saved_search_resource_type(root_name);
+        let mut records = Vec::new();
+        let mut semantic_keys = BTreeSet::new();
+        for row in observed_connection_rows(upstream_window) {
+            let Some(mut record) =
+                saved_search_record_from_node(&row.node, resource_type, api_client_id)
+            else {
+                continue;
+            };
+            if self.store.saved_searches.staged.is_tombstoned(&record.id) {
+                continue;
+            }
+            if let Some(staged) = self.store.saved_searches.staged.get(&record.id) {
+                record = staged.clone();
+            }
+            if record.cursor.is_none() {
+                record.cursor = row.cursor;
+            }
+            semantic_keys.insert(saved_search_semantic_key(&record));
+            records.push(record);
+        }
+
+        let mut created = self
+            .store
+            .saved_searches
+            .staged
+            .order
+            .iter()
+            .filter_map(|id| {
+                let record = self.store.saved_searches.staged.get(id)?;
+                (record.resource_type == resource_type
+                    && !self.store.saved_searches.base.records.contains_key(id)
+                    && semantic_keys.insert(saved_search_semantic_key(record)))
+                .then(|| record.clone())
+            })
+            .collect::<Vec<_>>();
+        let reverse = arguments
+            .get("reverse")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let after = arguments.get("after").and_then(Value::as_str);
+        let before = arguments.get("before").and_then(Value::as_str);
+        let created_belongs_to_scope = if reverse {
+            after.is_none()
+        } else {
+            before.is_none()
+        };
+        if created_belongs_to_scope {
+            if reverse {
+                created.reverse();
+                created.extend(records);
+                records = created;
+            } else {
+                records.extend(created);
+            }
+        }
+
+        let upstream_has_next = saved_search_page_info_bool(upstream_window, "hasNextPage");
+        let upstream_has_previous = saved_search_page_info_bool(upstream_window, "hasPreviousPage");
+        let total = records.len();
+        let mut start = 0;
+        let mut end = total;
+        if let Some(first) = saved_search_non_negative_window_argument(arguments, "first") {
+            end = end.min(first);
+        }
+        if let Some(last) = saved_search_non_negative_window_argument(arguments, "last") {
+            start = start.max(end.saturating_sub(last));
+        }
+        let page_info = connection_page_info(
+            upstream_has_next || end < total,
+            upstream_has_previous || start > 0,
+            (start < end).then(|| saved_search_cursor(&records[start])),
+            (start < end).then(|| saved_search_cursor(&records[end - 1])),
+        );
+        typed_connection_value(
+            &records[start..end],
+            |record| saved_search_full_value(record, api_client_id),
+            saved_search_cursor,
+            page_info,
+        )
+    }
+
     fn saved_search_create_outcome(
         &mut self,
         input: Option<&serde_json::Map<String, Value>>,
@@ -192,13 +471,15 @@ impl DraftProxy {
             ));
         }
         let id = self.next_proxy_synthetic_gid("SavedSearch");
-        let record = SavedSearchRecord {
-            id: id.clone(),
-            cursor: None,
-            name: name.to_string(),
-            query: normalize_saved_search_query_for_api_client(search_query, api_client_id),
-            resource_type: resource_type.to_string(),
-        };
+        let normalized_query =
+            normalize_saved_search_query_for_api_client(search_query, api_client_id);
+        let record = saved_search_record_with_api_client(
+            &id,
+            name,
+            &normalized_query,
+            resource_type,
+            api_client_id,
+        );
         self.store.stage_saved_search(record.clone());
         ResolverOutcome::value(saved_search_full_mutation_payload(
             Some(&record),
@@ -242,6 +523,11 @@ impl DraftProxy {
             .unwrap_or(&existing.query);
         let mut updated = existing.clone();
         updated.query = normalize_saved_search_query_for_api_client(requested_query, api_client_id);
+        if input.get("query").is_some() {
+            updated.search_terms = saved_search_search_terms(&updated.query);
+            updated.filters = saved_search_filters_for_api_client(&updated.query, api_client_id);
+            updated.api_client_id = api_client_id.to_string();
+        }
         let mut user_errors = self.saved_search_field_user_errors(
             SavedSearchQueryValidationOperation::Update,
             &existing.resource_type,
@@ -301,7 +587,10 @@ impl DraftProxy {
     }
 }
 
-fn saved_search_full_value(record: &SavedSearchRecord, api_client_id: &str) -> Value {
+pub(in crate::proxy) fn saved_search_full_value(
+    record: &SavedSearchRecord,
+    api_client_id: &str,
+) -> Value {
     let query = saved_search_read_query_for_api_client(&record.query, api_client_id);
     saved_search_value_with_query(record, query, api_client_id)
 }
@@ -320,7 +609,10 @@ fn saved_search_value_with_query(
         "name": record.name,
         "query": query,
         "resourceType": record.resource_type,
-        "_apiClientId": api_client_id
+        "_legacyResourceId": record.legacy_resource_id,
+        "_searchTerms": record.search_terms,
+        "_filters": record.filters.iter().map(|(key, value)| json!({ "key": key, "value": value })).collect::<Vec<_>>(),
+        "_apiClientId": if record.api_client_id.is_empty() { api_client_id } else { &record.api_client_id }
     })
 }
 
@@ -397,6 +689,13 @@ fn saved_search_legacy_resource_id_field(
     _request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation,
 ) -> Result<Value, String> {
+    if let Some(legacy_resource_id) = invocation
+        .parent
+        .get("_legacyResourceId")
+        .and_then(Value::as_str)
+    {
+        return Ok(json!(legacy_resource_id));
+    }
     Ok(json!(saved_search_legacy_resource_id(
         saved_search_parent_string(invocation, "id")?
     )))
@@ -407,6 +706,9 @@ fn saved_search_search_terms_field(
     _request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation,
 ) -> Result<Value, String> {
+    if let Some(search_terms) = invocation.parent.get("_searchTerms") {
+        return Ok(search_terms.clone());
+    }
     Ok(json!(saved_search_search_terms(
         saved_search_parent_string(invocation, "query")?
     )))
@@ -417,6 +719,9 @@ fn saved_search_filters_field(
     _request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation,
 ) -> Result<Value, String> {
+    if let Some(filters) = invocation.parent.get("_filters") {
+        return Ok(filters.clone());
+    }
     let query = saved_search_parent_string(invocation, "query")?;
     let api_client_id = invocation
         .parent
@@ -467,16 +772,30 @@ pub(in crate::proxy) fn saved_search_state_map_from_json(
 }
 
 pub(in crate::proxy) fn saved_search_state_from_json(value: &Value) -> Option<SavedSearchRecord> {
-    Some(SavedSearchRecord {
-        id: value.get("id")?.as_str()?.to_string(),
-        cursor: value
-            .get("cursor")
-            .and_then(Value::as_str)
-            .map(str::to_string),
-        name: value.get("name")?.as_str()?.to_string(),
-        query: value.get("query")?.as_str()?.to_string(),
-        resource_type: value.get("resourceType")?.as_str()?.to_string(),
-    })
+    let id = value.get("id")?.as_str()?;
+    let name = value.get("name")?.as_str()?;
+    let query = value.get("query")?.as_str()?;
+    let resource_type = value.get("resourceType")?.as_str()?;
+    let api_client_id = value
+        .get("apiClientId")
+        .and_then(Value::as_str)
+        .unwrap_or(DEFAULT_SAVED_SEARCH_API_CLIENT_ID);
+    let mut record =
+        saved_search_record_with_api_client(id, name, query, resource_type, api_client_id);
+    record.cursor = value
+        .get("cursor")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    if let Some(legacy_resource_id) = value.get("legacyResourceId").and_then(Value::as_str) {
+        record.legacy_resource_id = legacy_resource_id.to_string();
+    }
+    if let Some(search_terms) = value.get("searchTerms").and_then(Value::as_str) {
+        record.search_terms = search_terms.to_string();
+    }
+    if let Some(filters) = saved_search_filter_records_from_value(value.get("filters")) {
+        record.filters = filters;
+    }
+    Some(record)
 }
 
 pub(in crate::proxy) fn saved_search_record_from_node(
@@ -489,30 +808,56 @@ pub(in crate::proxy) fn saved_search_record_from_node(
         .and_then(Value::as_str)
         .map(|query| normalize_saved_search_query_for_api_client(query, api_client_id))
         .unwrap_or_default();
-    Some(SavedSearchRecord {
-        id: node.get("id")?.as_str()?.to_string(),
-        cursor: None,
-        name: node.get("name")?.as_str()?.to_string(),
-        query,
-        resource_type: node
-            .get("resourceType")
-            .and_then(Value::as_str)
-            .unwrap_or(fallback_resource_type)
-            .to_string(),
-    })
+    let id = node.get("id")?.as_str()?;
+    let name = node.get("name")?.as_str()?;
+    let resource_type = node
+        .get("resourceType")
+        .and_then(Value::as_str)
+        .unwrap_or(fallback_resource_type);
+    let mut record =
+        saved_search_record_with_api_client(id, name, &query, resource_type, api_client_id);
+    if let Some(legacy_resource_id) = node.get("legacyResourceId").and_then(Value::as_str) {
+        record.legacy_resource_id = legacy_resource_id.to_string();
+    }
+    if let Some(search_terms) = node.get("searchTerms").and_then(Value::as_str) {
+        record.search_terms = search_terms.to_string();
+    }
+    if let Some(filters) = saved_search_filter_records_from_value(node.get("filters")) {
+        record.filters = filters;
+    }
+    Some(record)
 }
 
 pub(in crate::proxy) fn saved_search_state_json(record: &SavedSearchRecord) -> Value {
     let mut value = json!({
         "id": record.id,
+        "legacyResourceId": record.legacy_resource_id,
         "name": record.name,
         "query": record.query,
-        "resourceType": record.resource_type
+        "resourceType": record.resource_type,
+        "searchTerms": record.search_terms,
+        "filters": record.filters.iter().map(|(key, value)| json!({ "key": key, "value": value })).collect::<Vec<_>>(),
+        "apiClientId": record.api_client_id
     });
     if let Some(cursor) = &record.cursor {
         value["cursor"] = json!(cursor);
     }
     value
+}
+
+fn saved_search_filter_records_from_value(value: Option<&Value>) -> Option<Vec<(String, String)>> {
+    Some(
+        value?
+            .as_array()?
+            .iter()
+            .filter_map(|filter| {
+                Some((
+                    filter.get("key")?.as_str()?.to_string(),
+                    filter.get("value")?.as_str()?.to_string(),
+                ))
+            })
+            .collect(),
+    )
 }
 
 pub(in crate::proxy) fn saved_search_name_taken_user_error() -> Value {
@@ -815,33 +1160,89 @@ pub(in crate::proxy) fn is_reserved_saved_search_name(resource_type: &str, name:
         .any(|reserved_name| normalized == *reserved_name)
 }
 
-fn saved_search_complete_baseline_request(
-    root_name: &str,
-    arguments: &BTreeMap<String, Value>,
-) -> (String, serde_json::Map<String, Value>) {
-    let supports_query = !matches!(
-        root_name,
-        "automaticDiscountSavedSearches" | "codeDiscountSavedSearches"
-    );
-    let query_argument = supports_query
-        .then(|| arguments.get("query").and_then(Value::as_str))
-        .flatten();
-    let (query_definition, query_call) = if query_argument.is_some() {
-        (", $query: String", ", query: $query")
-    } else {
-        ("", "")
-    };
-    let document = format!(
-        "query SavedSearchConnectionBaseline($first: Int!, $after: String{query_definition}) {{\n  savedSearchBaseline: {root_name}(first: $first, after: $after{query_call}) {{\n    edges {{ cursor node {{ id name query resourceType }} }}\n    pageInfo {{ hasNextPage hasPreviousPage startCursor endCursor }}\n  }}\n}}"
-    );
-    let mut variables = serde_json::Map::from_iter([
-        ("first".to_string(), json!(250)),
-        ("after".to_string(), Value::Null),
-    ]);
-    if let Some(query) = query_argument {
-        variables.insert("query".to_string(), json!(query));
+#[derive(Clone, Copy)]
+enum SavedSearchWindowDirection {
+    Forward,
+    Backward,
+}
+
+impl SavedSearchWindowDirection {
+    fn argument_name(self) -> &'static str {
+        match self {
+            Self::Forward => "first",
+            Self::Backward => "last",
+        }
     }
-    (document, variables)
+}
+
+fn saved_search_window_request(root_name: &str, direction: SavedSearchWindowDirection) -> String {
+    let (window_definition, window_argument) = match direction {
+        SavedSearchWindowDirection::Forward => ("$first: Int!", "first: $first"),
+        SavedSearchWindowDirection::Backward => ("$last: Int!", "last: $last"),
+    };
+    format!(
+        "query SavedSearchConnectionWindow({window_definition}, $after: String, $before: String, $reverse: Boolean!) {{\n  savedSearchWindow: {root_name}({window_argument}, after: $after, before: $before, reverse: $reverse) {{\n    edges {{ cursor node {{ id name query resourceType }} }}\n    pageInfo {{ hasNextPage hasPreviousPage startCursor endCursor }}\n  }}\n}}"
+    )
+}
+
+fn saved_search_non_negative_window_argument(
+    arguments: &BTreeMap<String, Value>,
+    name: &str,
+) -> Option<usize> {
+    arguments
+        .get(name)
+        .and_then(Value::as_i64)
+        .filter(|value| *value >= 0)
+        .and_then(|value| usize::try_from(value).ok())
+}
+
+fn saved_search_page_info_bool(connection: &Value, field: &str) -> bool {
+    connection
+        .pointer(&format!("/pageInfo/{field}"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+}
+
+fn saved_search_observed_row_identity(row: &ObservedConnectionRow) -> String {
+    row.node
+        .get("id")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(|| row.node.to_string())
+}
+
+fn saved_search_observed_window_value(
+    rows: Vec<ObservedConnectionRow>,
+    has_next_page: bool,
+    has_previous_page: bool,
+) -> Value {
+    let start_cursor = rows.first().and_then(|row| row.cursor.clone());
+    let end_cursor = rows.last().and_then(|row| row.cursor.clone());
+    let nodes = rows.iter().map(|row| row.node.clone()).collect::<Vec<_>>();
+    let edges = rows
+        .into_iter()
+        .map(|row| json!({ "cursor": row.cursor, "node": row.node }))
+        .collect::<Vec<_>>();
+    json!({
+        "nodes": nodes,
+        "edges": edges,
+        "pageInfo": connection_page_info(
+            has_next_page,
+            has_previous_page,
+            start_cursor,
+            end_cursor,
+        )
+    })
+}
+
+fn saved_search_connection_has_unsupported_overlay_scope(
+    arguments: &BTreeMap<String, Value>,
+) -> bool {
+    arguments.get("query").is_some_and(|query| !query.is_null())
+        || arguments
+            .get("sortKey")
+            .and_then(Value::as_str)
+            .is_some_and(|sort_key| sort_key != "ID")
 }
 
 pub(in crate::proxy) fn saved_search_resource_type(root: &str) -> &'static str {
@@ -940,12 +1341,32 @@ pub(in crate::proxy) fn saved_search_record(
     query: &str,
     resource_type: &str,
 ) -> SavedSearchRecord {
+    saved_search_record_with_api_client(
+        id,
+        name,
+        query,
+        resource_type,
+        DEFAULT_SAVED_SEARCH_API_CLIENT_ID,
+    )
+}
+
+fn saved_search_record_with_api_client(
+    id: &str,
+    name: &str,
+    query: &str,
+    resource_type: &str,
+    api_client_id: &str,
+) -> SavedSearchRecord {
     SavedSearchRecord {
         id: id.to_string(),
         cursor: None,
+        legacy_resource_id: saved_search_legacy_resource_id(id),
         name: name.to_string(),
         query: query.to_string(),
         resource_type: resource_type.to_string(),
+        search_terms: saved_search_search_terms(query),
+        filters: saved_search_filters_for_api_client(query, api_client_id),
+        api_client_id: api_client_id.to_string(),
     }
 }
 

@@ -1,12 +1,13 @@
 {
-  "capturedAt": "2026-05-05T10:06:14.002Z",
+  "capturedAt": "2026-07-20T04:36:56.457Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "seed": {
-    "type": "codex_har_680_bulk_delete_empty_1777975572592",
-    "handle": "codex-har-680-empty-1777975572592",
-    "definitionId": "gid://shopify/MetaobjectDefinition/17850040626",
-    "rowId": "gid://shopify/Metaobject/187915403570"
+    "type": "codex_bulk_delete_empty_1784522214568",
+    "emptyHandle": "codex-bulk-delete-empty-1784522214568",
+    "overLimitHandle": "codex-bulk-delete-over-limit-1784522214568",
+    "definitionId": "gid://shopify/MetaobjectDefinition/19970785586",
+    "rowId": "gid://shopify/Metaobject/207140847922"
   },
   "setup": [
     {
@@ -15,8 +16,8 @@
         "query": "#graphql\n  mutation MetaobjectBulkDeleteEdgeDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {\n    metaobjectDefinitionCreate(definition: $definition) {\n      metaobjectDefinition {\n        id\n        type\n        name\n        displayNameKey\n        fieldDefinitions {\n          key\n          name\n          required\n          type {\n            name\n            category\n          }\n        }\n        metaobjectsCount\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
           "definition": {
-            "type": "codex_har_680_bulk_delete_empty_1777975572592",
-            "name": "Codex HAR-680 Empty 1777975572592",
+            "type": "codex_bulk_delete_empty_1784522214568",
+            "name": "Codex Bulk Delete Empty 1784522214568",
             "displayNameKey": "title",
             "fieldDefinitions": [
               {
@@ -34,9 +35,9 @@
         "data": {
           "metaobjectDefinitionCreate": {
             "metaobjectDefinition": {
-              "id": "gid://shopify/MetaobjectDefinition/17850040626",
-              "type": "codex_har_680_bulk_delete_empty_1777975572592",
-              "name": "Codex HAR-680 Empty 1777975572592",
+              "id": "gid://shopify/MetaobjectDefinition/19970785586",
+              "type": "codex_bulk_delete_empty_1784522214568",
+              "name": "Codex Bulk Delete Empty 1784522214568",
               "displayNameKey": "title",
               "fieldDefinitions": [
                 {
@@ -73,8 +74,8 @@
         "query": "#graphql\n  mutation MetaobjectBulkDeleteEdgeEntryCreate($metaobject: MetaobjectCreateInput!) {\n    metaobjectCreate(metaobject: $metaobject) {\n      metaobject {\n        id\n        handle\n        type\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har_680_bulk_delete_empty_1777975572592",
-            "handle": "codex-har-680-empty-1777975572592",
+            "type": "codex_bulk_delete_empty_1784522214568",
+            "handle": "codex-bulk-delete-empty-1784522214568",
             "fields": [
               {
                 "key": "title",
@@ -89,9 +90,9 @@
         "data": {
           "metaobjectCreate": {
             "metaobject": {
-              "id": "gid://shopify/Metaobject/187915403570",
-              "handle": "codex-har-680-empty-1777975572592",
-              "type": "codex_har_680_bulk_delete_empty_1777975572592"
+              "id": "gid://shopify/Metaobject/207140815154",
+              "handle": "codex-bulk-delete-empty-1784522214568",
+              "type": "codex_bulk_delete_empty_1784522214568"
             },
             "userErrors": []
           }
@@ -114,14 +115,14 @@
       "request": {
         "query": "#graphql\n  mutation MetaobjectBulkDeleteEdgeEntryDelete($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/187915403570"
+          "id": "gid://shopify/Metaobject/207140815154"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDelete": {
-            "deletedId": "gid://shopify/Metaobject/187915403570",
+            "deletedId": "gid://shopify/Metaobject/207140815154",
             "userErrors": []
           }
         },
@@ -132,6 +133,48 @@
             "throttleStatus": {
               "maximumAvailable": 2000,
               "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "setup-over-limit-entry-create",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectBulkDeleteEdgeEntryCreate($metaobject: MetaobjectCreateInput!) {\n    metaobjectCreate(metaobject: $metaobject) {\n      metaobject {\n        id\n        handle\n        type\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_bulk_delete_empty_1784522214568",
+            "handle": "codex-bulk-delete-over-limit-1784522214568",
+            "fields": [
+              {
+                "key": "title",
+                "value": "Must survive the rejected oversized delete"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": {
+              "id": "gid://shopify/Metaobject/207140847922",
+              "handle": "codex-bulk-delete-over-limit-1784522214568",
+              "type": "codex_bulk_delete_empty_1784522214568"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
               "restoreRate": 100
             }
           }
@@ -151,7 +194,7 @@
         "data": {
           "metaobjectBulkDelete": {
             "job": {
-              "id": "gid://shopify/Job/b4581d7f-9b3b-4e65-9608-26a15dbaf03c",
+              "id": "gid://shopify/Job/65846b65-2f16-479a-8562-b91a255f124a",
               "done": false
             },
             "userErrors": []
@@ -175,7 +218,7 @@
       "request": {
         "query": "mutation MetaobjectBulkDeleteEdgeUnknownType($type: String!) {\n  metaobjectBulkDelete(where: { type: $type }) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "type": "codex_har_680_missing_1777975572592"
+          "type": "codex_bulk_delete_missing_1784522214568"
         }
       },
       "status": 200,
@@ -186,7 +229,7 @@
             "userErrors": [
               {
                 "field": ["where", "type"],
-                "message": "No metaobject definition exists for type \"codex_har_680_missing_1777975572592\"",
+                "message": "No metaobject definition exists for type \"codex_bulk_delete_missing_1784522214568\"",
                 "code": "RECORD_NOT_FOUND",
                 "elementKey": null,
                 "elementIndex": null
@@ -200,7 +243,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1989,
               "restoreRate": 100
             }
           }
@@ -212,7 +255,7 @@
       "request": {
         "query": "mutation MetaobjectBulkDeleteEdgeKnownEmptyType($type: String!) {\n  metaobjectBulkDelete(where: { type: $type }) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "type": "codex_har_680_bulk_delete_empty_1777975572592"
+          "type": "codex_bulk_delete_empty_1784522214568"
         }
       },
       "status": 200,
@@ -220,7 +263,7 @@
         "data": {
           "metaobjectBulkDelete": {
             "job": {
-              "id": "gid://shopify/Job/b4705617-85c9-4a10-ae24-7dcbef90ef0f",
+              "id": "gid://shopify/Job/265ae5db-e8cb-44bd-8774-2c198098da11",
               "done": false
             },
             "userErrors": []
@@ -232,7 +275,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1978,
+              "currentlyAvailable": 1981,
               "restoreRate": 100
             }
           }
@@ -242,7 +285,7 @@
     "bothTypeAndIds": {
       "name": "bulk-delete-both-type-and-ids",
       "request": {
-        "query": "mutation MetaobjectBulkDeleteEdgeBothTypeAndIds {\n  metaobjectBulkDelete(where: { type: \"codex_har_680_invalid\", ids: [] }) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "query": "mutation MetaobjectBulkDeleteEdgeBothTypeAndIds {\n  metaobjectBulkDelete(where: { type: \"codex_bulk_delete_invalid\", ids: [] }) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {}
       },
       "status": 200,
@@ -257,7 +300,7 @@
               },
               {
                 "line": 2,
-                "column": 64
+                "column": 68
               }
             ],
             "extensions": {
@@ -275,7 +318,389 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1979,
+              "currentlyAvailable": 1981,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "overLimitBefore": {
+      "name": "bulk-delete-over-limit-before-read",
+      "request": {
+        "query": "query MetaobjectBulkDeleteEdgeOverLimitRead($id: ID!, $type: String!, $query: String!) {\n  selected: metaobject(id: $id) {\n    id\n    handle\n    type\n  }\n  catalog: metaobjects(type: $type, first: 10, query: $query) {\n    nodes {\n      id\n      handle\n      type\n    }\n  }\n  definition: metaobjectDefinitionByType(type: $type) {\n    id\n    type\n    metaobjectsCount\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/207140847922",
+          "type": "codex_bulk_delete_empty_1784522214568",
+          "query": "handle:codex-bulk-delete-over-limit-1784522214568"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "selected": {
+            "id": "gid://shopify/Metaobject/207140847922",
+            "handle": "codex-bulk-delete-over-limit-1784522214568",
+            "type": "codex_bulk_delete_empty_1784522214568"
+          },
+          "catalog": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Metaobject/207140847922",
+                "handle": "codex-bulk-delete-over-limit-1784522214568",
+                "type": "codex_bulk_delete_empty_1784522214568"
+              }
+            ]
+          },
+          "definition": {
+            "id": "gid://shopify/MetaobjectDefinition/19970785586",
+            "type": "codex_bulk_delete_empty_1784522214568",
+            "metaobjectsCount": 1
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 8,
+            "actualQueryCost": 5,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1991,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "overLimit": {
+      "name": "bulk-delete-over-limit",
+      "request": {
+        "query": "mutation MetaobjectBulkDeleteEdgeOverLimit($ids: [ID!]!) {\n  metaobjectBulkDelete(where: { ids: $ids }) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "ids": [
+            "gid://shopify/Metaobject/207140847922",
+            "gid://shopify/Metaobject/9000000000000",
+            "gid://shopify/Metaobject/9000000000001",
+            "gid://shopify/Metaobject/9000000000002",
+            "gid://shopify/Metaobject/9000000000003",
+            "gid://shopify/Metaobject/9000000000004",
+            "gid://shopify/Metaobject/9000000000005",
+            "gid://shopify/Metaobject/9000000000006",
+            "gid://shopify/Metaobject/9000000000007",
+            "gid://shopify/Metaobject/9000000000008",
+            "gid://shopify/Metaobject/9000000000009",
+            "gid://shopify/Metaobject/9000000000010",
+            "gid://shopify/Metaobject/9000000000011",
+            "gid://shopify/Metaobject/9000000000012",
+            "gid://shopify/Metaobject/9000000000013",
+            "gid://shopify/Metaobject/9000000000014",
+            "gid://shopify/Metaobject/9000000000015",
+            "gid://shopify/Metaobject/9000000000016",
+            "gid://shopify/Metaobject/9000000000017",
+            "gid://shopify/Metaobject/9000000000018",
+            "gid://shopify/Metaobject/9000000000019",
+            "gid://shopify/Metaobject/9000000000020",
+            "gid://shopify/Metaobject/9000000000021",
+            "gid://shopify/Metaobject/9000000000022",
+            "gid://shopify/Metaobject/9000000000023",
+            "gid://shopify/Metaobject/9000000000024",
+            "gid://shopify/Metaobject/9000000000025",
+            "gid://shopify/Metaobject/9000000000026",
+            "gid://shopify/Metaobject/9000000000027",
+            "gid://shopify/Metaobject/9000000000028",
+            "gid://shopify/Metaobject/9000000000029",
+            "gid://shopify/Metaobject/9000000000030",
+            "gid://shopify/Metaobject/9000000000031",
+            "gid://shopify/Metaobject/9000000000032",
+            "gid://shopify/Metaobject/9000000000033",
+            "gid://shopify/Metaobject/9000000000034",
+            "gid://shopify/Metaobject/9000000000035",
+            "gid://shopify/Metaobject/9000000000036",
+            "gid://shopify/Metaobject/9000000000037",
+            "gid://shopify/Metaobject/9000000000038",
+            "gid://shopify/Metaobject/9000000000039",
+            "gid://shopify/Metaobject/9000000000040",
+            "gid://shopify/Metaobject/9000000000041",
+            "gid://shopify/Metaobject/9000000000042",
+            "gid://shopify/Metaobject/9000000000043",
+            "gid://shopify/Metaobject/9000000000044",
+            "gid://shopify/Metaobject/9000000000045",
+            "gid://shopify/Metaobject/9000000000046",
+            "gid://shopify/Metaobject/9000000000047",
+            "gid://shopify/Metaobject/9000000000048",
+            "gid://shopify/Metaobject/9000000000049",
+            "gid://shopify/Metaobject/9000000000050",
+            "gid://shopify/Metaobject/9000000000051",
+            "gid://shopify/Metaobject/9000000000052",
+            "gid://shopify/Metaobject/9000000000053",
+            "gid://shopify/Metaobject/9000000000054",
+            "gid://shopify/Metaobject/9000000000055",
+            "gid://shopify/Metaobject/9000000000056",
+            "gid://shopify/Metaobject/9000000000057",
+            "gid://shopify/Metaobject/9000000000058",
+            "gid://shopify/Metaobject/9000000000059",
+            "gid://shopify/Metaobject/9000000000060",
+            "gid://shopify/Metaobject/9000000000061",
+            "gid://shopify/Metaobject/9000000000062",
+            "gid://shopify/Metaobject/9000000000063",
+            "gid://shopify/Metaobject/9000000000064",
+            "gid://shopify/Metaobject/9000000000065",
+            "gid://shopify/Metaobject/9000000000066",
+            "gid://shopify/Metaobject/9000000000067",
+            "gid://shopify/Metaobject/9000000000068",
+            "gid://shopify/Metaobject/9000000000069",
+            "gid://shopify/Metaobject/9000000000070",
+            "gid://shopify/Metaobject/9000000000071",
+            "gid://shopify/Metaobject/9000000000072",
+            "gid://shopify/Metaobject/9000000000073",
+            "gid://shopify/Metaobject/9000000000074",
+            "gid://shopify/Metaobject/9000000000075",
+            "gid://shopify/Metaobject/9000000000076",
+            "gid://shopify/Metaobject/9000000000077",
+            "gid://shopify/Metaobject/9000000000078",
+            "gid://shopify/Metaobject/9000000000079",
+            "gid://shopify/Metaobject/9000000000080",
+            "gid://shopify/Metaobject/9000000000081",
+            "gid://shopify/Metaobject/9000000000082",
+            "gid://shopify/Metaobject/9000000000083",
+            "gid://shopify/Metaobject/9000000000084",
+            "gid://shopify/Metaobject/9000000000085",
+            "gid://shopify/Metaobject/9000000000086",
+            "gid://shopify/Metaobject/9000000000087",
+            "gid://shopify/Metaobject/9000000000088",
+            "gid://shopify/Metaobject/9000000000089",
+            "gid://shopify/Metaobject/9000000000090",
+            "gid://shopify/Metaobject/9000000000091",
+            "gid://shopify/Metaobject/9000000000092",
+            "gid://shopify/Metaobject/9000000000093",
+            "gid://shopify/Metaobject/9000000000094",
+            "gid://shopify/Metaobject/9000000000095",
+            "gid://shopify/Metaobject/9000000000096",
+            "gid://shopify/Metaobject/9000000000097",
+            "gid://shopify/Metaobject/9000000000098",
+            "gid://shopify/Metaobject/9000000000099",
+            "gid://shopify/Metaobject/9000000000100",
+            "gid://shopify/Metaobject/9000000000101",
+            "gid://shopify/Metaobject/9000000000102",
+            "gid://shopify/Metaobject/9000000000103",
+            "gid://shopify/Metaobject/9000000000104",
+            "gid://shopify/Metaobject/9000000000105",
+            "gid://shopify/Metaobject/9000000000106",
+            "gid://shopify/Metaobject/9000000000107",
+            "gid://shopify/Metaobject/9000000000108",
+            "gid://shopify/Metaobject/9000000000109",
+            "gid://shopify/Metaobject/9000000000110",
+            "gid://shopify/Metaobject/9000000000111",
+            "gid://shopify/Metaobject/9000000000112",
+            "gid://shopify/Metaobject/9000000000113",
+            "gid://shopify/Metaobject/9000000000114",
+            "gid://shopify/Metaobject/9000000000115",
+            "gid://shopify/Metaobject/9000000000116",
+            "gid://shopify/Metaobject/9000000000117",
+            "gid://shopify/Metaobject/9000000000118",
+            "gid://shopify/Metaobject/9000000000119",
+            "gid://shopify/Metaobject/9000000000120",
+            "gid://shopify/Metaobject/9000000000121",
+            "gid://shopify/Metaobject/9000000000122",
+            "gid://shopify/Metaobject/9000000000123",
+            "gid://shopify/Metaobject/9000000000124",
+            "gid://shopify/Metaobject/9000000000125",
+            "gid://shopify/Metaobject/9000000000126",
+            "gid://shopify/Metaobject/9000000000127",
+            "gid://shopify/Metaobject/9000000000128",
+            "gid://shopify/Metaobject/9000000000129",
+            "gid://shopify/Metaobject/9000000000130",
+            "gid://shopify/Metaobject/9000000000131",
+            "gid://shopify/Metaobject/9000000000132",
+            "gid://shopify/Metaobject/9000000000133",
+            "gid://shopify/Metaobject/9000000000134",
+            "gid://shopify/Metaobject/9000000000135",
+            "gid://shopify/Metaobject/9000000000136",
+            "gid://shopify/Metaobject/9000000000137",
+            "gid://shopify/Metaobject/9000000000138",
+            "gid://shopify/Metaobject/9000000000139",
+            "gid://shopify/Metaobject/9000000000140",
+            "gid://shopify/Metaobject/9000000000141",
+            "gid://shopify/Metaobject/9000000000142",
+            "gid://shopify/Metaobject/9000000000143",
+            "gid://shopify/Metaobject/9000000000144",
+            "gid://shopify/Metaobject/9000000000145",
+            "gid://shopify/Metaobject/9000000000146",
+            "gid://shopify/Metaobject/9000000000147",
+            "gid://shopify/Metaobject/9000000000148",
+            "gid://shopify/Metaobject/9000000000149",
+            "gid://shopify/Metaobject/9000000000150",
+            "gid://shopify/Metaobject/9000000000151",
+            "gid://shopify/Metaobject/9000000000152",
+            "gid://shopify/Metaobject/9000000000153",
+            "gid://shopify/Metaobject/9000000000154",
+            "gid://shopify/Metaobject/9000000000155",
+            "gid://shopify/Metaobject/9000000000156",
+            "gid://shopify/Metaobject/9000000000157",
+            "gid://shopify/Metaobject/9000000000158",
+            "gid://shopify/Metaobject/9000000000159",
+            "gid://shopify/Metaobject/9000000000160",
+            "gid://shopify/Metaobject/9000000000161",
+            "gid://shopify/Metaobject/9000000000162",
+            "gid://shopify/Metaobject/9000000000163",
+            "gid://shopify/Metaobject/9000000000164",
+            "gid://shopify/Metaobject/9000000000165",
+            "gid://shopify/Metaobject/9000000000166",
+            "gid://shopify/Metaobject/9000000000167",
+            "gid://shopify/Metaobject/9000000000168",
+            "gid://shopify/Metaobject/9000000000169",
+            "gid://shopify/Metaobject/9000000000170",
+            "gid://shopify/Metaobject/9000000000171",
+            "gid://shopify/Metaobject/9000000000172",
+            "gid://shopify/Metaobject/9000000000173",
+            "gid://shopify/Metaobject/9000000000174",
+            "gid://shopify/Metaobject/9000000000175",
+            "gid://shopify/Metaobject/9000000000176",
+            "gid://shopify/Metaobject/9000000000177",
+            "gid://shopify/Metaobject/9000000000178",
+            "gid://shopify/Metaobject/9000000000179",
+            "gid://shopify/Metaobject/9000000000180",
+            "gid://shopify/Metaobject/9000000000181",
+            "gid://shopify/Metaobject/9000000000182",
+            "gid://shopify/Metaobject/9000000000183",
+            "gid://shopify/Metaobject/9000000000184",
+            "gid://shopify/Metaobject/9000000000185",
+            "gid://shopify/Metaobject/9000000000186",
+            "gid://shopify/Metaobject/9000000000187",
+            "gid://shopify/Metaobject/9000000000188",
+            "gid://shopify/Metaobject/9000000000189",
+            "gid://shopify/Metaobject/9000000000190",
+            "gid://shopify/Metaobject/9000000000191",
+            "gid://shopify/Metaobject/9000000000192",
+            "gid://shopify/Metaobject/9000000000193",
+            "gid://shopify/Metaobject/9000000000194",
+            "gid://shopify/Metaobject/9000000000195",
+            "gid://shopify/Metaobject/9000000000196",
+            "gid://shopify/Metaobject/9000000000197",
+            "gid://shopify/Metaobject/9000000000198",
+            "gid://shopify/Metaobject/9000000000199",
+            "gid://shopify/Metaobject/9000000000200",
+            "gid://shopify/Metaobject/9000000000201",
+            "gid://shopify/Metaobject/9000000000202",
+            "gid://shopify/Metaobject/9000000000203",
+            "gid://shopify/Metaobject/9000000000204",
+            "gid://shopify/Metaobject/9000000000205",
+            "gid://shopify/Metaobject/9000000000206",
+            "gid://shopify/Metaobject/9000000000207",
+            "gid://shopify/Metaobject/9000000000208",
+            "gid://shopify/Metaobject/9000000000209",
+            "gid://shopify/Metaobject/9000000000210",
+            "gid://shopify/Metaobject/9000000000211",
+            "gid://shopify/Metaobject/9000000000212",
+            "gid://shopify/Metaobject/9000000000213",
+            "gid://shopify/Metaobject/9000000000214",
+            "gid://shopify/Metaobject/9000000000215",
+            "gid://shopify/Metaobject/9000000000216",
+            "gid://shopify/Metaobject/9000000000217",
+            "gid://shopify/Metaobject/9000000000218",
+            "gid://shopify/Metaobject/9000000000219",
+            "gid://shopify/Metaobject/9000000000220",
+            "gid://shopify/Metaobject/9000000000221",
+            "gid://shopify/Metaobject/9000000000222",
+            "gid://shopify/Metaobject/9000000000223",
+            "gid://shopify/Metaobject/9000000000224",
+            "gid://shopify/Metaobject/9000000000225",
+            "gid://shopify/Metaobject/9000000000226",
+            "gid://shopify/Metaobject/9000000000227",
+            "gid://shopify/Metaobject/9000000000228",
+            "gid://shopify/Metaobject/9000000000229",
+            "gid://shopify/Metaobject/9000000000230",
+            "gid://shopify/Metaobject/9000000000231",
+            "gid://shopify/Metaobject/9000000000232",
+            "gid://shopify/Metaobject/9000000000233",
+            "gid://shopify/Metaobject/9000000000234",
+            "gid://shopify/Metaobject/9000000000235",
+            "gid://shopify/Metaobject/9000000000236",
+            "gid://shopify/Metaobject/9000000000237",
+            "gid://shopify/Metaobject/9000000000238",
+            "gid://shopify/Metaobject/9000000000239",
+            "gid://shopify/Metaobject/9000000000240",
+            "gid://shopify/Metaobject/9000000000241",
+            "gid://shopify/Metaobject/9000000000242",
+            "gid://shopify/Metaobject/9000000000243",
+            "gid://shopify/Metaobject/9000000000244",
+            "gid://shopify/Metaobject/9000000000245",
+            "gid://shopify/Metaobject/9000000000246",
+            "gid://shopify/Metaobject/9000000000247",
+            "gid://shopify/Metaobject/9000000000248",
+            "gid://shopify/Metaobject/9000000000249"
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "The input array size of 251 is greater than the maximum allowed of 250.",
+            "locations": [
+              {
+                "line": 2,
+                "column": 3
+              }
+            ],
+            "path": ["metaobjectBulkDelete", "where", "ids"],
+            "extensions": {
+              "code": "MAX_INPUT_SIZE_EXCEEDED"
+            }
+          }
+        ],
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": null,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "overLimitAfter": {
+      "name": "bulk-delete-over-limit-after-read",
+      "request": {
+        "query": "query MetaobjectBulkDeleteEdgeOverLimitRead($id: ID!, $type: String!, $query: String!) {\n  selected: metaobject(id: $id) {\n    id\n    handle\n    type\n  }\n  catalog: metaobjects(type: $type, first: 10, query: $query) {\n    nodes {\n      id\n      handle\n      type\n    }\n  }\n  definition: metaobjectDefinitionByType(type: $type) {\n    id\n    type\n    metaobjectsCount\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/207140847922",
+          "type": "codex_bulk_delete_empty_1784522214568",
+          "query": "handle:codex-bulk-delete-over-limit-1784522214568"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "selected": {
+            "id": "gid://shopify/Metaobject/207140847922",
+            "handle": "codex-bulk-delete-over-limit-1784522214568",
+            "type": "codex_bulk_delete_empty_1784522214568"
+          },
+          "catalog": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Metaobject/207140847922",
+                "handle": "codex-bulk-delete-over-limit-1784522214568",
+                "type": "codex_bulk_delete_empty_1784522214568"
+              }
+            ]
+          },
+          "definition": {
+            "id": "gid://shopify/MetaobjectDefinition/19970785586",
+            "type": "codex_bulk_delete_empty_1784522214568",
+            "metaobjectsCount": 1
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 8,
+            "actualQueryCost": 5,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1992,
               "restoreRate": 100
             }
           }
@@ -289,23 +714,15 @@
       "request": {
         "query": "#graphql\n  mutation MetaobjectBulkDeleteEdgeEntryDelete($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/187915403570"
+          "id": "gid://shopify/Metaobject/207140847922"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDelete": {
-            "deletedId": null,
-            "userErrors": [
-              {
-                "field": ["id"],
-                "message": "Record not found",
-                "code": "RECORD_NOT_FOUND",
-                "elementKey": null,
-                "elementIndex": null
-              }
-            ]
+            "deletedId": "gid://shopify/Metaobject/207140847922",
+            "userErrors": []
           }
         },
         "extensions": {
@@ -314,7 +731,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1979,
+              "currentlyAvailable": 1990,
               "restoreRate": 100
             }
           }
@@ -326,14 +743,14 @@
       "request": {
         "query": "#graphql\n  mutation MetaobjectBulkDeleteEdgeDefinitionDelete($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17850040626"
+          "id": "gid://shopify/MetaobjectDefinition/19970785586"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17850040626",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19970785586",
             "userErrors": []
           }
         },
@@ -343,7 +760,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1979,
+              "currentlyAvailable": 1990,
               "restoreRate": 100
             }
           }
@@ -355,7 +772,7 @@
     {
       "operationName": "MetaobjectBulkDeleteHydrateByType",
       "variables": {
-        "type": "codex_har_680_bulk_delete_empty_1777975572592"
+        "type": "codex_bulk_delete_empty_1784522214568"
       },
       "query": "#graphql\n  query MetaobjectBulkDeleteHydrateByType($type: String!) {\n    catalog: metaobjects(type: $type, first: 250) {\n      nodes {\n        id\n        handle\n        type\n        displayName\n        createdAt\n        updatedAt\n        capabilities {\n          publishable {\n            status\n          }\n          onlineStore {\n            templateSuffix\n          }\n        }\n        fields {\n          key\n          type\n          value\n          jsonValue\n          definition {\n            key\n            name\n            required\n            type {\n              name\n              category\n            }\n          }\n        }\n      }\n    }\n    definition: metaobjectDefinitionByType(type: $type) {\n      id\n      type\n      name\n      description\n      displayNameKey\n      access {\n        admin\n        storefront\n      }\n      capabilities {\n        publishable {\n          enabled\n        }\n        translatable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        name\n        description\n        required\n        type {\n          name\n          category\n        }\n        validations {\n          name\n          value\n        }\n      }\n      hasThumbnailField\n      metaobjectsCount\n      standardTemplate {\n        type\n        name\n      }\n      createdAt\n      updatedAt\n    }\n  }\n",
       "response": {
@@ -366,9 +783,9 @@
               "nodes": []
             },
             "definition": {
-              "id": "gid://shopify/MetaobjectDefinition/17850040626",
-              "type": "codex_har_680_bulk_delete_empty_1777975572592",
-              "name": "Codex HAR-680 Empty 1777975572592",
+              "id": "gid://shopify/MetaobjectDefinition/19970785586",
+              "type": "codex_bulk_delete_empty_1784522214568",
+              "name": "Codex Bulk Delete Empty 1784522214568",
               "description": null,
               "displayNameKey": "title",
               "access": {
@@ -403,10 +820,10 @@
                 }
               ],
               "hasThumbnailField": false,
-              "metaobjectsCount": 0,
+              "metaobjectsCount": 1,
               "standardTemplate": null,
-              "createdAt": "2026-05-05T10:06:13Z",
-              "updatedAt": "2026-05-05T10:06:13Z"
+              "createdAt": "2026-07-20T04:36:54Z",
+              "updatedAt": "2026-07-20T04:36:54Z"
             }
           },
           "extensions": {

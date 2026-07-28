@@ -333,13 +333,30 @@ impl DraftProxy {
             )]);
         }
 
-        let post_readiness_field_errors = inputs
-            .iter()
-            .enumerate()
-            .flat_map(|(index, input)| validate_file_update_post_readiness_fields(input, index))
-            .collect::<Vec<_>>();
-        if let Some(outcome) = media_file_update_errors_outcome(post_readiness_field_errors) {
-            return outcome;
+        // Shopify applies the captured alt-length validation per row: valid
+        // inputs still update when another row has the indexed limit error.
+        // Keep this narrow rather than turning every field validation into
+        // partial success; uncaptured post-readiness errors and every later
+        // validation bucket retain their existing whole-batch boundary.
+        let mut post_readiness_field_errors = Vec::new();
+        let mut post_readiness_invalid_rows = BTreeSet::new();
+        let mut has_atomic_post_readiness_error = false;
+        for (index, input) in inputs.iter().enumerate() {
+            let errors = validate_file_update_post_readiness_fields(input, index);
+            if !errors.is_empty() {
+                let captured_partial_success_row = errors.iter().all(|error| {
+                    error.get("code").and_then(Value::as_str) == Some("ALT_VALUE_LIMIT_EXCEEDED")
+                });
+                if captured_partial_success_row {
+                    post_readiness_invalid_rows.insert(index);
+                } else {
+                    has_atomic_post_readiness_error = true;
+                }
+                post_readiness_field_errors.extend(errors);
+            }
+        }
+        if has_atomic_post_readiness_error {
+            return media_file_update_error_outcome(post_readiness_field_errors);
         }
 
         // Supplying both originalSource and previewImageSource is rejected with
@@ -351,6 +368,9 @@ impl DraftProxy {
             .flat_map(|(index, input)| validate_file_update_ready_source_fields(input, index))
             .collect::<Vec<_>>();
         if let Some(outcome) = media_file_update_errors_outcome(ready_source_errors) {
+            if !post_readiness_field_errors.is_empty() {
+                return media_file_update_error_outcome(post_readiness_field_errors);
+            }
             return outcome;
         }
 
@@ -360,6 +380,9 @@ impl DraftProxy {
             .flat_map(|(index, input)| self.validate_file_update_target(input, index))
             .collect::<Vec<_>>();
         if let Some(outcome) = media_file_update_errors_outcome(target_errors) {
+            if !post_readiness_field_errors.is_empty() {
+                return media_file_update_error_outcome(post_readiness_field_errors);
+            }
             return outcome;
         }
 
@@ -369,16 +392,25 @@ impl DraftProxy {
             .filter_map(|(index, input)| file_update_source_version_conflict(input, index))
             .collect::<Vec<_>>();
         if let Some(outcome) = media_file_update_errors_outcome(source_version_errors) {
+            if !post_readiness_field_errors.is_empty() {
+                return media_file_update_error_outcome(post_readiness_field_errors);
+            }
             return outcome;
         }
 
         let reference_target_errors = self.validate_file_update_reference_targets(&inputs);
         if let Some(outcome) = media_file_update_errors_outcome(reference_target_errors) {
+            if !post_readiness_field_errors.is_empty() {
+                return media_file_update_error_outcome(post_readiness_field_errors);
+            }
             return outcome;
         }
 
         let mut updated_files = Vec::new();
-        for input in &inputs {
+        for (index, input) in inputs.iter().enumerate() {
+            if post_readiness_invalid_rows.contains(&index) {
+                continue;
+            }
             let Some(id) = resolved_string_field(input, "id") else {
                 continue;
             };
@@ -440,12 +472,16 @@ impl DraftProxy {
         if !staged_ids.is_empty() {
             self.store.staged.media_files_overlay_dirty = true;
         }
-        let payload = json!({"files": updated_files, "userErrors": []});
-        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
-            "fileUpdate",
-            "media",
-            staged_ids,
-        ))
+        let payload = json!({
+            "files": updated_files,
+            "userErrors": dedupe_media_user_errors(post_readiness_field_errors)
+        });
+        let outcome = ResolverOutcome::value(payload);
+        if staged_ids.is_empty() {
+            outcome
+        } else {
+            outcome.with_log_draft(LogDraft::staged("fileUpdate", "media", staged_ids))
+        }
     }
 
     pub(in crate::proxy) fn media_file_delete(

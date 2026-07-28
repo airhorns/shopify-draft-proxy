@@ -1,0 +1,3303 @@
+{
+  "metadata": {
+    "source": "live-shopify",
+    "capturedAt": "2026-07-19T22:57:49.737Z",
+    "startedAt": "2026-07-19T22:57:43.098Z",
+    "storeDomain": "harry-test-heelo.myshopify.com",
+    "apiVersion": "2026-04",
+    "scopedRoots": ["fulfillmentOrderSplit", "fulfillmentOrderMerge"],
+    "createdOrders": [
+      {
+        "id": "gid://shopify/Order/8979597984050",
+        "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9921226965298",
+        "fulfillmentOrderLineItemId": "gid://shopify/FulfillmentOrderLineItem/20283145093426"
+      },
+      {
+        "id": "gid://shopify/Order/8979598016818",
+        "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9921226998066",
+        "fulfillmentOrderLineItemId": "gid://shopify/FulfillmentOrderLineItem/20283145126194"
+      },
+      {
+        "id": "gid://shopify/Order/8979598115122",
+        "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9921227063602",
+        "fulfillmentOrderLineItemId": "gid://shopify/FulfillmentOrderLineItem/20283145224498"
+      },
+      {
+        "id": "gid://shopify/Order/8979598180658",
+        "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9921227161906",
+        "fulfillmentOrderLineItemId": "gid://shopify/FulfillmentOrderLineItem/20283145322802"
+      }
+    ]
+  },
+  "split": {
+    "firstCreate": {
+      "query": "#graphql\n  fragment FulfillmentOrderBatchAtomicityFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 10) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderBatchAtomicityOrderCreate(\n    $order: OrderCreateOrderInput!\n    $options: OrderCreateOptionsInput\n  ) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        displayFulfillmentStatus\n        fulfillmentOrders(first: 10) {\n          nodes {\n            ...FulfillmentOrderBatchAtomicityFields\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "fulfillment-order-batch-atomicity-split-first-20260719225743@example.com",
+          "note": "Fulfillment order batch atomicity split-first 20260719225743",
+          "tags": ["fulfillment-order-batch-atomicity", "split-first"],
+          "test": true,
+          "currency": "USD",
+          "shippingAddress": {
+            "firstName": "Batch",
+            "lastName": "Atomicity",
+            "address1": "123 Queen St W",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCode": "CA",
+            "zip": "M5H 2M9"
+          },
+          "lineItems": [
+            {
+              "variantId": "gid://shopify/ProductVariant/48540157378793",
+              "title": "Fulfillment order batch atomicity split-first 20260719225743",
+              "quantity": 2,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "20.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": true
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8979597984050",
+                "name": "#1868",
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9921226965298",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "updatedAt": "2026-07-19T22:57:43Z",
+                      "supportedActions": [
+                        {
+                          "action": "CREATE_FULFILLMENT"
+                        },
+                        {
+                          "action": "REPORT_PROGRESS"
+                        },
+                        {
+                          "action": "MOVE"
+                        },
+                        {
+                          "action": "HOLD"
+                        },
+                        {
+                          "action": "SPLIT"
+                        }
+                      ],
+                      "assignedLocation": {
+                        "name": "Storefront Enrichment 20260719125625",
+                        "location": {
+                          "id": "gid://shopify/Location/114038047026",
+                          "name": "Storefront Enrichment 20260719125625"
+                        }
+                      },
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/20283145093426",
+                            "totalQuantity": 2,
+                            "remainingQuantity": 2,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/20109986464050",
+                              "title": "Fulfillment order batch atomicity split-first 20260719225743",
+                              "quantity": 2,
+                              "fulfillableQuantity": 2
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 68,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "secondCreate": {
+      "query": "#graphql\n  fragment FulfillmentOrderBatchAtomicityFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 10) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderBatchAtomicityOrderCreate(\n    $order: OrderCreateOrderInput!\n    $options: OrderCreateOptionsInput\n  ) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        displayFulfillmentStatus\n        fulfillmentOrders(first: 10) {\n          nodes {\n            ...FulfillmentOrderBatchAtomicityFields\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "fulfillment-order-batch-atomicity-split-second-20260719225743@example.com",
+          "note": "Fulfillment order batch atomicity split-second 20260719225743",
+          "tags": ["fulfillment-order-batch-atomicity", "split-second"],
+          "test": true,
+          "currency": "USD",
+          "shippingAddress": {
+            "firstName": "Batch",
+            "lastName": "Atomicity",
+            "address1": "123 Queen St W",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCode": "CA",
+            "zip": "M5H 2M9"
+          },
+          "lineItems": [
+            {
+              "variantId": "gid://shopify/ProductVariant/48540157378793",
+              "title": "Fulfillment order batch atomicity split-second 20260719225743",
+              "quantity": 2,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "20.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": true
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8979598016818",
+                "name": "#1869",
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9921226998066",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "updatedAt": "2026-07-19T22:57:44Z",
+                      "supportedActions": [
+                        {
+                          "action": "CREATE_FULFILLMENT"
+                        },
+                        {
+                          "action": "REPORT_PROGRESS"
+                        },
+                        {
+                          "action": "MOVE"
+                        },
+                        {
+                          "action": "HOLD"
+                        },
+                        {
+                          "action": "SPLIT"
+                        }
+                      ],
+                      "assignedLocation": {
+                        "name": "Storefront Enrichment 20260719125625",
+                        "location": {
+                          "id": "gid://shopify/Location/114038047026",
+                          "name": "Storefront Enrichment 20260719125625"
+                        }
+                      },
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/20283145126194",
+                            "totalQuantity": 2,
+                            "remainingQuantity": 2,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/20109986496818",
+                              "title": "Fulfillment order batch atomicity split-second 20260719225743",
+                              "quantity": 2,
+                              "fulfillableQuantity": 2
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 68,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "before": {
+      "query": "#graphql\n  fragment FulfillmentOrderBatchAtomicityFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 10) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  query FulfillmentOrderBatchAtomicityOrders($firstOrderId: ID!, $secondOrderId: ID!) {\n    first: order(id: $firstOrderId) {\n      id\n      name\n      displayFulfillmentStatus\n      fulfillmentOrders(first: 10) {\n        nodes {\n          ...FulfillmentOrderBatchAtomicityFields\n        }\n      }\n    }\n    second: order(id: $secondOrderId) {\n      id\n      name\n      displayFulfillmentStatus\n      fulfillmentOrders(first: 10) {\n        nodes {\n          ...FulfillmentOrderBatchAtomicityFields\n        }\n      }\n    }\n  }",
+      "variables": {
+        "firstOrderId": "gid://shopify/Order/8979597984050",
+        "secondOrderId": "gid://shopify/Order/8979598016818"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "first": {
+              "id": "gid://shopify/Order/8979597984050",
+              "name": "#1868",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9921226965298",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-07-19T22:57:43Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "SPLIT"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20283145093426",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109986464050",
+                            "title": "Fulfillment order batch atomicity split-first 20260719225743",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "second": {
+              "id": "gid://shopify/Order/8979598016818",
+              "name": "#1869",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9921226998066",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-07-19T22:57:44Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "SPLIT"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20283145126194",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109986496818",
+                            "title": "Fulfillment order batch atomicity split-second 20260719225743",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 118,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "firstHydrate": {
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9921226965298"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9921226965298",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-07-19T22:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-07-19T22:57:43Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                },
+                {
+                  "action": "SPLIT"
+                }
+              ],
+              "assignedLocation": {
+                "name": "Storefront Enrichment 20260719125625",
+                "location": {
+                  "id": "gid://shopify/Location/114038047026",
+                  "name": "Storefront Enrichment 20260719125625"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20283145093426",
+                    "totalQuantity": 2,
+                    "remainingQuantity": 2,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/20109986464050",
+                      "title": "Fulfillment order batch atomicity split-first 20260719225743",
+                      "quantity": 2,
+                      "fulfillableQuantity": 2
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8979597984050",
+                "name": "#1868",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "secondHydrate": {
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9921226998066"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9921226998066",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-07-19T22:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-07-19T22:57:44Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                },
+                {
+                  "action": "SPLIT"
+                }
+              ],
+              "assignedLocation": {
+                "name": "Storefront Enrichment 20260719125625",
+                "location": {
+                  "id": "gid://shopify/Location/114038047026",
+                  "name": "Storefront Enrichment 20260719125625"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20283145126194",
+                    "totalQuantity": 2,
+                    "remainingQuantity": 2,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/20109986496818",
+                      "title": "Fulfillment order batch atomicity split-second 20260719225743",
+                      "quantity": 2,
+                      "fulfillableQuantity": 2
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8979598016818",
+                "name": "#1869",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "failure": {
+      "query": "#graphql\n  fragment FulfillmentOrderBatchAtomicityFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 10) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderSplitBatchAtomicity($fulfillmentOrderSplits: [FulfillmentOrderSplitInput!]!) {\n    fulfillmentOrderSplit(fulfillmentOrderSplits: $fulfillmentOrderSplits) {\n      fulfillmentOrderSplits {\n        fulfillmentOrder {\n          ...FulfillmentOrderBatchAtomicityFields\n        }\n        remainingFulfillmentOrder {\n          ...FulfillmentOrderBatchAtomicityFields\n        }\n        replacementFulfillmentOrder {\n          ...FulfillmentOrderBatchAtomicityFields\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "fulfillmentOrderSplits": [
+          {
+            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9921226965298",
+            "fulfillmentOrderLineItems": [
+              {
+                "id": "gid://shopify/FulfillmentOrderLineItem/20283145093426",
+                "quantity": 1
+              }
+            ]
+          },
+          {
+            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9921226998066",
+            "fulfillmentOrderLineItems": [
+              {
+                "id": "gid://shopify/FulfillmentOrderLineItem/20283145126194",
+                "quantity": 3
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrderSplit": {
+              "fulfillmentOrderSplits": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Invalid fulfillment order line item quantity requested.",
+                  "code": null
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 52,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "after": {
+      "query": "#graphql\n  fragment FulfillmentOrderBatchAtomicityFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 10) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  query FulfillmentOrderBatchAtomicityOrders($firstOrderId: ID!, $secondOrderId: ID!) {\n    first: order(id: $firstOrderId) {\n      id\n      name\n      displayFulfillmentStatus\n      fulfillmentOrders(first: 10) {\n        nodes {\n          ...FulfillmentOrderBatchAtomicityFields\n        }\n      }\n    }\n    second: order(id: $secondOrderId) {\n      id\n      name\n      displayFulfillmentStatus\n      fulfillmentOrders(first: 10) {\n        nodes {\n          ...FulfillmentOrderBatchAtomicityFields\n        }\n      }\n    }\n  }",
+      "variables": {
+        "firstOrderId": "gid://shopify/Order/8979597984050",
+        "secondOrderId": "gid://shopify/Order/8979598016818"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "first": {
+              "id": "gid://shopify/Order/8979597984050",
+              "name": "#1868",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9921226965298",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-07-19T22:57:43Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "SPLIT"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20283145093426",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109986464050",
+                            "title": "Fulfillment order batch atomicity split-first 20260719225743",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "second": {
+              "id": "gid://shopify/Order/8979598016818",
+              "name": "#1869",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9921226998066",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-07-19T22:57:44Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "SPLIT"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20283145126194",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109986496818",
+                            "title": "Fulfillment order batch atomicity split-second 20260719225743",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 118,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "merge": {
+    "firstCreate": {
+      "query": "#graphql\n  fragment FulfillmentOrderBatchAtomicityFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 10) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderBatchAtomicityOrderCreate(\n    $order: OrderCreateOrderInput!\n    $options: OrderCreateOptionsInput\n  ) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        displayFulfillmentStatus\n        fulfillmentOrders(first: 10) {\n          nodes {\n            ...FulfillmentOrderBatchAtomicityFields\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "fulfillment-order-batch-atomicity-merge-first-20260719225745@example.com",
+          "note": "Fulfillment order batch atomicity merge-first 20260719225745",
+          "tags": ["fulfillment-order-batch-atomicity", "merge-first"],
+          "test": true,
+          "currency": "USD",
+          "shippingAddress": {
+            "firstName": "Batch",
+            "lastName": "Atomicity",
+            "address1": "123 Queen St W",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCode": "CA",
+            "zip": "M5H 2M9"
+          },
+          "lineItems": [
+            {
+              "variantId": "gid://shopify/ProductVariant/48540157378793",
+              "title": "Fulfillment order batch atomicity merge-first 20260719225745",
+              "quantity": 2,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "20.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": true
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8979598115122",
+                "name": "#1870",
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9921227063602",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "updatedAt": "2026-07-19T22:57:46Z",
+                      "supportedActions": [
+                        {
+                          "action": "CREATE_FULFILLMENT"
+                        },
+                        {
+                          "action": "REPORT_PROGRESS"
+                        },
+                        {
+                          "action": "MOVE"
+                        },
+                        {
+                          "action": "HOLD"
+                        },
+                        {
+                          "action": "SPLIT"
+                        }
+                      ],
+                      "assignedLocation": {
+                        "name": "Storefront Enrichment 20260719125625",
+                        "location": {
+                          "id": "gid://shopify/Location/114038047026",
+                          "name": "Storefront Enrichment 20260719125625"
+                        }
+                      },
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/20283145224498",
+                            "totalQuantity": 2,
+                            "remainingQuantity": 2,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/20109986627890",
+                              "title": "Fulfillment order batch atomicity merge-first 20260719225745",
+                              "quantity": 2,
+                              "fulfillableQuantity": 2
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 68,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "secondCreate": {
+      "query": "#graphql\n  fragment FulfillmentOrderBatchAtomicityFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 10) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderBatchAtomicityOrderCreate(\n    $order: OrderCreateOrderInput!\n    $options: OrderCreateOptionsInput\n  ) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        displayFulfillmentStatus\n        fulfillmentOrders(first: 10) {\n          nodes {\n            ...FulfillmentOrderBatchAtomicityFields\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "fulfillment-order-batch-atomicity-merge-second-20260719225746@example.com",
+          "note": "Fulfillment order batch atomicity merge-second 20260719225746",
+          "tags": ["fulfillment-order-batch-atomicity", "merge-second"],
+          "test": true,
+          "currency": "USD",
+          "shippingAddress": {
+            "firstName": "Batch",
+            "lastName": "Atomicity",
+            "address1": "123 Queen St W",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCode": "CA",
+            "zip": "M5H 2M9"
+          },
+          "lineItems": [
+            {
+              "variantId": "gid://shopify/ProductVariant/48540157378793",
+              "title": "Fulfillment order batch atomicity merge-second 20260719225746",
+              "quantity": 2,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "20.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": true
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8979598180658",
+                "name": "#1871",
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9921227161906",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "updatedAt": "2026-07-19T22:57:47Z",
+                      "supportedActions": [
+                        {
+                          "action": "CREATE_FULFILLMENT"
+                        },
+                        {
+                          "action": "REPORT_PROGRESS"
+                        },
+                        {
+                          "action": "MOVE"
+                        },
+                        {
+                          "action": "HOLD"
+                        },
+                        {
+                          "action": "SPLIT"
+                        }
+                      ],
+                      "assignedLocation": {
+                        "name": "Storefront Enrichment 20260719125625",
+                        "location": {
+                          "id": "gid://shopify/Location/114038047026",
+                          "name": "Storefront Enrichment 20260719125625"
+                        }
+                      },
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/20283145322802",
+                            "totalQuantity": 2,
+                            "remainingQuantity": 2,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/20109986726194",
+                              "title": "Fulfillment order batch atomicity merge-second 20260719225746",
+                              "quantity": 2,
+                              "fulfillableQuantity": 2
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 68,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "firstSetupSplit": {
+      "query": "#graphql\n  fragment FulfillmentOrderBatchAtomicityFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 10) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderSplitBatchAtomicity($fulfillmentOrderSplits: [FulfillmentOrderSplitInput!]!) {\n    fulfillmentOrderSplit(fulfillmentOrderSplits: $fulfillmentOrderSplits) {\n      fulfillmentOrderSplits {\n        fulfillmentOrder {\n          ...FulfillmentOrderBatchAtomicityFields\n        }\n        remainingFulfillmentOrder {\n          ...FulfillmentOrderBatchAtomicityFields\n        }\n        replacementFulfillmentOrder {\n          ...FulfillmentOrderBatchAtomicityFields\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "fulfillmentOrderSplits": [
+          {
+            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9921227063602",
+            "fulfillmentOrderLineItems": [
+              {
+                "id": "gid://shopify/FulfillmentOrderLineItem/20283145224498",
+                "quantity": 1
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrderSplit": {
+              "fulfillmentOrderSplits": [
+                {
+                  "fulfillmentOrder": {
+                    "id": "gid://shopify/FulfillmentOrder/9921227063602",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-07-19T22:57:47Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "MERGE"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20283145224498",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109986627890",
+                            "title": "Fulfillment order batch atomicity merge-first 20260719225745",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "remainingFulfillmentOrder": {
+                    "id": "gid://shopify/FulfillmentOrder/9921227227442",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-07-19T22:57:47Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "MERGE"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20283145388338",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109986627890",
+                            "title": "Fulfillment order batch atomicity merge-first 20260719225745",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "replacementFulfillmentOrder": null
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 52,
+              "actualQueryCost": 27,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1973,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "secondSetupSplit": {
+      "query": "#graphql\n  fragment FulfillmentOrderBatchAtomicityFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 10) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderSplitBatchAtomicity($fulfillmentOrderSplits: [FulfillmentOrderSplitInput!]!) {\n    fulfillmentOrderSplit(fulfillmentOrderSplits: $fulfillmentOrderSplits) {\n      fulfillmentOrderSplits {\n        fulfillmentOrder {\n          ...FulfillmentOrderBatchAtomicityFields\n        }\n        remainingFulfillmentOrder {\n          ...FulfillmentOrderBatchAtomicityFields\n        }\n        replacementFulfillmentOrder {\n          ...FulfillmentOrderBatchAtomicityFields\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "fulfillmentOrderSplits": [
+          {
+            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9921227161906",
+            "fulfillmentOrderLineItems": [
+              {
+                "id": "gid://shopify/FulfillmentOrderLineItem/20283145322802",
+                "quantity": 1
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrderSplit": {
+              "fulfillmentOrderSplits": [
+                {
+                  "fulfillmentOrder": {
+                    "id": "gid://shopify/FulfillmentOrder/9921227161906",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-07-19T22:57:48Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "MERGE"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20283145322802",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109986726194",
+                            "title": "Fulfillment order batch atomicity merge-second 20260719225746",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "remainingFulfillmentOrder": {
+                    "id": "gid://shopify/FulfillmentOrder/9921227260210",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-07-19T22:57:48Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "MERGE"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20283145421106",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109986726194",
+                            "title": "Fulfillment order batch atomicity merge-second 20260719225746",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "replacementFulfillmentOrder": null
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 52,
+              "actualQueryCost": 27,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1973,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "before": {
+      "query": "#graphql\n  fragment FulfillmentOrderBatchAtomicityFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 10) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  query FulfillmentOrderBatchAtomicityOrders($firstOrderId: ID!, $secondOrderId: ID!) {\n    first: order(id: $firstOrderId) {\n      id\n      name\n      displayFulfillmentStatus\n      fulfillmentOrders(first: 10) {\n        nodes {\n          ...FulfillmentOrderBatchAtomicityFields\n        }\n      }\n    }\n    second: order(id: $secondOrderId) {\n      id\n      name\n      displayFulfillmentStatus\n      fulfillmentOrders(first: 10) {\n        nodes {\n          ...FulfillmentOrderBatchAtomicityFields\n        }\n      }\n    }\n  }",
+      "variables": {
+        "firstOrderId": "gid://shopify/Order/8979598115122",
+        "secondOrderId": "gid://shopify/Order/8979598180658"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "first": {
+              "id": "gid://shopify/Order/8979598115122",
+              "name": "#1870",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9921227063602",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-07-19T22:57:47Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "MERGE"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20283145224498",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109986627890",
+                            "title": "Fulfillment order batch atomicity merge-first 20260719225745",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9921227227442",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-07-19T22:57:47Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "MERGE"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20283145388338",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109986627890",
+                            "title": "Fulfillment order batch atomicity merge-first 20260719225745",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "second": {
+              "id": "gid://shopify/Order/8979598180658",
+              "name": "#1871",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9921227161906",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-07-19T22:57:48Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "MERGE"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20283145322802",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109986726194",
+                            "title": "Fulfillment order batch atomicity merge-second 20260719225746",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9921227260210",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-07-19T22:57:48Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "MERGE"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20283145421106",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109986726194",
+                            "title": "Fulfillment order batch atomicity merge-second 20260719225746",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 118,
+              "actualQueryCost": 18,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1981,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "hydrate": {
+      "query": "query ShippingFulfillmentOrdersMergeHydrate($ids: [ID!]!) {\n    nodes(ids: $ids) {\n      ... on FulfillmentOrder {\n        id\n        status\n        requestStatus\n        fulfillAt\n        fulfillBy\n        updatedAt\n        supportedActions {\n          action\n        }\n        assignedLocation {\n          name\n          location {\n            id\n            name\n          }\n        }\n        fulfillmentHolds {\n          id\n          handle\n          reason\n          reasonNotes\n          displayReason\n          heldByApp {\n            id\n            title\n          }\n          heldByRequestingApp\n        }\n        merchantRequests(first: 10) {\n          nodes {\n            kind\n            message\n            requestOptions\n          }\n        }\n        lineItems(first: 20) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n              quantity\n              fulfillableQuantity\n            }\n          }\n        }\n        order {\n          id\n          name\n          displayFulfillmentStatus\n        }\n      }\n    }\n  }",
+      "variables": {
+        "ids": [
+          "gid://shopify/FulfillmentOrder/9921227063602",
+          "gid://shopify/FulfillmentOrder/9921227227442",
+          "gid://shopify/FulfillmentOrder/9921227161906",
+          "gid://shopify/FulfillmentOrder/9921227260210"
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/FulfillmentOrder/9921227063602",
+                "status": "OPEN",
+                "requestStatus": "UNSUBMITTED",
+                "fulfillAt": "2026-07-19T22:00:00Z",
+                "fulfillBy": null,
+                "updatedAt": "2026-07-19T22:57:47Z",
+                "supportedActions": [
+                  {
+                    "action": "CREATE_FULFILLMENT"
+                  },
+                  {
+                    "action": "REPORT_PROGRESS"
+                  },
+                  {
+                    "action": "MOVE"
+                  },
+                  {
+                    "action": "HOLD"
+                  },
+                  {
+                    "action": "MERGE"
+                  }
+                ],
+                "assignedLocation": {
+                  "name": "Storefront Enrichment 20260719125625",
+                  "location": {
+                    "id": "gid://shopify/Location/114038047026",
+                    "name": "Storefront Enrichment 20260719125625"
+                  }
+                },
+                "fulfillmentHolds": [],
+                "merchantRequests": {
+                  "nodes": []
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/20283145224498",
+                      "totalQuantity": 1,
+                      "remainingQuantity": 1,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/20109986627890",
+                        "title": "Fulfillment order batch atomicity merge-first 20260719225745",
+                        "quantity": 2,
+                        "fulfillableQuantity": 2
+                      }
+                    }
+                  ]
+                },
+                "order": {
+                  "id": "gid://shopify/Order/8979598115122",
+                  "name": "#1870",
+                  "displayFulfillmentStatus": "UNFULFILLED"
+                }
+              },
+              {
+                "id": "gid://shopify/FulfillmentOrder/9921227227442",
+                "status": "OPEN",
+                "requestStatus": "UNSUBMITTED",
+                "fulfillAt": "2026-07-19T22:00:00Z",
+                "fulfillBy": null,
+                "updatedAt": "2026-07-19T22:57:47Z",
+                "supportedActions": [
+                  {
+                    "action": "CREATE_FULFILLMENT"
+                  },
+                  {
+                    "action": "REPORT_PROGRESS"
+                  },
+                  {
+                    "action": "MOVE"
+                  },
+                  {
+                    "action": "HOLD"
+                  },
+                  {
+                    "action": "MERGE"
+                  }
+                ],
+                "assignedLocation": {
+                  "name": "Storefront Enrichment 20260719125625",
+                  "location": {
+                    "id": "gid://shopify/Location/114038047026",
+                    "name": "Storefront Enrichment 20260719125625"
+                  }
+                },
+                "fulfillmentHolds": [],
+                "merchantRequests": {
+                  "nodes": []
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/20283145388338",
+                      "totalQuantity": 1,
+                      "remainingQuantity": 1,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/20109986627890",
+                        "title": "Fulfillment order batch atomicity merge-first 20260719225745",
+                        "quantity": 2,
+                        "fulfillableQuantity": 2
+                      }
+                    }
+                  ]
+                },
+                "order": {
+                  "id": "gid://shopify/Order/8979598115122",
+                  "name": "#1870",
+                  "displayFulfillmentStatus": "UNFULFILLED"
+                }
+              },
+              {
+                "id": "gid://shopify/FulfillmentOrder/9921227161906",
+                "status": "OPEN",
+                "requestStatus": "UNSUBMITTED",
+                "fulfillAt": "2026-07-19T22:00:00Z",
+                "fulfillBy": null,
+                "updatedAt": "2026-07-19T22:57:48Z",
+                "supportedActions": [
+                  {
+                    "action": "CREATE_FULFILLMENT"
+                  },
+                  {
+                    "action": "REPORT_PROGRESS"
+                  },
+                  {
+                    "action": "MOVE"
+                  },
+                  {
+                    "action": "HOLD"
+                  },
+                  {
+                    "action": "MERGE"
+                  }
+                ],
+                "assignedLocation": {
+                  "name": "Storefront Enrichment 20260719125625",
+                  "location": {
+                    "id": "gid://shopify/Location/114038047026",
+                    "name": "Storefront Enrichment 20260719125625"
+                  }
+                },
+                "fulfillmentHolds": [],
+                "merchantRequests": {
+                  "nodes": []
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/20283145322802",
+                      "totalQuantity": 1,
+                      "remainingQuantity": 1,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/20109986726194",
+                        "title": "Fulfillment order batch atomicity merge-second 20260719225746",
+                        "quantity": 2,
+                        "fulfillableQuantity": 2
+                      }
+                    }
+                  ]
+                },
+                "order": {
+                  "id": "gid://shopify/Order/8979598180658",
+                  "name": "#1871",
+                  "displayFulfillmentStatus": "UNFULFILLED"
+                }
+              },
+              {
+                "id": "gid://shopify/FulfillmentOrder/9921227260210",
+                "status": "OPEN",
+                "requestStatus": "UNSUBMITTED",
+                "fulfillAt": "2026-07-19T22:00:00Z",
+                "fulfillBy": null,
+                "updatedAt": "2026-07-19T22:57:48Z",
+                "supportedActions": [
+                  {
+                    "action": "CREATE_FULFILLMENT"
+                  },
+                  {
+                    "action": "REPORT_PROGRESS"
+                  },
+                  {
+                    "action": "MOVE"
+                  },
+                  {
+                    "action": "HOLD"
+                  },
+                  {
+                    "action": "MERGE"
+                  }
+                ],
+                "assignedLocation": {
+                  "name": "Storefront Enrichment 20260719125625",
+                  "location": {
+                    "id": "gid://shopify/Location/114038047026",
+                    "name": "Storefront Enrichment 20260719125625"
+                  }
+                },
+                "fulfillmentHolds": [],
+                "merchantRequests": {
+                  "nodes": []
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/20283145421106",
+                      "totalQuantity": 1,
+                      "remainingQuantity": 1,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/20109986726194",
+                        "title": "Fulfillment order batch atomicity merge-second 20260719225746",
+                        "quantity": 2,
+                        "fulfillableQuantity": 2
+                      }
+                    }
+                  ]
+                },
+                "order": {
+                  "id": "gid://shopify/Order/8979598180658",
+                  "name": "#1871",
+                  "displayFulfillmentStatus": "UNFULFILLED"
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 18,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1982,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "failure": {
+      "query": "#graphql\n  fragment FulfillmentOrderBatchAtomicityFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 10) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderMergeBatchAtomicity(\n    $fulfillmentOrderMergeInputs: [FulfillmentOrderMergeInput!]!\n  ) {\n    fulfillmentOrderMerge(fulfillmentOrderMergeInputs: $fulfillmentOrderMergeInputs) {\n      fulfillmentOrderMerges {\n        fulfillmentOrder {\n          ...FulfillmentOrderBatchAtomicityFields\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "fulfillmentOrderMergeInputs": [
+          {
+            "mergeIntents": [
+              {
+                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9921227063602"
+              },
+              {
+                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9921227227442"
+              }
+            ]
+          },
+          {
+            "mergeIntents": [
+              {
+                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9921227161906"
+              },
+              {
+                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9921227260210",
+                "fulfillmentOrderLineItems": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20283145421106",
+                    "quantity": 2
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrderMerge": {
+              "fulfillmentOrderMerges": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Invalid fulfillment order line item quantity requested.",
+                  "code": null
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 24,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "after": {
+      "query": "#graphql\n  fragment FulfillmentOrderBatchAtomicityFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 10) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  query FulfillmentOrderBatchAtomicityOrders($firstOrderId: ID!, $secondOrderId: ID!) {\n    first: order(id: $firstOrderId) {\n      id\n      name\n      displayFulfillmentStatus\n      fulfillmentOrders(first: 10) {\n        nodes {\n          ...FulfillmentOrderBatchAtomicityFields\n        }\n      }\n    }\n    second: order(id: $secondOrderId) {\n      id\n      name\n      displayFulfillmentStatus\n      fulfillmentOrders(first: 10) {\n        nodes {\n          ...FulfillmentOrderBatchAtomicityFields\n        }\n      }\n    }\n  }",
+      "variables": {
+        "firstOrderId": "gid://shopify/Order/8979598115122",
+        "secondOrderId": "gid://shopify/Order/8979598180658"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "first": {
+              "id": "gid://shopify/Order/8979598115122",
+              "name": "#1870",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9921227063602",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-07-19T22:57:47Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "MERGE"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20283145224498",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109986627890",
+                            "title": "Fulfillment order batch atomicity merge-first 20260719225745",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9921227227442",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-07-19T22:57:47Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "MERGE"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20283145388338",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109986627890",
+                            "title": "Fulfillment order batch atomicity merge-first 20260719225745",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "second": {
+              "id": "gid://shopify/Order/8979598180658",
+              "name": "#1871",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9921227161906",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-07-19T22:57:48Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "MERGE"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20283145322802",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109986726194",
+                            "title": "Fulfillment order batch atomicity merge-second 20260719225746",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9921227260210",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-07-19T22:57:48Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "MERGE"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20283145421106",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109986726194",
+                            "title": "Fulfillment order batch atomicity merge-second 20260719225746",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 118,
+              "actualQueryCost": 18,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1982,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "query": "mutation FulfillmentOrderBatchAtomicityOrderCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8979597984050",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": false
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/74c12575-1338-4f80-8b5f-3cf1eef575d6"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation FulfillmentOrderBatchAtomicityOrderCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8979598016818",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": false
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/ac834645-b146-480d-ae25-aa56036c8286"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation FulfillmentOrderBatchAtomicityOrderCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8979598115122",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": false
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/f755029c-9742-44b6-a3ba-721e46bf5aee"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation FulfillmentOrderBatchAtomicityOrderCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8979598180658",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": false
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/00f5c1eb-5040-497c-903e-88ba1151b69b"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "path": "/admin/api/2026-04/graphql.json",
+      "operationName": "FulfillmentOrderBatchAtomicityOrders",
+      "query": "#graphql\n  fragment FulfillmentOrderBatchAtomicityFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 10) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  query FulfillmentOrderBatchAtomicityOrders($firstOrderId: ID!, $secondOrderId: ID!) {\n    first: order(id: $firstOrderId) {\n      id\n      name\n      displayFulfillmentStatus\n      fulfillmentOrders(first: 10) {\n        nodes {\n          ...FulfillmentOrderBatchAtomicityFields\n        }\n      }\n    }\n    second: order(id: $secondOrderId) {\n      id\n      name\n      displayFulfillmentStatus\n      fulfillmentOrders(first: 10) {\n        nodes {\n          ...FulfillmentOrderBatchAtomicityFields\n        }\n      }\n    }\n  }",
+      "variables": {
+        "firstOrderId": "gid://shopify/Order/8979597984050",
+        "secondOrderId": "gid://shopify/Order/8979598016818"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "first": {
+              "id": "gid://shopify/Order/8979597984050",
+              "name": "#1868",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9921226965298",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-07-19T22:57:43Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "SPLIT"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20283145093426",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109986464050",
+                            "title": "Fulfillment order batch atomicity split-first 20260719225743",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "second": {
+              "id": "gid://shopify/Order/8979598016818",
+              "name": "#1869",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9921226998066",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-07-19T22:57:44Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "SPLIT"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20283145126194",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109986496818",
+                            "title": "Fulfillment order batch atomicity split-second 20260719225743",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 118,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "path": "/admin/api/2026-04/graphql.json",
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9921226965298"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9921226965298",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-07-19T22:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-07-19T22:57:43Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                },
+                {
+                  "action": "SPLIT"
+                }
+              ],
+              "assignedLocation": {
+                "name": "Storefront Enrichment 20260719125625",
+                "location": {
+                  "id": "gid://shopify/Location/114038047026",
+                  "name": "Storefront Enrichment 20260719125625"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20283145093426",
+                    "totalQuantity": 2,
+                    "remainingQuantity": 2,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/20109986464050",
+                      "title": "Fulfillment order batch atomicity split-first 20260719225743",
+                      "quantity": 2,
+                      "fulfillableQuantity": 2
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8979597984050",
+                "name": "#1868",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "path": "/admin/api/2026-04/graphql.json",
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9921226998066"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9921226998066",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-07-19T22:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-07-19T22:57:44Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                },
+                {
+                  "action": "SPLIT"
+                }
+              ],
+              "assignedLocation": {
+                "name": "Storefront Enrichment 20260719125625",
+                "location": {
+                  "id": "gid://shopify/Location/114038047026",
+                  "name": "Storefront Enrichment 20260719125625"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20283145126194",
+                    "totalQuantity": 2,
+                    "remainingQuantity": 2,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/20109986496818",
+                      "title": "Fulfillment order batch atomicity split-second 20260719225743",
+                      "quantity": 2,
+                      "fulfillableQuantity": 2
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8979598016818",
+                "name": "#1869",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "path": "/admin/api/2026-04/graphql.json",
+      "operationName": "FulfillmentOrderBatchAtomicityOrders",
+      "query": "#graphql\n  fragment FulfillmentOrderBatchAtomicityFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 10) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  query FulfillmentOrderBatchAtomicityOrders($firstOrderId: ID!, $secondOrderId: ID!) {\n    first: order(id: $firstOrderId) {\n      id\n      name\n      displayFulfillmentStatus\n      fulfillmentOrders(first: 10) {\n        nodes {\n          ...FulfillmentOrderBatchAtomicityFields\n        }\n      }\n    }\n    second: order(id: $secondOrderId) {\n      id\n      name\n      displayFulfillmentStatus\n      fulfillmentOrders(first: 10) {\n        nodes {\n          ...FulfillmentOrderBatchAtomicityFields\n        }\n      }\n    }\n  }",
+      "variables": {
+        "firstOrderId": "gid://shopify/Order/8979597984050",
+        "secondOrderId": "gid://shopify/Order/8979598016818"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "first": {
+              "id": "gid://shopify/Order/8979597984050",
+              "name": "#1868",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9921226965298",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-07-19T22:57:43Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "SPLIT"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20283145093426",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109986464050",
+                            "title": "Fulfillment order batch atomicity split-first 20260719225743",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "second": {
+              "id": "gid://shopify/Order/8979598016818",
+              "name": "#1869",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9921226998066",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-07-19T22:57:44Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "SPLIT"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20283145126194",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109986496818",
+                            "title": "Fulfillment order batch atomicity split-second 20260719225743",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 118,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "path": "/admin/api/2026-04/graphql.json",
+      "operationName": "FulfillmentOrderBatchAtomicityOrders",
+      "query": "#graphql\n  fragment FulfillmentOrderBatchAtomicityFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 10) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  query FulfillmentOrderBatchAtomicityOrders($firstOrderId: ID!, $secondOrderId: ID!) {\n    first: order(id: $firstOrderId) {\n      id\n      name\n      displayFulfillmentStatus\n      fulfillmentOrders(first: 10) {\n        nodes {\n          ...FulfillmentOrderBatchAtomicityFields\n        }\n      }\n    }\n    second: order(id: $secondOrderId) {\n      id\n      name\n      displayFulfillmentStatus\n      fulfillmentOrders(first: 10) {\n        nodes {\n          ...FulfillmentOrderBatchAtomicityFields\n        }\n      }\n    }\n  }",
+      "variables": {
+        "firstOrderId": "gid://shopify/Order/8979598115122",
+        "secondOrderId": "gid://shopify/Order/8979598180658"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "first": {
+              "id": "gid://shopify/Order/8979598115122",
+              "name": "#1870",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9921227063602",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-07-19T22:57:47Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "MERGE"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20283145224498",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109986627890",
+                            "title": "Fulfillment order batch atomicity merge-first 20260719225745",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9921227227442",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-07-19T22:57:47Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "MERGE"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20283145388338",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109986627890",
+                            "title": "Fulfillment order batch atomicity merge-first 20260719225745",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "second": {
+              "id": "gid://shopify/Order/8979598180658",
+              "name": "#1871",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9921227161906",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-07-19T22:57:48Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "MERGE"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20283145322802",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109986726194",
+                            "title": "Fulfillment order batch atomicity merge-second 20260719225746",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9921227260210",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-07-19T22:57:48Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "MERGE"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20283145421106",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109986726194",
+                            "title": "Fulfillment order batch atomicity merge-second 20260719225746",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 118,
+              "actualQueryCost": 18,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1981,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "path": "/admin/api/2026-04/graphql.json",
+      "operationName": "ShippingFulfillmentOrdersMergeHydrate",
+      "query": "query ShippingFulfillmentOrdersMergeHydrate($ids: [ID!]!) {\n    nodes(ids: $ids) {\n      ... on FulfillmentOrder {\n        id\n        status\n        requestStatus\n        fulfillAt\n        fulfillBy\n        updatedAt\n        supportedActions {\n          action\n        }\n        assignedLocation {\n          name\n          location {\n            id\n            name\n          }\n        }\n        fulfillmentHolds {\n          id\n          handle\n          reason\n          reasonNotes\n          displayReason\n          heldByApp {\n            id\n            title\n          }\n          heldByRequestingApp\n        }\n        merchantRequests(first: 10) {\n          nodes {\n            kind\n            message\n            requestOptions\n          }\n        }\n        lineItems(first: 20) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n              quantity\n              fulfillableQuantity\n            }\n          }\n        }\n        order {\n          id\n          name\n          displayFulfillmentStatus\n        }\n      }\n    }\n  }",
+      "variables": {
+        "ids": [
+          "gid://shopify/FulfillmentOrder/9921227063602",
+          "gid://shopify/FulfillmentOrder/9921227227442",
+          "gid://shopify/FulfillmentOrder/9921227161906",
+          "gid://shopify/FulfillmentOrder/9921227260210"
+        ]
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/FulfillmentOrder/9921227063602",
+                "status": "OPEN",
+                "requestStatus": "UNSUBMITTED",
+                "fulfillAt": "2026-07-19T22:00:00Z",
+                "fulfillBy": null,
+                "updatedAt": "2026-07-19T22:57:47Z",
+                "supportedActions": [
+                  {
+                    "action": "CREATE_FULFILLMENT"
+                  },
+                  {
+                    "action": "REPORT_PROGRESS"
+                  },
+                  {
+                    "action": "MOVE"
+                  },
+                  {
+                    "action": "HOLD"
+                  },
+                  {
+                    "action": "MERGE"
+                  }
+                ],
+                "assignedLocation": {
+                  "name": "Storefront Enrichment 20260719125625",
+                  "location": {
+                    "id": "gid://shopify/Location/114038047026",
+                    "name": "Storefront Enrichment 20260719125625"
+                  }
+                },
+                "fulfillmentHolds": [],
+                "merchantRequests": {
+                  "nodes": []
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/20283145224498",
+                      "totalQuantity": 1,
+                      "remainingQuantity": 1,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/20109986627890",
+                        "title": "Fulfillment order batch atomicity merge-first 20260719225745",
+                        "quantity": 2,
+                        "fulfillableQuantity": 2
+                      }
+                    }
+                  ]
+                },
+                "order": {
+                  "id": "gid://shopify/Order/8979598115122",
+                  "name": "#1870",
+                  "displayFulfillmentStatus": "UNFULFILLED"
+                }
+              },
+              {
+                "id": "gid://shopify/FulfillmentOrder/9921227227442",
+                "status": "OPEN",
+                "requestStatus": "UNSUBMITTED",
+                "fulfillAt": "2026-07-19T22:00:00Z",
+                "fulfillBy": null,
+                "updatedAt": "2026-07-19T22:57:47Z",
+                "supportedActions": [
+                  {
+                    "action": "CREATE_FULFILLMENT"
+                  },
+                  {
+                    "action": "REPORT_PROGRESS"
+                  },
+                  {
+                    "action": "MOVE"
+                  },
+                  {
+                    "action": "HOLD"
+                  },
+                  {
+                    "action": "MERGE"
+                  }
+                ],
+                "assignedLocation": {
+                  "name": "Storefront Enrichment 20260719125625",
+                  "location": {
+                    "id": "gid://shopify/Location/114038047026",
+                    "name": "Storefront Enrichment 20260719125625"
+                  }
+                },
+                "fulfillmentHolds": [],
+                "merchantRequests": {
+                  "nodes": []
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/20283145388338",
+                      "totalQuantity": 1,
+                      "remainingQuantity": 1,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/20109986627890",
+                        "title": "Fulfillment order batch atomicity merge-first 20260719225745",
+                        "quantity": 2,
+                        "fulfillableQuantity": 2
+                      }
+                    }
+                  ]
+                },
+                "order": {
+                  "id": "gid://shopify/Order/8979598115122",
+                  "name": "#1870",
+                  "displayFulfillmentStatus": "UNFULFILLED"
+                }
+              },
+              {
+                "id": "gid://shopify/FulfillmentOrder/9921227161906",
+                "status": "OPEN",
+                "requestStatus": "UNSUBMITTED",
+                "fulfillAt": "2026-07-19T22:00:00Z",
+                "fulfillBy": null,
+                "updatedAt": "2026-07-19T22:57:48Z",
+                "supportedActions": [
+                  {
+                    "action": "CREATE_FULFILLMENT"
+                  },
+                  {
+                    "action": "REPORT_PROGRESS"
+                  },
+                  {
+                    "action": "MOVE"
+                  },
+                  {
+                    "action": "HOLD"
+                  },
+                  {
+                    "action": "MERGE"
+                  }
+                ],
+                "assignedLocation": {
+                  "name": "Storefront Enrichment 20260719125625",
+                  "location": {
+                    "id": "gid://shopify/Location/114038047026",
+                    "name": "Storefront Enrichment 20260719125625"
+                  }
+                },
+                "fulfillmentHolds": [],
+                "merchantRequests": {
+                  "nodes": []
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/20283145322802",
+                      "totalQuantity": 1,
+                      "remainingQuantity": 1,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/20109986726194",
+                        "title": "Fulfillment order batch atomicity merge-second 20260719225746",
+                        "quantity": 2,
+                        "fulfillableQuantity": 2
+                      }
+                    }
+                  ]
+                },
+                "order": {
+                  "id": "gid://shopify/Order/8979598180658",
+                  "name": "#1871",
+                  "displayFulfillmentStatus": "UNFULFILLED"
+                }
+              },
+              {
+                "id": "gid://shopify/FulfillmentOrder/9921227260210",
+                "status": "OPEN",
+                "requestStatus": "UNSUBMITTED",
+                "fulfillAt": "2026-07-19T22:00:00Z",
+                "fulfillBy": null,
+                "updatedAt": "2026-07-19T22:57:48Z",
+                "supportedActions": [
+                  {
+                    "action": "CREATE_FULFILLMENT"
+                  },
+                  {
+                    "action": "REPORT_PROGRESS"
+                  },
+                  {
+                    "action": "MOVE"
+                  },
+                  {
+                    "action": "HOLD"
+                  },
+                  {
+                    "action": "MERGE"
+                  }
+                ],
+                "assignedLocation": {
+                  "name": "Storefront Enrichment 20260719125625",
+                  "location": {
+                    "id": "gid://shopify/Location/114038047026",
+                    "name": "Storefront Enrichment 20260719125625"
+                  }
+                },
+                "fulfillmentHolds": [],
+                "merchantRequests": {
+                  "nodes": []
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/20283145421106",
+                      "totalQuantity": 1,
+                      "remainingQuantity": 1,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/20109986726194",
+                        "title": "Fulfillment order batch atomicity merge-second 20260719225746",
+                        "quantity": 2,
+                        "fulfillableQuantity": 2
+                      }
+                    }
+                  ]
+                },
+                "order": {
+                  "id": "gid://shopify/Order/8979598180658",
+                  "name": "#1871",
+                  "displayFulfillmentStatus": "UNFULFILLED"
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 18,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1982,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "path": "/admin/api/2026-04/graphql.json",
+      "operationName": "FulfillmentOrderBatchAtomicityOrders",
+      "query": "#graphql\n  fragment FulfillmentOrderBatchAtomicityFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 10) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  query FulfillmentOrderBatchAtomicityOrders($firstOrderId: ID!, $secondOrderId: ID!) {\n    first: order(id: $firstOrderId) {\n      id\n      name\n      displayFulfillmentStatus\n      fulfillmentOrders(first: 10) {\n        nodes {\n          ...FulfillmentOrderBatchAtomicityFields\n        }\n      }\n    }\n    second: order(id: $secondOrderId) {\n      id\n      name\n      displayFulfillmentStatus\n      fulfillmentOrders(first: 10) {\n        nodes {\n          ...FulfillmentOrderBatchAtomicityFields\n        }\n      }\n    }\n  }",
+      "variables": {
+        "firstOrderId": "gid://shopify/Order/8979598115122",
+        "secondOrderId": "gid://shopify/Order/8979598180658"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "first": {
+              "id": "gid://shopify/Order/8979598115122",
+              "name": "#1870",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9921227063602",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-07-19T22:57:47Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "MERGE"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20283145224498",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109986627890",
+                            "title": "Fulfillment order batch atomicity merge-first 20260719225745",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9921227227442",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-07-19T22:57:47Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "MERGE"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20283145388338",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109986627890",
+                            "title": "Fulfillment order batch atomicity merge-first 20260719225745",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "second": {
+              "id": "gid://shopify/Order/8979598180658",
+              "name": "#1871",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9921227161906",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-07-19T22:57:48Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "MERGE"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20283145322802",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109986726194",
+                            "title": "Fulfillment order batch atomicity merge-second 20260719225746",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9921227260210",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-07-19T22:57:48Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "MERGE"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20283145421106",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109986726194",
+                            "title": "Fulfillment order batch atomicity merge-second 20260719225746",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 118,
+              "actualQueryCost": 18,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1982,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

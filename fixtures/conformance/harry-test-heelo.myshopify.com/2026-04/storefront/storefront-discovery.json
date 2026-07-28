@@ -1,6 +1,6 @@
 {
   "scenarioId": "storefront-discovery",
-  "capturedAt": "2026-07-16T13:21:05.520Z",
+  "capturedAt": "2026-07-20T08:53:07.706Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "apiSurface": "storefront",
@@ -31,12 +31,12 @@
       "query": "mutation StorefrontDiscoverySetup(\n  $product: ProductCreateInput!\n  $collection: CollectionInput!\n  $blog: BlogCreateInput!\n  $page: PageCreateInput!\n) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      variants(first: 1) {\n        nodes {\n          id\n          price\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  collectionCreate(input: $collection) {\n    collection {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  blogCreate(blog: $blog) {\n    blog {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  pageCreate(page: $page) {\n    page {\n      id\n      title\n      handle\n      body\n      bodySummary\n      isPublished\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "product": {
-          "title": "Aurora Discovery 20260716132027 Product",
-          "handle": "aurora-discovery-product-20260716132027",
+          "title": "Aurora Discovery 20260720085214 Product",
+          "handle": "aurora-discovery-product-20260720085214",
           "status": "ACTIVE",
           "vendor": "Hermes Discovery",
           "productType": "Discovery Fixture",
-          "tags": ["aurora", "discovery", "discovery-20260716132027"],
+          "tags": ["aurora", "discovery", "discovery-20260720085214"],
           "productOptions": [
             {
               "name": "Color",
@@ -49,17 +49,17 @@
           ]
         },
         "collection": {
-          "title": "Aurora Discovery 20260716132027 Collection",
-          "handle": "aurora-discovery-collection-20260716132027"
+          "title": "Aurora Discovery 20260720085214 Collection",
+          "handle": "aurora-discovery-collection-20260720085214"
         },
         "blog": {
-          "title": "Aurora Discovery 20260716132027 Blog",
-          "handle": "aurora-discovery-blog-20260716132027"
+          "title": "Aurora Discovery 20260720085214 Blog",
+          "handle": "aurora-discovery-blog-20260720085214"
         },
         "page": {
-          "title": "Aurora Discovery 20260716132027 Alpha Page",
-          "handle": "aurora-discovery-alpha-page-20260716132027",
-          "body": "<p>Aurora Discovery 20260716132027 alpha page body</p>",
+          "title": "Aurora Discovery 20260720085214 Alpha Page",
+          "handle": "aurora-discovery-alpha-page-20260720085214",
+          "body": "<p>Aurora Discovery 20260720085214 alpha page body</p>",
           "isPublished": true
         }
       }
@@ -69,17 +69,17 @@
       "data": {
         "productCreate": {
           "product": {
-            "id": "gid://shopify/Product/10241849098546",
-            "title": "Aurora Discovery 20260716132027 Product",
-            "handle": "aurora-discovery-product-20260716132027",
+            "id": "gid://shopify/Product/10244156227890",
+            "title": "Aurora Discovery 20260720085214 Product",
+            "handle": "aurora-discovery-product-20260720085214",
             "status": "ACTIVE",
             "vendor": "Hermes Discovery",
             "productType": "Discovery Fixture",
-            "tags": ["aurora", "discovery", "discovery-20260716132027"],
+            "tags": ["aurora", "discovery", "discovery-20260720085214"],
             "variants": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ProductVariant/51481245909298",
+                  "id": "gid://shopify/ProductVariant/51489198113074",
                   "price": "0.00"
                 }
               ]
@@ -89,27 +89,27 @@
         },
         "collectionCreate": {
           "collection": {
-            "id": "gid://shopify/Collection/514506293554",
-            "title": "Aurora Discovery 20260716132027 Collection",
-            "handle": "aurora-discovery-collection-20260716132027"
+            "id": "gid://shopify/Collection/514596372786",
+            "title": "Aurora Discovery 20260720085214 Collection",
+            "handle": "aurora-discovery-collection-20260720085214"
           },
           "userErrors": []
         },
         "blogCreate": {
           "blog": {
-            "id": "gid://shopify/Blog/121859506482",
-            "title": "Aurora Discovery 20260716132027 Blog",
-            "handle": "aurora-discovery-blog-20260716132027"
+            "id": "gid://shopify/Blog/121904922930",
+            "title": "Aurora Discovery 20260720085214 Blog",
+            "handle": "aurora-discovery-blog-20260720085214"
           },
           "userErrors": []
         },
         "pageCreate": {
           "page": {
-            "id": "gid://shopify/Page/161463763250",
-            "title": "Aurora Discovery 20260716132027 Alpha Page",
-            "handle": "aurora-discovery-alpha-page-20260716132027",
-            "body": "<p>Aurora Discovery 20260716132027 alpha page body</p>",
-            "bodySummary": "Aurora Discovery 20260716132027 alpha page body",
+            "id": "gid://shopify/Page/161552269618",
+            "title": "Aurora Discovery 20260720085214 Alpha Page",
+            "handle": "aurora-discovery-alpha-page-20260720085214",
+            "body": "<p>Aurora Discovery 20260720085214 alpha page body</p>",
+            "bodySummary": "Aurora Discovery 20260720085214 alpha page body",
             "isPublished": true
           },
           "userErrors": []
@@ -134,15 +134,15 @@
       "query": "mutation StorefrontDiscoveryArticleSetup($article: ArticleCreateInput!) {\n  articleCreate(article: $article) {\n    article {\n      id\n      title\n      handle\n      body\n      summary\n      tags\n      isPublished\n      author {\n        name\n      }\n      blog {\n        id\n        title\n        handle\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "article": {
-          "title": "Aurora Discovery 20260716132027 Article",
-          "handle": "aurora-discovery-article-20260716132027",
-          "body": "<p>Aurora Discovery 20260716132027 article body</p>",
-          "summary": "Aurora Discovery 20260716132027 article summary",
+          "title": "Aurora Discovery 20260720085214 Article",
+          "handle": "aurora-discovery-article-20260720085214",
+          "body": "<p>Aurora Discovery 20260720085214 article body</p>",
+          "summary": "Aurora Discovery 20260720085214 article summary",
           "tags": ["aurora", "discovery"],
           "author": {
             "name": "Discovery Author"
           },
-          "blogId": "gid://shopify/Blog/121859506482",
+          "blogId": "gid://shopify/Blog/121904922930",
           "isPublished": true
         }
       }
@@ -152,20 +152,20 @@
       "data": {
         "articleCreate": {
           "article": {
-            "id": "gid://shopify/Article/685072548146",
-            "title": "Aurora Discovery 20260716132027 Article",
-            "handle": "aurora-discovery-article-20260716132027",
-            "body": "<p>Aurora Discovery 20260716132027 article body</p>",
-            "summary": "Aurora Discovery 20260716132027 article summary",
+            "id": "gid://shopify/Article/685173014834",
+            "title": "Aurora Discovery 20260720085214 Article",
+            "handle": "aurora-discovery-article-20260720085214",
+            "body": "<p>Aurora Discovery 20260720085214 article body</p>",
+            "summary": "Aurora Discovery 20260720085214 article summary",
             "tags": ["aurora", "discovery"],
             "isPublished": true,
             "author": {
               "name": "Discovery Author"
             },
             "blog": {
-              "id": "gid://shopify/Blog/121859506482",
-              "title": "Aurora Discovery 20260716132027 Blog",
-              "handle": "aurora-discovery-blog-20260716132027"
+              "id": "gid://shopify/Blog/121904922930",
+              "title": "Aurora Discovery 20260720085214 Blog",
+              "handle": "aurora-discovery-blog-20260720085214"
             }
           },
           "userErrors": []
@@ -247,8 +247,8 @@
     "request": {
       "query": "mutation StorefrontDiscoveryPublish(\n  $productId: ID!\n  $collectionId: ID!\n  $input: [PublicationInput!]!\n  $publicationId: ID!\n) {\n  product: publishablePublish(id: $productId, input: $input) {\n    publishable {\n      ... on Product {\n        id\n        publishedOnPublication(publicationId: $publicationId)\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  collection: publishablePublish(id: $collectionId, input: $input) {\n    publishable {\n      ... on Collection {\n        id\n        publishedOnPublication(publicationId: $publicationId)\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
       "variables": {
-        "productId": "gid://shopify/Product/10241849098546",
-        "collectionId": "gid://shopify/Collection/514506293554",
+        "productId": "gid://shopify/Product/10244156227890",
+        "collectionId": "gid://shopify/Collection/514596372786",
         "input": [
           {
             "publicationId": "gid://shopify/Publication/268039389490"
@@ -262,14 +262,14 @@
       "data": {
         "product": {
           "publishable": {
-            "id": "gid://shopify/Product/10241849098546",
+            "id": "gid://shopify/Product/10244156227890",
             "publishedOnPublication": true
           },
           "userErrors": []
         },
         "collection": {
           "publishable": {
-            "id": "gid://shopify/Collection/514506293554",
+            "id": "gid://shopify/Collection/514596372786",
             "publishedOnPublication": true
           },
           "userErrors": []
@@ -283,6 +283,357 @@
             "maximumAvailable": 2000,
             "currentlyAvailable": 1980,
             "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "adminUnrelatedNodeSetup": {
+    "name": "admin-unrelated-node-setup",
+    "request": {
+      "query": "mutation StorefrontNodeUnrelatedSetup(\n  $product: ProductCreateInput!\n  $collection: CollectionInput!\n  $page: PageCreateInput!\n) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      handle\n      status\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  collectionCreate(input: $collection) {\n    collection {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  pageCreate(page: $page) {\n    page {\n      id\n      title\n      handle\n      isPublished\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "product": {
+          "title": "Hermes Cold Node Product 20260720085214",
+          "handle": "hermes-cold-node-product-20260720085214",
+          "status": "ACTIVE",
+          "vendor": "Hermes Node Fidelity",
+          "productType": "Node Fixture",
+          "tags": ["cold-node", "cold-node-20260720085214"]
+        },
+        "collection": {
+          "title": "Hermes Cold Node Collection 20260720085214",
+          "handle": "hermes-cold-node-collection-20260720085214"
+        },
+        "page": {
+          "title": "Hermes Cold Node Page 20260720085214",
+          "handle": "hermes-cold-node-page-20260720085214",
+          "body": "<p>Hermes cold Node page 20260720085214</p>",
+          "isPublished": true
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "productCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10244156358962",
+            "title": "Hermes Cold Node Product 20260720085214",
+            "handle": "hermes-cold-node-product-20260720085214",
+            "status": "ACTIVE"
+          },
+          "userErrors": []
+        },
+        "collectionCreate": {
+          "collection": {
+            "id": "gid://shopify/Collection/514596405554",
+            "title": "Hermes Cold Node Collection 20260720085214",
+            "handle": "hermes-cold-node-collection-20260720085214"
+          },
+          "userErrors": []
+        },
+        "pageCreate": {
+          "page": {
+            "id": "gid://shopify/Page/161552367922",
+            "title": "Hermes Cold Node Page 20260720085214",
+            "handle": "hermes-cold-node-page-20260720085214",
+            "isPublished": true
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 30,
+          "actualQueryCost": 30,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1970,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "adminUnrelatedNodePublish": {
+    "name": "admin-unrelated-node-publish",
+    "request": {
+      "query": "mutation StorefrontDiscoveryPublish(\n  $productId: ID!\n  $collectionId: ID!\n  $input: [PublicationInput!]!\n  $publicationId: ID!\n) {\n  product: publishablePublish(id: $productId, input: $input) {\n    publishable {\n      ... on Product {\n        id\n        publishedOnPublication(publicationId: $publicationId)\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  collection: publishablePublish(id: $collectionId, input: $input) {\n    publishable {\n      ... on Collection {\n        id\n        publishedOnPublication(publicationId: $publicationId)\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "productId": "gid://shopify/Product/10244156358962",
+        "collectionId": "gid://shopify/Collection/514596405554",
+        "input": [
+          {
+            "publicationId": "gid://shopify/Publication/268039389490"
+          }
+        ],
+        "publicationId": "gid://shopify/Publication/268039389490"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "product": {
+          "publishable": {
+            "id": "gid://shopify/Product/10244156358962",
+            "publishedOnPublication": true
+          },
+          "userErrors": []
+        },
+        "collection": {
+          "publishable": {
+            "id": "gid://shopify/Collection/514596405554",
+            "publishedOnPublication": true
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "storefrontNodeMenuHydrate": {
+    "name": "storefront-node-menu-hydrate",
+    "method": "POST",
+    "apiSurface": "storefront",
+    "apiVersion": "2026-04",
+    "path": "/api/2026-04/graphql.json",
+    "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+    "authMode": "storefront-access-token",
+    "headers": {
+      "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+    },
+    "operationName": "StorefrontMenuHydrate",
+    "query": "query StorefrontMenuHydrate($handle: String!) {\n  menu(handle: $handle) {\n    id\n    handle\n    title\n    itemsCount\n    items {\n      id\n      title\n      type\n      url\n      resourceId\n      tags\n      items {\n        id\n        title\n        type\n        url\n        resourceId\n        tags\n        items {\n          id\n          title\n          type\n          url\n          resourceId\n          tags\n        }\n        resource {\n          __typename\n          ... on Article {\n            id\n            handle\n            title\n          }\n          ... on Blog {\n            id\n            handle\n            title\n          }\n          ... on Collection {\n            id\n            handle\n            title\n          }\n          ... on Metaobject {\n            id\n            handle\n          }\n          ... on Page {\n            id\n            handle\n            title\n          }\n          ... on Product {\n            id\n            handle\n            title\n          }\n          ... on ShopPolicy {\n            id\n            handle\n            title\n          }\n        }\n      }\n      resource {\n        __typename\n        ... on Article {\n          id\n          handle\n          title\n        }\n        ... on Blog {\n          id\n          handle\n          title\n        }\n        ... on Collection {\n          id\n          handle\n          title\n        }\n        ... on Metaobject {\n          id\n          handle\n        }\n        ... on Page {\n          id\n          handle\n          title\n        }\n        ... on Product {\n          id\n          handle\n          title\n        }\n        ... on ShopPolicy {\n          id\n          handle\n          title\n        }\n      }\n    }\n  }\n}\n",
+    "variables": {
+      "handle": "main-menu"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "menu": {
+            "id": "gid://shopify/Menu/291567599922",
+            "handle": "main-menu",
+            "title": "Main menu",
+            "itemsCount": 3,
+            "items": [
+              {
+                "id": "gid://shopify/MenuItem/728151228722",
+                "title": "Home",
+                "type": "FRONTPAGE",
+                "url": "https://harry-test-heelo.myshopify.com/",
+                "resourceId": null,
+                "tags": [],
+                "items": [],
+                "resource": null
+              },
+              {
+                "id": "gid://shopify/MenuItem/728151261490",
+                "title": "Catalog",
+                "type": "CATALOG",
+                "url": "https://harry-test-heelo.myshopify.com/collections/all",
+                "resourceId": null,
+                "tags": [],
+                "items": [],
+                "resource": null
+              },
+              {
+                "id": "gid://shopify/MenuItem/728151294258",
+                "title": "Contact",
+                "type": "PAGE",
+                "url": "https://harry-test-heelo.myshopify.com/pages/contact",
+                "resourceId": "gid://shopify/Page/148098187570",
+                "tags": [],
+                "items": [],
+                "resource": {
+                  "__typename": "Page",
+                  "id": "gid://shopify/Page/148098187570",
+                  "handle": "contact",
+                  "title": "Contact"
+                }
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 8
+          }
+        }
+      }
+    }
+  },
+  "storefrontNodeOverlayExpected": {
+    "name": "storefront-node-overlay-expected",
+    "method": "POST",
+    "apiSurface": "storefront",
+    "apiVersion": "2026-04",
+    "path": "/api/2026-04/graphql.json",
+    "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+    "authMode": "storefront-access-token",
+    "headers": {
+      "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+    },
+    "operationName": "StorefrontNodeOverlayRead",
+    "query": "query StorefrontNodeOverlayRead($menuId: ID!, $ids: [ID!]!) {\n  singleMenu: node(id: $menuId) {\n    __typename\n    id\n    ... on Menu {\n      handle\n      title\n      itemsCount\n    }\n  }\n  mixed: nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      handle\n      title\n    }\n    ... on Collection {\n      handle\n      title\n    }\n    ... on Page {\n      handle\n      title\n    }\n    ... on Menu {\n      handle\n      title\n      itemsCount\n    }\n  }\n}\n",
+    "variables": {
+      "menuId": "gid://shopify/Menu/291567599922",
+      "ids": [
+        "gid://shopify/Product/10244156227890",
+        "gid://shopify/Product/10244156358962",
+        "gid://shopify/Collection/514596405554",
+        "gid://shopify/Page/161552367922",
+        "gid://shopify/Menu/291567599922",
+        "gid://shopify/Page/999999999999999999",
+        "gid://shopify/Page/161552367922"
+      ]
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "singleMenu": {
+            "__typename": "Menu",
+            "id": "gid://shopify/Menu/291567599922",
+            "handle": "main-menu",
+            "title": "Main menu",
+            "itemsCount": 3
+          },
+          "mixed": [
+            {
+              "__typename": "Product",
+              "id": "gid://shopify/Product/10244156227890",
+              "handle": "aurora-discovery-product-20260720085214",
+              "title": "Aurora Discovery 20260720085214 Product"
+            },
+            {
+              "__typename": "Product",
+              "id": "gid://shopify/Product/10244156358962",
+              "handle": "hermes-cold-node-product-20260720085214",
+              "title": "Hermes Cold Node Product 20260720085214"
+            },
+            {
+              "__typename": "Collection",
+              "id": "gid://shopify/Collection/514596405554",
+              "handle": "hermes-cold-node-collection-20260720085214",
+              "title": "Hermes Cold Node Collection 20260720085214"
+            },
+            {
+              "__typename": "Page",
+              "id": "gid://shopify/Page/161552367922",
+              "handle": "hermes-cold-node-page-20260720085214",
+              "title": "Hermes Cold Node Page 20260720085214"
+            },
+            {
+              "__typename": "Menu",
+              "id": "gid://shopify/Menu/291567599922",
+              "handle": "main-menu",
+              "title": "Main menu",
+              "itemsCount": 3
+            },
+            null,
+            {
+              "__typename": "Page",
+              "id": "gid://shopify/Page/161552367922",
+              "handle": "hermes-cold-node-page-20260720085214",
+              "title": "Hermes Cold Node Page 20260720085214"
+            }
+          ]
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 4
+          }
+        }
+      }
+    }
+  },
+  "storefrontNodeOverlayUpstream": {
+    "name": "storefront-node-overlay-upstream",
+    "method": "POST",
+    "apiSurface": "storefront",
+    "apiVersion": "2026-04",
+    "path": "/api/2026-04/graphql.json",
+    "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+    "authMode": "storefront-access-token",
+    "headers": {
+      "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+    },
+    "operationName": "StorefrontNodeOverlayRead",
+    "query": "query StorefrontNodeOverlayRead($menuId: ID!, $ids: [ID!]!) {\n  singleMenu: node(id: $menuId) {\n    __typename\n    id\n    ... on Menu {\n      handle\n      title\n      itemsCount\n    }\n  }\n  mixed: nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      handle\n      title\n    }\n    ... on Collection {\n      handle\n      title\n    }\n    ... on Page {\n      handle\n      title\n    }\n    ... on Menu {\n      handle\n      title\n      itemsCount\n    }\n  }\n}\n",
+    "variables": {
+      "menuId": "gid://shopify/Menu/291567599922",
+      "ids": [
+        "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+        "gid://shopify/Product/10244156358962",
+        "gid://shopify/Collection/514596405554",
+        "gid://shopify/Page/161552367922",
+        "gid://shopify/Menu/291567599922",
+        "gid://shopify/Page/999999999999999999",
+        "gid://shopify/Page/161552367922"
+      ]
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "singleMenu": {
+            "__typename": "Menu",
+            "id": "gid://shopify/Menu/291567599922",
+            "handle": "main-menu",
+            "title": "Main menu",
+            "itemsCount": 3
+          },
+          "mixed": [
+            null,
+            {
+              "__typename": "Product",
+              "id": "gid://shopify/Product/10244156358962",
+              "handle": "hermes-cold-node-product-20260720085214",
+              "title": "Hermes Cold Node Product 20260720085214"
+            },
+            {
+              "__typename": "Collection",
+              "id": "gid://shopify/Collection/514596405554",
+              "handle": "hermes-cold-node-collection-20260720085214",
+              "title": "Hermes Cold Node Collection 20260720085214"
+            },
+            {
+              "__typename": "Page",
+              "id": "gid://shopify/Page/161552367922",
+              "handle": "hermes-cold-node-page-20260720085214",
+              "title": "Hermes Cold Node Page 20260720085214"
+            },
+            {
+              "__typename": "Menu",
+              "id": "gid://shopify/Menu/291567599922",
+              "handle": "main-menu",
+              "title": "Main menu",
+              "itemsCount": 3
+            },
+            null,
+            {
+              "__typename": "Page",
+              "id": "gid://shopify/Page/161552367922",
+              "handle": "hermes-cold-node-page-20260720085214",
+              "title": "Hermes Cold Node Page 20260720085214"
+            }
+          ]
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 4
           }
         }
       }
@@ -302,20 +653,20 @@
     "operationName": "StorefrontDiscoveryRead",
     "query": "query StorefrontDiscoveryRead(\n  $productId: ID!\n  $nodeIds: [ID!]!\n  $query: String!\n  $prefixQuery: String!\n  $emptyQuery: String!\n  $suggestionsQuery: String!\n  $tag: String!\n  $after: String\n) {\n  aliasedNode: node(id: $productId) {\n    ...NodeIdentity\n    ... on Product {\n      aliasedTitle: title\n      handle\n      vendor\n      productType\n      tags\n      availableForSale\n    }\n  }\n  aliasedNodes: nodes(ids: $nodeIds) {\n    ...NodeIdentity\n    ... on Product {\n      title\n      handle\n      vendor\n      productType\n      tags\n      availableForSale\n    }\n    ... on Collection {\n      title\n      handle\n    }\n    ... on Article {\n      title\n      handle\n      tags\n      author {\n        name\n      }\n      blog {\n        id\n        title\n        handle\n      }\n    }\n    ... on Page {\n      title\n      handle\n      bodySummary\n    }\n  }\n  mixed: search(\n    first: 2\n    after: $after\n    query: $query\n    prefix: LAST\n    types: [PRODUCT, ARTICLE, PAGE]\n    unavailableProducts: SHOW\n  ) {\n    edges {\n      cursor\n      node {\n        ...SearchResultFields\n      }\n    }\n    nodes {\n      ...SearchResultFields\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n    productFilters {\n      id\n      label\n      presentation\n      type\n      values {\n        id\n        label\n        count\n        input\n      }\n    }\n    totalCount\n  }\n  prefixLast: search(first: 10, query: $prefixQuery, prefix: LAST, unavailableProducts: SHOW) {\n    nodes {\n      ...SearchResultFields\n    }\n    totalCount\n  }\n  prefixNone: search(first: 10, query: $prefixQuery, prefix: NONE, unavailableProducts: SHOW) {\n    nodes {\n      ...SearchResultFields\n    }\n    totalCount\n  }\n  filteredProducts: search(\n    first: 10\n    query: $query\n    productFilters: [{ tag: $tag }]\n    sortKey: PRICE\n    types: [PRODUCT]\n    unavailableProducts: SHOW\n  ) {\n    nodes {\n      ...SearchResultFields\n    }\n    totalCount\n  }\n  hiddenUnavailableProducts: search(\n    first: 10\n    query: $query\n    types: [PRODUCT]\n    unavailableProducts: HIDE\n  ) {\n    nodes {\n      ...SearchResultFields\n    }\n    totalCount\n  }\n  empty: search(first: 10, query: $emptyQuery) {\n    nodes {\n      ...SearchResultFields\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n    productFilters {\n      id\n      label\n      presentation\n      type\n      values {\n        id\n        label\n        count\n        input\n      }\n    }\n    totalCount\n  }\n  predictiveEach: predictiveSearch(\n    query: $prefixQuery\n    limit: 10\n    limitScope: EACH\n    searchableFields: [TITLE, TAG, PRODUCT_TYPE, VENDOR]\n    types: [PRODUCT, COLLECTION, ARTICLE, PAGE]\n    unavailableProducts: SHOW\n  ) {\n    products {\n      id\n      title\n      handle\n      vendor\n      productType\n      tags\n      availableForSale\n    }\n    collections {\n      id\n      title\n      handle\n    }\n    articles {\n      id\n      title\n      handle\n      tags\n    }\n    pages {\n      id\n      title\n      handle\n      bodySummary\n    }\n    queries {\n      text\n      styledText\n      trackingParameters\n    }\n  }\n  predictiveAll: predictiveSearch(\n    query: $query\n    limit: 3\n    limitScope: ALL\n    types: [PRODUCT, COLLECTION, ARTICLE, PAGE]\n    unavailableProducts: LAST\n  ) {\n    products {\n      id\n      title\n      handle\n    }\n    collections {\n      id\n      title\n      handle\n    }\n    articles {\n      id\n      title\n      handle\n    }\n    pages {\n      id\n      title\n      handle\n    }\n  }\n  suggestions: predictiveSearch(query: $suggestionsQuery, limit: 3, types: [QUERY]) {\n    queries {\n      text\n      styledText\n      trackingParameters\n    }\n  }\n  emptyPredictive: predictiveSearch(query: $emptyQuery, limit: 10) {\n    products {\n      id\n      title\n      handle\n    }\n    collections {\n      id\n      title\n      handle\n    }\n    articles {\n      id\n      title\n      handle\n    }\n    pages {\n      id\n      title\n      handle\n    }\n    queries {\n      text\n      styledText\n      trackingParameters\n    }\n  }\n}\n\nfragment NodeIdentity on Node {\n  __typename\n  id\n}\n\nfragment SearchResultFields on SearchResultItem {\n  __typename\n  ... on Product {\n    id\n    title\n    handle\n    vendor\n    productType\n    tags\n    availableForSale\n    priceRange {\n      minVariantPrice {\n        amount\n        currencyCode\n      }\n      maxVariantPrice {\n        amount\n        currencyCode\n      }\n    }\n  }\n  ... on Article {\n    id\n    title\n    handle\n    tags\n    author {\n      name\n    }\n    blog {\n      id\n      title\n      handle\n    }\n  }\n  ... on Page {\n    id\n    title\n    handle\n    bodySummary\n  }\n}\n",
     "variables": {
-      "productId": "gid://shopify/Product/10241849098546",
+      "productId": "gid://shopify/Product/10244156227890",
       "nodeIds": [
-        "gid://shopify/Page/161463763250",
+        "gid://shopify/Page/161552269618",
         "gid://shopify/Product/999999999999999999",
-        "gid://shopify/Collection/514506293554",
-        "gid://shopify/Article/685072548146",
-        "gid://shopify/Product/10241849098546",
-        "gid://shopify/Page/161463763250"
+        "gid://shopify/Collection/514596372786",
+        "gid://shopify/Article/685173014834",
+        "gid://shopify/Product/10244156227890",
+        "gid://shopify/Page/161552269618"
       ],
-      "query": "Aurora Discovery 202607161320",
-      "prefixQuery": "Aurora Discovery 202607161320",
-      "emptyQuery": "zz-no-result-20260716132027",
+      "query": "Aurora Discovery 202607200852",
+      "prefixQuery": "Aurora Discovery 202607200852",
+      "emptyQuery": "zz-no-result-20260720085214",
       "suggestionsQuery": "a",
-      "tag": "discovery-20260716132027",
+      "tag": "discovery-20260720085214",
       "after": null
     },
     "response": {
@@ -324,74 +675,74 @@
         "data": {
           "aliasedNode": {
             "__typename": "Product",
-            "id": "gid://shopify/Product/10241849098546",
-            "aliasedTitle": "Aurora Discovery 20260716132027 Product",
-            "handle": "aurora-discovery-product-20260716132027",
+            "id": "gid://shopify/Product/10244156227890",
+            "aliasedTitle": "Aurora Discovery 20260720085214 Product",
+            "handle": "aurora-discovery-product-20260720085214",
             "vendor": "Hermes Discovery",
             "productType": "Discovery Fixture",
-            "tags": ["aurora", "discovery", "discovery-20260716132027"],
+            "tags": ["aurora", "discovery", "discovery-20260720085214"],
             "availableForSale": true
           },
           "aliasedNodes": [
             {
               "__typename": "Page",
-              "id": "gid://shopify/Page/161463763250",
-              "title": "Aurora Discovery 20260716132027 Alpha Page",
-              "handle": "aurora-discovery-alpha-page-20260716132027",
-              "bodySummary": "Aurora Discovery 20260716132027 alpha page body"
+              "id": "gid://shopify/Page/161552269618",
+              "title": "Aurora Discovery 20260720085214 Alpha Page",
+              "handle": "aurora-discovery-alpha-page-20260720085214",
+              "bodySummary": "Aurora Discovery 20260720085214 alpha page body"
             },
             null,
             {
               "__typename": "Collection",
-              "id": "gid://shopify/Collection/514506293554",
-              "title": "Aurora Discovery 20260716132027 Collection",
-              "handle": "aurora-discovery-collection-20260716132027"
+              "id": "gid://shopify/Collection/514596372786",
+              "title": "Aurora Discovery 20260720085214 Collection",
+              "handle": "aurora-discovery-collection-20260720085214"
             },
             {
               "__typename": "Article",
-              "id": "gid://shopify/Article/685072548146",
-              "title": "Aurora Discovery 20260716132027 Article",
-              "handle": "aurora-discovery-article-20260716132027",
+              "id": "gid://shopify/Article/685173014834",
+              "title": "Aurora Discovery 20260720085214 Article",
+              "handle": "aurora-discovery-article-20260720085214",
               "tags": ["aurora", "discovery"],
               "author": {
                 "name": "Discovery Author"
               },
               "blog": {
-                "id": "gid://shopify/Blog/121859506482",
-                "title": "Aurora Discovery 20260716132027 Blog",
-                "handle": "aurora-discovery-blog-20260716132027"
+                "id": "gid://shopify/Blog/121904922930",
+                "title": "Aurora Discovery 20260720085214 Blog",
+                "handle": "aurora-discovery-blog-20260720085214"
               }
             },
             {
               "__typename": "Product",
-              "id": "gid://shopify/Product/10241849098546",
-              "title": "Aurora Discovery 20260716132027 Product",
-              "handle": "aurora-discovery-product-20260716132027",
+              "id": "gid://shopify/Product/10244156227890",
+              "title": "Aurora Discovery 20260720085214 Product",
+              "handle": "aurora-discovery-product-20260720085214",
               "vendor": "Hermes Discovery",
               "productType": "Discovery Fixture",
-              "tags": ["aurora", "discovery", "discovery-20260716132027"],
+              "tags": ["aurora", "discovery", "discovery-20260720085214"],
               "availableForSale": true
             },
             {
               "__typename": "Page",
-              "id": "gid://shopify/Page/161463763250",
-              "title": "Aurora Discovery 20260716132027 Alpha Page",
-              "handle": "aurora-discovery-alpha-page-20260716132027",
-              "bodySummary": "Aurora Discovery 20260716132027 alpha page body"
+              "id": "gid://shopify/Page/161552269618",
+              "title": "Aurora Discovery 20260720085214 Alpha Page",
+              "handle": "aurora-discovery-alpha-page-20260720085214",
+              "bodySummary": "Aurora Discovery 20260720085214 alpha page body"
             }
           ],
           "mixed": {
             "edges": [
               {
-                "cursor": "eyJwYWdlIjoyLCJsYXN0X2lkIjoxMDI0MTg0OTA5ODU0NiwicmV2ZXJzZSI6dHJ1ZSwib2Zmc2V0IjowfQ==",
+                "cursor": "eyJwYWdlIjoxLCJsYXN0X2lkIjoxMDI0NDE1NjIyNzg5MCwicmV2ZXJzZSI6dHJ1ZSwib2Zmc2V0IjowfQ==",
                 "node": {
                   "__typename": "Product",
-                  "id": "gid://shopify/Product/10241849098546",
-                  "title": "Aurora Discovery 20260716132027 Product",
-                  "handle": "aurora-discovery-product-20260716132027",
+                  "id": "gid://shopify/Product/10244156227890",
+                  "title": "Aurora Discovery 20260720085214 Product",
+                  "handle": "aurora-discovery-product-20260720085214",
                   "vendor": "Hermes Discovery",
                   "productType": "Discovery Fixture",
-                  "tags": ["aurora", "discovery", "discovery-20260716132027"],
+                  "tags": ["aurora", "discovery", "discovery-20260720085214"],
                   "availableForSale": true,
                   "priceRange": {
                     "minVariantPrice": {
@@ -409,12 +760,12 @@
             "nodes": [
               {
                 "__typename": "Product",
-                "id": "gid://shopify/Product/10241849098546",
-                "title": "Aurora Discovery 20260716132027 Product",
-                "handle": "aurora-discovery-product-20260716132027",
+                "id": "gid://shopify/Product/10244156227890",
+                "title": "Aurora Discovery 20260720085214 Product",
+                "handle": "aurora-discovery-product-20260720085214",
                 "vendor": "Hermes Discovery",
                 "productType": "Discovery Fixture",
-                "tags": ["aurora", "discovery", "discovery-20260716132027"],
+                "tags": ["aurora", "discovery", "discovery-20260720085214"],
                 "availableForSale": true,
                 "priceRange": {
                   "minVariantPrice": {
@@ -431,8 +782,8 @@
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJwYWdlIjoyLCJsYXN0X2lkIjoxMDI0MTg0OTA5ODU0NiwicmV2ZXJzZSI6dHJ1ZSwib2Zmc2V0IjowfQ==",
-              "endCursor": "eyJwYWdlIjoyLCJsYXN0X2lkIjoxMDI0MTg0OTA5ODU0NiwicmV2ZXJzZSI6dHJ1ZSwib2Zmc2V0IjowfQ=="
+              "startCursor": "eyJwYWdlIjoxLCJsYXN0X2lkIjoxMDI0NDE1NjIyNzg5MCwicmV2ZXJzZSI6dHJ1ZSwib2Zmc2V0IjowfQ==",
+              "endCursor": "eyJwYWdlIjoxLCJsYXN0X2lkIjoxMDI0NDE1NjIyNzg5MCwicmV2ZXJzZSI6dHJ1ZSwib2Zmc2V0IjowfQ=="
             },
             "productFilters": [
               {
@@ -454,6 +805,20 @@
                     "input": "{\"available\":false}"
                   }
                 ]
+              },
+              {
+                "id": "filter.v.price",
+                "label": "Price",
+                "presentation": null,
+                "type": "PRICE_RANGE",
+                "values": [
+                  {
+                    "id": "filter.v.price",
+                    "label": "Price",
+                    "count": 0,
+                    "input": "{\"price\":{\"min\":0,\"max\":0.0}}"
+                  }
+                ]
               }
             ],
             "totalCount": 1
@@ -462,12 +827,12 @@
             "nodes": [
               {
                 "__typename": "Product",
-                "id": "gid://shopify/Product/10241849098546",
-                "title": "Aurora Discovery 20260716132027 Product",
-                "handle": "aurora-discovery-product-20260716132027",
+                "id": "gid://shopify/Product/10244156227890",
+                "title": "Aurora Discovery 20260720085214 Product",
+                "handle": "aurora-discovery-product-20260720085214",
                 "vendor": "Hermes Discovery",
                 "productType": "Discovery Fixture",
-                "tags": ["aurora", "discovery", "discovery-20260716132027"],
+                "tags": ["aurora", "discovery", "discovery-20260720085214"],
                 "availableForSale": true,
                 "priceRange": {
                   "minVariantPrice": {
@@ -482,25 +847,25 @@
               },
               {
                 "__typename": "Article",
-                "id": "gid://shopify/Article/685072548146",
-                "title": "Aurora Discovery 20260716132027 Article",
-                "handle": "aurora-discovery-article-20260716132027",
+                "id": "gid://shopify/Article/685173014834",
+                "title": "Aurora Discovery 20260720085214 Article",
+                "handle": "aurora-discovery-article-20260720085214",
                 "tags": ["aurora", "discovery"],
                 "author": {
                   "name": "Discovery Author"
                 },
                 "blog": {
-                  "id": "gid://shopify/Blog/121859506482",
-                  "title": "Aurora Discovery 20260716132027 Blog",
-                  "handle": "aurora-discovery-blog-20260716132027"
+                  "id": "gid://shopify/Blog/121904922930",
+                  "title": "Aurora Discovery 20260720085214 Blog",
+                  "handle": "aurora-discovery-blog-20260720085214"
                 }
               },
               {
                 "__typename": "Page",
-                "id": "gid://shopify/Page/161463763250",
-                "title": "Aurora Discovery 20260716132027 Alpha Page",
-                "handle": "aurora-discovery-alpha-page-20260716132027",
-                "bodySummary": "Aurora Discovery 20260716132027 alpha page body"
+                "id": "gid://shopify/Page/161552269618",
+                "title": "Aurora Discovery 20260720085214 Alpha Page",
+                "handle": "aurora-discovery-alpha-page-20260720085214",
+                "bodySummary": "Aurora Discovery 20260720085214 alpha page body"
               }
             ],
             "totalCount": 3
@@ -509,12 +874,12 @@
             "nodes": [
               {
                 "__typename": "Product",
-                "id": "gid://shopify/Product/10241849098546",
-                "title": "Aurora Discovery 20260716132027 Product",
-                "handle": "aurora-discovery-product-20260716132027",
+                "id": "gid://shopify/Product/10244156227890",
+                "title": "Aurora Discovery 20260720085214 Product",
+                "handle": "aurora-discovery-product-20260720085214",
                 "vendor": "Hermes Discovery",
                 "productType": "Discovery Fixture",
-                "tags": ["aurora", "discovery", "discovery-20260716132027"],
+                "tags": ["aurora", "discovery", "discovery-20260720085214"],
                 "availableForSale": true,
                 "priceRange": {
                   "minVariantPrice": {
@@ -534,12 +899,12 @@
             "nodes": [
               {
                 "__typename": "Product",
-                "id": "gid://shopify/Product/10241849098546",
-                "title": "Aurora Discovery 20260716132027 Product",
-                "handle": "aurora-discovery-product-20260716132027",
+                "id": "gid://shopify/Product/10244156227890",
+                "title": "Aurora Discovery 20260720085214 Product",
+                "handle": "aurora-discovery-product-20260720085214",
                 "vendor": "Hermes Discovery",
                 "productType": "Discovery Fixture",
-                "tags": ["aurora", "discovery", "discovery-20260716132027"],
+                "tags": ["aurora", "discovery", "discovery-20260720085214"],
                 "availableForSale": true,
                 "priceRange": {
                   "minVariantPrice": {
@@ -559,12 +924,12 @@
             "nodes": [
               {
                 "__typename": "Product",
-                "id": "gid://shopify/Product/10241849098546",
-                "title": "Aurora Discovery 20260716132027 Product",
-                "handle": "aurora-discovery-product-20260716132027",
+                "id": "gid://shopify/Product/10244156227890",
+                "title": "Aurora Discovery 20260720085214 Product",
+                "handle": "aurora-discovery-product-20260720085214",
                 "vendor": "Hermes Discovery",
                 "productType": "Discovery Fixture",
-                "tags": ["aurora", "discovery", "discovery-20260716132027"],
+                "tags": ["aurora", "discovery", "discovery-20260720085214"],
                 "availableForSale": true,
                 "priceRange": {
                   "minVariantPrice": {
@@ -609,36 +974,36 @@
           "predictiveEach": {
             "products": [
               {
-                "id": "gid://shopify/Product/10241849098546",
-                "title": "Aurora Discovery 20260716132027 Product",
-                "handle": "aurora-discovery-product-20260716132027",
+                "id": "gid://shopify/Product/10244156227890",
+                "title": "Aurora Discovery 20260720085214 Product",
+                "handle": "aurora-discovery-product-20260720085214",
                 "vendor": "Hermes Discovery",
                 "productType": "Discovery Fixture",
-                "tags": ["aurora", "discovery", "discovery-20260716132027"],
+                "tags": ["aurora", "discovery", "discovery-20260720085214"],
                 "availableForSale": true
               }
             ],
             "collections": [
               {
-                "id": "gid://shopify/Collection/514506293554",
-                "title": "Aurora Discovery 20260716132027 Collection",
-                "handle": "aurora-discovery-collection-20260716132027"
+                "id": "gid://shopify/Collection/514596372786",
+                "title": "Aurora Discovery 20260720085214 Collection",
+                "handle": "aurora-discovery-collection-20260720085214"
               }
             ],
             "articles": [
               {
-                "id": "gid://shopify/Article/685072548146",
-                "title": "Aurora Discovery 20260716132027 Article",
-                "handle": "aurora-discovery-article-20260716132027",
+                "id": "gid://shopify/Article/685173014834",
+                "title": "Aurora Discovery 20260720085214 Article",
+                "handle": "aurora-discovery-article-20260720085214",
                 "tags": ["aurora", "discovery"]
               }
             ],
             "pages": [
               {
-                "id": "gid://shopify/Page/161463763250",
-                "title": "Aurora Discovery 20260716132027 Alpha Page",
-                "handle": "aurora-discovery-alpha-page-20260716132027",
-                "bodySummary": "Aurora Discovery 20260716132027 alpha page body"
+                "id": "gid://shopify/Page/161552269618",
+                "title": "Aurora Discovery 20260720085214 Alpha Page",
+                "handle": "aurora-discovery-alpha-page-20260720085214",
+                "bodySummary": "Aurora Discovery 20260720085214 alpha page body"
               }
             ],
             "queries": []
@@ -646,24 +1011,24 @@
           "predictiveAll": {
             "products": [
               {
-                "id": "gid://shopify/Product/10241849098546",
-                "title": "Aurora Discovery 20260716132027 Product",
-                "handle": "aurora-discovery-product-20260716132027"
+                "id": "gid://shopify/Product/10244156227890",
+                "title": "Aurora Discovery 20260720085214 Product",
+                "handle": "aurora-discovery-product-20260720085214"
               }
             ],
             "collections": [
               {
-                "id": "gid://shopify/Collection/514506293554",
-                "title": "Aurora Discovery 20260716132027 Collection",
-                "handle": "aurora-discovery-collection-20260716132027"
+                "id": "gid://shopify/Collection/514596372786",
+                "title": "Aurora Discovery 20260720085214 Collection",
+                "handle": "aurora-discovery-collection-20260720085214"
               }
             ],
             "articles": [],
             "pages": [
               {
-                "id": "gid://shopify/Page/161463763250",
-                "title": "Aurora Discovery 20260716132027 Alpha Page",
-                "handle": "aurora-discovery-alpha-page-20260716132027"
+                "id": "gid://shopify/Page/161552269618",
+                "title": "Aurora Discovery 20260720085214 Alpha Page",
+                "handle": "aurora-discovery-alpha-page-20260720085214"
               }
             ]
           },
@@ -672,17 +1037,17 @@
               {
                 "text": "atom",
                 "styledText": "<mark>a</mark><span>tom</span>",
-                "trackingParameters": "_pos=1&_psid=fb03ccb66&_psq=a&_ss=e&_v=1.0"
+                "trackingParameters": "_pos=1&_psid=746e6ca4c&_psq=a&_ss=e&_v=1.0"
               },
               {
                 "text": "afterburner",
                 "styledText": "<mark>a</mark><span>fterburner</span>",
-                "trackingParameters": "_pos=2&_psid=fb03ccb66&_psq=a&_ss=e&_v=1.0"
+                "trackingParameters": "_pos=2&_psid=746e6ca4c&_psq=a&_ss=e&_v=1.0"
               },
               {
                 "text": "armchair",
                 "styledText": "<mark>a</mark><span>rmchair</span>",
-                "trackingParameters": "_pos=3&_psid=fb03ccb66&_psq=a&_ss=e&_v=1.0"
+                "trackingParameters": "_pos=3&_psid=746e6ca4c&_psq=a&_ss=e&_v=1.0"
               }
             ]
           },
@@ -708,9 +1073,9 @@
       "query": "mutation StorefrontDiscoverySecondPageSetup($page: PageCreateInput!) {\n  pageCreate(page: $page) {\n    page {\n      id\n      title\n      handle\n      body\n      bodySummary\n      isPublished\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "page": {
-          "title": "Aurora Discovery 20260716132027 Beta Page",
-          "handle": "aurora-discovery-beta-page-20260716132027",
-          "body": "<p>Aurora Discovery 20260716132027 beta page body</p>",
+          "title": "Aurora Discovery 20260720085214 Aardvark Page",
+          "handle": "aurora-discovery-beta-page-20260720085214",
+          "body": "<p>Aurora Discovery 20260720085214 beta page body</p>",
           "isPublished": true
         }
       }
@@ -720,11 +1085,11 @@
       "data": {
         "pageCreate": {
           "page": {
-            "id": "gid://shopify/Page/161463796018",
-            "title": "Aurora Discovery 20260716132027 Beta Page",
-            "handle": "aurora-discovery-beta-page-20260716132027",
-            "body": "<p>Aurora Discovery 20260716132027 beta page body</p>",
-            "bodySummary": "Aurora Discovery 20260716132027 beta page body",
+            "id": "gid://shopify/Page/161552335154",
+            "title": "Aurora Discovery 20260720085214 Aardvark Page",
+            "handle": "aurora-discovery-beta-page-20260720085214",
+            "body": "<p>Aurora Discovery 20260720085214 beta page body</p>",
+            "bodySummary": "Aurora Discovery 20260720085214 beta page body",
             "isPublished": true
           },
           "userErrors": []
@@ -757,7 +1122,7 @@
     "operationName": "StorefrontDiscoveryPagination",
     "query": "query StorefrontDiscoveryPagination($query: String!, $after: String) {\n  pagination: search(first: 1, after: $after, query: $query, prefix: LAST, types: [PAGE]) {\n    nodes {\n      __typename\n      ... on Page {\n        id\n        title\n        handle\n        bodySummary\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n    totalCount\n  }\n}\n",
     "variables": {
-      "query": "Aurora Discovery 202607161320",
+      "query": "Aurora Discovery 202607200852",
       "after": null
     },
     "response": {
@@ -768,17 +1133,17 @@
             "nodes": [
               {
                 "__typename": "Page",
-                "id": "gid://shopify/Page/161463763250",
-                "title": "Aurora Discovery 20260716132027 Alpha Page",
-                "handle": "aurora-discovery-alpha-page-20260716132027",
-                "bodySummary": "Aurora Discovery 20260716132027 alpha page body"
+                "id": "gid://shopify/Page/161552335154",
+                "title": "Aurora Discovery 20260720085214 Aardvark Page",
+                "handle": "aurora-discovery-beta-page-20260720085214",
+                "bodySummary": "Aurora Discovery 20260720085214 beta page body"
               }
             ],
             "pageInfo": {
               "hasNextPage": true,
               "hasPreviousPage": false,
-              "startCursor": "eyJwYWdlIjoyLCJsYXN0X2lkIjoxNjE0NjM3NjMyNTAsInJldmVyc2UiOnRydWUsIm9mZnNldCI6MH0=",
-              "endCursor": "eyJwYWdlIjoyLCJsYXN0X2lkIjoxNjE0NjM3NjMyNTAsInJldmVyc2UiOnRydWUsIm9mZnNldCI6MH0="
+              "startCursor": "eyJwYWdlIjoyLCJsYXN0X2lkIjoxNjE1NTIzMzUxNTQsInJldmVyc2UiOnRydWUsIm9mZnNldCI6MH0=",
+              "endCursor": "eyJwYWdlIjoyLCJsYXN0X2lkIjoxNjE1NTIzMzUxNTQsInJldmVyc2UiOnRydWUsIm9mZnNldCI6MH0="
             },
             "totalCount": 2
           }
@@ -805,8 +1170,8 @@
     "operationName": "StorefrontDiscoveryPagination",
     "query": "query StorefrontDiscoveryPagination($query: String!, $after: String) {\n  pagination: search(first: 1, after: $after, query: $query, prefix: LAST, types: [PAGE]) {\n    nodes {\n      __typename\n      ... on Page {\n        id\n        title\n        handle\n        bodySummary\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n    totalCount\n  }\n}\n",
     "variables": {
-      "query": "Aurora Discovery 202607161320",
-      "after": "eyJwYWdlIjoyLCJsYXN0X2lkIjoxNjE0NjM3NjMyNTAsInJldmVyc2UiOnRydWUsIm9mZnNldCI6MH0="
+      "query": "Aurora Discovery 202607200852",
+      "after": "eyJwYWdlIjoyLCJsYXN0X2lkIjoxNjE1NTIzMzUxNTQsInJldmVyc2UiOnRydWUsIm9mZnNldCI6MH0="
     },
     "response": {
       "status": 200,
@@ -816,17 +1181,17 @@
             "nodes": [
               {
                 "__typename": "Page",
-                "id": "gid://shopify/Page/161463796018",
-                "title": "Aurora Discovery 20260716132027 Beta Page",
-                "handle": "aurora-discovery-beta-page-20260716132027",
-                "bodySummary": "Aurora Discovery 20260716132027 beta page body"
+                "id": "gid://shopify/Page/161552269618",
+                "title": "Aurora Discovery 20260720085214 Alpha Page",
+                "handle": "aurora-discovery-alpha-page-20260720085214",
+                "bodySummary": "Aurora Discovery 20260720085214 alpha page body"
               }
             ],
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": true,
-              "startCursor": "eyJwYWdlIjozLCJsYXN0X2lkIjoxNjE0NjM3OTYwMTgsInJldmVyc2UiOnRydWUsIm9mZnNldCI6MX0=",
-              "endCursor": "eyJwYWdlIjozLCJsYXN0X2lkIjoxNjE0NjM3OTYwMTgsInJldmVyc2UiOnRydWUsIm9mZnNldCI6MX0="
+              "startCursor": "eyJwYWdlIjozLCJsYXN0X2lkIjoxNjE1NTIyNjk2MTgsInJldmVyc2UiOnRydWUsIm9mZnNldCI6MX0=",
+              "endCursor": "eyJwYWdlIjozLCJsYXN0X2lkIjoxNjE1NTIyNjk2MTgsInJldmVyc2UiOnRydWUsIm9mZnNldCI6MX0="
             },
             "totalCount": 2
           }
@@ -924,14 +1289,14 @@
       "request": {
         "query": "#graphql\n  mutation StorefrontDiscoveryArticleCleanup($id: ID!) {\n    articleDelete(id: $id) { deletedArticleId userErrors { field message code } }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Article/685072548146"
+          "id": "gid://shopify/Article/685173014834"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "articleDelete": {
-            "deletedArticleId": "gid://shopify/Article/685072548146",
+            "deletedArticleId": "gid://shopify/Article/685173014834",
             "userErrors": []
           }
         },
@@ -953,14 +1318,43 @@
       "request": {
         "query": "#graphql\n  mutation StorefrontDiscoveryPageCleanup($id: ID!) {\n    pageDelete(id: $id) { deletedPageId userErrors { field message code } }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Page/161463796018"
+          "id": "gid://shopify/Page/161552335154"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "pageDelete": {
-            "deletedPageId": "gid://shopify/Page/161463796018",
+            "deletedPageId": "gid://shopify/Page/161552335154",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "unrelated-page-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation StorefrontDiscoveryPageCleanup($id: ID!) {\n    pageDelete(id: $id) { deletedPageId userErrors { field message code } }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Page/161552367922"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "pageDelete": {
+            "deletedPageId": "gid://shopify/Page/161552367922",
             "userErrors": []
           }
         },
@@ -982,14 +1376,14 @@
       "request": {
         "query": "#graphql\n  mutation StorefrontDiscoveryPageCleanup($id: ID!) {\n    pageDelete(id: $id) { deletedPageId userErrors { field message code } }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Page/161463763250"
+          "id": "gid://shopify/Page/161552269618"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "pageDelete": {
-            "deletedPageId": "gid://shopify/Page/161463763250",
+            "deletedPageId": "gid://shopify/Page/161552269618",
             "userErrors": []
           }
         },
@@ -1011,14 +1405,45 @@
       "request": {
         "query": "#graphql\n  mutation StorefrontDiscoveryBlogCleanup($id: ID!) {\n    blogDelete(id: $id) { deletedBlogId userErrors { field message code } }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Blog/121859506482"
+          "id": "gid://shopify/Blog/121904922930"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "blogDelete": {
-            "deletedBlogId": "gid://shopify/Blog/121859506482",
+            "deletedBlogId": "gid://shopify/Blog/121904922930",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "unrelated-collection-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation StorefrontDiscoveryCollectionCleanup($input: CollectionDeleteInput!) {\n    collectionDelete(input: $input) { deletedCollectionId userErrors { field message } }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Collection/514596405554"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "collectionDelete": {
+            "deletedCollectionId": "gid://shopify/Collection/514596405554",
             "userErrors": []
           }
         },
@@ -1041,7 +1466,7 @@
         "query": "#graphql\n  mutation StorefrontDiscoveryCollectionCleanup($input: CollectionDeleteInput!) {\n    collectionDelete(input: $input) { deletedCollectionId userErrors { field message } }\n  }\n",
         "variables": {
           "input": {
-            "id": "gid://shopify/Collection/514506293554"
+            "id": "gid://shopify/Collection/514596372786"
           }
         }
       },
@@ -1049,7 +1474,38 @@
       "response": {
         "data": {
           "collectionDelete": {
-            "deletedCollectionId": "gid://shopify/Collection/514506293554",
+            "deletedCollectionId": "gid://shopify/Collection/514596372786",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "unrelated-product-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation StorefrontDiscoveryProductCleanup($input: ProductDeleteInput!) {\n    productDelete(input: $input) { deletedProductId userErrors { field message } }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Product/10244156358962"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10244156358962",
             "userErrors": []
           }
         },
@@ -1072,7 +1528,7 @@
         "query": "#graphql\n  mutation StorefrontDiscoveryProductCleanup($input: ProductDeleteInput!) {\n    productDelete(input: $input) { deletedProductId userErrors { field message } }\n  }\n",
         "variables": {
           "input": {
-            "id": "gid://shopify/Product/10241849098546"
+            "id": "gid://shopify/Product/10244156227890"
           }
         }
       },
@@ -1080,7 +1536,7 @@
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10241849098546",
+            "deletedProductId": "gid://shopify/Product/10244156227890",
             "userErrors": []
           }
         },
@@ -1152,6 +1608,86 @@
                 "currentlyAvailable": 1995,
                 "restoreRate": 100
               }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "storefront-node-overlay-upstream",
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontNodeOverlayRead",
+      "query": "query StorefrontNodeOverlayRead($menuId: ID!, $ids: [ID!]!) {\n  singleMenu: node(id: $menuId) {\n    __typename\n    id\n    ... on Menu {\n      handle\n      title\n      itemsCount\n    }\n  }\n  mixed: nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      handle\n      title\n    }\n    ... on Collection {\n      handle\n      title\n    }\n    ... on Page {\n      handle\n      title\n    }\n    ... on Menu {\n      handle\n      title\n      itemsCount\n    }\n  }\n}\n",
+      "variables": {
+        "menuId": "gid://shopify/Menu/291567599922",
+        "ids": [
+          "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+          "gid://shopify/Product/10244156358962",
+          "gid://shopify/Collection/514596405554",
+          "gid://shopify/Page/161552367922",
+          "gid://shopify/Menu/291567599922",
+          "gid://shopify/Page/999999999999999999",
+          "gid://shopify/Page/161552367922"
+        ]
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "singleMenu": {
+              "__typename": "Menu",
+              "id": "gid://shopify/Menu/291567599922",
+              "handle": "main-menu",
+              "title": "Main menu",
+              "itemsCount": 3
+            },
+            "mixed": [
+              null,
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10244156358962",
+                "handle": "hermes-cold-node-product-20260720085214",
+                "title": "Hermes Cold Node Product 20260720085214"
+              },
+              {
+                "__typename": "Collection",
+                "id": "gid://shopify/Collection/514596405554",
+                "handle": "hermes-cold-node-collection-20260720085214",
+                "title": "Hermes Cold Node Collection 20260720085214"
+              },
+              {
+                "__typename": "Page",
+                "id": "gid://shopify/Page/161552367922",
+                "handle": "hermes-cold-node-page-20260720085214",
+                "title": "Hermes Cold Node Page 20260720085214"
+              },
+              {
+                "__typename": "Menu",
+                "id": "gid://shopify/Menu/291567599922",
+                "handle": "main-menu",
+                "title": "Main menu",
+                "itemsCount": 3
+              },
+              null,
+              {
+                "__typename": "Page",
+                "id": "gid://shopify/Page/161552367922",
+                "handle": "hermes-cold-node-page-20260720085214",
+                "title": "Hermes Cold Node Page 20260720085214"
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4
             }
           }
         }

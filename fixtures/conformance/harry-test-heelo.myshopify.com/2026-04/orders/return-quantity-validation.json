@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-07-02T23:32:37.132Z",
+  "capturedAt": "2026-07-21T13:05:10.158Z",
   "apiVersion": "2026-04",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "source": "live-shopify-admin-graphql",
@@ -9,16 +9,16 @@
     "quantityCap": {
       "source": "created",
       "label": "quantity-cap",
-      "orderId": "gid://shopify/Order/8887498572082",
-      "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17481191293234",
+      "orderId": "gid://shopify/Order/8985272090930",
+      "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17876642857266",
       "quantity": 2,
       "orderCreate": {
         "query": "#graphql\n  fragment ReturnQuantityValidationOrderFields on Order {\n    id\n    name\n    createdAt\n    updatedAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    cancelledAt\n    tags\n    lineItems(first: 5) {\n      nodes {\n        id\n        title\n        quantity\n        currentQuantity\n      }\n    }\n    fulfillments(first: 5) {\n      id\n      status\n      displayStatus\n      fulfillmentLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n          }\n        }\n      }\n    }\n    fulfillmentOrders(first: 5) {\n      nodes {\n        id\n        status\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n            }\n          }\n        }\n      }\n    }\n    returns(first: 5) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n        returnLineItems(first: 5) {\n          nodes {\n            ... on ReturnLineItem {\n              id\n              quantity\n              fulfillmentLineItem {\n                id\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n\n  mutation ReturnQuantityValidationOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        ...ReturnQuantityValidationOrderFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
         "variables": {
           "order": {
-            "email": "return-quantity-quantity-cap-20260702233232@example.com",
-            "note": "return quantity validation capture quantity-cap 20260702233232",
-            "tags": ["return-quantity-validation", "quantity-cap", "20260702233232", "shopify-draft-proxy"],
+            "email": "return-quantity-quantity-cap-20260721130504@example.com",
+            "note": "return quantity validation capture quantity-cap 20260721130504",
+            "tags": ["return-quantity-validation", "quantity-cap", "20260721130504", "shopify-draft-proxy"],
             "test": true,
             "currency": "USD",
             "shippingAddress": {
@@ -33,7 +33,7 @@
             "lineItems": [
               {
                 "variantId": "gid://shopify/ProductVariant/48540157378793",
-                "title": "Return quantity quantity-cap item 20260702233232",
+                "title": "Return quantity quantity-cap item 20260721130504",
                 "quantity": 2,
                 "priceSet": {
                   "shopMoney": {
@@ -58,19 +58,19 @@
             "data": {
               "orderCreate": {
                 "order": {
-                  "id": "gid://shopify/Order/8887498572082",
-                  "name": "#1669",
-                  "createdAt": "2026-07-02T23:32:32Z",
-                  "updatedAt": "2026-07-02T23:32:32Z",
+                  "id": "gid://shopify/Order/8985272090930",
+                  "name": "#1923",
+                  "createdAt": "2026-07-21T13:05:04Z",
+                  "updatedAt": "2026-07-21T13:05:04Z",
                   "displayFinancialStatus": null,
                   "displayFulfillmentStatus": "UNFULFILLED",
                   "cancelledAt": null,
-                  "tags": ["20260702233232", "quantity-cap", "return-quantity-validation", "shopify-draft-proxy"],
+                  "tags": ["20260721130504", "quantity-cap", "return-quantity-validation", "shopify-draft-proxy"],
                   "lineItems": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/LineItem/19702847668530",
-                        "title": "Return quantity quantity-cap item 20260702233232",
+                        "id": "gid://shopify/LineItem/20123914142002",
+                        "title": "Return quantity quantity-cap item 20260721130504",
                         "quantity": 2,
                         "currentQuantity": 2
                       }
@@ -80,17 +80,17 @@
                   "fulfillmentOrders": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/FulfillmentOrder/9825087488306",
+                        "id": "gid://shopify/FulfillmentOrder/9926157238578",
                         "status": "OPEN",
                         "lineItems": {
                           "nodes": [
                             {
-                              "id": "gid://shopify/FulfillmentOrderLineItem/19872497271090",
+                              "id": "gid://shopify/FulfillmentOrderLineItem/20297287827762",
                               "totalQuantity": 2,
                               "remainingQuantity": 2,
                               "lineItem": {
-                                "id": "gid://shopify/LineItem/19702847668530",
-                                "title": "Return quantity quantity-cap item 20260702233232"
+                                "id": "gid://shopify/LineItem/20123914142002",
+                                "title": "Return quantity quantity-cap item 20260721130504"
                               }
                             }
                           ]
@@ -126,17 +126,17 @@
             "notifyCustomer": false,
             "lineItemsByFulfillmentOrder": [
               {
-                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9825087488306",
+                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9926157238578",
                 "fulfillmentOrderLineItems": [
                   {
-                    "id": "gid://shopify/FulfillmentOrderLineItem/19872497271090",
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20297287827762",
                     "quantity": 2
                   }
                 ]
               }
             ]
           },
-          "message": "return quantity validation fulfillment quantity-cap 20260702233232"
+          "message": "return quantity validation fulfillment quantity-cap 20260721130504"
         },
         "response": {
           "status": 200,
@@ -144,17 +144,17 @@
             "data": {
               "fulfillmentCreate": {
                 "fulfillment": {
-                  "id": "gid://shopify/Fulfillment/8036702355762",
+                  "id": "gid://shopify/Fulfillment/8129054867762",
                   "status": "SUCCESS",
                   "displayStatus": "FULFILLED",
                   "fulfillmentLineItems": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/FulfillmentLineItem/17481191293234",
+                        "id": "gid://shopify/FulfillmentLineItem/17876642857266",
                         "quantity": 2,
                         "lineItem": {
-                          "id": "gid://shopify/LineItem/19702847668530",
-                          "title": "Return quantity quantity-cap item 20260702233232"
+                          "id": "gid://shopify/LineItem/20123914142002",
+                          "title": "Return quantity quantity-cap item 20260721130504"
                         }
                       }
                     ]
@@ -180,26 +180,26 @@
       "orderRead": {
         "query": "#graphql\n  fragment ReturnQuantityValidationOrderFields on Order {\n    id\n    name\n    createdAt\n    updatedAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    cancelledAt\n    tags\n    lineItems(first: 5) {\n      nodes {\n        id\n        title\n        quantity\n        currentQuantity\n      }\n    }\n    fulfillments(first: 5) {\n      id\n      status\n      displayStatus\n      fulfillmentLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n          }\n        }\n      }\n    }\n    fulfillmentOrders(first: 5) {\n      nodes {\n        id\n        status\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n            }\n          }\n        }\n      }\n    }\n    returns(first: 5) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n        returnLineItems(first: 5) {\n          nodes {\n            ... on ReturnLineItem {\n              id\n              quantity\n              fulfillmentLineItem {\n                id\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n\n  query ReturnQuantityValidationOrderRead($id: ID!) {\n    order(id: $id) {\n      ...ReturnQuantityValidationOrderFields\n    }\n  }",
         "variables": {
-          "id": "gid://shopify/Order/8887498572082"
+          "id": "gid://shopify/Order/8985272090930"
         },
         "response": {
           "status": 200,
           "payload": {
             "data": {
               "order": {
-                "id": "gid://shopify/Order/8887498572082",
-                "name": "#1669",
-                "createdAt": "2026-07-02T23:32:32Z",
-                "updatedAt": "2026-07-02T23:32:33Z",
+                "id": "gid://shopify/Order/8985272090930",
+                "name": "#1923",
+                "createdAt": "2026-07-21T13:05:04Z",
+                "updatedAt": "2026-07-21T13:05:05Z",
                 "displayFinancialStatus": null,
                 "displayFulfillmentStatus": "FULFILLED",
                 "cancelledAt": null,
-                "tags": ["20260702233232", "quantity-cap", "return-quantity-validation", "shopify-draft-proxy"],
+                "tags": ["20260721130504", "quantity-cap", "return-quantity-validation", "shopify-draft-proxy"],
                 "lineItems": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/LineItem/19702847668530",
-                      "title": "Return quantity quantity-cap item 20260702233232",
+                      "id": "gid://shopify/LineItem/20123914142002",
+                      "title": "Return quantity quantity-cap item 20260721130504",
                       "quantity": 2,
                       "currentQuantity": 2
                     }
@@ -207,17 +207,17 @@
                 },
                 "fulfillments": [
                   {
-                    "id": "gid://shopify/Fulfillment/8036702355762",
+                    "id": "gid://shopify/Fulfillment/8129054867762",
                     "status": "SUCCESS",
                     "displayStatus": "FULFILLED",
                     "fulfillmentLineItems": {
                       "nodes": [
                         {
-                          "id": "gid://shopify/FulfillmentLineItem/17481191293234",
+                          "id": "gid://shopify/FulfillmentLineItem/17876642857266",
                           "quantity": 2,
                           "lineItem": {
-                            "id": "gid://shopify/LineItem/19702847668530",
-                            "title": "Return quantity quantity-cap item 20260702233232"
+                            "id": "gid://shopify/LineItem/20123914142002",
+                            "title": "Return quantity quantity-cap item 20260721130504"
                           }
                         }
                       ]
@@ -227,17 +227,17 @@
                 "fulfillmentOrders": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/FulfillmentOrder/9825087488306",
+                      "id": "gid://shopify/FulfillmentOrder/9926157238578",
                       "status": "CLOSED",
                       "lineItems": {
                         "nodes": [
                           {
-                            "id": "gid://shopify/FulfillmentOrderLineItem/19872497271090",
+                            "id": "gid://shopify/FulfillmentOrderLineItem/20297287827762",
                             "totalQuantity": 2,
                             "remainingQuantity": 0,
                             "lineItem": {
-                              "id": "gid://shopify/LineItem/19702847668530",
-                              "title": "Return quantity quantity-cap item 20260702233232"
+                              "id": "gid://shopify/LineItem/20123914142002",
+                              "title": "Return quantity quantity-cap item 20260721130504"
                             }
                           }
                         ]
@@ -268,16 +268,16 @@
     "removal": {
       "source": "created",
       "label": "removal",
-      "orderId": "gid://shopify/Order/8887498604850",
-      "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17481191326002",
+      "orderId": "gid://shopify/Order/8985272123698",
+      "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17876642955570",
       "quantity": 1,
       "orderCreate": {
         "query": "#graphql\n  fragment ReturnQuantityValidationOrderFields on Order {\n    id\n    name\n    createdAt\n    updatedAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    cancelledAt\n    tags\n    lineItems(first: 5) {\n      nodes {\n        id\n        title\n        quantity\n        currentQuantity\n      }\n    }\n    fulfillments(first: 5) {\n      id\n      status\n      displayStatus\n      fulfillmentLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n          }\n        }\n      }\n    }\n    fulfillmentOrders(first: 5) {\n      nodes {\n        id\n        status\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n            }\n          }\n        }\n      }\n    }\n    returns(first: 5) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n        returnLineItems(first: 5) {\n          nodes {\n            ... on ReturnLineItem {\n              id\n              quantity\n              fulfillmentLineItem {\n                id\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n\n  mutation ReturnQuantityValidationOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        ...ReturnQuantityValidationOrderFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
         "variables": {
           "order": {
-            "email": "return-quantity-removal-20260702233232@example.com",
-            "note": "return quantity validation capture removal 20260702233232",
-            "tags": ["return-quantity-validation", "removal", "20260702233232", "shopify-draft-proxy"],
+            "email": "return-quantity-removal-20260721130504@example.com",
+            "note": "return quantity validation capture removal 20260721130504",
+            "tags": ["return-quantity-validation", "removal", "20260721130504", "shopify-draft-proxy"],
             "test": true,
             "currency": "USD",
             "shippingAddress": {
@@ -292,7 +292,7 @@
             "lineItems": [
               {
                 "variantId": "gid://shopify/ProductVariant/48540157378793",
-                "title": "Return quantity removal item 20260702233232",
+                "title": "Return quantity removal item 20260721130504",
                 "quantity": 1,
                 "priceSet": {
                   "shopMoney": {
@@ -317,19 +317,19 @@
             "data": {
               "orderCreate": {
                 "order": {
-                  "id": "gid://shopify/Order/8887498604850",
-                  "name": "#1670",
-                  "createdAt": "2026-07-02T23:32:34Z",
-                  "updatedAt": "2026-07-02T23:32:34Z",
+                  "id": "gid://shopify/Order/8985272123698",
+                  "name": "#1924",
+                  "createdAt": "2026-07-21T13:05:06Z",
+                  "updatedAt": "2026-07-21T13:05:06Z",
                   "displayFinancialStatus": null,
                   "displayFulfillmentStatus": "UNFULFILLED",
                   "cancelledAt": null,
-                  "tags": ["20260702233232", "removal", "return-quantity-validation", "shopify-draft-proxy"],
+                  "tags": ["20260721130504", "removal", "return-quantity-validation", "shopify-draft-proxy"],
                   "lineItems": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/LineItem/19702847701298",
-                        "title": "Return quantity removal item 20260702233232",
+                        "id": "gid://shopify/LineItem/20123914174770",
+                        "title": "Return quantity removal item 20260721130504",
                         "quantity": 1,
                         "currentQuantity": 1
                       }
@@ -339,17 +339,17 @@
                   "fulfillmentOrders": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/FulfillmentOrder/9825087521074",
+                        "id": "gid://shopify/FulfillmentOrder/9926157304114",
                         "status": "OPEN",
                         "lineItems": {
                           "nodes": [
                             {
-                              "id": "gid://shopify/FulfillmentOrderLineItem/19872497303858",
+                              "id": "gid://shopify/FulfillmentOrderLineItem/20297287926066",
                               "totalQuantity": 1,
                               "remainingQuantity": 1,
                               "lineItem": {
-                                "id": "gid://shopify/LineItem/19702847701298",
-                                "title": "Return quantity removal item 20260702233232"
+                                "id": "gid://shopify/LineItem/20123914174770",
+                                "title": "Return quantity removal item 20260721130504"
                               }
                             }
                           ]
@@ -370,7 +370,7 @@
                 "actualQueryCost": 25,
                 "throttleStatus": {
                   "maximumAvailable": 2000,
-                  "currentlyAvailable": 1975,
+                  "currentlyAvailable": 1969,
                   "restoreRate": 100
                 }
               }
@@ -385,17 +385,17 @@
             "notifyCustomer": false,
             "lineItemsByFulfillmentOrder": [
               {
-                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9825087521074",
+                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9926157304114",
                 "fulfillmentOrderLineItems": [
                   {
-                    "id": "gid://shopify/FulfillmentOrderLineItem/19872497303858",
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20297287926066",
                     "quantity": 1
                   }
                 ]
               }
             ]
           },
-          "message": "return quantity validation fulfillment removal 20260702233232"
+          "message": "return quantity validation fulfillment removal 20260721130504"
         },
         "response": {
           "status": 200,
@@ -403,17 +403,17 @@
             "data": {
               "fulfillmentCreate": {
                 "fulfillment": {
-                  "id": "gid://shopify/Fulfillment/8036702388530",
+                  "id": "gid://shopify/Fulfillment/8129054966066",
                   "status": "SUCCESS",
                   "displayStatus": "FULFILLED",
                   "fulfillmentLineItems": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/FulfillmentLineItem/17481191326002",
+                        "id": "gid://shopify/FulfillmentLineItem/17876642955570",
                         "quantity": 1,
                         "lineItem": {
-                          "id": "gid://shopify/LineItem/19702847701298",
-                          "title": "Return quantity removal item 20260702233232"
+                          "id": "gid://shopify/LineItem/20123914174770",
+                          "title": "Return quantity removal item 20260721130504"
                         }
                       }
                     ]
@@ -439,26 +439,26 @@
       "orderRead": {
         "query": "#graphql\n  fragment ReturnQuantityValidationOrderFields on Order {\n    id\n    name\n    createdAt\n    updatedAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    cancelledAt\n    tags\n    lineItems(first: 5) {\n      nodes {\n        id\n        title\n        quantity\n        currentQuantity\n      }\n    }\n    fulfillments(first: 5) {\n      id\n      status\n      displayStatus\n      fulfillmentLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n          }\n        }\n      }\n    }\n    fulfillmentOrders(first: 5) {\n      nodes {\n        id\n        status\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n            }\n          }\n        }\n      }\n    }\n    returns(first: 5) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n        returnLineItems(first: 5) {\n          nodes {\n            ... on ReturnLineItem {\n              id\n              quantity\n              fulfillmentLineItem {\n                id\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n\n  query ReturnQuantityValidationOrderRead($id: ID!) {\n    order(id: $id) {\n      ...ReturnQuantityValidationOrderFields\n    }\n  }",
         "variables": {
-          "id": "gid://shopify/Order/8887498604850"
+          "id": "gid://shopify/Order/8985272123698"
         },
         "response": {
           "status": 200,
           "payload": {
             "data": {
               "order": {
-                "id": "gid://shopify/Order/8887498604850",
-                "name": "#1670",
-                "createdAt": "2026-07-02T23:32:34Z",
-                "updatedAt": "2026-07-02T23:32:35Z",
+                "id": "gid://shopify/Order/8985272123698",
+                "name": "#1924",
+                "createdAt": "2026-07-21T13:05:06Z",
+                "updatedAt": "2026-07-21T13:05:07Z",
                 "displayFinancialStatus": null,
                 "displayFulfillmentStatus": "FULFILLED",
                 "cancelledAt": null,
-                "tags": ["20260702233232", "removal", "return-quantity-validation", "shopify-draft-proxy"],
+                "tags": ["20260721130504", "removal", "return-quantity-validation", "shopify-draft-proxy"],
                 "lineItems": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/LineItem/19702847701298",
-                      "title": "Return quantity removal item 20260702233232",
+                      "id": "gid://shopify/LineItem/20123914174770",
+                      "title": "Return quantity removal item 20260721130504",
                       "quantity": 1,
                       "currentQuantity": 1
                     }
@@ -466,17 +466,17 @@
                 },
                 "fulfillments": [
                   {
-                    "id": "gid://shopify/Fulfillment/8036702388530",
+                    "id": "gid://shopify/Fulfillment/8129054966066",
                     "status": "SUCCESS",
                     "displayStatus": "FULFILLED",
                     "fulfillmentLineItems": {
                       "nodes": [
                         {
-                          "id": "gid://shopify/FulfillmentLineItem/17481191326002",
+                          "id": "gid://shopify/FulfillmentLineItem/17876642955570",
                           "quantity": 1,
                           "lineItem": {
-                            "id": "gid://shopify/LineItem/19702847701298",
-                            "title": "Return quantity removal item 20260702233232"
+                            "id": "gid://shopify/LineItem/20123914174770",
+                            "title": "Return quantity removal item 20260721130504"
                           }
                         }
                       ]
@@ -486,17 +486,17 @@
                 "fulfillmentOrders": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/FulfillmentOrder/9825087521074",
+                      "id": "gid://shopify/FulfillmentOrder/9926157304114",
                       "status": "CLOSED",
                       "lineItems": {
                         "nodes": [
                           {
-                            "id": "gid://shopify/FulfillmentOrderLineItem/19872497303858",
+                            "id": "gid://shopify/FulfillmentOrderLineItem/20297287926066",
                             "totalQuantity": 1,
                             "remainingQuantity": 0,
                             "lineItem": {
-                              "id": "gid://shopify/LineItem/19702847701298",
-                              "title": "Return quantity removal item 20260702233232"
+                              "id": "gid://shopify/LineItem/20123914174770",
+                              "title": "Return quantity removal item 20260721130504"
                             }
                           }
                         ]
@@ -528,10 +528,10 @@
       "query": "mutation ReturnCreateQuantityValidation($returnInput: ReturnInput!) {\n  returnCreate(returnInput: $returnInput) {\n    return {\n      id\n      status\n      totalQuantity\n      returnLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
       "variables": {
         "returnInput": {
-          "orderId": "gid://shopify/Order/8887498572082",
+          "orderId": "gid://shopify/Order/8985272090930",
           "returnLineItems": [
             {
-              "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17481191293234",
+              "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17876642857266",
               "quantity": 1,
               "returnReason": "UNWANTED"
             }
@@ -544,13 +544,13 @@
           "data": {
             "returnCreate": {
               "return": {
-                "id": "gid://shopify/Return/14926512434",
+                "id": "gid://shopify/Return/15297151282",
                 "status": "OPEN",
                 "totalQuantity": 1,
                 "returnLineItems": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/ReturnLineItem/22733259058",
+                      "id": "gid://shopify/ReturnLineItem/23234576690",
                       "quantity": 1
                     }
                   ]
@@ -565,7 +565,7 @@
               "actualQueryCost": 13,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1978,
+                "currentlyAvailable": 1987,
                 "restoreRate": 100
               }
             }
@@ -577,10 +577,10 @@
   "returnRequestQuantityCap": {
     "variables": {
       "input": {
-        "orderId": "gid://shopify/Order/8887498572082",
+        "orderId": "gid://shopify/Order/8985272090930",
         "returnLineItems": [
           {
-            "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17481191293234",
+            "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17876642857266",
             "quantity": 2,
             "returnReason": "UNWANTED"
           }
@@ -616,10 +616,10 @@
   "returnCreateQuantityCap": {
     "variables": {
       "returnInput": {
-        "orderId": "gid://shopify/Order/8887498572082",
+        "orderId": "gid://shopify/Order/8985272090930",
         "returnLineItems": [
           {
-            "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17481191293234",
+            "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17876642857266",
             "quantity": 2,
             "returnReason": "UNWANTED"
           }
@@ -655,10 +655,10 @@
   "returnCreateForRemoval": {
     "variables": {
       "returnInput": {
-        "orderId": "gid://shopify/Order/8887498604850",
+        "orderId": "gid://shopify/Order/8985272123698",
         "returnLineItems": [
           {
-            "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17481191326002",
+            "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17876642955570",
             "quantity": 1,
             "returnReason": "UNWANTED",
             "returnReasonNote": "Testing removal validation"
@@ -670,13 +670,13 @@
       "data": {
         "returnCreate": {
           "return": {
-            "id": "gid://shopify/Return/14926545202",
+            "id": "gid://shopify/Return/15297184050",
             "status": "OPEN",
             "totalQuantity": 1,
             "returnLineItems": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ReturnLineItem/22733291826",
+                  "id": "gid://shopify/ReturnLineItem/23234609458",
                   "quantity": 1
                 }
               ]
@@ -698,7 +698,145 @@
       }
     }
   },
+  "returnRequestMixedValidMissing": {
+    "variables": {
+      "input": {
+        "orderId": "gid://shopify/Order/8985272090930",
+        "returnLineItems": [
+          {
+            "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17876642857266",
+            "quantity": 1,
+            "returnReason": "UNWANTED"
+          },
+          {
+            "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/999999999999999",
+            "quantity": 1,
+            "returnReason": "UNWANTED"
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "returnRequest": {
+          "return": null,
+          "userErrors": [
+            {
+              "field": ["input", "returnLineItems", "1", "fulfillmentLineItemId"],
+              "message": "Fulfillment Line Item was not found.",
+              "code": "NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "returnCreateMixedValidMissing": {
+    "variables": {
+      "returnInput": {
+        "orderId": "gid://shopify/Order/8985272090930",
+        "returnLineItems": [
+          {
+            "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17876642857266",
+            "quantity": 1,
+            "returnReason": "UNWANTED"
+          },
+          {
+            "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/999999999999999",
+            "quantity": 1,
+            "returnReason": "UNWANTED"
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "returnCreate": {
+          "return": null,
+          "userErrors": [
+            {
+              "field": ["returnInput", "returnLineItems", "1", "fulfillmentLineItemId"],
+              "message": "Fulfillment Line Item was not found.",
+              "code": "NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
   "expected": {
+    "returnRequestMixedValidMissing": {
+      "data": {
+        "returnRequest": {
+          "return": null,
+          "userErrors": [
+            {
+              "field": ["input", "returnLineItems", "1", "fulfillmentLineItemId"],
+              "message": "Fulfillment Line Item was not found.",
+              "code": "NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "returnCreateMixedValidMissing": {
+      "data": {
+        "returnCreate": {
+          "return": null,
+          "userErrors": [
+            {
+              "field": ["returnInput", "returnLineItems", "1", "fulfillmentLineItemId"],
+              "message": "Fulfillment Line Item was not found.",
+              "code": "NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
     "returnRequestQuantityCap": {
       "data": {
         "returnRequest": {
@@ -805,7 +943,7 @@
     {
       "operationName": "OrdersReturnOrderHydrate",
       "variables": {
-        "id": "gid://shopify/Order/8887498572082"
+        "id": "gid://shopify/Order/8985272090930"
       },
       "query": "query OrdersReturnOrderHydrate($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    createdAt\n    updatedAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    totalPriceSet { shopMoney { amount currencyCode } }\n    currentTotalPriceSet { shopMoney { amount currencyCode } }\n    totalRefundedSet { shopMoney { amount currencyCode } }\n    lineItems(first: 50) {\n      nodes {\n        id\n        title\n        quantity\n      }\n    }\n    fulfillments(first: 50) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      fulfillmentLineItems(first: 50) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n            variant {\n              id\n            }\n          }\n        }\n      }\n    }\n    returns(first: 50) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n        returnLineItems(first: 50) {\n          nodes {\n            ... on ReturnLineItem {\n              id\n              quantity\n              fulfillmentLineItem {\n                id\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
       "response": {
@@ -813,10 +951,10 @@
         "body": {
           "data": {
             "order": {
-              "id": "gid://shopify/Order/8887498572082",
-              "name": "#1669",
-              "createdAt": "2026-07-02T23:32:32Z",
-              "updatedAt": "2026-07-02T23:32:33Z",
+              "id": "gid://shopify/Order/8985272090930",
+              "name": "#1923",
+              "createdAt": "2026-07-21T13:05:04Z",
+              "updatedAt": "2026-07-21T13:05:05Z",
               "displayFinancialStatus": null,
               "displayFulfillmentStatus": "FULFILLED",
               "totalPriceSet": {
@@ -840,27 +978,27 @@
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/LineItem/19702847668530",
-                    "title": "Return quantity quantity-cap item 20260702233232",
+                    "id": "gid://shopify/LineItem/20123914142002",
+                    "title": "Return quantity quantity-cap item 20260721130504",
                     "quantity": 2
                   }
                 ]
               },
               "fulfillments": [
                 {
-                  "id": "gid://shopify/Fulfillment/8036702355762",
+                  "id": "gid://shopify/Fulfillment/8129054867762",
                   "status": "SUCCESS",
                   "displayStatus": "FULFILLED",
-                  "createdAt": "2026-07-02T23:32:33Z",
-                  "updatedAt": "2026-07-02T23:32:33Z",
+                  "createdAt": "2026-07-21T13:05:05Z",
+                  "updatedAt": "2026-07-21T13:05:05Z",
                   "fulfillmentLineItems": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/FulfillmentLineItem/17481191293234",
+                        "id": "gid://shopify/FulfillmentLineItem/17876642857266",
                         "quantity": 2,
                         "lineItem": {
-                          "id": "gid://shopify/LineItem/19702847668530",
-                          "title": "Return quantity quantity-cap item 20260702233232",
+                          "id": "gid://shopify/LineItem/20123914142002",
+                          "title": "Return quantity quantity-cap item 20260721130504",
                           "variant": null
                         }
                       }
@@ -871,17 +1009,17 @@
               "returns": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/Return/14926512434",
-                    "name": "#1669-R1",
+                    "id": "gid://shopify/Return/15297151282",
+                    "name": "#1923-R1",
                     "status": "OPEN",
                     "totalQuantity": 1,
                     "returnLineItems": {
                       "nodes": [
                         {
-                          "id": "gid://shopify/ReturnLineItem/22733259058",
+                          "id": "gid://shopify/ReturnLineItem/23234576690",
                           "quantity": 1,
                           "fulfillmentLineItem": {
-                            "id": "gid://shopify/FulfillmentLineItem/17481191293234"
+                            "id": "gid://shopify/FulfillmentLineItem/17876642857266"
                           }
                         }
                       ]
@@ -906,9 +1044,35 @@
       }
     },
     {
+      "operationName": "OrdersReturnFulfillmentLineItemsHydrate",
+      "variables": {
+        "ids": ["gid://shopify/FulfillmentLineItem/999999999999999"]
+      },
+      "query": "query OrdersReturnFulfillmentLineItemsHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    ... on FulfillmentLineItem {\n      id\n      quantity\n      lineItem {\n        id\n        title\n        variant {\n          id\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [null]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "operationName": "OrdersReturnOrderHydrate",
       "variables": {
-        "id": "gid://shopify/Order/8887498604850"
+        "id": "gid://shopify/Order/8985272123698"
       },
       "query": "query OrdersReturnOrderHydrate($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    createdAt\n    updatedAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    totalPriceSet { shopMoney { amount currencyCode } }\n    currentTotalPriceSet { shopMoney { amount currencyCode } }\n    totalRefundedSet { shopMoney { amount currencyCode } }\n    lineItems(first: 50) {\n      nodes {\n        id\n        title\n        quantity\n      }\n    }\n    fulfillments(first: 50) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      fulfillmentLineItems(first: 50) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n            variant {\n              id\n            }\n          }\n        }\n      }\n    }\n    returns(first: 50) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n        returnLineItems(first: 50) {\n          nodes {\n            ... on ReturnLineItem {\n              id\n              quantity\n              fulfillmentLineItem {\n                id\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
       "response": {
@@ -916,10 +1080,10 @@
         "body": {
           "data": {
             "order": {
-              "id": "gid://shopify/Order/8887498604850",
-              "name": "#1670",
-              "createdAt": "2026-07-02T23:32:34Z",
-              "updatedAt": "2026-07-02T23:32:35Z",
+              "id": "gid://shopify/Order/8985272123698",
+              "name": "#1924",
+              "createdAt": "2026-07-21T13:05:06Z",
+              "updatedAt": "2026-07-21T13:05:07Z",
               "displayFinancialStatus": null,
               "displayFulfillmentStatus": "FULFILLED",
               "totalPriceSet": {
@@ -943,27 +1107,27 @@
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/LineItem/19702847701298",
-                    "title": "Return quantity removal item 20260702233232",
+                    "id": "gid://shopify/LineItem/20123914174770",
+                    "title": "Return quantity removal item 20260721130504",
                     "quantity": 1
                   }
                 ]
               },
               "fulfillments": [
                 {
-                  "id": "gid://shopify/Fulfillment/8036702388530",
+                  "id": "gid://shopify/Fulfillment/8129054966066",
                   "status": "SUCCESS",
                   "displayStatus": "FULFILLED",
-                  "createdAt": "2026-07-02T23:32:35Z",
-                  "updatedAt": "2026-07-02T23:32:35Z",
+                  "createdAt": "2026-07-21T13:05:07Z",
+                  "updatedAt": "2026-07-21T13:05:07Z",
                   "fulfillmentLineItems": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/FulfillmentLineItem/17481191326002",
+                        "id": "gid://shopify/FulfillmentLineItem/17876642955570",
                         "quantity": 1,
                         "lineItem": {
-                          "id": "gid://shopify/LineItem/19702847701298",
-                          "title": "Return quantity removal item 20260702233232",
+                          "id": "gid://shopify/LineItem/20123914174770",
+                          "title": "Return quantity removal item 20260721130504",
                           "variant": null
                         }
                       }
