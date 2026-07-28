@@ -1,10 +1,10 @@
 {
   "scenarioId": "functions-live-hybrid-overlay-read",
-  "capturedAt": "2026-07-20T19:51:03.829Z",
+  "capturedAt": "2026-07-28T10:51:20.575Z",
   "source": "live-shopify",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "summary": "Live Functions overlay evidence with two existing validations, one existing cart transform, and one later validation lifecycle.",
+  "summary": "Live Functions overlay evidence for validation windows, a staged cart-transform local-cursor refill, and a fulfillment-rule base tombstone with identity-only refill.",
   "shopifyFunctions": {
     "validation": {
       "id": "019dd44b-127f-7061-a930-422cbd4a751f",
@@ -35,11 +35,26 @@
         "handle": "hermes-conformance-products",
         "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
       }
+    },
+    "fulfillmentConstraint": {
+      "id": "019f7a32-10ba-78fc-91dc-4c0afaa7a584",
+      "title": "conformance-fulfillment-constraint",
+      "handle": "conformance-fulfillment-constraint",
+      "apiType": "fulfillment_constraints",
+      "description": "conformance-fulfillment-constraint",
+      "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+      "app": {
+        "__typename": "App",
+        "id": "gid://shopify/App/347082227713",
+        "title": "hermes-conformance-products",
+        "handle": "hermes-conformance-products",
+        "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+      }
     }
   },
   "cleanupBefore": {
     "inventory": {
-      "query": "query FunctionsLiveHybridOverlayInventory {\n  validations(first: 100) {\n    nodes {\n      id\n      title\n      shopifyFunction {\n        id\n        handle\n        apiType\n      }\n    }\n  }\n  cartTransforms(first: 100) {\n    nodes {\n      id\n      functionId\n    }\n  }\n}\n",
+      "query": "query FunctionsLiveHybridOverlayInventory {\n  validations(first: 100) {\n    nodes {\n      id\n      title\n      shopifyFunction {\n        id\n        handle\n        apiType\n      }\n    }\n  }\n  cartTransforms(first: 100) {\n    nodes {\n      id\n      functionId\n    }\n  }\n  fulfillmentConstraintRules {\n    id\n    function {\n      id\n      handle\n    }\n  }\n}\n",
       "variables": {},
       "response": {
         "status": 200,
@@ -50,15 +65,16 @@
             },
             "cartTransforms": {
               "nodes": []
-            }
+            },
+            "fulfillmentConstraintRules": []
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 31,
-              "actualQueryCost": 22,
+              "requestedQueryCost": 33,
+              "actualQueryCost": 23,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1978,
+                "currentlyAvailable": 1977,
                 "restoreRate": 100
               }
             }
@@ -67,7 +83,8 @@
       }
     },
     "validationDeletes": [],
-    "cartTransformDeletes": []
+    "cartTransformDeletes": [],
+    "fulfillmentConstraintRuleDeletes": []
   },
   "baseValidationCreate": {
     "query": "mutation FunctionsLiveHybridOverlayStage($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation {\n      id\n      title\n      enabled\n      blockOnFailure\n      shopifyFunction {\n        id\n        apiType\n        app {\n          apiKey\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
@@ -85,7 +102,7 @@
         "data": {
           "validationCreate": {
             "validation": {
-              "id": "gid://shopify/Validation/124354866",
+              "id": "gid://shopify/Validation/127336754",
               "title": "Functions overlay disposable base validation",
               "enabled": true,
               "blockOnFailure": true,
@@ -130,7 +147,7 @@
         "data": {
           "validationCreate": {
             "validation": {
-              "id": "gid://shopify/Validation/124387634",
+              "id": "gid://shopify/Validation/127369522",
               "title": "Functions overlay disposable refill validation",
               "enabled": false,
               "blockOnFailure": false,
@@ -151,7 +168,7 @@
             "actualQueryCost": 12,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1980,
+              "currentlyAvailable": 1979,
               "restoreRate": 100
             }
           }
@@ -159,35 +176,23 @@
       }
     }
   },
-  "baseCartTransformCreate": {
-    "query": "mutation FunctionsLiveHybridOverlayBaseCartTransform(\n  $functionId: String!\n  $blockOnFailure: Boolean\n  $metafields: [MetafieldInput!]\n) {\n  cartTransformCreate(functionId: $functionId, blockOnFailure: $blockOnFailure, metafields: $metafields) {\n    cartTransform {\n      id\n      functionId\n      blockOnFailure\n      metafield(namespace: \"bundles\", key: \"config\") {\n        namespace\n        key\n        type\n        value\n        ownerType\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+  "baseFulfillmentConstraintRuleCreate": {
+    "query": "mutation FunctionsLiveHybridOverlayFulfillmentRuleSetup(\n  $functionId: String!\n) {\n  fulfillmentConstraintRuleCreate(functionId: $functionId, deliveryMethodTypes: [SHIPPING]) {\n    fulfillmentConstraintRule {\n      id\n      deliveryMethodTypes\n      function {\n        id\n        handle\n        apiType\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
     "variables": {
-      "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
-      "blockOnFailure": false,
-      "metafields": [
-        {
-          "namespace": "bundles",
-          "key": "config",
-          "type": "json",
-          "value": "{\"mode\":\"base\"}"
-        }
-      ]
+      "functionId": "019f7a32-10ba-78fc-91dc-4c0afaa7a584"
     },
     "response": {
       "status": 200,
       "payload": {
         "data": {
-          "cartTransformCreate": {
-            "cartTransform": {
-              "id": "gid://shopify/CartTransform/133333298",
-              "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
-              "blockOnFailure": false,
-              "metafield": {
-                "namespace": "bundles",
-                "key": "config",
-                "type": "json",
-                "value": "{\"mode\":\"base\"}",
-                "ownerType": "CARTTRANSFORM"
+          "fulfillmentConstraintRuleCreate": {
+            "fulfillmentConstraintRule": {
+              "id": "gid://shopify/FulfillmentConstraintRule/56262962",
+              "deliveryMethodTypes": ["SHIPPING"],
+              "function": {
+                "id": "019f7a32-10ba-78fc-91dc-4c0afaa7a584",
+                "handle": "conformance-fulfillment-constraint",
+                "apiType": "fulfillment_constraints"
               }
             },
             "userErrors": []
@@ -199,7 +204,7 @@
             "actualQueryCost": 11,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1988,
+              "currentlyAvailable": 1983,
               "restoreRate": 100
             }
           }
@@ -223,7 +228,7 @@
         "data": {
           "validationCreate": {
             "validation": {
-              "id": "gid://shopify/Validation/124420402",
+              "id": "gid://shopify/Validation/127402290",
               "title": "Functions overlay disposable staged validation",
               "enabled": true,
               "blockOnFailure": false,
@@ -264,9 +269,9 @@
           "validations": {
             "edges": [
               {
-                "cursor": "eyJsYXN0X2lkIjoxMjQzODc2MzQsImxhc3RfdmFsdWUiOjEyNDM4NzYzNH0=",
+                "cursor": "eyJsYXN0X2lkIjoxMjczNjk1MjIsImxhc3RfdmFsdWUiOjEyNzM2OTUyMn0=",
                 "node": {
-                  "id": "gid://shopify/Validation/124387634",
+                  "id": "gid://shopify/Validation/127369522",
                   "title": "Functions overlay disposable refill validation",
                   "enabled": false,
                   "blockOnFailure": false,
@@ -280,8 +285,8 @@
             "pageInfo": {
               "hasNextPage": true,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjoxMjQzODc2MzQsImxhc3RfdmFsdWUiOjEyNDM4NzYzNH0=",
-              "endCursor": "eyJsYXN0X2lkIjoxMjQzODc2MzQsImxhc3RfdmFsdWUiOjEyNDM4NzYzNH0="
+              "startCursor": "eyJsYXN0X2lkIjoxMjczNjk1MjIsImxhc3RfdmFsdWUiOjEyNzM2OTUyMn0=",
+              "endCursor": "eyJsYXN0X2lkIjoxMjczNjk1MjIsImxhc3RfdmFsdWUiOjEyNzM2OTUyMn0="
             }
           }
         },
@@ -309,9 +314,9 @@
           "validations": {
             "edges": [
               {
-                "cursor": "eyJsYXN0X2lkIjoxMjQzODc2MzQsImxhc3RfdmFsdWUiOjEyNDM4NzYzNH0=",
+                "cursor": "eyJsYXN0X2lkIjoxMjczNjk1MjIsImxhc3RfdmFsdWUiOjEyNzM2OTUyMn0=",
                 "node": {
-                  "id": "gid://shopify/Validation/124387634",
+                  "id": "gid://shopify/Validation/127369522",
                   "title": "Functions overlay disposable refill validation",
                   "enabled": false,
                   "blockOnFailure": false,
@@ -322,9 +327,9 @@
                 }
               },
               {
-                "cursor": "eyJsYXN0X2lkIjoxMjQzNTQ4NjYsImxhc3RfdmFsdWUiOjEyNDM1NDg2Nn0=",
+                "cursor": "eyJsYXN0X2lkIjoxMjczMzY3NTQsImxhc3RfdmFsdWUiOjEyNzMzNjc1NH0=",
                 "node": {
-                  "id": "gid://shopify/Validation/124354866",
+                  "id": "gid://shopify/Validation/127336754",
                   "title": "Functions overlay disposable base validation",
                   "enabled": true,
                   "blockOnFailure": true,
@@ -338,8 +343,8 @@
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjoxMjQzODc2MzQsImxhc3RfdmFsdWUiOjEyNDM4NzYzNH0=",
-              "endCursor": "eyJsYXN0X2lkIjoxMjQzNTQ4NjYsImxhc3RfdmFsdWUiOjEyNDM1NDg2Nn0="
+              "startCursor": "eyJsYXN0X2lkIjoxMjczNjk1MjIsImxhc3RfdmFsdWUiOjEyNzM2OTUyMn0=",
+              "endCursor": "eyJsYXN0X2lkIjoxMjczMzY3NTQsImxhc3RfdmFsdWUiOjEyNzMzNjc1NH0="
             }
           }
         },
@@ -367,9 +372,9 @@
           "validations": {
             "edges": [
               {
-                "cursor": "eyJsYXN0X2lkIjoxMjQzODc2MzQsImxhc3RfdmFsdWUiOjEyNDM4NzYzNH0=",
+                "cursor": "eyJsYXN0X2lkIjoxMjczNjk1MjIsImxhc3RfdmFsdWUiOjEyNzM2OTUyMn0=",
                 "node": {
-                  "id": "gid://shopify/Validation/124387634",
+                  "id": "gid://shopify/Validation/127369522",
                   "title": "Functions overlay disposable refill validation",
                   "enabled": false,
                   "blockOnFailure": false,
@@ -380,9 +385,9 @@
                 }
               },
               {
-                "cursor": "eyJsYXN0X2lkIjoxMjQzNTQ4NjYsImxhc3RfdmFsdWUiOjEyNDM1NDg2Nn0=",
+                "cursor": "eyJsYXN0X2lkIjoxMjczMzY3NTQsImxhc3RfdmFsdWUiOjEyNzMzNjc1NH0=",
                 "node": {
-                  "id": "gid://shopify/Validation/124354866",
+                  "id": "gid://shopify/Validation/127336754",
                   "title": "Functions overlay disposable base validation",
                   "enabled": true,
                   "blockOnFailure": true,
@@ -396,8 +401,8 @@
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjoxMjQzODc2MzQsImxhc3RfdmFsdWUiOjEyNDM4NzYzNH0=",
-              "endCursor": "eyJsYXN0X2lkIjoxMjQzNTQ4NjYsImxhc3RfdmFsdWUiOjEyNDM1NDg2Nn0="
+              "startCursor": "eyJsYXN0X2lkIjoxMjczNjk1MjIsImxhc3RfdmFsdWUiOjEyNzM2OTUyMn0=",
+              "endCursor": "eyJsYXN0X2lkIjoxMjczMzY3NTQsImxhc3RfdmFsdWUiOjEyNzMzNjc1NH0="
             }
           }
         },
@@ -427,9 +432,9 @@
           "validations": {
             "edges": [
               {
-                "cursor": "eyJsYXN0X2lkIjoxMjQ0MjA0MDIsImxhc3RfdmFsdWUiOjEyNDQyMDQwMn0=",
+                "cursor": "eyJsYXN0X2lkIjoxMjc0MDIyOTAsImxhc3RfdmFsdWUiOjEyNzQwMjI5MH0=",
                 "node": {
-                  "id": "gid://shopify/Validation/124420402",
+                  "id": "gid://shopify/Validation/127402290",
                   "title": "Functions overlay disposable staged validation",
                   "enabled": true,
                   "blockOnFailure": false,
@@ -443,8 +448,8 @@
             "pageInfo": {
               "hasNextPage": true,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjoxMjQ0MjA0MDIsImxhc3RfdmFsdWUiOjEyNDQyMDQwMn0=",
-              "endCursor": "eyJsYXN0X2lkIjoxMjQ0MjA0MDIsImxhc3RfdmFsdWUiOjEyNDQyMDQwMn0="
+              "startCursor": "eyJsYXN0X2lkIjoxMjc0MDIyOTAsImxhc3RfdmFsdWUiOjEyNzQwMjI5MH0=",
+              "endCursor": "eyJsYXN0X2lkIjoxMjc0MDIyOTAsImxhc3RfdmFsdWUiOjEyNzQwMjI5MH0="
             }
           }
         },
@@ -465,7 +470,7 @@
   "windowAfter": {
     "query": "query FunctionsLiveHybridOverlayWindow($after: String) {\n  validations(first: 1, after: $after, reverse: true) {\n    edges {\n      cursor\n      node {\n        id\n        title\n        enabled\n        blockOnFailure\n        shopifyFunction {\n          id\n          apiType\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
     "variables": {
-      "after": "eyJsYXN0X2lkIjoxMjQ0MjA0MDIsImxhc3RfdmFsdWUiOjEyNDQyMDQwMn0="
+      "after": "eyJsYXN0X2lkIjoxMjc0MDIyOTAsImxhc3RfdmFsdWUiOjEyNzQwMjI5MH0="
     },
     "response": {
       "status": 200,
@@ -474,9 +479,9 @@
           "validations": {
             "edges": [
               {
-                "cursor": "eyJsYXN0X2lkIjoxMjQzODc2MzQsImxhc3RfdmFsdWUiOjEyNDM4NzYzNH0=",
+                "cursor": "eyJsYXN0X2lkIjoxMjczNjk1MjIsImxhc3RfdmFsdWUiOjEyNzM2OTUyMn0=",
                 "node": {
-                  "id": "gid://shopify/Validation/124387634",
+                  "id": "gid://shopify/Validation/127369522",
                   "title": "Functions overlay disposable refill validation",
                   "enabled": false,
                   "blockOnFailure": false,
@@ -490,8 +495,8 @@
             "pageInfo": {
               "hasNextPage": true,
               "hasPreviousPage": true,
-              "startCursor": "eyJsYXN0X2lkIjoxMjQzODc2MzQsImxhc3RfdmFsdWUiOjEyNDM4NzYzNH0=",
-              "endCursor": "eyJsYXN0X2lkIjoxMjQzODc2MzQsImxhc3RfdmFsdWUiOjEyNDM4NzYzNH0="
+              "startCursor": "eyJsYXN0X2lkIjoxMjczNjk1MjIsImxhc3RfdmFsdWUiOjEyNzM2OTUyMn0=",
+              "endCursor": "eyJsYXN0X2lkIjoxMjczNjk1MjIsImxhc3RfdmFsdWUiOjEyNzM2OTUyMn0="
             }
           }
         },
@@ -512,14 +517,14 @@
   "refillValidationDelete": {
     "query": "mutation FunctionsLiveHybridOverlayDelete($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
     "variables": {
-      "id": "gid://shopify/Validation/124387634"
+      "id": "gid://shopify/Validation/127369522"
     },
     "response": {
       "status": 200,
       "payload": {
         "data": {
           "validationDelete": {
-            "deletedId": "gid://shopify/Validation/124387634",
+            "deletedId": "gid://shopify/Validation/127369522",
             "userErrors": []
           }
         },
@@ -540,7 +545,7 @@
   "windowAfterTombstone": {
     "query": "query FunctionsLiveHybridOverlayWindow($after: String) {\n  validations(first: 1, after: $after, reverse: true) {\n    edges {\n      cursor\n      node {\n        id\n        title\n        enabled\n        blockOnFailure\n        shopifyFunction {\n          id\n          apiType\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
     "variables": {
-      "after": "eyJsYXN0X2lkIjoxMjQ0MjA0MDIsImxhc3RfdmFsdWUiOjEyNDQyMDQwMn0="
+      "after": "eyJsYXN0X2lkIjoxMjc0MDIyOTAsImxhc3RfdmFsdWUiOjEyNzQwMjI5MH0="
     },
     "response": {
       "status": 200,
@@ -549,9 +554,9 @@
           "validations": {
             "edges": [
               {
-                "cursor": "eyJsYXN0X2lkIjoxMjQzNTQ4NjYsImxhc3RfdmFsdWUiOjEyNDM1NDg2Nn0=",
+                "cursor": "eyJsYXN0X2lkIjoxMjczMzY3NTQsImxhc3RfdmFsdWUiOjEyNzMzNjc1NH0=",
                 "node": {
-                  "id": "gid://shopify/Validation/124354866",
+                  "id": "gid://shopify/Validation/127336754",
                   "title": "Functions overlay disposable base validation",
                   "enabled": true,
                   "blockOnFailure": true,
@@ -565,8 +570,8 @@
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": true,
-              "startCursor": "eyJsYXN0X2lkIjoxMjQzNTQ4NjYsImxhc3RfdmFsdWUiOjEyNDM1NDg2Nn0=",
-              "endCursor": "eyJsYXN0X2lkIjoxMjQzNTQ4NjYsImxhc3RfdmFsdWUiOjEyNDM1NDg2Nn0="
+              "startCursor": "eyJsYXN0X2lkIjoxMjczMzY3NTQsImxhc3RfdmFsdWUiOjEyNzMzNjc1NH0=",
+              "endCursor": "eyJsYXN0X2lkIjoxMjczMzY3NTQsImxhc3RfdmFsdWUiOjEyNzMzNjc1NH0="
             }
           }
         },
@@ -584,11 +589,263 @@
       }
     }
   },
+  "stagedCartTransformCreate": {
+    "query": "mutation FunctionsLiveHybridCartOverlayStage($functionId: String!) {\n  cartTransformCreate(functionId: $functionId, blockOnFailure: false) {\n    cartTransform {\n      id\n      functionId\n      blockOnFailure\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "cartTransformCreate": {
+            "cartTransform": {
+              "id": "gid://shopify/CartTransform/134709554",
+              "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+              "blockOnFailure": false
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cartWindowFirst": {
+    "query": "query FunctionsLiveHybridCartOverlayWindow($after: String) {\n  cartTransforms(first: 1, after: $after) {\n    edges {\n      cursor\n      node {\n        id\n        functionId\n        blockOnFailure\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+    "variables": {
+      "after": null
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "cartTransforms": {
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMzQ3MDk1NTQsImxhc3RfdmFsdWUiOiIxMzQ3MDk1NTQifQ==",
+                "node": {
+                  "id": "gid://shopify/CartTransform/134709554",
+                  "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+                  "blockOnFailure": false
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMzQ3MDk1NTQsImxhc3RfdmFsdWUiOiIxMzQ3MDk1NTQifQ==",
+              "endCursor": "eyJsYXN0X2lkIjoxMzQ3MDk1NTQsImxhc3RfdmFsdWUiOiIxMzQ3MDk1NTQifQ=="
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 3,
+            "actualQueryCost": 3,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1997,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cartWindowAfter": {
+    "query": "query FunctionsLiveHybridCartOverlayWindow($after: String) {\n  cartTransforms(first: 1, after: $after) {\n    edges {\n      cursor\n      node {\n        id\n        functionId\n        blockOnFailure\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+    "variables": {
+      "after": "eyJsYXN0X2lkIjoxMzQ3MDk1NTQsImxhc3RfdmFsdWUiOiIxMzQ3MDk1NTQifQ=="
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "cartTransforms": {
+            "edges": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 3,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "stagedCartTransformDelete": {
+    "query": "mutation FunctionsLiveHybridCartOverlayDelete($id: ID!) {\n  cartTransformDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/CartTransform/134709554"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "cartTransformDelete": {
+            "deletedId": "gid://shopify/CartTransform/134709554",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cartWindowAfterDelete": {
+    "query": "query FunctionsLiveHybridCartOverlayWindow($after: String) {\n  cartTransforms(first: 1, after: $after) {\n    edges {\n      cursor\n      node {\n        id\n        functionId\n        blockOnFailure\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+    "variables": {
+      "after": null
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "cartTransforms": {
+            "edges": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 3,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "fulfillmentConstraintRuleBaseRead": {
+    "query": "query FunctionsLiveHybridFulfillmentRuleBaseRead {\n  fulfillmentConstraintRules {\n    id\n    deliveryMethodTypes\n    function {\n      id\n      handle\n      apiType\n    }\n  }\n}\n",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fulfillmentConstraintRules": [
+            {
+              "id": "gid://shopify/FulfillmentConstraintRule/56262962",
+              "deliveryMethodTypes": ["SHIPPING"],
+              "function": {
+                "id": "019f7a32-10ba-78fc-91dc-4c0afaa7a584",
+                "handle": "conformance-fulfillment-constraint",
+                "apiType": "fulfillment_constraints"
+              }
+            }
+          ]
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "stagedFulfillmentConstraintRuleDelete": {
+    "query": "mutation FunctionsLiveHybridFulfillmentRuleDelete($id: ID!) {\n  fulfillmentConstraintRuleDelete(id: $id) {\n    success\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/FulfillmentConstraintRule/56262962"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fulfillmentConstraintRuleDelete": {
+            "success": true,
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "fulfillmentConstraintRulesAfterTombstone": {
+    "query": "query FunctionsLiveHybridFulfillmentRuleTombstoneRead {\n  fulfillmentConstraintRules {\n    deliveryMethodTypes\n    function {\n      handle\n      apiType\n    }\n  }\n}\n",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fulfillmentConstraintRules": []
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
   "overlayRead": {
     "query": "query FunctionsLiveHybridOverlayRead(\n  $stagedValidationId: ID!\n  $baseValidationId: ID!\n  $cartFunctionId: String!\n  $cartFunctionApiType: String!\n) {\n  stagedValidation: validation(id: $stagedValidationId) {\n    id\n    title\n    enabled\n    blockOnFailure\n    shopifyFunction {\n      id\n      handle\n      apiType\n      app {\n        apiKey\n      }\n    }\n  }\n  baseValidation: validation(id: $baseValidationId) {\n    id\n    title\n    enabled\n    blockOnFailure\n    shopifyFunction {\n      id\n      handle\n      apiType\n      app {\n        apiKey\n      }\n    }\n  }\n  validations(first: 5, reverse: true) {\n    nodes {\n      title\n      enabled\n      blockOnFailure\n      shopifyFunction {\n        handle\n        app {\n          apiKey\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n  cartTransforms(first: 5) {\n    nodes {\n      id\n      functionId\n      blockOnFailure\n      metafield(namespace: \"bundles\", key: \"config\") {\n        namespace\n        key\n        type\n        value\n        ownerType\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n  allFunctions: shopifyFunctions(first: 20) {\n    nodes {\n      id\n      handle\n      apiType\n      app {\n        apiKey\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n  cartFunctions: shopifyFunctions(first: 20, apiType: $cartFunctionApiType) {\n    nodes {\n      id\n      handle\n      apiType\n      app {\n        apiKey\n      }\n    }\n  }\n  upstreamCartFunction: shopifyFunction(id: $cartFunctionId) {\n    id\n    handle\n    apiType\n    app {\n      apiKey\n    }\n  }\n}\n",
     "variables": {
-      "stagedValidationId": "gid://shopify/Validation/124420402",
-      "baseValidationId": "gid://shopify/Validation/124354866",
+      "stagedValidationId": "gid://shopify/Validation/127402290",
+      "baseValidationId": "gid://shopify/Validation/127336754",
       "cartFunctionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
       "cartFunctionApiType": "cart_transform"
     },
@@ -597,7 +854,7 @@
       "payload": {
         "data": {
           "stagedValidation": {
-            "id": "gid://shopify/Validation/124420402",
+            "id": "gid://shopify/Validation/127402290",
             "title": "Functions overlay disposable staged validation",
             "enabled": true,
             "blockOnFailure": false,
@@ -611,7 +868,7 @@
             }
           },
           "baseValidation": {
-            "id": "gid://shopify/Validation/124354866",
+            "id": "gid://shopify/Validation/127336754",
             "title": "Functions overlay disposable base validation",
             "enabled": true,
             "blockOnFailure": true,
@@ -655,20 +912,7 @@
             }
           },
           "cartTransforms": {
-            "nodes": [
-              {
-                "id": "gid://shopify/CartTransform/133333298",
-                "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
-                "blockOnFailure": false,
-                "metafield": {
-                  "namespace": "bundles",
-                  "key": "config",
-                  "type": "json",
-                  "value": "{\"mode\":\"base\"}",
-                  "ownerType": "CARTTRANSFORM"
-                }
-              }
-            ],
+            "nodes": [],
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false
@@ -762,10 +1006,10 @@
         "extensions": {
           "cost": {
             "requestedQueryCost": 51,
-            "actualQueryCost": 29,
+            "actualQueryCost": 30,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1971,
+              "currentlyAvailable": 1970,
               "restoreRate": 100
             }
           }
@@ -777,14 +1021,14 @@
     {
       "query": "mutation FunctionsLiveHybridOverlayValidationCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/Validation/124420402"
+        "id": "gid://shopify/Validation/127402290"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "validationDelete": {
-              "deletedId": "gid://shopify/Validation/124420402",
+              "deletedId": "gid://shopify/Validation/127402290",
               "userErrors": []
             }
           },
@@ -794,7 +1038,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1980,
+                "currentlyAvailable": 1976,
                 "restoreRate": 100
               }
             }
@@ -805,14 +1049,14 @@
     {
       "query": "mutation FunctionsLiveHybridOverlayValidationCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/Validation/124354866"
+        "id": "gid://shopify/Validation/127336754"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "validationDelete": {
-              "deletedId": "gid://shopify/Validation/124354866",
+              "deletedId": "gid://shopify/Validation/127336754",
               "userErrors": []
             }
           },
@@ -822,35 +1066,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1984,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "query": "mutation FunctionsLiveHybridOverlayCartTransformCleanup($id: ID!) {\n  cartTransformDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
-      "variables": {
-        "id": "gid://shopify/CartTransform/133333298"
-      },
-      "response": {
-        "status": 200,
-        "payload": {
-          "data": {
-            "cartTransformDelete": {
-              "deletedId": "gid://shopify/CartTransform/133333298",
-              "userErrors": []
-            }
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 10,
-              "actualQueryCost": 10,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1987,
+                "currentlyAvailable": 1980,
                 "restoreRate": 100
               }
             }
@@ -890,7 +1106,7 @@
               "actualQueryCost": 2,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1998,
+                "currentlyAvailable": 1995,
                 "restoreRate": 100
               }
             }
@@ -911,9 +1127,9 @@
             "validations": {
               "edges": [
                 {
-                  "cursor": "eyJsYXN0X2lkIjoxMjQzODc2MzQsImxhc3RfdmFsdWUiOjEyNDM4NzYzNH0=",
+                  "cursor": "eyJsYXN0X2lkIjoxMjczNjk1MjIsImxhc3RfdmFsdWUiOjEyNzM2OTUyMn0=",
                   "node": {
-                    "id": "gid://shopify/Validation/124387634",
+                    "id": "gid://shopify/Validation/127369522",
                     "title": "Functions overlay disposable refill validation",
                     "enabled": false,
                     "blockOnFailure": false,
@@ -927,8 +1143,8 @@
               "pageInfo": {
                 "hasNextPage": true,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoxMjQzODc2MzQsImxhc3RfdmFsdWUiOjEyNDM4NzYzNH0=",
-                "endCursor": "eyJsYXN0X2lkIjoxMjQzODc2MzQsImxhc3RfdmFsdWUiOjEyNDM4NzYzNH0="
+                "startCursor": "eyJsYXN0X2lkIjoxMjczNjk1MjIsImxhc3RfdmFsdWUiOjEyNzM2OTUyMn0=",
+                "endCursor": "eyJsYXN0X2lkIjoxMjczNjk1MjIsImxhc3RfdmFsdWUiOjEyNzM2OTUyMn0="
               }
             }
           },
@@ -957,9 +1173,9 @@
             "validations": {
               "edges": [
                 {
-                  "cursor": "eyJsYXN0X2lkIjoxMjQzODc2MzQsImxhc3RfdmFsdWUiOjEyNDM4NzYzNH0=",
+                  "cursor": "eyJsYXN0X2lkIjoxMjczNjk1MjIsImxhc3RfdmFsdWUiOjEyNzM2OTUyMn0=",
                   "node": {
-                    "id": "gid://shopify/Validation/124387634",
+                    "id": "gid://shopify/Validation/127369522",
                     "title": "Functions overlay disposable refill validation",
                     "enabled": false,
                     "blockOnFailure": false,
@@ -970,9 +1186,9 @@
                   }
                 },
                 {
-                  "cursor": "eyJsYXN0X2lkIjoxMjQzNTQ4NjYsImxhc3RfdmFsdWUiOjEyNDM1NDg2Nn0=",
+                  "cursor": "eyJsYXN0X2lkIjoxMjczMzY3NTQsImxhc3RfdmFsdWUiOjEyNzMzNjc1NH0=",
                   "node": {
-                    "id": "gid://shopify/Validation/124354866",
+                    "id": "gid://shopify/Validation/127336754",
                     "title": "Functions overlay disposable base validation",
                     "enabled": true,
                     "blockOnFailure": true,
@@ -986,8 +1202,8 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoxMjQzODc2MzQsImxhc3RfdmFsdWUiOjEyNDM4NzYzNH0=",
-                "endCursor": "eyJsYXN0X2lkIjoxMjQzNTQ4NjYsImxhc3RfdmFsdWUiOjEyNDM1NDg2Nn0="
+                "startCursor": "eyJsYXN0X2lkIjoxMjczNjk1MjIsImxhc3RfdmFsdWUiOjEyNzM2OTUyMn0=",
+                "endCursor": "eyJsYXN0X2lkIjoxMjczMzY3NTQsImxhc3RfdmFsdWUiOjEyNzMzNjc1NH0="
               }
             }
           },
@@ -1016,9 +1232,9 @@
             "validations": {
               "edges": [
                 {
-                  "cursor": "eyJsYXN0X2lkIjoxMjQzODc2MzQsImxhc3RfdmFsdWUiOjEyNDM4NzYzNH0=",
+                  "cursor": "eyJsYXN0X2lkIjoxMjczNjk1MjIsImxhc3RfdmFsdWUiOjEyNzM2OTUyMn0=",
                   "node": {
-                    "id": "gid://shopify/Validation/124387634",
+                    "id": "gid://shopify/Validation/127369522",
                     "title": "Functions overlay disposable refill validation",
                     "enabled": false,
                     "blockOnFailure": false,
@@ -1029,9 +1245,9 @@
                   }
                 },
                 {
-                  "cursor": "eyJsYXN0X2lkIjoxMjQzNTQ4NjYsImxhc3RfdmFsdWUiOjEyNDM1NDg2Nn0=",
+                  "cursor": "eyJsYXN0X2lkIjoxMjczMzY3NTQsImxhc3RfdmFsdWUiOjEyNzMzNjc1NH0=",
                   "node": {
-                    "id": "gid://shopify/Validation/124354866",
+                    "id": "gid://shopify/Validation/127336754",
                     "title": "Functions overlay disposable base validation",
                     "enabled": true,
                     "blockOnFailure": true,
@@ -1045,8 +1261,8 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoxMjQzODc2MzQsImxhc3RfdmFsdWUiOjEyNDM4NzYzNH0=",
-                "endCursor": "eyJsYXN0X2lkIjoxMjQzNTQ4NjYsImxhc3RfdmFsdWUiOjEyNDM1NDg2Nn0="
+                "startCursor": "eyJsYXN0X2lkIjoxMjczNjk1MjIsImxhc3RfdmFsdWUiOjEyNzM2OTUyMn0=",
+                "endCursor": "eyJsYXN0X2lkIjoxMjczMzY3NTQsImxhc3RfdmFsdWUiOjEyNzMzNjc1NH0="
               }
             }
           },
@@ -1063,10 +1279,247 @@
           }
         }
       }
+    },
+    {
+      "operationName": "FunctionHydrateById",
+      "variables": {
+        "id": "019dd44b-127f-724b-a49c-70fc98ff4d72"
+      },
+      "query": "query FunctionHydrateById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    apiType\n    description\n    appKey\n    app {\n      __typename\n      id\n      title\n      apiKey\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunction": {
+              "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+              "title": "conformance-cart-transform",
+              "apiType": "cart_transform",
+              "description": "conformance-cart-transform",
+              "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+              "app": {
+                "__typename": "App",
+                "id": "gid://shopify/App/347082227713",
+                "title": "hermes-conformance-products",
+                "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FunctionsLiveHybridCartOverlayWindow",
+      "variables": {
+        "after": null
+      },
+      "query": "query FunctionsLiveHybridCartOverlayWindow($after: String) {\n  cartTransforms(first: 1, after: $after) {\n    edges {\n      cursor\n      node {\n        id\n        functionId\n        blockOnFailure\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "cartTransforms": {
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FunctionConnectionWindowHydrate",
+      "variables": {},
+      "query": "query FunctionConnectionWindowHydrate { cartTransforms(first: 3) { edges { cursor node { id functionId blockOnFailure } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "cartTransforms": {
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FunctionsLiveHybridCartOverlayWindow",
+      "variables": {
+        "after": null
+      },
+      "query": "query FunctionsLiveHybridCartOverlayWindow($after: String) {\n  cartTransforms(first: 1, after: $after) {\n    edges {\n      cursor\n      node {\n        id\n        functionId\n        blockOnFailure\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "cartTransforms": {
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FunctionsLiveHybridFulfillmentRuleBaseRead",
+      "variables": {},
+      "query": "query FunctionsLiveHybridFulfillmentRuleBaseRead {\n  fulfillmentConstraintRules {\n    id\n    deliveryMethodTypes\n    function {\n      id\n      handle\n      apiType\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentConstraintRules": [
+              {
+                "id": "gid://shopify/FulfillmentConstraintRule/56262962",
+                "deliveryMethodTypes": ["SHIPPING"],
+                "function": {
+                  "id": "019f7a32-10ba-78fc-91dc-4c0afaa7a584",
+                  "handle": "conformance-fulfillment-constraint",
+                  "apiType": "fulfillment_constraints"
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FunctionsLiveHybridFulfillmentRuleTombstoneRead",
+      "variables": {},
+      "query": "query FunctionsLiveHybridFulfillmentRuleTombstoneRead {\n  fulfillmentConstraintRules {\n    deliveryMethodTypes\n    function {\n      handle\n      apiType\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentConstraintRules": [
+              {
+                "deliveryMethodTypes": ["SHIPPING"],
+                "function": {
+                  "handle": "conformance-fulfillment-constraint",
+                  "apiType": "fulfillment_constraints"
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FunctionListWindowHydrate",
+      "variables": {},
+      "query": "query FunctionListWindowHydrate { fulfillmentConstraintRules { deliveryMethodTypes function { handle apiType } id } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentConstraintRules": [
+              {
+                "deliveryMethodTypes": ["SHIPPING"],
+                "function": {
+                  "handle": "conformance-fulfillment-constraint",
+                  "apiType": "fulfillment_constraints"
+                },
+                "id": "gid://shopify/FulfillmentConstraintRule/56262962"
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
     }
   ],
   "notes": {
-    "setup": "The script removes disposable Function resources for the released conformance functions, creates two base validations and one base cart transform, records exact first-page and bounded-refill cassettes from that base state, then creates the validation lifecycle that the proxy stages locally.",
-    "cleanup": "The finally block deletes the base validation, staged validation, and base cart transform when they were created."
+    "setup": "The script removes disposable Function resources, creates two base validations and one base fulfillment rule, records exact validation/cart/list window cassettes, then runs the validation and cart-transform lifecycles plus the fulfillment-rule tombstone through public Admin GraphQL.",
+    "cleanup": "The finally block deletes every validation, cart transform, and fulfillment rule created by this capture when an earlier assertion fails."
   }
 }

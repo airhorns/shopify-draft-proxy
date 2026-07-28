@@ -1,6 +1,15 @@
 {
   "scenarioId": "functions-live-hybrid-overlay-read",
-  "operationNames": ["validationCreate", "validationDelete", "validations"],
+  "operationNames": [
+    "validationCreate",
+    "validationDelete",
+    "validations",
+    "cartTransformCreate",
+    "cartTransformDelete",
+    "cartTransforms",
+    "fulfillmentConstraintRuleDelete",
+    "fulfillmentConstraintRules"
+  ],
   "scenarioStatus": "captured",
   "assertionKinds": [
     "live-capture",
@@ -111,8 +120,138 @@
             }
           }
         }
+      },
+      {
+        "name": "cart-transform-create-stages-overlay-row",
+        "capturePath": "$.stagedCartTransformCreate.response.payload.data.cartTransformCreate",
+        "proxyPath": "$.data.cartTransformCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-live-hybrid-cart-overlay-stage.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.stagedCartTransformCreate.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.cartTransform.id",
+            "matcher": "shopify-gid:CartTransform",
+            "reason": "The proxy stages a synthetic CartTransform ID while Shopify returns the live CartTransform ID."
+          }
+        ]
+      },
+      {
+        "name": "cart-transform-first-window-includes-staged-row",
+        "capturePath": "$.cartWindowFirst.response.payload.data.cartTransforms",
+        "proxyPath": "$.data.cartTransforms",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-live-hybrid-cart-overlay-window.graphql",
+          "apiVersion": "2026-04",
+          "variables": { "after": null }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns an opaque cursor while the staged proxy row uses a stable local cursor."
+          },
+          {
+            "path": "$.edges[0].node.id",
+            "matcher": "shopify-gid:CartTransform",
+            "reason": "The staged proxy row has a synthetic CartTransform ID."
+          },
+          {
+            "path": "$.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns an opaque cursor while the staged proxy row uses a stable local cursor."
+          },
+          {
+            "path": "$.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns an opaque cursor while the staged proxy row uses a stable local cursor."
+          }
+        ]
+      },
+      {
+        "name": "cart-transform-after-local-cursor-uses-bounded-refill",
+        "capturePath": "$.cartWindowAfter.response.payload.data.cartTransforms",
+        "proxyPath": "$.data.cartTransforms",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-live-hybrid-cart-overlay-window.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "after": {
+              "fromProxyResponse": "cart-transform-first-window-includes-staged-row",
+              "path": "$.data.cartTransforms.pageInfo.endCursor"
+            }
+          }
+        }
+      },
+      {
+        "name": "cart-transform-delete-removes-staged-row",
+        "capturePath": "$.stagedCartTransformDelete.response.payload.data.cartTransformDelete",
+        "proxyPath": "$.data.cartTransformDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-live-hybrid-cart-overlay-delete.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "cart-transform-create-stages-overlay-row",
+              "path": "$.data.cartTransformCreate.cartTransform.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deletedId",
+            "matcher": "shopify-gid:CartTransform",
+            "reason": "Shopify deletes its live CartTransform ID while the proxy deletes the staged synthetic ID."
+          }
+        ]
+      },
+      {
+        "name": "cart-transform-window-empty-after-staged-delete",
+        "capturePath": "$.cartWindowAfterDelete.response.payload.data.cartTransforms",
+        "proxyPath": "$.data.cartTransforms",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-live-hybrid-cart-overlay-window.graphql",
+          "apiVersion": "2026-04",
+          "variables": { "after": null }
+        }
+      },
+      {
+        "name": "fulfillment-rule-base-list-is-preserved",
+        "capturePath": "$.fulfillmentConstraintRuleBaseRead.response.payload.data.fulfillmentConstraintRules",
+        "proxyPath": "$.data.fulfillmentConstraintRules",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-live-hybrid-fulfillment-rule-base-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {}
+        }
+      },
+      {
+        "name": "fulfillment-rule-base-row-is-tombstoned",
+        "capturePath": "$.stagedFulfillmentConstraintRuleDelete.response.payload.data.fulfillmentConstraintRuleDelete",
+        "proxyPath": "$.data.fulfillmentConstraintRuleDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-live-hybrid-fulfillment-rule-delete.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromCapturePath": "$.baseFulfillmentConstraintRuleCreate.response.payload.data.fulfillmentConstraintRuleCreate.fulfillmentConstraintRule.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "fulfillment-rule-tombstone-refills-omitted-identity",
+        "capturePath": "$.fulfillmentConstraintRulesAfterTombstone.response.payload.data.fulfillmentConstraintRules",
+        "proxyPath": "$.data.fulfillmentConstraintRules",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-live-hybrid-fulfillment-rule-tombstone-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {}
+        }
       }
     ]
   },
-  "notes": "Live Shopify Admin 2026-04 evidence for a staged validation over two existing validations. The captured targets compare the first reverse window, continuation after the staged row, a base-row tombstone, and the refilled continuation. Exact upstreamCalls contain the production first-page caller document and bounded three/four-row refill documents; no fixed whole-catalog runtime hydrate is replayed. Expected differences are limited to the staged Validation ID and its local cursor."
+  "notes": "Live Shopify Admin 2026-04 evidence for validation, cart-transform, and fulfillment-rule overlays. Validation targets compare first/after/tombstone/refill windows. Cart-transform targets stage a row over an empty upstream catalog, compare first and after-local-cursor windows through the exact bounded refill cassette, then delete it. Fulfillment-rule targets preserve a real base row, tombstone it, and replay the caller's identity-omitting response plus one identity-only list hydrate. No fixed whole-catalog runtime hydrate is replayed."
 }

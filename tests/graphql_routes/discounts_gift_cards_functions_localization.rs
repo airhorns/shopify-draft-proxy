@@ -7485,6 +7485,120 @@ fn functions_live_hybrid_large_catalog_max_window_uses_bounded_tail_refill() {
 }
 
 #[test]
+fn functions_live_hybrid_cart_transform_empty_after_local_cursor_preserves_empty_page_info() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let hit_log = Arc::clone(&upstream_hits);
+    let function = function_metadata_record(
+        "cart-empty-local-cursor",
+        "Empty local cursor cart transform",
+        "cart-empty-local-cursor",
+        "cart_transform",
+        "cart-empty-local-cursor-key",
+        "cart-empty-local-cursor-app",
+    );
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body)
+            .expect("empty cart-transform continuation request should parse");
+        hit_log.lock().unwrap().push(body.clone());
+        let response = if body["operationName"] == json!("FunctionHydrateById") {
+            json!({ "data": { "shopifyFunction": function.clone() } })
+        } else {
+            json!({
+                "data": {
+                    "cartTransforms": {
+                        "edges": [],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": null,
+                            "endCursor": null
+                        }
+                    }
+                }
+            })
+        };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: response,
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageEmptyLocalCursorCartTransform($functionId: String!) {
+          cartTransformCreate(functionId: $functionId, blockOnFailure: false) {
+            cartTransform { id functionId blockOnFailure }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "functionId": "cart-empty-local-cursor" }),
+    ));
+    assert_eq!(
+        create.body["data"]["cartTransformCreate"]["userErrors"],
+        json!([])
+    );
+
+    let first = proxy.process_request(json_graphql_request(
+        r#"
+        query EmptyLocalCursorCartTransformFirst($after: String) {
+          cartTransforms(first: 1, after: $after) {
+            edges { cursor node { id functionId blockOnFailure } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "after": null }),
+    ));
+    let local_cursor = first.body["data"]["cartTransforms"]["pageInfo"]["endCursor"]
+        .as_str()
+        .expect("staged cart transform should expose a local cursor")
+        .to_string();
+
+    let after = proxy.process_request(json_graphql_request(
+        r#"
+        query EmptyLocalCursorCartTransformAfter($after: String) {
+          cartTransforms(first: 1, after: $after) {
+            edges { cursor node { id functionId blockOnFailure } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "after": local_cursor }),
+    ));
+    assert_eq!(
+        after.body["data"]["cartTransforms"],
+        json!({
+            "edges": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            }
+        })
+    );
+    let hits = upstream_hits.lock().unwrap();
+    assert_eq!(
+        hits.len(),
+        3,
+        "Function identity, caller first window, and one bounded continuation refill"
+    );
+    let refill = hits
+        .iter()
+        .find(|body| body["operationName"] == json!("FunctionConnectionWindowHydrate"))
+        .expect("bounded cart-transform continuation refill");
+    let query = refill["query"].as_str().unwrap_or_default();
+    assert!(query.contains("cartTransforms(first: 3"), "{query}");
+    assert!(!query.contains("cursor:gid://"), "{query}");
+}
+
+#[test]
 fn functions_live_hybrid_cart_transform_tombstones_use_one_bounded_refill_window() {
     let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
     let hit_log = Arc::clone(&upstream_hits);

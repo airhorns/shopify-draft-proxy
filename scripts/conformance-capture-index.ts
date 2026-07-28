@@ -11432,13 +11432,15 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-functions-live-hybrid-overlay-conformance.ts',
     purpose:
-      'LiveHybrid Functions overlay evidence for first/after windows, local-cursor continuation, a base-row tombstone, and bounded refill while preserving unrelated upstream Function metadata.',
+      'LiveHybrid validation/cart-transform/fulfillment-rule overlay evidence for first/after windows, local-cursor continuation, tombstones, and bounded or identity-only refills.',
     requiredAuthScopes: [
       'shopifyFunctions read access',
       'read_validations',
       'write_validations for disposable validation create/delete lifecycle capture',
       'read_cart_transforms',
       'write_cart_transforms for disposable cart transform create/delete lifecycle capture',
+      'read_fulfillment_constraint_rules',
+      'write_fulfillment_constraint_rules for disposable fulfillment-rule create/delete lifecycle capture',
     ],
     fixtureOutputs: [
       `${CAPTURE_ROOT}functions-live-hybrid-overlay-read.json`,
@@ -11447,9 +11449,15 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/functions/functions-live-hybrid-overlay-read.graphql',
       'config/parity-requests/functions/functions-live-hybrid-overlay-window.graphql',
       'config/parity-requests/functions/functions-live-hybrid-overlay-delete.graphql',
+      'config/parity-requests/functions/functions-live-hybrid-cart-overlay-stage.graphql',
+      'config/parity-requests/functions/functions-live-hybrid-cart-overlay-window.graphql',
+      'config/parity-requests/functions/functions-live-hybrid-cart-overlay-delete.graphql',
+      'config/parity-requests/functions/functions-live-hybrid-fulfillment-rule-base-read.graphql',
+      'config/parity-requests/functions/functions-live-hybrid-fulfillment-rule-delete.graphql',
+      'config/parity-requests/functions/functions-live-hybrid-fulfillment-rule-tombstone-read.graphql',
     ],
     cleanupBehavior:
-      'Deletes disposable validations and cart transforms for the released conformance Functions before capture, creates two base validations and one base cart transform, records exact first-page and bounded-refill cassettes, creates one later validation lifecycle, captures first/after/tombstone windows, then deletes created resources.',
+      'Deletes disposable Function resources before capture, creates two base validations and one base fulfillment rule, records exact caller/refill cassettes, runs one validation and one cart-transform lifecycle plus the fulfillment-rule tombstone, then deletes every created resource.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

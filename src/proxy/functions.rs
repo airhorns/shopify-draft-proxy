@@ -2042,10 +2042,12 @@ fn function_windowed_observed_connection(
     let (has_next, has_previous) = match function_connection_direction(arguments) {
         FunctionConnectionDirection::Forward => (
             upstream_has_next || end < total,
-            upstream_has_previous || resolved_string_field(arguments, "after").is_some(),
+            upstream_has_previous
+                || (!selected.is_empty() && resolved_string_field(arguments, "after").is_some()),
         ),
         FunctionConnectionDirection::Backward => (
-            upstream_has_next || resolved_string_field(arguments, "before").is_some(),
+            upstream_has_next
+                || (!selected.is_empty() && resolved_string_field(arguments, "before").is_some()),
             upstream_has_previous || start > 0,
         ),
     };
