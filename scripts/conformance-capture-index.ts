@@ -10658,7 +10658,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-discount-bxgy-lifecycle-conformance.ts',
     purpose: 'Buy-X-get-Y code and automatic discount lifecycle behavior.',
     requiredAuthScopes: ['read_discounts', 'write_discounts', 'read_products', 'write_products'],
-    fixtureOutputs: [`${CAPTURE_ROOT}discount-bxgy-lifecycle.json`],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-bxgy-lifecycle.json`,
+      'config/parity-specs/discounts/discount-bxgy-lifecycle.json',
+    ],
     cleanupBehavior: 'Deletes created discounts/products/collections in reverse-order cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },

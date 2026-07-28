@@ -660,5 +660,502 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      combinedListingRole\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      options {\n        id\n        name\n        position\n        optionValues { id name hasVariants }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          jsonValue\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n      media(first: 250) {\n        nodes {\n          __typename\n          id\n          alt\n          mediaContentType\n          status\n          preview { image { url width height } }\n          ... on MediaImage {\n            image { id url altText width height }\n          }\n        }\n      }\n      collections(first: 250) {\n        nodes {\n          id\n          legacyResourceId\n          title\n          handle\n          updatedAt\n          description\n          descriptionHtml\n          sortOrder\n          templateSuffix\n          seo { title description }\n          productsCount { count }\n        }\n      }\n      variants(first: 250) {\n        nodes {\n          id\n          title\n          sku\n          barcode\n          price\n          compareAtPrice\n          taxable\n          inventoryPolicy\n          inventoryQuantity\n          selectedOptions { name value }\n          metafields(first: 250) {\n            nodes {\n              id\n              namespace\n              key\n              type\n              value\n              compareDigest\n              jsonValue\n              createdAt\n              updatedAt\n              ownerType\n            }\n          }\n          inventoryItem {\n            id\n            tracked\n            requiresShipping\n            measurement { weight { unit value } }\n            inventoryLevels(first: 50) {\n              nodes {\n                id\n                location { id name }\n                quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n                  name\n                  quantity\n                  updatedAt\n                }\n              }\n            }\n          }\n          sellingPlanGroups(first: 50) {\n            nodes { id name merchantCode }\n          }\n        }\n      }\n      sellingPlanGroups(first: 50) {\n        nodes { id name merchantCode }\n      }\n    }\n    ... on Collection {\n      legacyResourceId\n      title\n      handle\n      updatedAt\n      description\n      descriptionHtml\n      sortOrder\n      templateSuffix\n      seo { title description }\n      ruleSet {\n        appliedDisjunctively\n        rules { column relation condition }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          jsonValue\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n      productsCount { count }\n      products(first: 250) {\n        edges {\n          cursor\n          node { id title handle status vendor productType tags totalInventory tracksInventory }\n        }\n      }\n    }\n    ... on ProductVariant {\n      title\n      sku\n      barcode\n      price\n      compareAtPrice\n      taxable\n      inventoryPolicy\n      inventoryQuantity\n      selectedOptions { name value }\n      product { id title handle status totalInventory tracksInventory }\n      product {\n        variants(first: 250) {\n          nodes {\n            id\n            title\n            sku\n            barcode\n            price\n            compareAtPrice\n            taxable\n            inventoryPolicy\n            inventoryQuantity\n            selectedOptions { name value }\n            inventoryItem {\n              id\n              tracked\n              requiresShipping\n              measurement { weight { unit value } }\n            }\n          }\n        }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          jsonValue\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n      inventoryItem {\n        id\n        tracked\n        requiresShipping\n        measurement { weight { unit value } }\n      }\n      sellingPlanGroups(first: 50) {\n        nodes { id name merchantCode }\n      }\n    }\n    ... on InventoryItem {\n      tracked\n      requiresShipping\n      measurement { weight { unit value } }\n      variant {\n        id\n        title\n        inventoryQuantity\n        selectedOptions { name value }\n        product {\n          id\n          title\n          handle\n          status\n          totalInventory\n          tracksInventory\n        }\n      }\n      inventoryLevels(first: 50) {\n        nodes {\n          id\n          location { id name }\n          quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n            name\n            quantity\n            updatedAt\n          }\n        }\n      }\n    }\n    ... on InventoryLevel {\n      id\n      location { id name }\n      quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n        name\n        quantity\n        updatedAt\n      }\n      item {\n        id\n        tracked\n        requiresShipping\n        inventoryLevels(first: 50) {\n          nodes {\n            id\n            location { id name }\n            quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n              name\n              quantity\n              updatedAt\n            }\n          }\n        }\n        variant {\n          id\n          title\n          inventoryQuantity\n          selectedOptions { name value }\n          product {\n            id\n            title\n            handle\n            status\n            totalInventory\n            tracksInventory\n          }\n        }\n      }\n    }\n    ... on Location {\n      id\n      name\n      isActive\n    }\n  }\n}",
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/9801098789170"]
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/9801098789170",
+                "legacyResourceId": "9801098789170",
+                "title": "The Inventory Not Tracked Snowboard",
+                "handle": "the-inventory-not-tracked-snowboard",
+                "status": "ACTIVE",
+                "combinedListingRole": null,
+                "vendor": "harry-test-heelo",
+                "productType": "snowboard",
+                "tags": ["Accessory", "Sport", "Winter"],
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "createdAt": "2025-03-26T19:51:37Z",
+                "updatedAt": "2026-07-20T14:37:07Z",
+                "publishedAt": "2020-01-01T00:00:00Z",
+                "descriptionHtml": "",
+                "onlineStorePreviewUrl": "https://harry-test-heelo.myshopify.com/products/the-inventory-not-tracked-snowboard",
+                "templateSuffix": null,
+                "seo": {
+                  "title": null,
+                  "description": null
+                },
+                "options": [
+                  {
+                    "id": "gid://shopify/ProductOption/12278832234802",
+                    "name": "Title",
+                    "position": 1,
+                    "optionValues": [
+                      {
+                        "id": "gid://shopify/ProductOptionValue/4608548438322",
+                        "name": "Default Title",
+                        "hasVariants": true
+                      }
+                    ]
+                  }
+                ],
+                "metafields": {
+                  "nodes": []
+                },
+                "media": {
+                  "nodes": [
+                    {
+                      "__typename": "MediaImage",
+                      "id": "gid://shopify/MediaImage/41115597537586",
+                      "alt": "Top and bottom view of a snowboard. The top view shows a centred hexagonal logo for Hydrogen that\n          appears to radiate outwards, as well as some overlapping hexagons at the bottom. The bottom view shows an\n          abstract angular grid in purples.",
+                      "mediaContentType": "IMAGE",
+                      "status": "READY",
+                      "preview": {
+                        "image": {
+                          "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/snowboard_purple_hydrogen.png?v=1743018700",
+                          "width": 3097,
+                          "height": 3908
+                        }
+                      },
+                      "image": {
+                        "id": "gid://shopify/ImageSource/41115597537586",
+                        "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/snowboard_purple_hydrogen.png?v=1743018700",
+                        "altText": "Top and bottom view of a snowboard. The top view shows a centred hexagonal logo for Hydrogen that\n          appears to radiate outwards, as well as some overlapping hexagons at the bottom. The bottom view shows an\n          abstract angular grid in purples.",
+                        "width": 3097,
+                        "height": 3908
+                      }
+                    }
+                  ]
+                },
+                "collections": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Collection/494967390514",
+                      "legacyResourceId": "494967390514",
+                      "title": "Home page",
+                      "handle": "frontpage",
+                      "updatedAt": "2026-07-03T18:59:49Z",
+                      "description": "",
+                      "descriptionHtml": "",
+                      "sortOrder": "BEST_SELLING",
+                      "templateSuffix": null,
+                      "seo": {
+                        "title": null,
+                        "description": null
+                      },
+                      "productsCount": {
+                        "count": 1
+                      }
+                    }
+                  ]
+                },
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/49875425296690",
+                      "title": "Default Title",
+                      "sku": "sku-untracked-1",
+                      "barcode": null,
+                      "price": "949.95",
+                      "compareAtPrice": null,
+                      "taxable": true,
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": -16,
+                      "selectedOptions": [
+                        {
+                          "name": "Title",
+                          "value": "Default Title"
+                        }
+                      ],
+                      "metafields": {
+                        "nodes": []
+                      },
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/51930318700850",
+                        "tracked": false,
+                        "requiresShipping": true,
+                        "measurement": {
+                          "weight": {
+                            "unit": "KILOGRAMS",
+                            "value": 0
+                          }
+                        },
+                        "inventoryLevels": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=51930318700850",
+                              "location": {
+                                "id": "gid://shopify/Location/106318430514",
+                                "name": "Shop location"
+                              },
+                              "quantities": [
+                                {
+                                  "name": "available",
+                                  "quantity": -16,
+                                  "updatedAt": "2026-06-22T22:33:52Z"
+                                },
+                                {
+                                  "name": "on_hand",
+                                  "quantity": 0,
+                                  "updatedAt": "2026-04-26T00:06:26Z"
+                                },
+                                {
+                                  "name": "committed",
+                                  "quantity": 12,
+                                  "updatedAt": "2026-06-22T21:37:29Z"
+                                },
+                                {
+                                  "name": "incoming",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "reserved",
+                                  "quantity": 4,
+                                  "updatedAt": "2026-06-22T22:33:52Z"
+                                },
+                                {
+                                  "name": "damaged",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "quality_control",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "safety_stock",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      },
+                      "sellingPlanGroups": {
+                        "nodes": []
+                      }
+                    }
+                  ]
+                },
+                "sellingPlanGroups": {
+                  "nodes": []
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 637,
+              "actualQueryCost": 37,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1963,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "variables": {
+        "code": "HAR780SETB1778019670807"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "variables": {
+        "code": "HAR780SETX1778019670807"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "variables": {
+        "code": "HAR780SETS1778019670807"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "#graphql\n  query DiscountContextRefsHydrate($ids: [ID!]!) {\n    nodes(ids: $ids) {\n      __typename\n      id\n      ... on Customer {\n        displayName\n        email\n      }\n      ... on Segment {\n        name\n        query\n        creationDate\n        lastEditDate\n      }\n    }\n  }\n",
+      "operationName": "DiscountContextRefsHydrate",
+      "variables": {
+        "ids": ["gid://shopify/Customer/10582995763506"]
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [null]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "variables": {
+        "code": "HAR780BASIC1778019670807"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "variables": {
+        "code": "HAR780BXGY1778019670807"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "variables": {
+        "code": "HAR780SHIP1778019670807"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "#graphql\n  query DiscountContextRefsHydrate($ids: [ID!]!) {\n    nodes(ids: $ids) {\n      __typename\n      id\n      ... on Customer {\n        displayName\n        email\n      }\n      ... on Segment {\n        name\n        query\n        creationDate\n        lastEditDate\n      }\n    }\n  }\n",
+      "operationName": "DiscountContextRefsHydrate",
+      "variables": {
+        "ids": ["gid://shopify/Customer/10582995763506"]
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [null]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "#graphql\n  query DiscountContextRefsHydrate($ids: [ID!]!) {\n    nodes(ids: $ids) {\n      __typename\n      id\n      ... on Customer {\n        displayName\n        email\n      }\n      ... on Segment {\n        name\n        query\n        creationDate\n        lastEditDate\n      }\n    }\n  }\n",
+      "operationName": "DiscountContextRefsHydrate",
+      "variables": {
+        "ids": ["gid://shopify/Customer/10582995763506"]
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [null]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "#graphql\n  query DiscountContextRefsHydrate($ids: [ID!]!) {\n    nodes(ids: $ids) {\n      __typename\n      id\n      ... on Customer {\n        displayName\n        email\n      }\n      ... on Segment {\n        name\n        query\n        creationDate\n        lastEditDate\n      }\n    }\n  }\n",
+      "operationName": "DiscountContextRefsHydrate",
+      "variables": {
+        "ids": ["gid://shopify/Customer/10582995763506"]
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [null]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
