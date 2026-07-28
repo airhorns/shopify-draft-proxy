@@ -1,0 +1,51 @@
+#graphql
+  fragment FulfillmentOrderBatchAtomicityFields on FulfillmentOrder {
+    id
+    status
+    requestStatus
+    updatedAt
+    supportedActions {
+      action
+    }
+    assignedLocation {
+      name
+      location {
+        id
+        name
+      }
+    }
+    lineItems(first: 10) {
+      nodes {
+        id
+        totalQuantity
+        remainingQuantity
+        lineItem {
+          id
+          title
+          quantity
+          fulfillableQuantity
+        }
+      }
+    }
+  }
+
+  mutation FulfillmentOrderSplitBatchAtomicity($fulfillmentOrderSplits: [FulfillmentOrderSplitInput!]!) {
+    fulfillmentOrderSplit(fulfillmentOrderSplits: $fulfillmentOrderSplits) {
+      fulfillmentOrderSplits {
+        fulfillmentOrder {
+          ...FulfillmentOrderBatchAtomicityFields
+        }
+        remainingFulfillmentOrder {
+          ...FulfillmentOrderBatchAtomicityFields
+        }
+        replacementFulfillmentOrder {
+          ...FulfillmentOrderBatchAtomicityFields
+        }
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
