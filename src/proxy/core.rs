@@ -809,11 +809,36 @@ impl DraftProxy {
             snapshot["baseState"]["functionValidationOrder"] =
                 json!(self.store.base.function_validation_order.clone());
         }
+        if !self
+            .store
+            .base
+            .function_validation_decision_records
+            .is_empty()
+        {
+            snapshot["baseState"]["functionValidationDecisionRecords"] =
+                json!(self.store.base.function_validation_decision_records.clone());
+        }
+        if let Some(cursor) = &self.store.base.function_validation_decision_next_cursor {
+            snapshot["baseState"]["functionValidationDecisionNextCursor"] = json!(cursor);
+        }
+        if self
+            .store
+            .base
+            .function_validation_decision_catalog_complete
+        {
+            snapshot["baseState"]["functionValidationDecisionCatalogComplete"] = json!(true);
+        }
         if !self.store.base.function_cart_transforms.is_empty() {
             snapshot["baseState"]["functionCartTransforms"] =
                 json!(self.store.base.function_cart_transforms.clone());
             snapshot["baseState"]["functionCartTransformOrder"] =
                 json!(self.store.base.function_cart_transform_order.clone());
+        }
+        if let Some(decision) = &self.store.base.function_cart_transform_decision {
+            snapshot["baseState"]["functionCartTransformDecision"] = decision.clone();
+        }
+        if self.store.base.function_cart_transform_decision_hydrated {
+            snapshot["baseState"]["functionCartTransformDecisionHydrated"] = json!(true);
         }
         if !self
             .store
@@ -832,9 +857,30 @@ impl DraftProxy {
                 .function_fulfillment_constraint_rule_order
                 .clone());
         }
+        if self
+            .store
+            .base
+            .function_fulfillment_constraint_rule_catalog_complete
+        {
+            snapshot["baseState"]["functionFulfillmentConstraintRuleCatalogComplete"] = json!(true);
+        }
         if !self.store.base.function_connection_observations.is_empty() {
             snapshot["baseState"]["functionConnectionObservations"] =
                 json!(self.store.base.function_connection_observations.clone());
+        }
+        if !self
+            .store
+            .base
+            .function_fulfillment_constraint_rule_known_missing_ids
+            .is_empty()
+        {
+            snapshot["baseState"]["functionFulfillmentConstraintRuleKnownMissingIds"] = json!(self
+                .store
+                .base
+                .function_fulfillment_constraint_rule_known_missing_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
         }
         if !self.store.staged.media_ready_on_read.is_empty() {
             snapshot["stagedState"]["mediaReadyOnReadIds"] = json!(self
@@ -2164,6 +2210,18 @@ impl DraftProxy {
                     .cloned()
                     .collect()
             });
+        self.store.base.function_validation_decision_records =
+            value_map_from_json(state["baseState"].get("functionValidationDecisionRecords"));
+        self.store.base.function_validation_decision_next_cursor = state["baseState"]
+            ["functionValidationDecisionNextCursor"]
+            .as_str()
+            .map(str::to_string);
+        self.store
+            .base
+            .function_validation_decision_catalog_complete = state["baseState"]
+            ["functionValidationDecisionCatalogComplete"]
+            .as_bool()
+            .unwrap_or(false);
         self.store.base.function_cart_transforms =
             value_map_from_json(state["baseState"].get("functionCartTransforms"));
         self.store.base.function_cart_transform_order = state["baseState"]
@@ -2177,6 +2235,14 @@ impl DraftProxy {
                     .cloned()
                     .collect()
             });
+        self.store.base.function_cart_transform_decision = state["baseState"]
+            .get("functionCartTransformDecision")
+            .filter(|value| value.is_object())
+            .cloned();
+        self.store.base.function_cart_transform_decision_hydrated = state["baseState"]
+            ["functionCartTransformDecisionHydrated"]
+            .as_bool()
+            .unwrap_or(false);
         self.store.base.function_fulfillment_constraint_rules =
             value_map_from_json(state["baseState"].get("functionFulfillmentConstraintRules"));
         self.store.base.function_fulfillment_constraint_rule_order = state["baseState"]
@@ -2190,6 +2256,17 @@ impl DraftProxy {
                     .cloned()
                     .collect()
             });
+        self.store
+            .base
+            .function_fulfillment_constraint_rule_catalog_complete = state["baseState"]
+            ["functionFulfillmentConstraintRuleCatalogComplete"]
+            .as_bool()
+            .unwrap_or(false);
+        self.store
+            .base
+            .function_fulfillment_constraint_rule_known_missing_ids = string_set_from_json(
+            state["baseState"].get("functionFulfillmentConstraintRuleKnownMissingIds"),
+        );
         self.store.base.function_connection_observations =
             value_map_from_json(state["baseState"].get("functionConnectionObservations"));
         self.store.base.metafield_definitions =
