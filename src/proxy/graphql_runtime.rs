@@ -5,6 +5,7 @@ use super::graphql_error_compat::{
     directive_variable_mismatch_error, product_create_argument_arity_error,
     required_variable_error, shopify_engine_response, shopify_root_id_errors,
 };
+use super::request_planner::RequestExecutionPlan;
 use super::*;
 use crate::admin_graphql::{
     self, apply_null_list_item_paths, AdminApiVersion, FieldResolverInvocation,
@@ -116,13 +117,11 @@ struct ProxyRootExecutor {
     version: AdminApiVersion,
     root_calls: BTreeMap<String, PreparedRootCall>,
     root_locations: BTreeMap<String, SourceLocation>,
-    discount_preflight: Option<(Request, Vec<RootFieldSelection>)>,
-    discount_preflight_done: std::sync::Mutex<bool>,
+    request_plan: std::sync::Mutex<RequestExecutionPlan>,
     delivery_promise_mutation: Option<PreparedAtomicMutation>,
     delivery_promise_outcomes: std::sync::Mutex<Option<BTreeMap<String, ResolverOutcome<Value>>>>,
     full_passthrough_request: Option<Request>,
     full_passthrough_direct: bool,
-    observe_direct_shop_passthrough: bool,
     full_passthrough_response: Arc<std::sync::Mutex<Option<Response>>>,
     reject_mixed_mutation: bool,
     resolved_responses: Arc<std::sync::Mutex<BTreeMap<String, Response>>>,
@@ -261,7 +260,6 @@ pub(in crate::proxy) fn with_request_owned_proxy<T>(
         },
     };
     restored_proxy.execution_session.mutation_log_start = None;
-    restored_proxy.execution_session.discount_refs_preflighted = false;
     *proxy = restored_proxy;
 
     match outcome {
@@ -274,6 +272,38 @@ fn shared_root_response(responses: &BTreeMap<String, Response>) -> Option<&Respo
     let mut responses = responses.values();
     let first = responses.next()?;
     responses.all(|response| response == first).then_some(first)
+}
+
+impl ProxyRootExecutor {
+    fn execute_request_plan_for_root(&self, response_key: &str) -> Result<(), String> {
+        let mut plan = self
+            .request_plan
+            .lock()
+            .map_err(|_| "Admin GraphQL request-plan lock was poisoned".to_string())?;
+        let domain = plan.domain_for_response_key(response_key);
+        let mut proxy = self
+            .proxy
+            .lock()
+            .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?;
+        plan.execute_before_domain(&mut proxy, domain);
+        if let Some(response) = proxy.execution_session.hydration.caller_response().cloned() {
+            plan.observe_caller_response(&mut proxy, &response);
+        }
+        Ok(())
+    }
+
+    fn observe_caller_response(&self, response: &Response) -> Result<(), String> {
+        let mut plan = self
+            .request_plan
+            .lock()
+            .map_err(|_| "Admin GraphQL request-plan lock was poisoned".to_string())?;
+        let mut proxy = self
+            .proxy
+            .lock()
+            .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?;
+        plan.observe_caller_response(&mut proxy, response);
+        Ok(())
+    }
 }
 
 impl RootFieldExecutor for ProxyRootExecutor {
@@ -290,6 +320,7 @@ impl RootFieldExecutor for ProxyRootExecutor {
                     .to_string(),
             );
         }
+        self.execute_request_plan_for_root(&response_key)?;
         if matches!(
             root_name.as_str(),
             "deliveryPromiseProviderUpsert" | "deliveryPromiseParticipantsUpdate"
@@ -357,22 +388,6 @@ impl RootFieldExecutor for ProxyRootExecutor {
                 });
             }
         }
-        if let Some((request, fields)) = &self.discount_preflight {
-            let mut done = self
-                .discount_preflight_done
-                .lock()
-                .map_err(|_| "Admin GraphQL discount preflight lock was poisoned".to_string())?;
-            if !*done {
-                let mut proxy = self
-                    .proxy
-                    .lock()
-                    .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?;
-                proxy.hydrate_discount_item_refs(request, fields);
-                proxy.hydrate_discount_context_refs(request, fields);
-                proxy.execution_session.discount_refs_preflighted = true;
-                *done = true;
-            }
-        }
         let response = if let Some(request) = &self.full_passthrough_request {
             let mut cached = self
                 .full_passthrough_response
@@ -384,14 +399,12 @@ impl RootFieldExecutor for ProxyRootExecutor {
                     .lock()
                     .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?;
                 let response = if self.full_passthrough_direct {
-                    (proxy.upstream_transport)(request.clone())
+                    proxy.cached_or_forward_upstream_response(request)
                 } else {
                     proxy.execute_passthrough_graphql(request)
                 };
-                if self.observe_direct_shop_passthrough && (200..300).contains(&response.status) {
-                    proxy.hydrate_shop_state_from_response_data(&response.body["data"]);
-                    proxy.observe_nodes_response(&response);
-                }
+                drop(proxy);
+                self.observe_caller_response(&response)?;
                 *cached = Some(response);
             }
             cached
@@ -423,8 +436,8 @@ impl RootFieldExecutor for ProxyRootExecutor {
                     .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?;
                 let upstream_value = proxy
                     .execution_session
-                    .upstream_query_data
-                    .as_ref()
+                    .hydration
+                    .caller_data()
                     .and_then(|data| data.get(&response_key))
                     .cloned();
                 let outcome = handler(
@@ -494,8 +507,9 @@ impl RootFieldExecutor for ProxyRootExecutor {
                 let resolved_response = if value_source == ResolverValueSource::Upstream {
                     proxy
                         .execution_session
-                        .upstream_query_response
-                        .clone()
+                        .hydration
+                        .caller_response()
+                        .cloned()
                         .unwrap_or_else(|| {
                             resolver_outcome_wire_response(
                                 &response_key,
@@ -851,27 +865,25 @@ impl DraftProxy {
                 )
             })
             .unwrap_or((None, Vec::new(), BTreeMap::new()));
-        self.execution_session.upstream_query_selections = root_calls
-            .iter()
-            .map(|(response_key, call)| (response_key.clone(), call.field.selection.clone()))
-            .collect();
-        let capabilities = operation_type.map_or_else(Vec::new, |operation_type| {
-            root_names
+        self.execution_session.hydration.set_caller_selections(
+            root_calls
                 .iter()
-                .map(|root| self.registry.resolve(operation_type, root))
-                .collect::<Vec<_>>()
-        });
-        let has_local_root = capabilities.iter().any(|capability| {
-            capability.domain != CapabilityDomain::Unknown
-                && matches!(
-                    capability.execution,
-                    CapabilityExecution::OverlayRead | CapabilityExecution::StageLocally
+                .map(|(response_key, call)| (response_key.clone(), call.field.selection.clone()))
+                .collect(),
+        );
+        let request_plan = prepared
+            .as_ref()
+            .map(|(document, variables, _)| {
+                self.admin_request_execution_plan(
+                    request,
+                    document.operation_type,
+                    &document.root_fields,
+                    variables,
                 )
-        });
-        let has_passthrough_root = capabilities.iter().any(|capability| {
-            capability.domain == CapabilityDomain::Unknown
-                || capability.execution == CapabilityExecution::Passthrough
-        });
+            })
+            .unwrap_or_else(RequestExecutionPlan::empty);
+        let has_local_root = request_plan.has_local_root();
+        let has_passthrough_root = request_plan.has_passthrough_root();
 
         // A mixed mutation cannot be split without changing its atomicity or
         // risking a supported write upstream. Reject it before any resolver is
@@ -881,60 +893,8 @@ impl DraftProxy {
             && has_local_root
             && has_passthrough_root;
 
-        let all_passthrough = !root_names.is_empty() && !has_local_root && has_passthrough_root;
-        let product_original_query_passthrough =
-            prepared.as_ref().is_some_and(|(document, variables, _)| {
-                document.operation_type == OperationType::Query
-                    && capabilities
-                        .iter()
-                        .any(|capability| capability.domain == CapabilityDomain::Products)
-                    && capabilities.iter().all(|capability| {
-                        matches!(
-                            capability.domain,
-                            CapabilityDomain::Products | CapabilityDomain::Unknown
-                        )
-                    })
-                    && !self.should_route_owner_metafields_read(&document.root_fields, variables)
-                    && self.product_read_needs_upstream(&document.root_fields)
-            });
-        let shop_original_query_passthrough =
-            prepared.as_ref().is_some_and(|(document, variables, _)| {
-                document.operation_type == OperationType::Query
-                    && !document.root_fields.is_empty()
-                    && document
-                        .root_fields
-                        .iter()
-                        .all(|field| field.name == "shop")
-                    && !self.should_handle_shop_policy_query_locally()
-                    && !self.should_route_owner_metafields_read(&document.root_fields, variables)
-            });
-        let direct_full_query_passthrough = product_original_query_passthrough
-            || (self.config.read_mode == ReadMode::LiveHybrid && shop_original_query_passthrough)
-            || (self.config.read_mode == ReadMode::LiveHybrid
-                && operation_type == Some(OperationType::Query)
-                && ((!capabilities.is_empty()
-                    && capabilities
-                        .iter()
-                        .all(|capability| capability.domain == CapabilityDomain::Events))
-                    || (!root_names.is_empty()
-                        && root_names.iter().all(|root| {
-                            matches!(
-                                root.as_str(),
-                                "deliverySettings" | "deliveryPromiseSettings"
-                            )
-                        }))
-                    || (capabilities
-                        .iter()
-                        .any(|capability| capability.domain == CapabilityDomain::AdminPlatform)
-                        && capabilities
-                            .iter()
-                            .any(|capability| capability.domain == CapabilityDomain::Unknown)
-                        && capabilities.iter().all(|capability| {
-                            matches!(
-                                capability.domain,
-                                CapabilityDomain::AdminPlatform | CapabilityDomain::Unknown
-                            )
-                        }))));
+        let all_passthrough = request_plan.all_passthrough();
+        let direct_full_query_passthrough = request_plan.direct_full_query_passthrough();
         if let Some((document, _, _)) = prepared.as_ref() {
             if let Some(error) = required_variable_error(document, &graphql_request.variables) {
                 return ok_json(json!({ "errors": [error] }));
@@ -969,74 +929,6 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
-        let discount_preflight = prepared.as_ref().and_then(|(document, _, _)| {
-            (document.operation_type == OperationType::Mutation
-                && capabilities
-                    .iter()
-                    .any(|capability| capability.domain == CapabilityDomain::Discounts))
-            .then(|| (request.clone(), document.root_fields.clone()))
-        });
-        let owner_metafield_preflight = prepared.as_ref().and_then(|(document, variables, _)| {
-            (document.operation_type == OperationType::Query
-                && has_local_root
-                && !product_original_query_passthrough
-                && self.should_route_owner_metafields_read(&document.root_fields, variables))
-            .then(|| {
-                (
-                    request.clone(),
-                    document.root_fields.clone(),
-                    variables.clone(),
-                )
-            })
-        });
-        let localization_context_preflight =
-            prepared.as_ref().and_then(|(document, variables, _)| {
-                let mixed_surface = capabilities
-                    .iter()
-                    .any(|capability| capability.domain == CapabilityDomain::Localization)
-                    && capabilities
-                        .iter()
-                        .any(|capability| capability.domain == CapabilityDomain::Markets)
-                    && capabilities.iter().all(|capability| {
-                        matches!(
-                            capability.domain,
-                            CapabilityDomain::Localization | CapabilityDomain::Markets
-                        )
-                    });
-                let has_local_localization_root = document.root_fields.iter().any(|field| {
-                    matches!(
-                        field.name.as_str(),
-                        "translatableResource"
-                            | "translatableResources"
-                            | "translatableResourcesByIds"
-                    ) && !self.localization_should_fetch_upstream(&field.name)
-                });
-                let has_locale_catalog = document
-                    .root_fields
-                    .iter()
-                    .any(|field| matches!(field.name.as_str(), "shopLocales" | "availableLocales"));
-                (self.config.read_mode == ReadMode::LiveHybrid
-                    && document.operation_type == OperationType::Query
-                    && mixed_surface
-                    && has_local_localization_root
-                    && self.markets_should_fetch_upstream(&document.root_fields, variables))
-                .then(|| {
-                    (
-                        request.clone(),
-                        document.root_fields.clone(),
-                        has_locale_catalog,
-                    )
-                })
-            });
-        let node_query_preflight = prepared.as_ref().and_then(|(document, _, _)| {
-            (document.operation_type == OperationType::Query
-                && document.root_fields.len() > 1
-                && document
-                    .root_fields
-                    .iter()
-                    .all(|field| matches!(field.name.as_str(), "node" | "nodes")))
-            .then(|| (request.clone(), document.root_fields.clone()))
-        });
         let delivery_promise_mutation = prepared.as_ref().and_then(|(document, variables, _)| {
             let query = selected_query.as_ref()?;
             let promise_root_count = document
@@ -1079,24 +971,15 @@ impl DraftProxy {
             let resolved_responses = Arc::new(std::sync::Mutex::new(BTreeMap::new()));
             let resolved_extensions = Arc::new(std::sync::Mutex::new(BTreeMap::new()));
             let full_passthrough_response = Arc::new(std::sync::Mutex::new(None));
+            let mut request_plan = request_plan;
             let log_start = {
                 let mut proxy = shared_proxy
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner);
-                if let Some((request, fields, variables)) = &owner_metafield_preflight {
-                    proxy.hydrate_owner_metafield_read_fields(request, fields, variables);
-                }
-                if let Some((request, fields, use_original_request)) =
-                    &localization_context_preflight
+                request_plan.execute_before_operation(&mut proxy);
+                if let Some(response) = proxy.execution_session.hydration.caller_response().cloned()
                 {
-                    proxy.preflight_localization_markets_context(
-                        request,
-                        fields,
-                        *use_original_request,
-                    );
-                }
-                if let Some((request, fields)) = &node_query_preflight {
-                    proxy.preflight_node_query_entities(request, fields);
+                    request_plan.observe_caller_response(&mut proxy, &response);
                 }
                 let log_start = proxy.log_entries.len();
                 if operation_type == Some(OperationType::Mutation) && has_local_root {
@@ -1110,14 +993,12 @@ impl DraftProxy {
                 version,
                 root_calls,
                 root_locations,
-                discount_preflight,
-                discount_preflight_done: std::sync::Mutex::new(false),
+                request_plan: std::sync::Mutex::new(request_plan),
                 delivery_promise_mutation,
                 delivery_promise_outcomes: std::sync::Mutex::new(None),
                 full_passthrough_request: (all_passthrough || direct_full_query_passthrough)
                     .then(|| request.clone()),
                 full_passthrough_direct: direct_full_query_passthrough,
-                observe_direct_shop_passthrough: shop_original_query_passthrough,
                 full_passthrough_response: Arc::clone(&full_passthrough_response),
                 reject_mixed_mutation,
                 resolved_responses: Arc::clone(&resolved_responses),
@@ -1854,8 +1735,9 @@ impl DraftProxy {
         let response = self.cached_or_forward_upstream_response(request);
         let data = self
             .execution_session
-            .upstream_query_data
-            .clone()
+            .hydration
+            .caller_data()
+            .cloned()
             .unwrap_or_else(|| response.body.get("data").cloned().unwrap_or(Value::Null));
         upstream_graphql_result(response, response_key, data)
     }
@@ -1868,15 +1750,17 @@ impl DraftProxy {
         &mut self,
         request: &Request,
     ) -> Response {
-        if let Some(response) = &self.execution_session.upstream_query_response {
+        if let Some(response) = self.execution_session.hydration.caller_response() {
             return response.clone();
         }
         let response = (self.upstream_transport)(request.clone());
-        self.execution_session.upstream_query_data = Some(canonicalize_upstream_data(
+        let canonical_data = canonicalize_upstream_data(
             response.body.get("data").unwrap_or(&Value::Null),
-            &self.execution_session.upstream_query_selections,
-        ));
-        self.execution_session.upstream_query_response = Some(response.clone());
+            self.execution_session.hydration.caller_selections(),
+        );
+        self.execution_session
+            .hydration
+            .record_caller_response(response.clone(), canonical_data);
         response
     }
 }

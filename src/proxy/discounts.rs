@@ -1,4 +1,8 @@
 use super::*;
+use crate::proxy::{
+    hydration::{EntityEvidenceState, HydrationKey},
+    request_planner::{HydrationTrigger, RequestExecutionPlan, RequestPlanningInvocation},
+};
 
 mod errors;
 mod hydrate_queries;
@@ -7,6 +11,21 @@ mod redeem_codes;
 use self::errors::*;
 use self::hydrate_queries::*;
 use self::redeem_codes::*;
+
+fn discount_references_hydration_key() -> HydrationKey {
+    HydrationKey::singleton("discount-references")
+}
+
+fn discount_reference_evidence_key(expected_type: &str, id: &str) -> HydrationKey {
+    HydrationKey::composite("discount-reference", &[expected_type, id])
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum DiscountPrerequisiteState {
+    Present,
+    Absent,
+    Unresolved,
+}
 
 pub(in crate::proxy) fn discount_field_resolver_registrations() -> Vec<FieldResolverRegistration> {
     let mut registrations = [
@@ -307,6 +326,28 @@ impl<'a> From<&'a DiscountMutationInput> for DiscountMutationArguments<'a> {
 }
 
 impl DraftProxy {
+    pub(crate) fn plan_discount_mutation(
+        &self,
+        invocation: &RequestPlanningInvocation<'_>,
+        plan: &mut RequestExecutionPlan,
+    ) {
+        if invocation.operation_type != OperationType::Mutation
+            || !invocation.has_domain(CapabilityDomain::Discounts)
+        {
+            return;
+        }
+        let request = invocation.request.clone();
+        let roots = invocation.roots.to_vec();
+        plan.add_hydration(
+            [discount_references_hydration_key()],
+            HydrationTrigger::BeforeDomain(CapabilityDomain::Discounts),
+            move |proxy| {
+                proxy.hydrate_discount_item_refs(&request, &roots);
+                proxy.hydrate_discount_context_refs(&request, &roots);
+            },
+        );
+    }
+
     pub(crate) fn discount_query_root(
         &mut self,
         invocation: RootInvocation<'_>,
@@ -665,7 +706,11 @@ impl DraftProxy {
         // references up front by forwarding a single batched node lookup and
         // observing the result, so the per-field create/update validation below decides
         // INVALID references against real store state instead of seeded state.
-        if !self.execution_session.discount_refs_preflighted {
+        if !self
+            .execution_session
+            .hydration
+            .is_complete(&discount_references_hydration_key())
+        {
             self.hydrate_discount_item_refs_for_arguments(
                 request,
                 &[DiscountMutationArguments::from(field)],
@@ -675,7 +720,11 @@ impl DraftProxy {
         // a read for each referenced customer / segment that is not already staged and
         // observe the result, so `resolve_discount_context_names` bakes the real
         // display name / segment name from store state instead of a seeded precondition.
-        if !self.execution_session.discount_refs_preflighted {
+        if !self
+            .execution_session
+            .hydration
+            .is_complete(&discount_references_hydration_key())
+        {
             self.hydrate_discount_context_refs_for_arguments(
                 request,
                 &[DiscountMutationArguments::from(field)],
@@ -1050,6 +1099,14 @@ impl DraftProxy {
             return;
         }
         ids.sort_by(|left, right| compare_resource_ids(left, right));
+        for id in &ids {
+            for expected_type in expected_types.get(id).into_iter().flatten() {
+                self.execution_session.hydration.mark_entity_key(
+                    discount_reference_evidence_key(expected_type, id),
+                    EntityEvidenceState::Requested,
+                );
+            }
+        }
         let response = self.upstream_post(
             request,
             json!({
@@ -1109,13 +1166,13 @@ impl DraftProxy {
             };
             for expected_type in expected {
                 let state = if resolved_type.as_deref() == Some(*expected_type) {
-                    DiscountPrerequisiteState::Present
+                    EntityEvidenceState::Observed
                 } else {
-                    DiscountPrerequisiteState::Absent
+                    EntityEvidenceState::Missing
                 };
                 self.execution_session
-                    .discount_reference_states
-                    .insert(((*expected_type).to_string(), id.clone()), state);
+                    .hydration
+                    .mark_entity_key(discount_reference_evidence_key(expected_type, id), state);
             }
         }
         self.observe_nodes_response(response);
@@ -1437,11 +1494,15 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Snapshot {
             return DiscountPrerequisiteState::Absent;
         }
-        self.execution_session
-            .discount_reference_states
-            .get(&(expected_type.to_string(), gid.to_string()))
-            .copied()
-            .unwrap_or(DiscountPrerequisiteState::Unresolved)
+        match self
+            .execution_session
+            .hydration
+            .entity_state_for_key(&discount_reference_evidence_key(expected_type, gid))
+        {
+            Some(EntityEvidenceState::Observed) => DiscountPrerequisiteState::Present,
+            Some(EntityEvidenceState::Missing) => DiscountPrerequisiteState::Absent,
+            Some(EntityEvidenceState::Requested) | None => DiscountPrerequisiteState::Unresolved,
+        }
     }
 
     fn discount_update(

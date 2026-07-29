@@ -154,8 +154,8 @@ impl DraftProxy {
             && invocation.root_name == "customersCount"
             && self
                 .execution_session
-                .upstream_query_response
-                .as_ref()
+                .hydration
+                .caller_response()
                 .is_none_or(|response| response.body["data"].get(invocation.response_key).is_none())
         {
             self.hydrate_customers_count_for_overlay_read(invocation.request);

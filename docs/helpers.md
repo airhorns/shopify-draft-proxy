@@ -64,6 +64,22 @@ receiving a nested selection tree. It also exposes
 that only to plan hydration breadth or batching; do not use it to shape JSON
 output or recreate selection projectors.
 
+When a root needs whole-operation routing policy or hydration before resolver
+execution, attach a domain-owned planner through its existing executable root
+registration. `src/proxy/request_planner.rs` composes those callbacks into one
+authority/hydration plan; do not add a commerce-domain predicate matrix to
+`graphql_runtime.rs`. Use `HydrationTrigger::BeforeOperation` only when every
+root needs the evidence before execution, and `BeforeDomain(...)` when it is
+safe to defer work until the first owning-domain root.
+
+Use the request-scoped broker in `src/proxy/hydration.rs` before adding another
+`ExecutionSession` cache or `*_preflighted` boolean. The broker separates the
+caller's raw transport response from canonical observation data, stores keyed
+supplemental responses and completion facts, and tracks generic per-entity
+requested/observed/missing evidence. Supplemental GraphQL reads that siblings
+may repeat should go through `request_hydration_post_once(...)` with a stable,
+domain-owned `HydrationKey`.
+
 For generic IDs, update `src/node_resolver_inventory.rs` and its matching loader in `src/proxy/node_registry.rs` rather than adding another `node`/`nodes` switch. The inventory is exported for coverage audits; the executable loader reads the owning domain's effective store state.
 
 Node loaders return store evidence through `NodeLoadState`: `Found`, `KnownMissing`, `NeedsHydration`, or `UnsupportedType`. Return `Some(Value::Null)` from an inventory loader when a tombstone or modeled safe-null makes absence authoritative; return `None` only when live-hybrid may need hydration. Do not add a parallel loader-name enum or per-call domain switch.

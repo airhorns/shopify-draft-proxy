@@ -441,7 +441,10 @@ impl DraftProxy {
         } = invocation;
         let arguments = resolved_arguments_from_json(&arguments);
         if self.config.read_mode == ReadMode::LiveHybrid
-            && !self.execution_session.markets_query_preflighted
+            && !self
+                .execution_session
+                .hydration
+                .is_complete(&super::localization::markets_query_hydration_key())
             && self.markets_operation_should_fetch_upstream(&operation_roots)
         {
             let had_markets_overlay_state = self.has_markets_overlay_state();
@@ -451,7 +454,9 @@ impl DraftProxy {
                 self.hydrate_markets_from_upstream_roots(&body, &operation_roots);
                 self.hydrate_localization_from_upstream(&body);
             }
-            self.execution_session.markets_query_preflighted = true;
+            self.execution_session
+                .hydration
+                .mark_complete(super::localization::markets_query_hydration_key());
             if !had_markets_overlay_state {
                 return result.outcome;
             }

@@ -1,4 +1,8 @@
 use super::*;
+use crate::proxy::{
+    hydration::HydrationKey,
+    request_planner::{RequestExecutionPlan, RequestPlanningInvocation, RootReadAuthority},
+};
 use std::sync::OnceLock;
 
 pub(in crate::proxy) fn store_property_field_resolver_registrations(
@@ -127,6 +131,32 @@ pub(in crate::proxy) const SHOP_IDENTITY_HYDRATE_QUERY: &str = r#"#graphql
 "#;
 
 impl DraftProxy {
+    pub(crate) fn plan_shop_query(
+        &self,
+        invocation: &RequestPlanningInvocation<'_>,
+        plan: &mut RequestExecutionPlan,
+    ) {
+        if self.config.read_mode != ReadMode::LiveHybrid
+            || invocation.operation_type != OperationType::Query
+            || invocation.roots.is_empty()
+            || !invocation.roots.iter().all(|root| root.name == "shop")
+            || self.should_handle_shop_policy_query_locally()
+            || self.should_route_owner_metafields_read(invocation.roots, invocation.variables)
+        {
+            return;
+        }
+        plan.set_named_roots_authority(&["shop"], invocation.roots, RootReadAuthority::Upstream);
+        plan.add_caller_observer(
+            HydrationKey::singleton("shop-observation"),
+            |proxy, response| {
+                if (200..300).contains(&response.status) {
+                    proxy.hydrate_shop_state_from_response_data(&response.body["data"]);
+                    proxy.observe_nodes_response(response);
+                }
+            },
+        );
+    }
+
     pub(crate) fn store_properties_query_root(
         &mut self,
         invocation: RootInvocation<'_>,

@@ -95,21 +95,25 @@ mutations containing both local and passthrough roots are rejected before
 execution because splitting would change atomicity and could leak a supported
 write upstream. A fully passthrough document is forwarded once, not once per
 selected root. Live-hybrid queries that need upstream evidence execute the
-caller's complete document through one request-scoped cache, so mixed
-local/passthrough roots and sibling overlays consume the same Shopify response.
-The runtime keeps the raw, alias-shaped transport value separate from a
-canonicalized observation copy: untouched upstream values bypass local
+caller's complete document through one request-scoped hydration broker, so
+mixed local/passthrough roots and sibling overlays consume the same Shopify
+response. The broker keeps the raw, alias-shaped transport value separate from
+a canonicalized observation copy, keys supplemental reads and completion facts,
+and records per-entity requested/observed/missing evidence without adding a new
+domain boolean to `ExecutionSession`. Untouched upstream values bypass local
 child-field resolution, while a value replaced by a store overlay or derived
 fallback is explicitly marked local and continues through the field-resolver
-registry. Request setup retains explicit preflight planning for discounts,
-owner metafields, localization/markets, and generic nodes, but those reads reuse
-the cached complete response when the caller selected the required evidence.
-Narrow secondary hydration documents remain only for data that the caller's
-operation cannot supply, especially mutation prerequisites and relationship
-lookups. When registered read-through roots all consume the same non-2xx
-upstream response, the runtime returns that transport response verbatim before
-schema projection so the backend status, headers, and error body are not
-replaced by local non-null execution errors.
+registry. Domain-owned request planners attach to the same root registrations
+as their resolvers. Together they choose local versus upstream authority,
+schedule keyed hydration before the operation or first owning-domain root, and
+register caller-response observers. `graphql_runtime.rs` executes that plan but
+contains no commerce-domain preflight matrix. Narrow secondary hydration
+documents remain only for data that the caller's operation cannot supply,
+especially mutation prerequisites and relationship lookups. When registered
+read-through roots all consume the same non-2xx upstream response, the runtime
+returns that transport response verbatim before schema projection so the
+backend status, headers, and error body are not replaced by local non-null
+execution errors.
 
 ## GraphQL schema and resolver boundaries
 
@@ -122,7 +126,7 @@ replaced by local non-null execution errors.
 - Native root callbacks consume engine-coerced `RootInvocation` data and return one canonical, alias-free value. Domain-specific input structs retain only the arguments, source metadata, and selected fields that behavior actually needs. Selected fields may plan a bounded upstream refill with the caller's exact nested arguments, but the executable engine still owns output projection.
 - Canonical parent values may carry unprojected relationship source data when mutation payload semantics differ from a later ordinary read. The explicit child-field resolver still owns arguments, sorting, windowing, and canonical child lookup; embedding relationship source data is not permission for the domain to pre-project the requested selection.
 - Returning a JSON object is not permission to return arbitrary shape. For every selected nested field, the executable schema validates its type and the generic object resolver reports an explicit `Local resolver did not implement Type.field` execution error when the domain result omits that field. The engine then applies GraphQL null propagation.
-- `ResolverRegistry` is owned by each `DraftProxy` and derives executable callbacks from implemented operation-registry entries. Admin registrations keep their public root names (`shop`, `products`); Storefront registrations receive globally unique internal names (`storefrontShop`, `storefrontProducts`). Surface-aware lookup performs that translation and also verifies the operation type and public root before returning a callback. Duplicate internal names fail registry construction, so same-named API roots cannot collide. There is no second checked-in local-routing inventory to synchronize. Every implemented capability domain has one distinct domain-owned callback, and structural tests prevent domains from collapsing back into a shared compatibility handler or crossing API surfaces.
+- `ResolverRegistry` is owned by each `DraftProxy` and derives executable callbacks and optional request-planner callbacks from implemented operation-registry entries. Admin registrations keep their public root names (`shop`, `products`); Storefront registrations receive globally unique internal names (`storefrontShop`, `storefrontProducts`). Surface-aware lookup performs that translation and also verifies the operation type and public root before returning a callback. Duplicate internal names fail registry construction, so same-named API roots cannot collide. There is no second checked-in local-routing or request-policy inventory to synchronize. Every implemented capability domain has one distinct domain-owned callback, and structural tests prevent domains from collapsing back into a shared compatibility handler or crossing API surfaces.
 - A domain callback is the only GraphQL-shaped entry point for that domain. It routes the root to existing store-backed lifecycle methods directly; ordinary fields do not acquire a second one-line resolver/service copy.
 - Storefront's `@inContext` directive is interpreted from the original operation by the Storefront domain. Because the dynamic engine cannot register executable custom directives, only the engine-facing copy removes `@inContext` and variables used exclusively by it; all other directives and variable uses remain under normal schema validation.
 - `node(id:)` and `nodes(ids:)` use one type-to-loader inventory in `src/node_resolver_inventory.rs`; each entry carries its executable loader rather than a second loader enum/switch. Loaders return explicit `Found`, `KnownMissing`, `NeedsHydration`, or `UnsupportedType` states. Live-hybrid sends one upstream request for a mixed cold batch, merges staged values and tombstones over the response before caching it, and preserves input ordering/null placeholders. Snapshot mode never hydrates upstream.
@@ -136,7 +140,7 @@ replaced by local non-null execution errors.
 - owns `DraftProxy`, `Config`, `ReadMode`, the normalized Store, synthetic identity allocation, registry metadata, runtime clock, and injectable transports
 - declares the runtime's domain submodules while keeping proxy state instance-owned instead of global
 
-### `src/proxy/core.rs`, `src/proxy/routing.rs`, `src/proxy/graphql_runtime.rs`, `src/proxy/storefront_graphql_runtime.rs`, `src/proxy/graphql_error_compat.rs`
+### `src/proxy/core.rs`, `src/proxy/routing.rs`, `src/proxy/graphql_runtime.rs`, `src/proxy/request_planner.rs`, `src/proxy/hydration.rs`, `src/proxy/storefront_graphql_runtime.rs`, `src/proxy/graphql_error_compat.rs`
 
 - expose `process_request(...)` as the central route boundary
 - implement meta routes: health, config, log, state, reset, dump, and restore
@@ -147,6 +151,8 @@ replaced by local non-null execution errors.
 - preserve original multi-root mutation documents in the replay log while preventing mixed local/passthrough writes
 - preserve each locally executed `bulkOperationRunMutation` JSONL row as its own ordered replay entry instead of collapsing those entries into the outer job-submission document
 - wrap upstream transports with the stage-locally mutation guard while leaving query hydration and commit replay on their explicit transport paths
+- compose domain-owned root authority, preflight, and observation callbacks into one request execution plan
+- coalesce caller-document and keyed supplemental evidence in one request-scoped hydration broker
 - preserve `with_clock(...)`, `with_upstream_transport(...)`, and `with_commit_transport(...)` test seams so behavior stays deterministic
 
 ### `src/admin_graphql.rs`

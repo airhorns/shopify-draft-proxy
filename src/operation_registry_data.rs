@@ -3,7 +3,9 @@ use crate::operation_registry::{
     ApiSurface, CapabilityDomain, CommitIdInputOrder, CommitIdMappingSpec, OperationRegistryEntry,
 };
 use crate::proxy::DraftProxy;
-use crate::resolver_registry::{ExecutableRootRegistration, NativeResolverHandler};
+use crate::resolver_registry::{
+    ExecutableRootRegistration, NativeRequestPlanner, NativeResolverHandler,
+};
 
 macro_rules! entry {
     (
@@ -18,7 +20,41 @@ macro_rules! entry {
             OperationType::$operation_type,
             CapabilityDomain::$domain,
             Some($handler),
+            &[],
             &[$($runtime_test),*],
+        )
+    };
+}
+
+macro_rules! planned_entry {
+    (
+        $name:literal,
+        $operation_type:ident,
+        $domain:ident,
+        $handler:path,
+        [$($planner:path),+ $(,)?],
+        [$($runtime_test:literal),* $(,)?]
+    ) => {
+        registry_entry(
+            $name,
+            OperationType::$operation_type,
+            CapabilityDomain::$domain,
+            Some($handler),
+            &[$($planner),+],
+            &[$($runtime_test),*],
+        )
+    };
+}
+
+macro_rules! discount_mutation_entry {
+    ($name:literal, [$($runtime_test:literal),* $(,)?]) => {
+        planned_entry!(
+            $name,
+            Mutation,
+            Discounts,
+            DraftProxy::discount_mutation_root,
+            [DraftProxy::plan_discount_mutation],
+            [$($runtime_test),*]
         )
     };
 }
@@ -35,6 +71,7 @@ macro_rules! unimplemented_entry {
             OperationType::$operation_type,
             CapabilityDomain::$domain,
             None,
+            &[],
             &[$($runtime_test),*],
         )
     };
@@ -43,10 +80,10 @@ macro_rules! unimplemented_entry {
 #[rustfmt::skip]
 pub(crate) fn default_registry_bindings() -> Vec<ExecutableRootRegistration> {
     vec![
-        entry!("product", Query, Products, DraftProxy::product_root_outcome, ["tests/graphql_routes.rs"]),
-        entry!("productByIdentifier", Query, Products, DraftProxy::product_by_identifier_root_outcome, ["tests/graphql_routes.rs"]),
-        entry!("products", Query, Products, DraftProxy::products_root_outcome, ["tests/graphql_routes.rs"]),
-        entry!("productsCount", Query, Products, DraftProxy::products_count_outcome, ["tests/graphql_routes.rs"]),
+        planned_entry!("product", Query, Products, DraftProxy::product_root_outcome, [DraftProxy::plan_product_query, DraftProxy::plan_owner_metafield_read], ["tests/graphql_routes.rs"]),
+        planned_entry!("productByIdentifier", Query, Products, DraftProxy::product_by_identifier_root_outcome, [DraftProxy::plan_product_query], ["tests/graphql_routes.rs"]),
+        planned_entry!("products", Query, Products, DraftProxy::products_root_outcome, [DraftProxy::plan_product_query], ["tests/graphql_routes.rs"]),
+        planned_entry!("productsCount", Query, Products, DraftProxy::products_count_outcome, [DraftProxy::plan_product_query], ["tests/graphql_routes.rs"]),
         unimplemented_entry!("productVariants", Query, Products, []),
         unimplemented_entry!("productVariantsCount", Query, Products, []),
         unimplemented_entry!("productTags", Query, Products, []),
@@ -60,12 +97,12 @@ pub(crate) fn default_registry_bindings() -> Vec<ExecutableRootRegistration> {
         entry!("sellingPlanGroup", Query, Products, DraftProxy::selling_plan_group_root, ["tests/graphql_routes/selling_plans.rs"]),
         entry!("sellingPlanGroups", Query, Products, DraftProxy::selling_plan_groups_root, ["tests/graphql_routes/selling_plans.rs"]),
         unimplemented_entry!("publicApiVersions", Query, AdminPlatform, []),
-        entry!("node", Query, AdminPlatform, DraftProxy::admin_node_query_root, ["tests/graphql_routes/admin_app_shipping.rs"]),
-        entry!("nodes", Query, AdminPlatform, DraftProxy::admin_node_query_root, ["tests/graphql_routes/admin_app_shipping.rs"]),
-        entry!("job", Query, AdminPlatform, DraftProxy::job_query_root, ["tests/graphql_routes.rs"]),
+        planned_entry!("node", Query, AdminPlatform, DraftProxy::admin_node_query_root, [DraftProxy::plan_admin_platform_query, DraftProxy::plan_node_query], ["tests/graphql_routes/admin_app_shipping.rs"]),
+        planned_entry!("nodes", Query, AdminPlatform, DraftProxy::admin_node_query_root, [DraftProxy::plan_admin_platform_query, DraftProxy::plan_node_query], ["tests/graphql_routes/admin_app_shipping.rs"]),
+        planned_entry!("job", Query, AdminPlatform, DraftProxy::job_query_root, [DraftProxy::plan_admin_platform_query], ["tests/graphql_routes.rs"]),
         unimplemented_entry!("taxonomy", Query, AdminPlatform, []),
-        entry!("domain", Query, AdminPlatform, DraftProxy::domain_query_root, ["tests/graphql_routes.rs"]),
-        entry!("backupRegion", Query, AdminPlatform, DraftProxy::backup_region_query_root, []),
+        planned_entry!("domain", Query, AdminPlatform, DraftProxy::domain_query_root, [DraftProxy::plan_admin_platform_query], ["tests/graphql_routes.rs"]),
+        planned_entry!("backupRegion", Query, AdminPlatform, DraftProxy::backup_region_query_root, [DraftProxy::plan_admin_platform_query], []),
         entry!("backupRegionUpdate", Mutation, AdminPlatform, DraftProxy::backup_region_update_root, []),
         unimplemented_entry!("staffMember", Query, AdminPlatform, []),
         unimplemented_entry!("staffMembers", Query, AdminPlatform, []),
@@ -87,7 +124,7 @@ pub(crate) fn default_registry_bindings() -> Vec<ExecutableRootRegistration> {
         entry!("appUninstall", Mutation, Apps, DraftProxy::app_uninstall, []),
         entry!("delegateAccessTokenCreate", Mutation, Apps, DraftProxy::delegate_access_token_create, []),
         entry!("delegateAccessTokenDestroy", Mutation, Apps, DraftProxy::delegate_access_token_destroy, []),
-        entry!("productVariant", Query, Products, DraftProxy::product_variant_root_outcome, ["tests/graphql_routes/products_saved_searches.rs"]),
+        planned_entry!("productVariant", Query, Products, DraftProxy::product_variant_root_outcome, [DraftProxy::plan_owner_metafield_read], ["tests/graphql_routes/products_saved_searches.rs"]),
         unimplemented_entry!("productVariantByIdentifier", Query, Products, []),
         entry!("inventoryItem", Query, Products, DraftProxy::inventory_item_root, ["tests/graphql_routes.rs"]),
         entry!("inventoryItems", Query, Products, DraftProxy::inventory_items_root, ["tests/graphql_routes.rs"]),
@@ -96,21 +133,21 @@ pub(crate) fn default_registry_bindings() -> Vec<ExecutableRootRegistration> {
         entry!("inventoryProperties", Query, Products, DraftProxy::inventory_properties_root, ["tests/graphql_routes.rs"]),
         entry!("inventoryTransfer", Query, Products, DraftProxy::inventory_transfer_root, ["tests/graphql_routes.rs"]),
         entry!("inventoryTransfers", Query, Products, DraftProxy::inventory_transfers_root, ["tests/graphql_routes.rs"]),
-        entry!("collection", Query, Products, DraftProxy::collection_root, []),
+        planned_entry!("collection", Query, Products, DraftProxy::collection_root, [DraftProxy::plan_owner_metafield_read], []),
         entry!("collectionByIdentifier", Query, Products, DraftProxy::collection_by_identifier_root, ["tests/graphql_routes.rs"]),
         entry!("collectionByHandle", Query, Products, DraftProxy::collection_by_handle_root, ["tests/graphql_routes.rs"]),
         entry!("collections", Query, Products, DraftProxy::collections_root, []),
         entry!("collectionsCount", Query, Products, DraftProxy::collections_count_root, []),
         entry!("locations", Query, StoreProperties, DraftProxy::store_properties_query_root, ["tests/graphql_routes/platform.rs"]),
         entry!("locationsCount", Query, StoreProperties, DraftProxy::store_properties_query_root, ["tests/graphql_routes/platform.rs"]),
-        entry!("shop", Query, StoreProperties, DraftProxy::store_properties_query_root, ["tests/graphql_routes.rs"]),
+        planned_entry!("shop", Query, StoreProperties, DraftProxy::store_properties_query_root, [DraftProxy::plan_shop_query, DraftProxy::plan_owner_metafield_read], ["tests/graphql_routes.rs"]),
         entry!("location", Query, StoreProperties, DraftProxy::store_properties_query_root, []),
         entry!("locationByIdentifier", Query, StoreProperties, DraftProxy::store_properties_query_root, []),
         unimplemented_entry!("businessEntities", Query, StoreProperties, []),
         unimplemented_entry!("businessEntity", Query, StoreProperties, []),
         entry!("companies", Query, B2b, DraftProxy::b2b_query_root, []),
         entry!("companiesCount", Query, B2b, DraftProxy::b2b_query_root, ["tests/graphql_routes.rs"]),
-        entry!("company", Query, B2b, DraftProxy::b2b_query_root, ["tests/graphql_routes.rs"]),
+        planned_entry!("company", Query, B2b, DraftProxy::b2b_query_root, [DraftProxy::plan_owner_metafield_read], ["tests/graphql_routes.rs"]),
         entry!("companyContact", Query, B2b, DraftProxy::b2b_query_root, []),
         unimplemented_entry!("companyContactRole", Query, B2b, []),
         entry!("companyLocation", Query, B2b, DraftProxy::b2b_query_root, ["tests/graphql_routes.rs"]),
@@ -173,11 +210,11 @@ pub(crate) fn default_registry_bindings() -> Vec<ExecutableRootRegistration> {
         entry!("publicationsCount", Query, Products, DraftProxy::publications_count_root, []),
         entry!("publishedProductsCount", Query, Products, DraftProxy::published_products_count_root, []),
         entry!("storeCreditAccount", Query, Customers, DraftProxy::customer_query_root, []),
-        entry!("customer", Query, Customers, DraftProxy::customer_query_root, []),
+        planned_entry!("customer", Query, Customers, DraftProxy::customer_query_root, [DraftProxy::plan_owner_metafield_read], []),
         unimplemented_entry!("customerAccountPage", Query, Customers, []),
-        entry!("event", Query, Events, DraftProxy::event_query_root, ["tests/graphql_routes.rs"]),
-        entry!("events", Query, Events, DraftProxy::event_query_root, ["tests/graphql_routes.rs"]),
-        entry!("eventsCount", Query, Events, DraftProxy::event_query_root, ["tests/graphql_routes.rs"]),
+        planned_entry!("event", Query, Events, DraftProxy::event_query_root, [DraftProxy::plan_events_query], ["tests/graphql_routes.rs"]),
+        planned_entry!("events", Query, Events, DraftProxy::event_query_root, [DraftProxy::plan_events_query], ["tests/graphql_routes.rs"]),
+        planned_entry!("eventsCount", Query, Events, DraftProxy::event_query_root, [DraftProxy::plan_events_query], ["tests/graphql_routes.rs"]),
         entry!("customers", Query, Customers, DraftProxy::customer_query_root, []),
         unimplemented_entry!("customerAccountPages", Query, Customers, []),
         entry!("customersCount", Query, Customers, DraftProxy::customer_query_root, []),
@@ -425,7 +462,7 @@ pub(crate) fn default_registry_bindings() -> Vec<ExecutableRootRegistration> {
         entry!("collectionAddProductsV2", Mutation, Products, DraftProxy::collection_outcome, ["tests/graphql_routes.rs"]),
         entry!("collectionRemoveProducts", Mutation, Products, DraftProxy::collection_outcome, ["tests/graphql_routes.rs"]),
         entry!("collectionReorderProducts", Mutation, Products, DraftProxy::collection_outcome, ["tests/graphql_routes.rs"]),
-        entry!("order", Query, Orders, DraftProxy::orders_query_root, []),
+        planned_entry!("order", Query, Orders, DraftProxy::orders_query_root, [DraftProxy::plan_owner_metafield_read], []),
         entry!("return", Query, Orders, DraftProxy::orders_query_root, []),
         entry!("orders", Query, Orders, DraftProxy::orders_query_root, []),
         entry!("ordersCount", Query, Orders, DraftProxy::orders_query_root, []),
@@ -556,8 +593,8 @@ pub(crate) fn default_registry_bindings() -> Vec<ExecutableRootRegistration> {
         entry!("deliveryCustomizations", Query, ShippingFulfillments, DraftProxy::delivery_customization_query_root, ["tests/graphql_routes/admin_app_shipping.rs"]),
         entry!("deliveryPromiseParticipants", Query, ShippingFulfillments, DraftProxy::delivery_promise_query_root, ["tests/graphql_routes/admin_app_shipping.rs"]),
         entry!("deliveryPromiseProvider", Query, ShippingFulfillments, DraftProxy::delivery_promise_query_root, ["tests/graphql_routes/admin_app_shipping.rs"]),
-        entry!("deliveryPromiseSettings", Query, ShippingFulfillments, DraftProxy::delivery_settings_query_root, []),
-        entry!("deliverySettings", Query, ShippingFulfillments, DraftProxy::delivery_settings_query_root, []),
+        planned_entry!("deliveryPromiseSettings", Query, ShippingFulfillments, DraftProxy::delivery_settings_query_root, [DraftProxy::plan_delivery_settings_query], []),
+        planned_entry!("deliverySettings", Query, ShippingFulfillments, DraftProxy::delivery_settings_query_root, [DraftProxy::plan_delivery_settings_query], []),
         entry!("deliveryProfile", Query, ShippingFulfillments, DraftProxy::delivery_profile_query_root, ["tests/graphql_routes/admin_app_shipping.rs"]),
         entry!("deliveryProfiles", Query, ShippingFulfillments, DraftProxy::delivery_profile_query_root, ["tests/graphql_routes/admin_app_shipping.rs"]),
         entry!("locationsAvailableForDeliveryProfilesConnection", Query, ShippingFulfillments, DraftProxy::delivery_profile_locations_query_root, ["tests/graphql_routes/admin_app_shipping.rs"]),
@@ -632,34 +669,34 @@ pub(crate) fn default_registry_bindings() -> Vec<ExecutableRootRegistration> {
         entry!("discountRedeemCodeBulkCreation", Query, Discounts, DraftProxy::discount_query_root, []),
         entry!("automaticDiscountNodes", Query, Discounts, DraftProxy::discount_query_root, []),
         entry!("automaticDiscountNode", Query, Discounts, DraftProxy::discount_query_root, []),
-        entry!("discountCodeBasicCreate", Mutation, Discounts, DraftProxy::discount_mutation_root, []),
-        entry!("discountCodeBasicUpdate", Mutation, Discounts, DraftProxy::discount_mutation_root, []),
-        entry!("discountCodeBxgyCreate", Mutation, Discounts, DraftProxy::discount_mutation_root, []),
-        entry!("discountCodeBxgyUpdate", Mutation, Discounts, DraftProxy::discount_mutation_root, []),
-        entry!("discountCodeFreeShippingCreate", Mutation, Discounts, DraftProxy::discount_mutation_root, []),
-        entry!("discountCodeFreeShippingUpdate", Mutation, Discounts, DraftProxy::discount_mutation_root, []),
-        entry!("discountCodeActivate", Mutation, Discounts, DraftProxy::discount_mutation_root, []),
-        entry!("discountCodeDeactivate", Mutation, Discounts, DraftProxy::discount_mutation_root, []),
-        entry!("discountCodeDelete", Mutation, Discounts, DraftProxy::discount_mutation_root, []),
-        entry!("discountCodeBulkActivate", Mutation, Discounts, DraftProxy::discount_mutation_root, ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"]),
-        entry!("discountCodeBulkDeactivate", Mutation, Discounts, DraftProxy::discount_mutation_root, ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"]),
-        entry!("discountCodeBulkDelete", Mutation, Discounts, DraftProxy::discount_mutation_root, ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"]),
-        entry!("discountRedeemCodeBulkAdd", Mutation, Discounts, DraftProxy::discount_mutation_root, []),
-        entry!("discountCodeRedeemCodeBulkDelete", Mutation, Discounts, DraftProxy::discount_mutation_root, []),
-        entry!("discountAutomaticBasicCreate", Mutation, Discounts, DraftProxy::discount_mutation_root, []),
-        entry!("discountAutomaticBasicUpdate", Mutation, Discounts, DraftProxy::discount_mutation_root, []),
-        entry!("discountAutomaticBxgyCreate", Mutation, Discounts, DraftProxy::discount_mutation_root, []),
-        entry!("discountAutomaticBxgyUpdate", Mutation, Discounts, DraftProxy::discount_mutation_root, []),
-        entry!("discountAutomaticFreeShippingCreate", Mutation, Discounts, DraftProxy::discount_mutation_root, []),
-        entry!("discountAutomaticFreeShippingUpdate", Mutation, Discounts, DraftProxy::discount_mutation_root, []),
-        entry!("discountAutomaticActivate", Mutation, Discounts, DraftProxy::discount_mutation_root, []),
-        entry!("discountAutomaticDeactivate", Mutation, Discounts, DraftProxy::discount_mutation_root, []),
-        entry!("discountAutomaticDelete", Mutation, Discounts, DraftProxy::discount_mutation_root, []),
-        entry!("discountAutomaticBulkDelete", Mutation, Discounts, DraftProxy::discount_mutation_root, ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"]),
-        entry!("discountCodeAppCreate", Mutation, Discounts, DraftProxy::discount_mutation_root, []),
-        entry!("discountCodeAppUpdate", Mutation, Discounts, DraftProxy::discount_mutation_root, []),
-        entry!("discountAutomaticAppCreate", Mutation, Discounts, DraftProxy::discount_mutation_root, []),
-        entry!("discountAutomaticAppUpdate", Mutation, Discounts, DraftProxy::discount_mutation_root, []),
+        discount_mutation_entry!("discountCodeBasicCreate", []),
+        discount_mutation_entry!("discountCodeBasicUpdate", []),
+        discount_mutation_entry!("discountCodeBxgyCreate", []),
+        discount_mutation_entry!("discountCodeBxgyUpdate", []),
+        discount_mutation_entry!("discountCodeFreeShippingCreate", []),
+        discount_mutation_entry!("discountCodeFreeShippingUpdate", []),
+        discount_mutation_entry!("discountCodeActivate", []),
+        discount_mutation_entry!("discountCodeDeactivate", []),
+        discount_mutation_entry!("discountCodeDelete", []),
+        discount_mutation_entry!("discountCodeBulkActivate", ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"]),
+        discount_mutation_entry!("discountCodeBulkDeactivate", ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"]),
+        discount_mutation_entry!("discountCodeBulkDelete", ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"]),
+        discount_mutation_entry!("discountRedeemCodeBulkAdd", []),
+        discount_mutation_entry!("discountCodeRedeemCodeBulkDelete", []),
+        discount_mutation_entry!("discountAutomaticBasicCreate", []),
+        discount_mutation_entry!("discountAutomaticBasicUpdate", []),
+        discount_mutation_entry!("discountAutomaticBxgyCreate", []),
+        discount_mutation_entry!("discountAutomaticBxgyUpdate", []),
+        discount_mutation_entry!("discountAutomaticFreeShippingCreate", []),
+        discount_mutation_entry!("discountAutomaticFreeShippingUpdate", []),
+        discount_mutation_entry!("discountAutomaticActivate", []),
+        discount_mutation_entry!("discountAutomaticDeactivate", []),
+        discount_mutation_entry!("discountAutomaticDelete", []),
+        discount_mutation_entry!("discountAutomaticBulkDelete", ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"]),
+        discount_mutation_entry!("discountCodeAppCreate", []),
+        discount_mutation_entry!("discountCodeAppUpdate", []),
+        discount_mutation_entry!("discountAutomaticAppCreate", []),
+        discount_mutation_entry!("discountAutomaticAppUpdate", []),
         entry!("marketingActivities", Query, Marketing, DraftProxy::marketing_query_root, []),
         entry!("marketingActivity", Query, Marketing, DraftProxy::marketing_query_root, []),
         entry!("marketingEvent", Query, Marketing, DraftProxy::marketing_query_root, []),
@@ -731,11 +768,11 @@ pub(crate) fn default_registry_bindings() -> Vec<ExecutableRootRegistration> {
         entry!("webPresenceDelete", Mutation, Markets, DraftProxy::web_presence_mutation_root, []),
         entry!("marketLocalizationsRegister", Mutation, Markets, DraftProxy::markets_mutation_root, []),
         entry!("marketLocalizationsRemove", Mutation, Markets, DraftProxy::markets_mutation_root, []),
-        entry!("availableLocales", Query, Localization, DraftProxy::localization_query_root, []),
-        entry!("shopLocales", Query, Localization, DraftProxy::localization_query_root, []),
-        entry!("translatableResource", Query, Localization, DraftProxy::localization_query_root, []),
-        entry!("translatableResources", Query, Localization, DraftProxy::localization_query_root, []),
-        entry!("translatableResourcesByIds", Query, Localization, DraftProxy::localization_query_root, []),
+        planned_entry!("availableLocales", Query, Localization, DraftProxy::localization_query_root, [DraftProxy::plan_localization_markets_query], []),
+        planned_entry!("shopLocales", Query, Localization, DraftProxy::localization_query_root, [DraftProxy::plan_localization_markets_query], []),
+        planned_entry!("translatableResource", Query, Localization, DraftProxy::localization_query_root, [DraftProxy::plan_localization_markets_query], []),
+        planned_entry!("translatableResources", Query, Localization, DraftProxy::localization_query_root, [DraftProxy::plan_localization_markets_query], []),
+        planned_entry!("translatableResourcesByIds", Query, Localization, DraftProxy::localization_query_root, [DraftProxy::plan_localization_markets_query], []),
         entry!("shopLocaleEnable", Mutation, Localization, DraftProxy::localization_mutation_root, []),
         entry!("shopLocaleUpdate", Mutation, Localization, DraftProxy::localization_mutation_root, []),
         entry!("shopLocaleDisable", Mutation, Localization, DraftProxy::localization_mutation_root, []),
@@ -755,6 +792,7 @@ fn registry_entry(
     operation_type: OperationType,
     domain: CapabilityDomain,
     handler: Option<NativeResolverHandler>,
+    request_planners: &[NativeRequestPlanner],
     runtime_tests: &[&str],
 ) -> ExecutableRootRegistration {
     let implemented = handler.is_some();
@@ -769,6 +807,7 @@ fn registry_entry(
             commit_id_mappings: commit_id_mappings(name),
         },
         handler,
+        request_planners: request_planners.to_vec(),
     }
 }
 

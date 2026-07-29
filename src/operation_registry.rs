@@ -444,6 +444,7 @@ fn storefront_registry_bindings_for_roots(
                     commit_id_mappings: Vec::new(),
                 },
                 handler,
+                request_planners: Vec::new(),
             }
         })
         .collect()

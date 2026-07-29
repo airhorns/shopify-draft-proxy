@@ -1,6 +1,32 @@
 use super::*;
+use crate::proxy::request_planner::{
+    RequestExecutionPlan, RequestPlanningInvocation, RootReadAuthority,
+};
 
 impl DraftProxy {
+    pub(crate) fn plan_delivery_settings_query(
+        &self,
+        invocation: &RequestPlanningInvocation<'_>,
+        plan: &mut RequestExecutionPlan,
+    ) {
+        if self.config.read_mode == ReadMode::LiveHybrid
+            && invocation.operation_type == OperationType::Query
+            && !invocation.roots.is_empty()
+            && invocation.roots.iter().all(|root| {
+                matches!(
+                    root.name.as_str(),
+                    "deliverySettings" | "deliveryPromiseSettings"
+                )
+            })
+        {
+            plan.set_named_roots_authority(
+                &["deliverySettings", "deliveryPromiseSettings"],
+                invocation.roots,
+                RootReadAuthority::Upstream,
+            );
+        }
+    }
+
     pub(crate) fn delivery_settings_query_root(
         &mut self,
         invocation: RootInvocation<'_>,

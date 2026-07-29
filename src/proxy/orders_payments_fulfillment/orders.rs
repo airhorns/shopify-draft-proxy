@@ -1287,11 +1287,7 @@ pub(in crate::proxy) fn normalize_hydrated_order(order: &mut Value) {
 
 impl DraftProxy {
     fn observe_live_hybrid_order_read(&mut self, request: &Request) {
-        let response = self
-            .execution_session
-            .upstream_query_response
-            .clone()
-            .unwrap_or_else(|| (self.upstream_transport)(request.clone()));
+        let response = self.cached_or_forward_upstream_response(request);
         self.observe_order_read_response(request, &response);
     }
 

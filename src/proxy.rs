@@ -2833,36 +2833,12 @@ impl RequestEntityCacheKey {
 
 type RequestEntityCache = RefCell<BTreeMap<RequestEntityCacheKey, NodeLoadState<EntityRef>>>;
 
-#[derive(Clone)]
-struct RequestNodeHydration {
-    response: Response,
-    upstream_response_keys: BTreeSet<String>,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum DiscountPrerequisiteState {
-    Present,
-    Absent,
-    Unresolved,
-}
-
 #[derive(Clone, Default)]
 struct ExecutionSession {
     api_surface: Option<ApiSurface>,
     api_version: Option<String>,
     mutation_log_start: Option<usize>,
-    discount_refs_preflighted: bool,
-    discount_reference_states: BTreeMap<(String, String), DiscountPrerequisiteState>,
-    owner_metafield_hydrated_ids: BTreeSet<String>,
-    owner_metafield_resolved_keys: BTreeSet<(String, String, String)>,
-    upstream_query_response: Option<Response>,
-    upstream_query_data: Option<Value>,
-    upstream_query_selections: BTreeMap<String, Vec<SelectedField>>,
-    localization_context_preflighted: bool,
-    markets_query_preflighted: bool,
-    node_hydration: Option<RequestNodeHydration>,
-    owner_metafield_read_ids: BTreeSet<String>,
-    owner_metafield_missing_ids: BTreeSet<String>,
+    hydration: hydration::RequestHydrationBroker,
     entity_cache: RequestEntityCache,
 }
 
@@ -2939,6 +2915,7 @@ mod discounts;
 mod functions;
 mod graphql_error_compat;
 mod graphql_runtime;
+mod hydration;
 mod json_helpers;
 mod localization_markets_catalogs;
 mod market_unsupported_country_regions;
@@ -2958,6 +2935,7 @@ mod privacy;
 mod product_helpers;
 mod product_operations;
 mod product_options;
+pub(crate) mod request_planner;
 mod resolved_values;
 mod resource_ids;
 mod routing;

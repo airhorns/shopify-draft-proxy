@@ -1,4 +1,7 @@
 use super::*;
+use crate::proxy::request_planner::{
+    RequestExecutionPlan, RequestPlanningInvocation, RootReadAuthority,
+};
 
 pub(in crate::proxy) fn event_field_resolver_registrations() -> Vec<FieldResolverRegistration> {
     [
@@ -49,6 +52,19 @@ pub(in crate::proxy) fn event_field_resolver_type_policies() -> Vec<FieldResolve
 }
 
 impl DraftProxy {
+    pub(crate) fn plan_events_query(
+        &self,
+        invocation: &RequestPlanningInvocation<'_>,
+        plan: &mut RequestExecutionPlan,
+    ) {
+        if self.config.read_mode == ReadMode::LiveHybrid
+            && invocation.operation_type == OperationType::Query
+            && invocation.all_domains(|domain| domain == CapabilityDomain::Events)
+        {
+            plan.set_domain_authority(CapabilityDomain::Events, RootReadAuthority::Upstream);
+        }
+    }
+
     pub(crate) fn event_query_root(
         &mut self,
         invocation: RootInvocation<'_>,
