@@ -1,0 +1,17 @@
+mutation OnlineStoreContentHandleArticleCreate($article: ArticleCreateInput!) {
+  articleCreate(article: $article) {
+    article {
+      id
+      title
+      handle
+      blog {
+        id
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

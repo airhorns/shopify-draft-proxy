@@ -4842,7 +4842,11 @@ fn location_overlay_preserves_hydrated_catalog_for_reads_validation_and_limits()
                                         "isActive": true,
                                         "isFulfillmentService": false
                                     }
-                                ]
+                                ],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false
+                                }
                             }
                         }
                     }),
@@ -4968,7 +4972,7 @@ fn location_overlay_preserves_hydrated_catalog_for_reads_validation_and_limits()
             nodes { id name }
           }
           availableForDeliveryProfiles: locationsAvailableForDeliveryProfilesConnection(first: 5) {
-            nodes { id name }
+            nodes { id name isActive }
           }
         }
         "#,
@@ -5009,8 +5013,8 @@ fn location_overlay_preserves_hydrated_catalog_for_reads_validation_and_limits()
     assert_eq!(
         read.body["data"]["availableForDeliveryProfiles"]["nodes"],
         json!([
-            { "id": "gid://shopify/Location/base-east", "name": "Baseline East" },
-            { "id": "gid://shopify/Location/base-filter-decoy", "name": "Baseline Fill East 1" }
+            { "id": "gid://shopify/Location/base-east", "name": "Baseline East", "isActive": true },
+            { "id": "gid://shopify/Location/base-filter-decoy", "name": "Baseline Fill East 1", "isActive": true }
         ]),
         "a staged add must not invent delivery-profile eligibility for a location absent from the hydrated eligibility catalog"
     );
@@ -5041,6 +5045,136 @@ fn location_overlay_preserves_hydrated_catalog_for_reads_validation_and_limits()
                 "message": "You have reached the maximum number of locations (4)"
             }]
         })
+    );
+
+    let deactivate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LocationOverlayDeactivate($locationId: ID!) {
+          locationDeactivate(locationId: $locationId) @idempotent(key: "location-overlay-deactivate") {
+            location { id isActive }
+            locationDeactivateUserErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "locationId": staged_id }),
+    ));
+    assert_eq!(
+        deactivate.body["data"]["locationDeactivate"],
+        json!({
+            "location": { "id": staged_id, "isActive": false },
+            "locationDeactivateUserErrors": []
+        }),
+        "deactivate response: {}",
+        deactivate.body
+    );
+
+    let read_after_deactivate = proxy.process_request(json_graphql_request(
+        r#"
+        query LocationOverlayReadAfterDeactivate {
+          availableForDeliveryProfiles: locationsAvailableForDeliveryProfilesConnection(first: 5) {
+            nodes { id name isActive }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read_after_deactivate.body["data"]["availableForDeliveryProfiles"]["nodes"],
+        json!([
+            { "id": "gid://shopify/Location/base-east", "name": "Baseline East", "isActive": true },
+            { "id": "gid://shopify/Location/base-filter-decoy", "name": "Baseline Fill East 1", "isActive": true },
+            { "id": staged_id, "name": "Staged East", "isActive": false }
+        ]),
+        "Shopify adds a newly staged location to delivery-profile eligibility when it is deactivated"
+    );
+
+    let activate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LocationOverlayReactivate($locationId: ID!) {
+          locationActivate(locationId: $locationId) @idempotent(key: "location-overlay-reactivate") {
+            location { id isActive }
+            locationActivateUserErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "locationId": staged_id }),
+    ));
+    assert_eq!(
+        activate.body["data"]["locationActivate"],
+        json!({
+            "location": { "id": staged_id, "isActive": true },
+            "locationActivateUserErrors": []
+        })
+    );
+
+    let read_after_reactivate = proxy.process_request(json_graphql_request(
+        r#"
+        query LocationOverlayReadAfterReactivate {
+          availableForDeliveryProfiles: locationsAvailableForDeliveryProfilesConnection(first: 5) {
+            nodes { id name isActive }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read_after_reactivate.body["data"]["availableForDeliveryProfiles"]["nodes"],
+        json!([
+            { "id": "gid://shopify/Location/base-east", "name": "Baseline East", "isActive": true },
+            { "id": "gid://shopify/Location/base-filter-decoy", "name": "Baseline Fill East 1", "isActive": true },
+            { "id": staged_id, "name": "Staged East", "isActive": true }
+        ]),
+        "reactivating the location must preserve its captured delivery-profile eligibility"
+    );
+
+    let deactivate_for_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LocationOverlayDeactivateForDelete($locationId: ID!) {
+          locationDeactivate(locationId: $locationId) @idempotent(key: "location-overlay-delete") {
+            location { id isActive }
+            locationDeactivateUserErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "locationId": staged_id }),
+    ));
+    assert_eq!(
+        deactivate_for_delete.body["data"]["locationDeactivate"]["locationDeactivateUserErrors"],
+        json!([])
+    );
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LocationOverlayDelete($locationId: ID!) {
+          locationDelete(locationId: $locationId) {
+            deletedLocationId
+            locationDeleteUserErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "locationId": staged_id }),
+    ));
+    assert_eq!(
+        delete.body["data"]["locationDelete"],
+        json!({ "deletedLocationId": staged_id, "locationDeleteUserErrors": [] })
+    );
+
+    let read_after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query LocationOverlayReadAfterDelete {
+          availableForDeliveryProfiles: locationsAvailableForDeliveryProfilesConnection(first: 5) {
+            nodes { id name isActive }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read_after_delete.body["data"]["availableForDeliveryProfiles"]["nodes"],
+        json!([
+            { "id": "gid://shopify/Location/base-east", "name": "Baseline East", "isActive": true },
+            { "id": "gid://shopify/Location/base-filter-decoy", "name": "Baseline Fill East 1", "isActive": true }
+        ]),
+        "deleting the staged location must remove its derived delivery-profile eligibility row"
     );
 
     assert!(

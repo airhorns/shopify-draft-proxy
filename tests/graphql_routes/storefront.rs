@@ -13,6 +13,32 @@ fn storefront_graphql_request(query: &str, variables: Value) -> Request {
     )
 }
 
+fn empty_online_store_handle_reservation_response(request: &Request) -> Option<Response> {
+    let body: Value = serde_json::from_str(&request.body).ok()?;
+    let query = body.get("query")?.as_str()?;
+    let data = if query.contains("OnlineStorePageHandleReservationHydrate") {
+        json!({"pages": empty_online_store_handle_connection()})
+    } else if query.contains("OnlineStoreBlogHandleReservationHydrate") {
+        json!({"blogs": empty_online_store_handle_connection()})
+    } else if query.contains("OnlineStoreArticleHandleReservationHydrate") {
+        json!({"articles": empty_online_store_handle_connection()})
+    } else {
+        return None;
+    };
+    Some(Response {
+        status: 200,
+        headers: Default::default(),
+        body: json!({"data": data}),
+    })
+}
+
+fn empty_online_store_handle_connection() -> Value {
+    json!({
+        "nodes": [],
+        "pageInfo": { "hasNextPage": false, "endCursor": null }
+    })
+}
+
 fn storefront_product_fixture(
     id: &str,
     title: &str,
@@ -6177,6 +6203,9 @@ fn storefront_content_roots_project_staged_admin_content() {
         if request.path.starts_with("/api/") {
             panic!("staged Storefront content should not call Storefront upstream");
         }
+        if let Some(response) = empty_online_store_handle_reservation_response(&request) {
+            return response;
+        }
         Response {
             status: 599,
             headers: Default::default(),
@@ -7745,6 +7774,9 @@ fn storefront_node_hydrates_an_unrelated_id_after_local_product_discovery() {
         Some(UnsupportedMutationMode::Passthrough),
     )
     .with_upstream_transport(move |request| {
+        if let Some(response) = empty_online_store_handle_reservation_response(&request) {
+            return response;
+        }
         observed_for_proxy.lock().unwrap().push(request);
         Response {
             status: 200,
@@ -8070,6 +8102,9 @@ fn storefront_discovery_parity_document_hydrates_only_unresolved_nodes() {
         Some(UnsupportedMutationMode::Passthrough),
     )
     .with_upstream_transport(move |request| {
+        if let Some(response) = empty_online_store_handle_reservation_response(&request) {
+            return response;
+        }
         observed_for_proxy.lock().unwrap().push(request);
         Response {
             status: 200,
@@ -8130,7 +8165,10 @@ fn storefront_search_and_predictive_search_use_effective_visible_state() {
         ReadMode::LiveHybrid,
         Some(UnsupportedMutationMode::Passthrough),
     )
-    .with_upstream_transport(|_| panic!("staged Storefront discovery must stay local"));
+    .with_upstream_transport(|request| {
+        empty_online_store_handle_reservation_response(&request)
+            .unwrap_or_else(|| panic!("staged Storefront discovery must stay local"))
+    });
     restore_storefront_current_publication(&mut proxy, publication_id);
     let fixture = stage_storefront_discovery_fixture(&mut proxy);
 
