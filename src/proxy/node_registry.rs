@@ -1261,6 +1261,20 @@ pub(crate) fn load_fulfillment_constraint_rule(
         .staged
         .deleted_function_fulfillment_constraint_rule_ids
         .contains(id)
+        || proxy
+            .store
+            .base
+            .function_fulfillment_constraint_rule_known_missing_ids
+            .contains(id)
+        || (proxy
+            .store
+            .base
+            .function_fulfillment_constraint_rule_catalog_complete
+            && !proxy
+                .store
+                .base
+                .function_fulfillment_constraint_rules
+                .contains_key(id))
     {
         return NodeLoadState::KnownMissing;
     }

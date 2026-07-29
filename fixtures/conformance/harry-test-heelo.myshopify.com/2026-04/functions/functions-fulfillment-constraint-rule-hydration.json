@@ -1,0 +1,322 @@
+{
+  "scenarioId": "functions-fulfillment-constraint-rule-hydration",
+  "capturedAt": "2026-07-19T15:50:36.854Z",
+  "source": "live-shopify",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "summary": "Live direct update/delete of a real fulfillment constraint rule plus the exact unknown-id update payload.",
+  "functionNode": {
+    "id": "019f7a32-10ba-78fc-91dc-4c0afaa7a584",
+    "handle": "conformance-fulfillment-constraint",
+    "apiType": "fulfillment_constraints"
+  },
+  "inventory": {
+    "query": "query FulfillmentConstraintHydrationInventory {\n  fulfillmentConstraintRules { id }\n}\n",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fulfillmentConstraintRules": []
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanupBefore": [],
+  "create": {
+    "query": "mutation FulfillmentConstraintHydrationSetup($functionHandle: String!) {\n  fulfillmentConstraintRuleCreate(functionHandle: $functionHandle, deliveryMethodTypes: [SHIPPING]) {\n    fulfillmentConstraintRule {\n      id\n      deliveryMethodTypes\n      function { id handle apiType }\n    }\n    userErrors { field message code }\n  }\n}\n",
+    "variables": {
+      "functionHandle": "conformance-fulfillment-constraint"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fulfillmentConstraintRuleCreate": {
+            "fulfillmentConstraintRule": {
+              "id": "gid://shopify/FulfillmentConstraintRule/55148850",
+              "deliveryMethodTypes": ["SHIPPING"],
+              "function": {
+                "id": "019f7a32-10ba-78fc-91dc-4c0afaa7a584",
+                "handle": "conformance-fulfillment-constraint",
+                "apiType": "fulfillment_constraints"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "hydrate": {
+    "query": "query FunctionFulfillmentConstraintRuleHydrateById($id: ID!) {\n  node(id: $id) {\n    ... on FulfillmentConstraintRule {\n      id\n      deliveryMethodTypes\n      function {\n        id\n        title\n        handle\n        apiType\n        description\n        appKey\n        app {\n          __typename\n          id\n          title\n          handle\n          apiKey\n        }\n      }\n      metafields(first: 100) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/FulfillmentConstraintRule/55148850"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "node": {
+            "id": "gid://shopify/FulfillmentConstraintRule/55148850",
+            "deliveryMethodTypes": ["SHIPPING"],
+            "function": {
+              "id": "019f7a32-10ba-78fc-91dc-4c0afaa7a584",
+              "title": "conformance-fulfillment-constraint",
+              "handle": "conformance-fulfillment-constraint",
+              "apiType": "fulfillment_constraints",
+              "description": "conformance-fulfillment-constraint",
+              "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+              "app": {
+                "__typename": "App",
+                "id": "gid://shopify/App/347082227713",
+                "title": "hermes-conformance-products",
+                "handle": "hermes-conformance-products",
+                "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+              }
+            },
+            "metafields": {
+              "nodes": []
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 14,
+            "actualQueryCost": 14,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "update": {
+    "query": "mutation FulfillmentConstraintHydratedUpdate($id: ID!) {\n  fulfillmentConstraintRuleUpdate(id: $id, deliveryMethodTypes: [LOCAL]) {\n    fulfillmentConstraintRule {\n      id\n      deliveryMethodTypes\n      function { id handle apiType }\n    }\n    userErrors { field message code }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/FulfillmentConstraintRule/55148850"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fulfillmentConstraintRuleUpdate": {
+            "fulfillmentConstraintRule": {
+              "id": "gid://shopify/FulfillmentConstraintRule/55148850",
+              "deliveryMethodTypes": ["LOCAL"],
+              "function": {
+                "id": "019f7a32-10ba-78fc-91dc-4c0afaa7a584",
+                "handle": "conformance-fulfillment-constraint",
+                "apiType": "fulfillment_constraints"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "deleteRule": {
+    "query": "mutation FulfillmentConstraintHydratedDelete($id: ID!) {\n  fulfillmentConstraintRuleDelete(id: $id) {\n    success\n    userErrors { field message code }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/FulfillmentConstraintRule/55148850"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fulfillmentConstraintRuleDelete": {
+            "success": true,
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "missingHydrate": {
+    "query": "query FunctionFulfillmentConstraintRuleHydrateById($id: ID!) {\n  node(id: $id) {\n    ... on FulfillmentConstraintRule {\n      id\n      deliveryMethodTypes\n      function {\n        id\n        title\n        handle\n        apiType\n        description\n        appKey\n        app {\n          __typename\n          id\n          title\n          handle\n          apiKey\n        }\n      }\n      metafields(first: 100) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/FulfillmentConstraintRule/999999999999"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "node": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 14,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "unknownUpdate": {
+    "query": "mutation FulfillmentConstraintHydratedUnknownUpdate($id: ID!) {\n  fulfillmentConstraintRuleUpdate(id: $id, deliveryMethodTypes: [LOCAL]) {\n    fulfillmentConstraintRule { id }\n    userErrors { field message code }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/FulfillmentConstraintRule/999999999999"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fulfillmentConstraintRuleUpdate": {
+            "fulfillmentConstraintRule": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Could not find FulfillmentConstraintRule with id: gid://shopify/FulfillmentConstraintRule/999999999999",
+                "code": "NOT_FOUND"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanupAfter": [],
+  "upstreamCalls": [
+    {
+      "operationName": "FunctionFulfillmentConstraintRuleHydrateById",
+      "variables": {
+        "id": "gid://shopify/FulfillmentConstraintRule/55148850"
+      },
+      "query": "query FunctionFulfillmentConstraintRuleHydrateById($id: ID!) {\n  node(id: $id) {\n    ... on FulfillmentConstraintRule {\n      id\n      deliveryMethodTypes\n      function {\n        id\n        title\n        handle\n        apiType\n        description\n        appKey\n        app {\n          __typename\n          id\n          title\n          handle\n          apiKey\n        }\n      }\n      metafields(first: 100) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "node": {
+              "id": "gid://shopify/FulfillmentConstraintRule/55148850",
+              "deliveryMethodTypes": ["SHIPPING"],
+              "function": {
+                "id": "019f7a32-10ba-78fc-91dc-4c0afaa7a584",
+                "title": "conformance-fulfillment-constraint",
+                "handle": "conformance-fulfillment-constraint",
+                "apiType": "fulfillment_constraints",
+                "description": "conformance-fulfillment-constraint",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              "metafields": {
+                "nodes": []
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FunctionFulfillmentConstraintRuleHydrateById",
+      "variables": {
+        "id": "gid://shopify/FulfillmentConstraintRule/999999999999"
+      },
+      "query": "query FunctionFulfillmentConstraintRuleHydrateById($id: ID!) {\n  node(id: $id) {\n    ... on FulfillmentConstraintRule {\n      id\n      deliveryMethodTypes\n      function {\n        id\n        title\n        handle\n        apiType\n        description\n        appKey\n        app {\n          __typename\n          id\n          title\n          handle\n          apiKey\n        }\n      }\n      metafields(first: 100) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "node": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": {
+    "hydration": "Proxy replay receives only the update/delete caller mutation and resolves the pre-existing target through the exact read-only Node cassette.",
+    "cleanup": "The disposable live rule is deleted during the recorded lifecycle and the finally block retries cleanup after failures."
+  }
+}
