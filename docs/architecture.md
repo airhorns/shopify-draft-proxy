@@ -28,7 +28,9 @@ The Python package under `python/` is also a thin embedding surface: it builds a
    - interpret the mutation into a domain command
    - apply the command to local staged state
    - synthesize a Shopify-like response
-   - append a replay-ready entry to the mutation log
+   - append a replay-ready entry only when the domain handler reports an
+     effective staged transition; validation-only failures and successful
+     no-stage no-ops do not enter commit replay
 2. **unsupported mutation**
    - proxy through to Shopify unchanged when `unsupportedMutationMode` is `passthrough`
    - reject with a 400 GraphQL error envelope before upstream transport when `unsupportedMutationMode` is `reject`
@@ -75,9 +77,10 @@ propagation. Root resolvers are request-scoped and execute serially against the
 same instance-owned proxy. Each invocation receives the engine-coerced root
 arguments, raw argument-source metadata, root/operation source locations, and
 variable-definition metadata for compatibility validation. It also receives a
-set of engine-selected output paths for hydration planning plus a shallow,
-selection-free inventory of the operation's root names, response keys, and
-resolved arguments. The current root's arguments are engine-coerced; sibling
+set of engine-selected output paths and the current root's selected field tree
+for bounded transport planning, plus a shallow, selection-free inventory of the
+operation's root names, response keys, and resolved arguments. The current root's
+arguments are engine-coerced; sibling
 root arguments in compatibility planning come from the parsed operation. Those
 values may choose a narrow or broad hydration but never shape the returned JSON;
 output projection remains engine-owned. A local resolver receives `RootInvocation`,
@@ -116,7 +119,7 @@ replaced by local non-null execution errors.
 - The shared schema builder registers objects, interfaces, unions, enums, scalars, input objects, arguments, defaults, descriptions, and deprecations dynamically. This avoids maintaining thousands of handwritten Rust GraphQL wrapper types while still using a real GraphQL executor. Storefront's captured introspection JSON is deterministically rendered to SDL once before entering the same builder.
 - Captured custom scalars have explicit codecs. URL, RFC 3339 DateTime, decimal/money, integer, JSON, and string-like scalar families are validated deliberately, and schema construction fails when a new capture introduces an unknown scalar instead of silently treating it as arbitrary JSON.
 - Root fields share one generic resolver bridge. Domain code continues to model Shopify behavior and store effects directly; it does not need a second resolver-shaped copy of every function. Complex lifecycle behavior can remain in rich domain methods, while ordinary output fields are read from the returned typed JSON object by the generic schema resolver.
-- Native root callbacks consume engine-coerced `RootInvocation` data and return one canonical, alias-free value. Domain-specific input structs contain only the arguments and source metadata that behavior actually needs; they are not reduced copies of a GraphQL selection tree.
+- Native root callbacks consume engine-coerced `RootInvocation` data and return one canonical, alias-free value. Domain-specific input structs retain only the arguments, source metadata, and selected fields that behavior actually needs. Selected fields may plan a bounded upstream refill with the caller's exact nested arguments, but the executable engine still owns output projection.
 - Canonical parent values may carry unprojected relationship source data when mutation payload semantics differ from a later ordinary read. The explicit child-field resolver still owns arguments, sorting, windowing, and canonical child lookup; embedding relationship source data is not permission for the domain to pre-project the requested selection.
 - Returning a JSON object is not permission to return arbitrary shape. For every selected nested field, the executable schema validates its type and the generic object resolver reports an explicit `Local resolver did not implement Type.field` execution error when the domain result omits that field. The engine then applies GraphQL null propagation.
 - `ResolverRegistry` is owned by each `DraftProxy` and derives executable callbacks from implemented operation-registry entries. Admin registrations keep their public root names (`shop`, `products`); Storefront registrations receive globally unique internal names (`storefrontShop`, `storefrontProducts`). Surface-aware lookup performs that translation and also verifies the operation type and public root before returning a callback. Duplicate internal names fail registry construction, so same-named API roots cannot collide. There is no second checked-in local-routing inventory to synchronize. Every implemented capability domain has one distinct domain-owned callback, and structural tests prevent domains from collapsing back into a shared compatibility handler or crossing API surfaces.
@@ -124,7 +127,7 @@ replaced by local non-null execution errors.
 - Storefront's `@inContext` directive is interpreted from the original operation by the Storefront domain. Because the dynamic engine cannot register executable custom directives, only the engine-facing copy removes `@inContext` and variables used exclusively by it; all other directives and variable uses remain under normal schema validation.
 - `node(id:)` and `nodes(ids:)` use one type-to-loader inventory in `src/node_resolver_inventory.rs`; each entry carries its executable loader rather than a second loader enum/switch. Loaders return explicit `Found`, `KnownMissing`, `NeedsHydration`, or `UnsupportedType` states. Live-hybrid sends one upstream request for a mixed cold batch, merges staged values and tombstones over the response before caching it, and preserves input ordering/null placeholders. Snapshot mode never hydrates upstream.
 
-`DraftProxy` is instance-owned state, not a singleton. A proxy owns its normalized `Store`, mutation log, registry, synthetic ID counters, injectable runtime clock, and injectable upstream/commit transports. Runtime base/staged resource data belongs under the Store rather than as loose `DraftProxy` fields. Do not introduce global mutable proxy state.
+`DraftProxy` is instance-owned state, not a singleton. A proxy owns its normalized `Store`, mutation log, registry, injectable runtime clock, and injectable upstream/commit transports. The Store owns the single monotonic synthetic-ID sequence and brokers collision-safe marked/plain allocations for every domain; runtime base/staged resource data and identity allocation must not become loose `DraftProxy` fields or resource-local counters. Do not introduce global mutable proxy state.
 
 ## Primary Rust modules
 
@@ -255,6 +258,7 @@ The Python package is not a second proxy implementation and does not spawn the R
   - `config/parity-specs/**`
   - `config/parity-requests/**`
   - `fixtures/conformance/**`
+- Runtime-owned secondary GraphQL documents live under `src/runtime_graphql/**`. Parity requests may intentionally byte-match those documents for cassette replay, but runtime Rust source never compiles or reads `config/parity-requests/**`; a structural test enforces that dependency direction.
 - Those paths must be registered in the conformance capture index when they drift from `origin/main`.
 - `scripts/check-protected-evidence-invariants.ts` compares protected evidence against `origin/main` and rejects unregistered changes.
 - `scripts/conformance-capture-index.ts`, `scripts/conformance-check.ts`, and `scripts/conformance-status-report.ts` maintain capture metadata and status reporting.
@@ -267,21 +271,23 @@ The Python package is not a second proxy implementation and does not spawn the R
 
 The runtime should use normalized state rather than raw GraphQL blobs.
 
-`DraftProxy` owns a typed Rust `Store` for runtime resource state. Products, saved searches, and Storefront carts/lines use normalized records with shared effective-read helpers or deterministic order indexes, while other staged domain data also lives under `Store::staged` so reset, dump/restore plumbing, and future normalization work have one ownership boundary. Order and gift-card LiveHybrid hydration also stores known base records and related baseline/configuration data in `BaseState` so supported local mutations can overlay real upstream reads without runtime Shopify writes.
+`DraftProxy` owns a typed Rust `Store` for runtime resource state. Products, saved searches, inventory transfers/shipments, and Storefront carts/lines use normalized records with shared effective-read helpers or deterministic order indexes, while other staged domain data also lives under `Store::staged` so reset, dump/restore plumbing, and future normalization work have one ownership boundary. Order, gift-card, and inventory lifecycle LiveHybrid hydration stores known base records and related context in `BaseState` so supported local mutations can overlay real upstream reads without runtime Shopify writes.
 
-The normalized product and saved-search portions currently include:
+The normalized product, saved-search, and inventory-lifecycle portions currently include:
 
 - `BaseState` for snapshot, fixture, or restored upstream state
 - `StagedState` for local inserts and updates
 - ordered ID arrays for deterministic effective lists and dump/restore round trips
 - tombstone sets for staged deletes
 
+Inventory lifecycle preflights use the caller's Admin API path and headers for query-only upstream hydration. Transfer and shipment details, endpoint locations, line-item quantities, tracking, and transfer/shipment linkage are normalized into base records before local validation; the supported mutation itself remains locally staged and is retained only for ordered commit replay.
+
 Core state categories:
 
 - base state learned from snapshots, fixtures, or upstream reads
 - staged Store state for local inserts/updates/deletes and other local domain effects not yet committed
 - ordered mutation log entries containing original request path, headers, raw query, variables, capability metadata, resource IDs, and status
-- synthetic identity counters scoped to a `DraftProxy` instance
+- one store-owned synthetic identity sequence scoped to a `DraftProxy` instance, with allocation checking canonical aliases across persisted state and mutation logs
 
 Effective reads merge base state and staged state through shared Store helpers, respecting staged deletes and Shopify-like null/empty behavior. Commit drains staged log entries only after successful upstream replay.
 

@@ -10,13 +10,59 @@ impl DraftProxy {
             .get("id")
             .and_then(Value::as_str)
             .unwrap_or_default();
-        let value = self
-            .product_operation_value_by_id(id)
-            .unwrap_or(Value::Null);
-        ResolverOutcome::value(value)
+        if let Some(value) = self.local_product_operation_value_by_id(id) {
+            return ResolverOutcome::value(value);
+        }
+
+        let base_operation = self.store.base.product_operations.get(id).cloned();
+        let requested_fields_observed = self
+            .store
+            .base
+            .product_operation_observed_field_paths
+            .get(id)
+            .is_some_and(|observed| invocation.requested_field_paths.is_subset(observed));
+        let needs_upstream = self.config.read_mode == ReadMode::LiveHybrid
+            && !is_synthetic_gid(id)
+            && !self.store.base.missing_product_operation_ids.contains(id)
+            && base_operation.as_ref().is_none_or(|operation| {
+                !product_operation_is_complete(operation) || !requested_fields_observed
+            });
+        if !needs_upstream {
+            return ResolverOutcome::value(base_operation.unwrap_or(Value::Null));
+        }
+
+        let result = self
+            .cached_or_forward_upstream_graphql_result(invocation.request, invocation.response_key);
+        if result.transport_succeeded && result.outcome.errors.is_empty() {
+            match result.data.get(invocation.response_key) {
+                Some(Value::Null) => {
+                    self.store.base.product_operations.remove(id);
+                    self.store
+                        .base
+                        .product_operation_observed_field_paths
+                        .remove(id);
+                    self.store
+                        .base
+                        .missing_product_operation_ids
+                        .insert(id.to_string());
+                }
+                Some(operation) => self.observe_product_operation_value(
+                    id,
+                    operation,
+                    &invocation.requested_field_paths,
+                ),
+                None => {}
+            }
+        }
+        result.outcome
     }
 
     pub(in crate::proxy) fn product_operation_value_by_id(&self, id: &str) -> Option<Value> {
+        self.local_product_operation_value_by_id(id)
+            .or_else(|| self.store.base.product_operations.get(id).cloned())
+    }
+
+    fn local_product_operation_value_by_id(&self, id: &str) -> Option<Value> {
         self.store
             .staged
             .product_delete_operations
@@ -39,6 +85,57 @@ impl DraftProxy {
                         self.product_operation_value_with_status(operation, "COMPLETE")
                     })
             })
+    }
+
+    fn observe_product_operation_value(
+        &mut self,
+        requested_id: &str,
+        operation: &Value,
+        requested_field_paths: &BTreeSet<Vec<String>>,
+    ) {
+        let Some(object) = operation.as_object() else {
+            return;
+        };
+        let observed_id = object
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or(requested_id);
+        if observed_id != requested_id {
+            return;
+        }
+        let type_name = object
+            .get("__typename")
+            .and_then(Value::as_str)
+            .or_else(|| product_operation_typename_from_id(requested_id));
+        let Some(type_name) = type_name.filter(|name| is_product_operation_typename(name)) else {
+            return;
+        };
+
+        let mut observed = operation.clone();
+        if let Some(object) = observed.as_object_mut() {
+            object
+                .entry("id".to_string())
+                .or_insert_with(|| json!(requested_id));
+            object
+                .entry("__typename".to_string())
+                .or_insert_with(|| json!(type_name));
+        }
+        self.store
+            .base
+            .product_operations
+            .entry(requested_id.to_string())
+            .and_modify(|existing| merge_json_values(existing, &observed))
+            .or_insert(observed);
+        self.store
+            .base
+            .product_operation_observed_field_paths
+            .entry(requested_id.to_string())
+            .or_default()
+            .extend(requested_field_paths.iter().cloned());
+        self.store
+            .base
+            .missing_product_operation_ids
+            .remove(requested_id);
     }
 
     pub(crate) fn product_set_outcome(
@@ -252,10 +349,8 @@ impl DraftProxy {
             );
         }
         if input.contains_key("productOptions") {
-            product.extra_fields.insert(
-                "options".to_string(),
-                product_set_options_json(&mut self.next_synthetic_id, &input),
-            );
+            let options = product_set_options_json(self, &input);
+            product.extra_fields.insert("options".to_string(), options);
         }
         if input.contains_key("variants") {
             for location_id in product_set_inventory_location_ids(&input) {
@@ -288,17 +383,6 @@ impl DraftProxy {
                     .insert("metafield".to_string(), first.clone());
             }
         }
-        // Shopify returns a store-specific signed preview URL for staged products; the
-        // parity spec matches it via `non-empty-string`, so a stable local URL suffices.
-        product
-            .extra_fields
-            .entry("onlineStorePreviewUrl".to_string())
-            .or_insert_with(|| {
-                json!(format!(
-                    "https://shopify-draft-proxy.preview/products/{}",
-                    resource_id_tail(&product_id)
-                ))
-            });
         // Shopify reports `null` (not an empty string) for unset SEO fields and template
         // suffix. Render the effective value (input or carried-over base) as null when empty.
         product.extra_fields.insert(
@@ -783,6 +867,10 @@ impl DraftProxy {
         duplicate.created_at = timestamp.clone();
         duplicate.updated_at = timestamp;
         duplicate.variants = Vec::new();
+        // A hydrated preview URL is signed for the source product. The locally staged
+        // duplicate has a different identity, so carrying that URL over would make an
+        // authoritative value point at the wrong resource.
+        duplicate.extra_fields.remove("onlineStorePreviewUrl");
         // Shopify copies media asynchronously: the duplicate's immediate payload (and the
         // downstream read right after) expose an empty media connection.
         duplicate.media = Vec::new();
@@ -1027,6 +1115,30 @@ fn product_operation_typename(kind: ProductOperationKind) -> &'static str {
     }
 }
 
+fn product_operation_typename_from_id(id: &str) -> Option<&'static str> {
+    match shopify_gid_resource_type(id)? {
+        "ProductSetOperation" => Some("ProductSetOperation"),
+        "ProductDuplicateOperation" => Some("ProductDuplicateOperation"),
+        "ProductDeleteOperation" => Some("ProductDeleteOperation"),
+        "ProductBundleOperation" => Some("ProductBundleOperation"),
+        _ => None,
+    }
+}
+
+fn is_product_operation_typename(type_name: &str) -> bool {
+    matches!(
+        type_name,
+        "ProductSetOperation"
+            | "ProductDuplicateOperation"
+            | "ProductDeleteOperation"
+            | "ProductBundleOperation"
+    )
+}
+
+fn product_operation_is_complete(operation: &Value) -> bool {
+    operation.get("status").and_then(Value::as_str) == Some("COMPLETE")
+}
+
 fn product_set_shape_validation(
     response_key: &str,
     input: &BTreeMap<String, ResolvedValue>,
@@ -1123,7 +1235,7 @@ fn product_set_variant_input_errors(input: &BTreeMap<String, ResolvedValue>) -> 
 }
 
 fn product_set_options_json(
-    next_synthetic_id: &mut u64,
+    proxy: &mut DraftProxy,
     input: &BTreeMap<String, ResolvedValue>,
 ) -> Value {
     Value::Array(
@@ -1134,13 +1246,11 @@ fn product_set_options_json(
                 let name = resolved_string_field(&option, "name")
                     .unwrap_or_else(|| format!("Option{}", index + 1));
                 let values = product_set_option_value_names(&option);
-                let option_id = synthetic_shopify_gid("ProductOption", *next_synthetic_id);
-                *next_synthetic_id += 1;
+                let option_id = proxy.next_proxy_synthetic_gid("ProductOption");
                 let option_values = values
                     .iter()
                     .map(|value| {
-                        let id = synthetic_shopify_gid("ProductOptionValue", *next_synthetic_id);
-                        *next_synthetic_id += 1;
+                        let id = proxy.next_proxy_synthetic_gid("ProductOptionValue");
                         json!({
                             "id": id,
                             "name": value,

@@ -1,6 +1,6 @@
 {
   "scenarioId": "discount-app-bulk-live-parity",
-  "capturedAt": "2026-07-02T21:05:52.241Z",
+  "capturedAt": "2026-07-28T01:32:35.622Z",
   "source": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "scopeProbe": {
@@ -166,6 +166,32 @@
                   "handle": "hermes-conformance-products",
                   "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
                 }
+              },
+              {
+                "id": "019f7a30-08b0-7799-8dcc-3a1720d5d8af",
+                "title": "conformance-cart-transform-secondary",
+                "apiType": "cart_transform",
+                "description": "conformance-cart-transform-secondary",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019f7a32-10ba-78fc-91dc-4c0afaa7a584",
+                "title": "conformance-fulfillment-constraint",
+                "apiType": "fulfillment_constraints",
+                "description": "conformance-fulfillment-constraint",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
               }
             ]
           }
@@ -173,10 +199,10 @@
         "extensions": {
           "cost": {
             "requestedQueryCost": 16,
-            "actualQueryCost": 3,
+            "actualQueryCost": 4,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1997,
+              "currentlyAvailable": 1996,
               "restoreRate": 100
             }
           }
@@ -190,9 +216,9 @@
       "query": "mutation DiscountAppBulkLiveCreate($codeInput: DiscountCodeAppInput!, $automaticInput: DiscountAutomaticAppInput!) {\n  discountCodeAppCreate(codeAppDiscount: $codeInput) {\n    codeAppDiscount {\n      __typename\n      discountId\n      title\n      status\n      usageLimit\n      combinesWith {\n        orderDiscounts\n        productDiscounts\n        shippingDiscounts\n      }\n      codes(first: 5) {\n        nodes {\n          code\n        }\n      }\n      appDiscountType {\n        appKey\n        functionId\n        title\n        description\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  discountAutomaticAppCreate(automaticAppDiscount: $automaticInput) {\n    automaticAppDiscount {\n      __typename\n      discountId\n      title\n      status\n      recurringCycleLimit\n      appDiscountType {\n        appKey\n        functionId\n        title\n        description\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
         "codeInput": {
-          "title": "SDP app bulk code 20260702223001",
-          "code": "SDPAPPCODE20260702223001",
-          "startsAt": "2026-07-02T21:04:49.737Z",
+          "title": "SDP app bulk code 1785202352525",
+          "code": "SDPAPPCODE1785202352525",
+          "startsAt": "2026-07-28T01:31:32.525Z",
           "functionId": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
           "discountClasses": ["ORDER"],
           "usageLimit": 10,
@@ -203,8 +229,8 @@
           }
         },
         "automaticInput": {
-          "title": "SDP app bulk automatic 20260702223001",
-          "startsAt": "2026-07-02T21:04:49.737Z",
+          "title": "SDP app bulk automatic 1785202352525",
+          "startsAt": "2026-07-28T01:31:32.525Z",
           "functionId": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
           "discountClasses": ["ORDER"],
           "recurringCycleLimit": 0
@@ -214,18 +240,18 @@
     "update": {
       "query": "mutation DiscountAppBulkLiveUpdate(\n  $codeId: ID!\n  $codeInput: DiscountCodeAppInput!\n  $automaticId: ID!\n  $automaticInput: DiscountAutomaticAppInput!\n) {\n  discountCodeAppUpdate(id: $codeId, codeAppDiscount: $codeInput) {\n    codeAppDiscount {\n      discountId\n      title\n      codes(first: 5) {\n        nodes {\n          code\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  discountAutomaticAppUpdate(id: $automaticId, automaticAppDiscount: $automaticInput) {\n    automaticAppDiscount {\n      discountId\n      title\n      recurringCycleLimit\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
-        "codeId": "gid://shopify/DiscountCodeNode/1657857147186",
+        "codeId": "gid://shopify/DiscountCodeNode/1663219138866",
         "codeInput": {
-          "title": "SDP app bulk code updated 20260702223001",
-          "code": "SDPAPPUP20260702223001",
-          "startsAt": "2026-07-02T21:04:49.737Z",
+          "title": "SDP app bulk code updated 1785202352525",
+          "code": "SDPAPPUP1785202352525",
+          "startsAt": "2026-07-28T01:31:32.525Z",
           "functionId": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
           "discountClasses": ["ORDER"]
         },
-        "automaticId": "gid://shopify/DiscountAutomaticNode/1657857179954",
+        "automaticId": "gid://shopify/DiscountAutomaticNode/1663219171634",
         "automaticInput": {
-          "title": "SDP app bulk automatic updated 20260702223001",
-          "startsAt": "2026-07-02T21:04:49.737Z",
+          "title": "SDP app bulk automatic updated 1785202352525",
+          "startsAt": "2026-07-28T01:31:32.525Z",
           "functionId": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
           "discountClasses": ["ORDER"],
           "recurringCycleLimit": 2
@@ -236,9 +262,9 @@
       "query": "mutation DiscountAppBulkLivePreconditions(\n  $bulkInput: DiscountCodeBasicInput!\n  $redeemInput: DiscountCodeBasicInput!\n  $automaticInput: DiscountAutomaticBasicInput!\n) {\n  bulkTarget: discountCodeBasicCreate(basicCodeDiscount: $bulkInput) {\n    codeDiscountNode {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          codes(first: 5) {\n            nodes {\n              id\n              code\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  redeemTarget: discountCodeBasicCreate(basicCodeDiscount: $redeemInput) {\n    codeDiscountNode {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          codes(first: 5) {\n            nodes {\n              id\n              code\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  automaticBulkTarget: discountAutomaticBasicCreate(automaticBasicDiscount: $automaticInput) {\n    automaticDiscountNode {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          status\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
         "bulkInput": {
-          "title": "SDP bulk lifecycle 20260702223001",
-          "code": "SDPBULK20260702223001",
-          "startsAt": "2026-07-02T21:04:49.737Z",
+          "title": "SDP bulk lifecycle 1785202352525",
+          "code": "SDPBULK1785202352525",
+          "startsAt": "2026-07-28T01:31:32.525Z",
           "combinesWith": {
             "productDiscounts": false,
             "orderDiscounts": true,
@@ -257,9 +283,9 @@
           }
         },
         "redeemInput": {
-          "title": "SDP redeem target 20260702223001",
-          "code": "SDPREDEEM20260702223001",
-          "startsAt": "2026-07-02T21:04:49.737Z",
+          "title": "SDP redeem target 1785202352525",
+          "code": "SDPREDEEM1785202352525",
+          "startsAt": "2026-07-28T01:31:32.525Z",
           "combinesWith": {
             "productDiscounts": false,
             "orderDiscounts": true,
@@ -278,8 +304,8 @@
           }
         },
         "automaticInput": {
-          "title": "SDP automatic bulk 20260702223001",
-          "startsAt": "2026-07-02T21:04:49.737Z",
+          "title": "SDP automatic bulk 1785202352525",
+          "startsAt": "2026-07-28T01:31:32.525Z",
           "combinesWith": {
             "productDiscounts": false,
             "orderDiscounts": true,
@@ -299,45 +325,45 @@
     "downstreamRead": {
       "query": "query DiscountAppBulkLiveRead(\n  $codeId: ID!\n  $automaticId: ID!\n  $deletedCodeId: ID!\n  $deletedAutomaticId: ID!\n  $redeemDiscountId: ID!\n  $removedCode: String!\n) {\n  codeDiscountNode(id: $codeId) {\n    codeDiscount {\n      ... on DiscountCodeApp {\n        title\n        appDiscountType {\n          functionId\n        }\n        codes(first: 5) {\n          nodes {\n            code\n          }\n        }\n      }\n    }\n  }\n  automaticDiscountNode(id: $automaticId) {\n    automaticDiscount {\n      ... on DiscountAutomaticApp {\n        title\n        recurringCycleLimit\n        appDiscountType {\n          functionId\n        }\n      }\n    }\n  }\n  active: discountNodesCount(query: \"status:active\") {\n    count\n    precision\n  }\n  expired: discountNodesCount(query: \"status:expired\") {\n    count\n    precision\n  }\n  deletedCode: codeDiscountNode(id: $deletedCodeId) {\n    id\n  }\n  deletedAutomatic: automaticDiscountNode(id: $deletedAutomaticId) {\n    id\n  }\n  redeemDiscount: codeDiscountNode(id: $redeemDiscountId) {\n    codeDiscount {\n      ... on DiscountCodeBasic {\n        codes(first: 5) {\n          nodes {\n            code\n          }\n        }\n        codesCount {\n          count\n          precision\n        }\n      }\n    }\n  }\n  removedRedeemCode: codeDiscountNodeByCode(code: $removedCode) {\n    id\n  }\n}\n",
       "variables": {
-        "codeId": "gid://shopify/DiscountCodeNode/1657857147186",
-        "automaticId": "gid://shopify/DiscountAutomaticNode/1657857179954",
+        "codeId": "gid://shopify/DiscountCodeNode/1663219138866",
+        "automaticId": "gid://shopify/DiscountAutomaticNode/1663219171634",
         "deletedCodeId": "gid://shopify/DiscountCodeNode/1",
         "deletedAutomaticId": "gid://shopify/DiscountAutomaticNode/1",
-        "redeemDiscountId": "gid://shopify/DiscountCodeNode/1657857245490",
-        "removedCode": "SDPUNKNOWN20260702223001"
+        "redeemDiscountId": "gid://shopify/DiscountCodeNode/1663219237170",
+        "removedCode": "SDPUNKNOWN1785202352525"
       }
     },
     "deactivate": {
       "query": "mutation DiscountAutomaticAppLiveDeactivate($id: ID!) {\n  discountAutomaticDeactivate(id: $id) {\n    automaticDiscountNode {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticApp {\n          title\n          status\n          endsAt\n          appDiscountType {\n            functionId\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/DiscountAutomaticNode/1657857179954"
+        "id": "gid://shopify/DiscountAutomaticNode/1663219171634"
       }
     },
     "activate": {
       "query": "mutation DiscountAutomaticAppLiveActivate($id: ID!) {\n  discountAutomaticActivate(id: $id) {\n    automaticDiscountNode {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticApp {\n          title\n          status\n          endsAt\n          appDiscountType {\n            functionId\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/DiscountAutomaticNode/1657857179954"
+        "id": "gid://shopify/DiscountAutomaticNode/1663219171634"
       }
     },
     "bulkJobs": {
       "query": "mutation DiscountAppBulkLiveJobs(\n  $activateIds: [ID!]\n  $deactivateIds: [ID!]\n  $deleteCodeIds: [ID!]\n  $deleteAutomaticIds: [ID!]\n) {\n  activate: discountCodeBulkActivate(ids: $activateIds) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  deactivate: discountCodeBulkDeactivate(ids: $deactivateIds) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  deleteCode: discountCodeBulkDelete(ids: $deleteCodeIds) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  deleteAutomatic: discountAutomaticBulkDelete(ids: $deleteAutomaticIds) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
-        "activateIds": ["gid://shopify/DiscountCodeNode/1657857212722"],
-        "deactivateIds": ["gid://shopify/DiscountCodeNode/1657857212722"],
-        "deleteCodeIds": ["gid://shopify/DiscountCodeNode/1657857212722"],
-        "deleteAutomaticIds": ["gid://shopify/DiscountAutomaticNode/1657857278258"]
+        "activateIds": ["gid://shopify/DiscountCodeNode/1663219204402"],
+        "deactivateIds": ["gid://shopify/DiscountCodeNode/1663219204402"],
+        "deleteCodeIds": ["gid://shopify/DiscountCodeNode/1663219204402"],
+        "deleteAutomaticIds": ["gid://shopify/DiscountAutomaticNode/1663219269938"]
       }
     },
     "deleteAutomatic": {
       "query": "mutation DiscountAutomaticAppLiveDelete($id: ID!) {\n  discountAutomaticDelete(id: $id) {\n    deletedAutomaticDiscountId\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/DiscountAutomaticNode/1657857179954"
+        "id": "gid://shopify/DiscountAutomaticNode/1663219171634"
       }
     },
     "readAfterDelete": {
       "query": "query DiscountAutomaticAppLiveReadAfterDelete($id: ID!) {\n  automaticDiscountNode(id: $id) {\n    id\n  }\n  discountNodesCount(query: \"type:app\") {\n    count\n    precision\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/DiscountAutomaticNode/1657857179954"
+        "id": "gid://shopify/DiscountAutomaticNode/1663219171634"
       }
     },
     "cleanupCode": {
@@ -354,8 +380,8 @@
         "discountCodeAppCreate": {
           "codeAppDiscount": {
             "__typename": "DiscountCodeApp",
-            "discountId": "gid://shopify/DiscountCodeNode/1657857147186",
-            "title": "SDP app bulk code 20260702223001",
+            "discountId": "gid://shopify/DiscountCodeNode/1663219138866",
+            "title": "SDP app bulk code 1785202352525",
             "status": "ACTIVE",
             "usageLimit": 10,
             "combinesWith": {
@@ -366,7 +392,7 @@
             "codes": {
               "nodes": [
                 {
-                  "code": "SDPAPPCODE20260702223001"
+                  "code": "SDPAPPCODE1785202352525"
                 }
               ]
             },
@@ -382,8 +408,8 @@
         "discountAutomaticAppCreate": {
           "automaticAppDiscount": {
             "__typename": "DiscountAutomaticApp",
-            "discountId": "gid://shopify/DiscountAutomaticNode/1657857179954",
-            "title": "SDP app bulk automatic 20260702223001",
+            "discountId": "gid://shopify/DiscountAutomaticNode/1663219171634",
+            "title": "SDP app bulk automatic 1785202352525",
             "status": "ACTIVE",
             "recurringCycleLimit": 0,
             "appDiscountType": {
@@ -415,12 +441,12 @@
       "data": {
         "discountCodeAppUpdate": {
           "codeAppDiscount": {
-            "discountId": "gid://shopify/DiscountCodeNode/1657857147186",
-            "title": "SDP app bulk code updated 20260702223001",
+            "discountId": "gid://shopify/DiscountCodeNode/1663219138866",
+            "title": "SDP app bulk code updated 1785202352525",
             "codes": {
               "nodes": [
                 {
-                  "code": "SDPAPPUP20260702223001"
+                  "code": "SDPAPPUP1785202352525"
                 }
               ]
             }
@@ -429,8 +455,8 @@
         },
         "discountAutomaticAppUpdate": {
           "automaticAppDiscount": {
-            "discountId": "gid://shopify/DiscountAutomaticNode/1657857179954",
-            "title": "SDP app bulk automatic updated 20260702223001",
+            "discountId": "gid://shopify/DiscountAutomaticNode/1663219171634",
+            "title": "SDP app bulk automatic updated 1785202352525",
             "recurringCycleLimit": 2
           },
           "userErrors": []
@@ -455,16 +481,16 @@
       "data": {
         "bulkTarget": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1657857212722",
+            "id": "gid://shopify/DiscountCodeNode/1663219204402",
             "codeDiscount": {
               "__typename": "DiscountCodeBasic",
-              "title": "SDP bulk lifecycle 20260702223001",
+              "title": "SDP bulk lifecycle 1785202352525",
               "status": "ACTIVE",
               "codes": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/DiscountRedeemCode/22239055413554",
-                    "code": "SDPBULK20260702223001"
+                    "id": "gid://shopify/DiscountRedeemCode/22347573199154",
+                    "code": "SDPBULK1785202352525"
                   }
                 ]
               }
@@ -474,16 +500,16 @@
         },
         "redeemTarget": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1657857245490",
+            "id": "gid://shopify/DiscountCodeNode/1663219237170",
             "codeDiscount": {
               "__typename": "DiscountCodeBasic",
-              "title": "SDP redeem target 20260702223001",
+              "title": "SDP redeem target 1785202352525",
               "status": "ACTIVE",
               "codes": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/DiscountRedeemCode/22239055446322",
-                    "code": "SDPREDEEM20260702223001"
+                    "id": "gid://shopify/DiscountRedeemCode/22347573231922",
+                    "code": "SDPREDEEM1785202352525"
                   }
                 ]
               }
@@ -493,10 +519,10 @@
         },
         "automaticBulkTarget": {
           "automaticDiscountNode": {
-            "id": "gid://shopify/DiscountAutomaticNode/1657857278258",
+            "id": "gid://shopify/DiscountAutomaticNode/1663219269938",
             "automaticDiscount": {
               "__typename": "DiscountAutomaticBasic",
-              "title": "SDP automatic bulk 20260702223001",
+              "title": "SDP automatic bulk 1785202352525",
               "status": "ACTIVE"
             }
           },
@@ -522,14 +548,14 @@
       "data": {
         "codeDiscountNode": {
           "codeDiscount": {
-            "title": "SDP app bulk code updated 20260702223001",
+            "title": "SDP app bulk code updated 1785202352525",
             "appDiscountType": {
               "functionId": "019e00a2-c8b0-7cbf-a6bf-35119ec10505"
             },
             "codes": {
               "nodes": [
                 {
-                  "code": "SDPAPPUP20260702223001"
+                  "code": "SDPAPPUP1785202352525"
                 }
               ]
             }
@@ -537,7 +563,7 @@
         },
         "automaticDiscountNode": {
           "automaticDiscount": {
-            "title": "SDP app bulk automatic updated 20260702223001",
+            "title": "SDP app bulk automatic updated 1785202352525",
             "recurringCycleLimit": 2,
             "appDiscountType": {
               "functionId": "019e00a2-c8b0-7cbf-a6bf-35119ec10505"
@@ -549,7 +575,7 @@
           "precision": "EXACT"
         },
         "expired": {
-          "count": 0,
+          "count": 1,
           "precision": "EXACT"
         },
         "deletedCode": null,
@@ -559,7 +585,7 @@
             "codes": {
               "nodes": [
                 {
-                  "code": "SDPREDEEM20260702223001"
+                  "code": "SDPREDEEM1785202352525"
                 }
               ]
             },
@@ -577,7 +603,7 @@
           "actualQueryCost": 38,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1952,
+            "currentlyAvailable": 1959,
             "restoreRate": 100
           }
         }
@@ -590,12 +616,12 @@
       "data": {
         "discountAutomaticDeactivate": {
           "automaticDiscountNode": {
-            "id": "gid://shopify/DiscountAutomaticNode/1657857179954",
+            "id": "gid://shopify/DiscountAutomaticNode/1663219171634",
             "automaticDiscount": {
               "__typename": "DiscountAutomaticApp",
-              "title": "SDP app bulk automatic updated 20260702223001",
+              "title": "SDP app bulk automatic updated 1785202352525",
               "status": "EXPIRED",
-              "endsAt": "2026-07-02T21:05:50Z",
+              "endsAt": "2026-07-28T01:32:34Z",
               "appDiscountType": {
                 "functionId": "019e00a2-c8b0-7cbf-a6bf-35119ec10505"
               }
@@ -610,7 +636,7 @@
           "actualQueryCost": 12,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1955,
+            "currentlyAvailable": 1965,
             "restoreRate": 100
           }
         }
@@ -623,10 +649,10 @@
       "data": {
         "discountAutomaticActivate": {
           "automaticDiscountNode": {
-            "id": "gid://shopify/DiscountAutomaticNode/1657857179954",
+            "id": "gid://shopify/DiscountAutomaticNode/1663219171634",
             "automaticDiscount": {
               "__typename": "DiscountAutomaticApp",
-              "title": "SDP app bulk automatic updated 20260702223001",
+              "title": "SDP app bulk automatic updated 1785202352525",
               "status": "ACTIVE",
               "endsAt": null,
               "appDiscountType": {
@@ -643,7 +669,7 @@
           "actualQueryCost": 12,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1957,
+            "currentlyAvailable": 1970,
             "restoreRate": 100
           }
         }
@@ -656,21 +682,21 @@
       "data": {
         "activate": {
           "job": {
-            "id": "gid://shopify/Job/f0e59483-08eb-491a-95c0-ddab712a956e",
+            "id": "gid://shopify/Job/97e192dc-1b91-4399-b657-d0d111a6a81b",
             "done": false
           },
           "userErrors": []
         },
         "deactivate": {
           "job": {
-            "id": "gid://shopify/Job/f0e59483-08eb-491a-95c0-ddab712a956e",
+            "id": "gid://shopify/Job/97e192dc-1b91-4399-b657-d0d111a6a81b",
             "done": false
           },
           "userErrors": []
         },
         "deleteCode": {
           "job": {
-            "id": "gid://shopify/Job/f0e59483-08eb-491a-95c0-ddab712a956e",
+            "id": "gid://shopify/Job/97e192dc-1b91-4399-b657-d0d111a6a81b",
             "done": false
           },
           "userErrors": []
@@ -686,7 +712,7 @@
           "actualQueryCost": 40,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1937,
+            "currentlyAvailable": 1950,
             "restoreRate": 100
           }
         }
@@ -698,7 +724,7 @@
     "payload": {
       "data": {
         "discountAutomaticDelete": {
-          "deletedAutomaticDiscountId": "gid://shopify/DiscountAutomaticNode/1657857179954",
+          "deletedAutomaticDiscountId": "gid://shopify/DiscountAutomaticNode/1663219171634",
           "userErrors": []
         }
       },
@@ -708,7 +734,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1944,
+            "currentlyAvailable": 1960,
             "restoreRate": 100
           }
         }
@@ -731,7 +757,7 @@
           "actualQueryCost": 11,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1951,
+            "currentlyAvailable": 1971,
             "restoreRate": 100
           }
         }
@@ -744,7 +770,7 @@
       "payload": {
         "data": {
           "discountCodeDelete": {
-            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657857147186",
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1663219138866",
             "userErrors": []
           }
         },
@@ -754,7 +780,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1951,
+              "currentlyAvailable": 1970,
               "restoreRate": 100
             }
           }
@@ -783,7 +809,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1964,
+              "currentlyAvailable": 1984,
               "restoreRate": 100
             }
           }
@@ -795,7 +821,7 @@
       "payload": {
         "data": {
           "discountCodeDelete": {
-            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657857245490",
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1663219237170",
             "userErrors": []
           }
         },
@@ -805,7 +831,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1963,
+              "currentlyAvailable": 1983,
               "restoreRate": 100
             }
           }
@@ -834,7 +860,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1973,
+              "currentlyAvailable": 1990,
               "restoreRate": 100
             }
           }
@@ -898,12 +924,64 @@
       }
     },
     {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "SDPBULK1785202352525"
+      },
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "SDPREDEEM1785202352525"
+      },
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "operationName": "DiscountAppBulkLiveJobs",
       "variables": {
-        "activateIds": ["gid://shopify/DiscountCodeNode/1657857212722"],
-        "deactivateIds": ["gid://shopify/DiscountCodeNode/1657857212722"],
-        "deleteCodeIds": ["gid://shopify/DiscountCodeNode/1657857212722"],
-        "deleteAutomaticIds": ["gid://shopify/DiscountAutomaticNode/1657857278258"]
+        "activateIds": ["gid://shopify/DiscountCodeNode/1663219204402"],
+        "deactivateIds": ["gid://shopify/DiscountCodeNode/1663219204402"],
+        "deleteCodeIds": ["gid://shopify/DiscountCodeNode/1663219204402"],
+        "deleteAutomaticIds": ["gid://shopify/DiscountAutomaticNode/1663219269938"]
       },
       "query": "mutation DiscountAppBulkLiveJobs(\n  $activateIds: [ID!]\n  $deactivateIds: [ID!]\n  $deleteCodeIds: [ID!]\n  $deleteAutomaticIds: [ID!]\n) {\n  activate: discountCodeBulkActivate(ids: $activateIds) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  deactivate: discountCodeBulkDeactivate(ids: $deactivateIds) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  deleteCode: discountCodeBulkDelete(ids: $deleteCodeIds) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  deleteAutomatic: discountAutomaticBulkDelete(ids: $deleteAutomaticIds) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "response": {
@@ -912,21 +990,21 @@
           "data": {
             "activate": {
               "job": {
-                "id": "gid://shopify/Job/f0e59483-08eb-491a-95c0-ddab712a956e",
+                "id": "gid://shopify/Job/97e192dc-1b91-4399-b657-d0d111a6a81b",
                 "done": false
               },
               "userErrors": []
             },
             "deactivate": {
               "job": {
-                "id": "gid://shopify/Job/f0e59483-08eb-491a-95c0-ddab712a956e",
+                "id": "gid://shopify/Job/97e192dc-1b91-4399-b657-d0d111a6a81b",
                 "done": false
               },
               "userErrors": []
             },
             "deleteCode": {
               "job": {
-                "id": "gid://shopify/Job/f0e59483-08eb-491a-95c0-ddab712a956e",
+                "id": "gid://shopify/Job/97e192dc-1b91-4399-b657-d0d111a6a81b",
                 "done": false
               },
               "userErrors": []
@@ -942,7 +1020,7 @@
               "actualQueryCost": 40,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1937,
+                "currentlyAvailable": 1950,
                 "restoreRate": 100
               }
             }

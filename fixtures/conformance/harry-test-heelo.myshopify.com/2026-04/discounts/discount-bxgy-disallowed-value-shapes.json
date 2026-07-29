@@ -107,12 +107,12 @@
   "setup": {
     "products": [
       {
-        "id": "gid://shopify/Product/10176763724082",
-        "title": "HAR-599 BXGY buy product 1777935893444"
+        "id": "gid://shopify/Product/10251736187186",
+        "title": "HAR-599 BXGY buy product 1785199338702"
       },
       {
-        "id": "gid://shopify/Product/10176763756850",
-        "title": "HAR-599 BXGY get product 1777935893444"
+        "id": "gid://shopify/Product/10251736219954",
+        "title": "HAR-599 BXGY get product 1785199338702"
       }
     ]
   },
@@ -120,8 +120,8 @@
     "query": "mutation DiscountBxgyDisallowedValueShapes(\n  $codePercentage: DiscountCodeBxgyInput!\n  $codeDiscountAmount: DiscountCodeBxgyInput!\n  $codeSubscription: DiscountCodeBxgyInput!\n  $codeOneTime: DiscountCodeBxgyInput!\n  $automaticPercentage: DiscountAutomaticBxgyInput!\n  $automaticDiscountAmount: DiscountAutomaticBxgyInput!\n  $automaticSubscription: DiscountAutomaticBxgyInput!\n  $automaticOneTime: DiscountAutomaticBxgyInput!\n) {\n  codePercentage: discountCodeBxgyCreate(bxgyCodeDiscount: $codePercentage) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  codeDiscountAmount: discountCodeBxgyCreate(bxgyCodeDiscount: $codeDiscountAmount) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  codeSubscription: discountCodeBxgyCreate(bxgyCodeDiscount: $codeSubscription) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  codeOneTime: discountCodeBxgyCreate(bxgyCodeDiscount: $codeOneTime) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  automaticPercentage: discountAutomaticBxgyCreate(automaticBxgyDiscount: $automaticPercentage) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  automaticDiscountAmount: discountAutomaticBxgyCreate(automaticBxgyDiscount: $automaticDiscountAmount) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  automaticSubscription: discountAutomaticBxgyCreate(automaticBxgyDiscount: $automaticSubscription) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  automaticOneTime: discountAutomaticBxgyCreate(automaticBxgyDiscount: $automaticOneTime) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
     "variables": {
       "codePercentage": {
-        "title": "HAR-599 code BXGY PCT 1777935893444",
-        "code": "HAR599PCT1777935893444",
+        "title": "HAR-599 code BXGY PCT 1785199338702",
+        "code": "HAR599PCT1785199338702",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
           "productDiscounts": true,
@@ -137,7 +137,7 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763724082"]
+              "productsToAdd": ["gid://shopify/Product/10251736187186"]
             }
           }
         },
@@ -147,14 +147,14 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763756850"]
+              "productsToAdd": ["gid://shopify/Product/10251736219954"]
             }
           }
         }
       },
       "codeDiscountAmount": {
-        "title": "HAR-599 code BXGY AMT 1777935893444",
-        "code": "HAR599AMT1777935893444",
+        "title": "HAR-599 code BXGY AMT 1785199338702",
+        "code": "HAR599AMT1785199338702",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
           "productDiscounts": true,
@@ -170,7 +170,7 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763724082"]
+              "productsToAdd": ["gid://shopify/Product/10251736187186"]
             }
           }
         },
@@ -183,14 +183,14 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763756850"]
+              "productsToAdd": ["gid://shopify/Product/10251736219954"]
             }
           }
         }
       },
       "codeSubscription": {
-        "title": "HAR-599 code BXGY SUB 1777935893444",
-        "code": "HAR599SUB1777935893444",
+        "title": "HAR-599 code BXGY SUB 1785199338702",
+        "code": "HAR599SUB1785199338702",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
           "productDiscounts": true,
@@ -206,7 +206,7 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763724082"]
+              "productsToAdd": ["gid://shopify/Product/10251736187186"]
             }
           }
         },
@@ -221,15 +221,15 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763756850"]
+              "productsToAdd": ["gid://shopify/Product/10251736219954"]
             }
           },
           "appliesOnSubscription": true
         }
       },
       "codeOneTime": {
-        "title": "HAR-599 code BXGY OTP 1777935893444",
-        "code": "HAR599OTP1777935893444",
+        "title": "HAR-599 code BXGY OTP 1785199338702",
+        "code": "HAR599OTP1785199338702",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
           "productDiscounts": true,
@@ -245,7 +245,7 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763724082"]
+              "productsToAdd": ["gid://shopify/Product/10251736187186"]
             }
           }
         },
@@ -260,14 +260,14 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763756850"]
+              "productsToAdd": ["gid://shopify/Product/10251736219954"]
             }
           },
           "appliesOnOneTimePurchase": false
         }
       },
       "automaticPercentage": {
-        "title": "HAR-599 automatic BXGY PCT 1777935893444",
+        "title": "HAR-599 automatic BXGY PCT 1785199338702",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
           "productDiscounts": true,
@@ -283,7 +283,7 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763724082"]
+              "productsToAdd": ["gid://shopify/Product/10251736187186"]
             }
           }
         },
@@ -293,13 +293,13 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763756850"]
+              "productsToAdd": ["gid://shopify/Product/10251736219954"]
             }
           }
         }
       },
       "automaticDiscountAmount": {
-        "title": "HAR-599 automatic BXGY AMT 1777935893444",
+        "title": "HAR-599 automatic BXGY AMT 1785199338702",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
           "productDiscounts": true,
@@ -315,7 +315,7 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763724082"]
+              "productsToAdd": ["gid://shopify/Product/10251736187186"]
             }
           }
         },
@@ -328,13 +328,13 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763756850"]
+              "productsToAdd": ["gid://shopify/Product/10251736219954"]
             }
           }
         }
       },
       "automaticSubscription": {
-        "title": "HAR-599 automatic BXGY SUB 1777935893444",
+        "title": "HAR-599 automatic BXGY SUB 1785199338702",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
           "productDiscounts": true,
@@ -350,7 +350,7 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763724082"]
+              "productsToAdd": ["gid://shopify/Product/10251736187186"]
             }
           }
         },
@@ -365,14 +365,14 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763756850"]
+              "productsToAdd": ["gid://shopify/Product/10251736219954"]
             }
           },
           "appliesOnSubscription": true
         }
       },
       "automaticOneTime": {
-        "title": "HAR-599 automatic BXGY OTP 1777935893444",
+        "title": "HAR-599 automatic BXGY OTP 1785199338702",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
           "productDiscounts": true,
@@ -388,7 +388,7 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763724082"]
+              "productsToAdd": ["gid://shopify/Product/10251736187186"]
             }
           }
         },
@@ -403,7 +403,7 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763756850"]
+              "productsToAdd": ["gid://shopify/Product/10251736219954"]
             }
           },
           "appliesOnOneTimePurchase": false
@@ -530,7 +530,7 @@
     {
       "data": {
         "productDelete": {
-          "deletedProductId": "gid://shopify/Product/10176763756850",
+          "deletedProductId": "gid://shopify/Product/10251736219954",
           "userErrors": []
         }
       },
@@ -540,7 +540,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1934,
+            "currentlyAvailable": 1928,
             "restoreRate": 100
           }
         }
@@ -549,7 +549,7 @@
     {
       "data": {
         "productDelete": {
-          "deletedProductId": "gid://shopify/Product/10176763724082",
+          "deletedProductId": "gid://shopify/Product/10251736187186",
           "userErrors": []
         }
       },
@@ -559,12 +559,454 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1971,
+            "currentlyAvailable": 1945,
             "restoreRate": 100
           }
         }
       }
     }
   ],
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/10251736187186", "gid://shopify/Product/10251736219954"]
+      },
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      combinedListingRole\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      options {\n        id\n        name\n        position\n        optionValues { id name hasVariants }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          jsonValue\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n      media(first: 250) {\n        nodes {\n          __typename\n          id\n          alt\n          mediaContentType\n          status\n          preview { image { url width height } }\n          ... on MediaImage {\n            image { id url altText width height }\n          }\n        }\n      }\n      collections(first: 250) {\n        nodes {\n          id\n          legacyResourceId\n          title\n          handle\n          updatedAt\n          description\n          descriptionHtml\n          sortOrder\n          templateSuffix\n          seo { title description }\n          productsCount { count }\n        }\n      }\n      variants(first: 250) {\n        nodes {\n          id\n          title\n          sku\n          barcode\n          price\n          compareAtPrice\n          taxable\n          inventoryPolicy\n          inventoryQuantity\n          selectedOptions { name value }\n          metafields(first: 250) {\n            nodes {\n              id\n              namespace\n              key\n              type\n              value\n              compareDigest\n              jsonValue\n              createdAt\n              updatedAt\n              ownerType\n            }\n          }\n          inventoryItem {\n            id\n            tracked\n            requiresShipping\n            measurement { weight { unit value } }\n            inventoryLevels(first: 50) {\n              nodes {\n                id\n                location { id name }\n                quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n                  name\n                  quantity\n                  updatedAt\n                }\n              }\n            }\n          }\n          sellingPlanGroups(first: 50) {\n            nodes { id name merchantCode }\n          }\n        }\n      }\n      sellingPlanGroups(first: 50) {\n        nodes { id name merchantCode }\n      }\n    }\n    ... on Collection {\n      legacyResourceId\n      title\n      handle\n      updatedAt\n      description\n      descriptionHtml\n      sortOrder\n      templateSuffix\n      seo { title description }\n      ruleSet {\n        appliedDisjunctively\n        rules { column relation condition }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          jsonValue\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n      productsCount { count }\n      products(first: 250) {\n        edges {\n          cursor\n          node { id title handle status vendor productType tags totalInventory tracksInventory }\n        }\n      }\n    }\n    ... on ProductVariant {\n      title\n      sku\n      barcode\n      price\n      compareAtPrice\n      taxable\n      inventoryPolicy\n      inventoryQuantity\n      selectedOptions { name value }\n      product { id title handle status totalInventory tracksInventory }\n      product {\n        variants(first: 250) {\n          nodes {\n            id\n            title\n            sku\n            barcode\n            price\n            compareAtPrice\n            taxable\n            inventoryPolicy\n            inventoryQuantity\n            selectedOptions { name value }\n            inventoryItem {\n              id\n              tracked\n              requiresShipping\n              measurement { weight { unit value } }\n            }\n          }\n        }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          jsonValue\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n      inventoryItem {\n        id\n        tracked\n        requiresShipping\n        measurement { weight { unit value } }\n      }\n      sellingPlanGroups(first: 50) {\n        nodes { id name merchantCode }\n      }\n    }\n    ... on InventoryItem {\n      tracked\n      requiresShipping\n      measurement { weight { unit value } }\n      variant {\n        id\n        title\n        inventoryQuantity\n        selectedOptions { name value }\n        product {\n          id\n          title\n          handle\n          status\n          totalInventory\n          tracksInventory\n        }\n      }\n      inventoryLevels(first: 50) {\n        nodes {\n          id\n          location { id name }\n          quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n            name\n            quantity\n            updatedAt\n          }\n        }\n      }\n    }\n    ... on InventoryLevel {\n      id\n      location { id name }\n      quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n        name\n        quantity\n        updatedAt\n      }\n      item {\n        id\n        tracked\n        requiresShipping\n        inventoryLevels(first: 50) {\n          nodes {\n            id\n            location { id name }\n            quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n              name\n              quantity\n              updatedAt\n            }\n          }\n        }\n        variant {\n          id\n          title\n          inventoryQuantity\n          selectedOptions { name value }\n          product {\n            id\n            title\n            handle\n            status\n            totalInventory\n            tracksInventory\n          }\n        }\n      }\n    }\n    ... on Location {\n      id\n      name\n      isActive\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10251736187186",
+                "legacyResourceId": "10251736187186",
+                "title": "HAR-599 BXGY buy product 1785199338702",
+                "handle": "har-599-bxgy-buy-product-1785199338702",
+                "status": "ACTIVE",
+                "combinedListingRole": null,
+                "vendor": "HERMES",
+                "productType": "CONFORMANCE",
+                "tags": ["1785199338702", "conformance", "disallowed-value-shapes", "discount-bxgy"],
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "createdAt": "2026-07-28T00:42:18Z",
+                "updatedAt": "2026-07-28T00:42:19Z",
+                "publishedAt": null,
+                "descriptionHtml": "",
+                "onlineStorePreviewUrl": "https://t7mgc3vr0gtlpg32-92891250994.shopifypreview.com/products_preview?preview_key=beda96c62825f7e4cad364aa93a20408&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0yOFQwMTo0MjoyMC4yMjJaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--5e49cc78c45d1fd21e2135e84370af1bfade8202",
+                "templateSuffix": null,
+                "seo": {
+                  "title": null,
+                  "description": null
+                },
+                "options": [
+                  {
+                    "id": "gid://shopify/ProductOption/12813477183794",
+                    "name": "Title",
+                    "position": 1,
+                    "optionValues": [
+                      {
+                        "id": "gid://shopify/ProductOptionValue/8363858723122",
+                        "name": "Default Title",
+                        "hasVariants": true
+                      }
+                    ]
+                  }
+                ],
+                "metafields": {
+                  "nodes": []
+                },
+                "media": {
+                  "nodes": []
+                },
+                "collections": {
+                  "nodes": []
+                },
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51514421870898",
+                      "title": "Default Title",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "compareAtPrice": null,
+                      "taxable": true,
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Title",
+                          "value": "Default Title"
+                        }
+                      ],
+                      "metafields": {
+                        "nodes": []
+                      },
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53620158857522",
+                        "tracked": false,
+                        "requiresShipping": true,
+                        "measurement": {
+                          "weight": {
+                            "unit": "KILOGRAMS",
+                            "value": 0
+                          }
+                        },
+                        "inventoryLevels": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53620158857522",
+                              "location": {
+                                "id": "gid://shopify/Location/106318430514",
+                                "name": "Shop location"
+                              },
+                              "quantities": [
+                                {
+                                  "name": "available",
+                                  "quantity": 0,
+                                  "updatedAt": "2026-07-28T00:42:19Z"
+                                },
+                                {
+                                  "name": "on_hand",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "committed",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "incoming",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "reserved",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "damaged",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "quality_control",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "safety_stock",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      },
+                      "sellingPlanGroups": {
+                        "nodes": []
+                      }
+                    }
+                  ]
+                },
+                "sellingPlanGroups": {
+                  "nodes": []
+                }
+              },
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10251736219954",
+                "legacyResourceId": "10251736219954",
+                "title": "HAR-599 BXGY get product 1785199338702",
+                "handle": "har-599-bxgy-get-product-1785199338702",
+                "status": "ACTIVE",
+                "combinedListingRole": null,
+                "vendor": "HERMES",
+                "productType": "CONFORMANCE",
+                "tags": ["1785199338702", "conformance", "disallowed-value-shapes", "discount-bxgy"],
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "createdAt": "2026-07-28T00:42:19Z",
+                "updatedAt": "2026-07-28T00:42:19Z",
+                "publishedAt": null,
+                "descriptionHtml": "",
+                "onlineStorePreviewUrl": "https://t7mgc3vr0gtlpg32-92891250994.shopifypreview.com/products_preview?preview_key=ab82496e90f51d5817fd3b58c4f0840d&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0yOFQwMTo0MjoyMC4yNTdaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--06aa0da7787c6582e3be043765ee6e83331c3f17",
+                "templateSuffix": null,
+                "seo": {
+                  "title": null,
+                  "description": null
+                },
+                "options": [
+                  {
+                    "id": "gid://shopify/ProductOption/12813477216562",
+                    "name": "Title",
+                    "position": 1,
+                    "optionValues": [
+                      {
+                        "id": "gid://shopify/ProductOptionValue/8363858755890",
+                        "name": "Default Title",
+                        "hasVariants": true
+                      }
+                    ]
+                  }
+                ],
+                "metafields": {
+                  "nodes": []
+                },
+                "media": {
+                  "nodes": []
+                },
+                "collections": {
+                  "nodes": []
+                },
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51514421903666",
+                      "title": "Default Title",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "compareAtPrice": null,
+                      "taxable": true,
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Title",
+                          "value": "Default Title"
+                        }
+                      ],
+                      "metafields": {
+                        "nodes": []
+                      },
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53620158890290",
+                        "tracked": false,
+                        "requiresShipping": true,
+                        "measurement": {
+                          "weight": {
+                            "unit": "KILOGRAMS",
+                            "value": 0
+                          }
+                        },
+                        "inventoryLevels": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53620158890290",
+                              "location": {
+                                "id": "gid://shopify/Location/106318430514",
+                                "name": "Shop location"
+                              },
+                              "quantities": [
+                                {
+                                  "name": "available",
+                                  "quantity": 0,
+                                  "updatedAt": "2026-07-28T00:42:19Z"
+                                },
+                                {
+                                  "name": "on_hand",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "committed",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "incoming",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "reserved",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "damaged",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "quality_control",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "safety_stock",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      },
+                      "sellingPlanGroups": {
+                        "nodes": []
+                      }
+                    }
+                  ]
+                },
+                "sellingPlanGroups": {
+                  "nodes": []
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 637,
+              "actualQueryCost": 57,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1943,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "HAR599PCT1785199338702"
+      },
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1973,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "HAR599AMT1785199338702"
+      },
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1981,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "HAR599SUB1785199338702"
+      },
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "HAR599OTP1785199338702"
+      },
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DraftProxyShopPricingHydrate",
+      "variables": {},
+      "query": "query DraftProxyShopPricingHydrate { shop { currencyCode taxesIncluded taxShipping } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shop": {
+              "currencyCode": "CAD",
+              "taxesIncluded": false,
+              "taxShipping": false
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

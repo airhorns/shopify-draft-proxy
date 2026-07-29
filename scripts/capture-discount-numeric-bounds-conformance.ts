@@ -8,6 +8,10 @@ import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './confo
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { assertDiscountConformanceScopes, probeDiscountConformanceScopes } from './discount-conformance-lib.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+import {
+  captureDiscountUniquenessCheck,
+  captureDraftProxyShopSubscriptionCapability,
+} from './support/shopify/runtime-hydration-capture.js';
 
 type RawCase = {
   request: {
@@ -133,6 +137,14 @@ function codeBasicInput(stamp: number, suffix: string, extra: Record<string, unk
   };
 }
 
+function inputCode(input: Record<string, unknown>): string {
+  const code = input['code'];
+  if (typeof code !== 'string') {
+    throw new Error(`Discount input is missing its code: ${JSON.stringify(input)}`);
+  }
+  return code;
+}
+
 function automaticBasicInput(
   stamp: number,
   suffix: string,
@@ -218,14 +230,20 @@ const scopeProbe = await probeDiscountConformanceScopes(adminOptions);
 assertDiscountConformanceScopes(scopeProbe);
 
 const stamp = Date.now();
+const setupCodeInput = codeBasicInput(stamp, 'SETUP');
+const setupAutomaticInput = automaticBasicInput(stamp, 'SETUP', { recurringCycleLimit: 2 });
+const upstreamCalls = [
+  await captureDiscountUniquenessCheck(runGraphqlRaw, inputCode(setupCodeInput)),
+  await captureDraftProxyShopSubscriptionCapability(runGraphqlRaw),
+];
 const cleanup: CleanupStep[] = [];
 const cleanupResponses: Array<{ label: string; payload?: unknown; error?: string }> = [];
 let setup: RawCase | undefined;
 
 try {
   setup = await runCase(setupDocumentPath, {
-    codeInput: codeBasicInput(stamp, 'SETUP'),
-    automaticInput: automaticBasicInput(stamp, 'SETUP', { recurringCycleLimit: 2 }),
+    codeInput: setupCodeInput,
+    automaticInput: setupAutomaticInput,
   });
   assertNoUserErrors('code setup create', setup.response.payload, 'codeSetup');
   assertNoUserErrors('automatic setup create', setup.response.payload, 'automaticSetup');
@@ -269,7 +287,7 @@ let recurringFloatVariable: RawCase | undefined;
 let recurringFloatLiteral: RawCase | undefined;
 
 try {
-  codeCreate = await runCase(codeCreateDocumentPath, {
+  const codeCreateVariables = {
     usageHigh: codeBasicInput(stamp, 'CREATEUSAGEHIGH', { usageLimit: 2147483648 }),
     usageLow: codeBasicInput(stamp, 'CREATEUSAGELOW', { usageLimit: -2147483649 }),
     recurringHigh: codeBasicInput(stamp, 'CREATERECURRINGHIGH', {
@@ -279,11 +297,14 @@ try {
     amountHigh: codeBasicInput(stamp, 'CREATEAMOUNTHIGH', {
       customerGets: amountCustomerGets('1000000000000000000'),
     }),
-  });
+  };
+  for (const input of Object.values(codeCreateVariables)) {
+    upstreamCalls.push(await captureDiscountUniquenessCheck(runGraphqlRaw, inputCode(input)));
+  }
+  codeCreate = await runCase(codeCreateDocumentPath, codeCreateVariables);
   assertPayloadPresent('code create validation', codeCreate.response.payload, 'usageHigh');
 
-  codeUpdate = await runCase(codeUpdateDocumentPath, {
-    id: codeId,
+  const codeUpdateInputs = {
     usageHigh: codeBasicInput(stamp, 'UPDATEUSAGEHIGH', { usageLimit: 2147483648 }),
     recurringHigh: codeBasicInput(stamp, 'UPDATERECURRINGHIGH', {
       recurringCycleLimit: 2147483648,
@@ -292,6 +313,13 @@ try {
     amountHigh: codeBasicInput(stamp, 'UPDATEAMOUNTHIGH', {
       customerGets: amountCustomerGets('1000000000000000000'),
     }),
+  };
+  for (const input of Object.values(codeUpdateInputs)) {
+    upstreamCalls.push(await captureDiscountUniquenessCheck(runGraphqlRaw, inputCode(input)));
+  }
+  codeUpdate = await runCase(codeUpdateDocumentPath, {
+    id: codeId,
+    ...codeUpdateInputs,
   });
   assertPayloadPresent('code update validation', codeUpdate.response.payload, 'usageHigh');
 
@@ -368,7 +396,7 @@ const fixture = {
     recurringFloatLiteral,
   },
   cleanup: cleanupResponses,
-  upstreamCalls: [],
+  upstreamCalls,
 };
 
 await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');

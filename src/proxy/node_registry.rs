@@ -747,6 +747,11 @@ simple_loader!(
 );
 simple_loader!(load_gift_card, gift_card_node_value_by_id, ["GiftCard"]);
 simple_loader!(
+    load_payment_terms,
+    payment_terms_node_value_by_id,
+    ["PaymentSchedule", "PaymentTerms"]
+);
+simple_loader!(
     load_gift_card_transaction,
     gift_card_transaction_node_value_by_id,
     ["GiftCardCreditTransaction", "GiftCardDebitTransaction"]
@@ -975,13 +980,18 @@ pub(crate) fn load_segment(
     if proxy.store.staged.segments.is_tombstoned(id) {
         return NodeLoadState::KnownMissing;
     }
-    proxy
-        .store
-        .segment_by_id(id)
-        .cloned()
-        .map_or(NodeLoadState::NeedsHydration, |value| {
-            NodeLoadState::Found(EntityRef::new("Segment", id, value))
-        })
+    proxy.store.segment_by_id(id).cloned().map_or_else(
+        || {
+            if proxy.store.base.segment_catalog_complete
+                || proxy.store.base.segment_known_missing_ids.contains(id)
+            {
+                NodeLoadState::KnownMissing
+            } else {
+                NodeLoadState::NeedsHydration
+            }
+        },
+        |value| NodeLoadState::Found(EntityRef::new("Segment", id, value)),
+    )
 }
 
 pub(crate) fn load_saved_search(
@@ -1014,13 +1024,23 @@ pub(crate) fn load_customer_segment_members_query(
 ) -> NodeLoadState<EntityRef> {
     proxy
         .store
-        .staged
-        .customer_segment_member_queries
-        .get(id)
+        .customer_segment_member_query_by_id(id)
         .cloned()
-        .map_or(NodeLoadState::NeedsHydration, |value| {
-            NodeLoadState::Found(EntityRef::new("CustomerSegmentMembersQuery", id, value))
-        })
+        .map_or_else(
+            || {
+                if proxy
+                    .store
+                    .base
+                    .customer_segment_member_query_known_missing_ids
+                    .contains(id)
+                {
+                    NodeLoadState::KnownMissing
+                } else {
+                    NodeLoadState::NeedsHydration
+                }
+            },
+            |value| NodeLoadState::Found(EntityRef::new("CustomerSegmentMembersQuery", id, value)),
+        )
 }
 
 pub(crate) fn load_abandonment(
@@ -1172,6 +1192,20 @@ pub(crate) fn load_fulfillment_constraint_rule(
         .staged
         .deleted_function_fulfillment_constraint_rule_ids
         .contains(id)
+        || proxy
+            .store
+            .base
+            .function_fulfillment_constraint_rule_known_missing_ids
+            .contains(id)
+        || (proxy
+            .store
+            .base
+            .function_fulfillment_constraint_rule_catalog_complete
+            && !proxy
+                .store
+                .base
+                .function_fulfillment_constraint_rules
+                .contains_key(id))
     {
         return NodeLoadState::KnownMissing;
     }

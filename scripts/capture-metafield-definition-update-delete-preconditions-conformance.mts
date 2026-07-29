@@ -103,6 +103,16 @@ type CapturedInteraction = {
   response: unknown;
 };
 
+type UpstreamCall = {
+  method: 'POST';
+  apiSurface: 'admin';
+  path: string;
+  operationName: string;
+  variables: Record<string, unknown>;
+  query: string;
+  response: { status: number; body: unknown };
+};
+
 type FlowSetup = {
   namespace: string;
   key: string;
@@ -186,11 +196,85 @@ function deleteSucceeded(capture: CapturedInteraction): boolean {
   return typeof readPath(capture.response, ['data', 'metafieldDefinitionDelete', 'deletedDefinitionId']) === 'string';
 }
 
+const hydrateByIdentifierDocument = await readFile(
+  'config/parity-requests/metafields/metafield-definition-hydrate-by-identifier.graphql',
+  'utf8',
+);
+const hydrateResourceScopeDocument = await readFile(
+  'config/parity-requests/metafields/metafield-definitions-hydrate-resource-scope.graphql',
+  'utf8',
+);
+const ownerMetafieldHydrateQuery =
+  'query OwnerMetafieldsHydrateNodes($ids: [ID!]!, $metafield0Namespace: String!, $metafield0Key: String!) { nodes(ids: $ids) { __typename id ... on HasMetafields { metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } } ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt  } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } } ... on Collection { id title handle } ... on Customer { id displayName email } ... on Order { id name } ... on Company { id name } ... on Page { id title } ... on Article { id title } } }';
+const upstreamCalls: UpstreamCall[] = [];
+let resourceScopeRecorded = false;
+
+async function recordUpstreamCall(
+  operationName: string,
+  query: string,
+  variables: Record<string, unknown>,
+): Promise<UpstreamCall> {
+  const result = await runGraphqlRaw(query, variables);
+  assertHttpOk(result, operationName);
+  return {
+    method: 'POST',
+    apiSurface: 'admin',
+    path: `/admin/api/${apiVersion}/graphql.json`,
+    operationName,
+    variables,
+    query,
+    response: { status: result.status, body: result.payload },
+  };
+}
+
+async function recordDefinitionIdentity(ownerType: string, namespace: string, key: string): Promise<void> {
+  upstreamCalls.push(
+    await recordUpstreamCall('MetafieldDefinitionHydrateByIdentifier', hydrateByIdentifierDocument, {
+      identifier: { ownerType, namespace, key },
+    }),
+  );
+}
+
+async function recordResourceScope(): Promise<void> {
+  if (resourceScopeRecorded) return;
+  resourceScopeRecorded = true;
+  let after: string | null = null;
+  for (let page = 0; page < 3; page += 1) {
+    const call = await recordUpstreamCall('MetafieldDefinitionsHydrateResourceScope', hydrateResourceScopeDocument, {
+      ownerType: 'PRODUCT',
+      query: '-namespace:app--*',
+      first: 250,
+      after,
+    });
+    upstreamCalls.push(call);
+    const connection = readObject(readPath(call.response.body, ['data', 'metafieldDefinitions']));
+    const pageInfo = readObject(connection?.['pageInfo']);
+    if (pageInfo?.['hasNextPage'] !== true) return;
+    const endCursor = pageInfo['endCursor'];
+    if (typeof endCursor !== 'string') {
+      throw new Error(`resource-scope page ${page + 1} omitted endCursor`);
+    }
+    after = endCursor;
+  }
+}
+
+async function recordOwnerMetafield(productId: string, namespace: string, key: string): Promise<void> {
+  upstreamCalls.push(
+    await recordUpstreamCall('OwnerMetafieldsHydrateNodes', ownerMetafieldHydrateQuery, {
+      ids: [productId],
+      metafield0Namespace: namespace,
+      metafield0Key: key,
+    }),
+  );
+}
+
 async function setupFlow(label: string, suffix: string, withMetafield: boolean): Promise<FlowSetup> {
   const namespace = `${suffix}_${label}`;
   const key = 'tier';
   const product = withMetafield ? await createProduct(label, suffix) : undefined;
   const productId = product ? createdProductId(product) : undefined;
+  await recordDefinitionIdentity('PRODUCT', namespace, key);
+  await recordResourceScope();
   const create = await captureDocument(`${label} metafieldDefinitionCreate`, createDocumentPath, {
     definition: {
       name: `Metafield definition precondition ${label}`,
@@ -201,6 +285,9 @@ async function setupFlow(label: string, suffix: string, withMetafield: boolean):
     },
   });
   const definitionId = createdDefinitionId(create);
+  if (productId !== undefined) {
+    await recordOwnerMetafield(productId, namespace, key);
+  }
   const metafieldsSet =
     productId === undefined
       ? undefined
@@ -293,6 +380,7 @@ cleanupCaptures.push(
 );
 
 const updateNamespace = await setupFlow('update_namespace', suffix, false);
+await recordDefinitionIdentity('PRODUCT', `${updateNamespace.namespace}_changed`, updateNamespace.key);
 const updateNamespaceUpdate = await captureDocument('update namespace precondition', updateDocumentPath, {
   definition: {
     namespace: `${updateNamespace.namespace}_changed`,
@@ -304,6 +392,7 @@ const updateNamespaceUpdate = await captureDocument('update namespace preconditi
 cleanupCaptures.push(...(await cleanup(undefined, updateNamespace.definitionId)));
 
 const updateKey = await setupFlow('update_key', suffix, false);
+await recordDefinitionIdentity('PRODUCT', updateKey.namespace, 'tier_changed');
 const updateKeyUpdate = await captureDocument('update key precondition', updateDocumentPath, {
   definition: {
     namespace: updateKey.namespace,
@@ -315,6 +404,7 @@ const updateKeyUpdate = await captureDocument('update key precondition', updateD
 cleanupCaptures.push(...(await cleanup(undefined, updateKey.definitionId)));
 
 const updateOwnerType = await setupFlow('update_owner_type', suffix, false);
+await recordDefinitionIdentity('CUSTOMER', updateOwnerType.namespace, updateOwnerType.key);
 const updateOwnerTypeUpdate = await captureDocument('update owner type precondition', updateDocumentPath, {
   definition: {
     namespace: updateOwnerType.namespace,
@@ -398,7 +488,7 @@ await writeFile(
         },
       ],
       cleanup: cleanupCaptures,
-      upstreamCalls: [],
+      upstreamCalls,
     },
     null,
     2,

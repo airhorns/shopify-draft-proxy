@@ -56,8 +56,12 @@ const client = createClient();
 const locationLimitStatusQuery =
   'query StorePropertiesLocationLimitStatus($first: Int!) { shop { resourceLimits { locationLimit } } locations(first: $first, includeInactive: true, includeLegacy: true) { nodes { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } } pageInfo { hasNextPage } } }';
 
-const deliveryProfileLocationsHydrateQuery =
-  'query ShippingDeliveryProfileLocationsHydrate {\n    locationsAvailableForDeliveryProfilesConnection(first: 250) {\n      nodes {\n        id\n        name\n        isActive\n        isFulfillmentService\n      }\n    }\n  }';
+const deliveryProfileLocationsHydrateQuery = `query ShippingDeliveryProfileLocationsHydrate($after: String) {
+  locationsAvailableForDeliveryProfilesConnection(first: 250, after: $after) {
+    nodes { id name isActive isFulfillmentService }
+    pageInfo { hasNextPage endCursor }
+  }
+}`;
 
 const locationAddMutation = `#graphql
   mutation LocationCatalogOverlayAdd($input: LocationAddInput!) {
@@ -379,6 +383,39 @@ function assertNoTopLevelErrors(capture: CaptureCase): void {
   }
 }
 
+async function captureCompleteDeliveryProfileLocationCatalog(): Promise<CaptureCase[]> {
+  const pages: CaptureCase[] = [];
+  const seenCursors = new Set<string>();
+  let after: string | null = null;
+
+  for (let page = 0; page < 10_000; page += 1) {
+    const capturePage = await runCase(
+      `deliveryProfileLocationsBaselinePage-${String(page + 1).padStart(4, '0')}`,
+      deliveryProfileLocationsHydrateQuery,
+      { after },
+    );
+    assertNoTopLevelErrors(capturePage);
+    pages.push(capturePage);
+    const data = asRecord(capturePage.response.payload.data);
+    const connection = asRecord(data['locationsAvailableForDeliveryProfilesConnection']);
+    const pageInfo = asRecord(connection['pageInfo']);
+    if (pageInfo['hasNextPage'] === false) return pages;
+    const endCursor = pageInfo['endCursor'];
+    if (pageInfo['hasNextPage'] !== true || typeof endCursor !== 'string' || endCursor.length === 0) {
+      throw new Error(
+        `Delivery-profile location catalog did not prove completeness: ${JSON.stringify(capturePage.response.payload)}`,
+      );
+    }
+    if (seenCursors.has(endCursor)) {
+      throw new Error(`Delivery-profile location catalog repeated cursor ${JSON.stringify(endCursor)}`);
+    }
+    seenCursors.add(endCursor);
+    after = endCursor;
+  }
+
+  throw new Error('Delivery-profile location catalog exceeded the 10,000-page capture bound');
+}
+
 function assertNoUserErrors(capture: CaptureCase, key: string): void {
   assertNoTopLevelErrors(capture);
   const errors = userErrors(capture, key);
@@ -596,8 +633,8 @@ function upstreamCall(capture: CaptureCase): JsonRecord {
 function deliveryProfileLocationsUpstreamCall(capture: CaptureCase): JsonRecord {
   return {
     operationName: 'ShippingDeliveryProfileLocationsHydrate',
-    variables: {},
-    query: deliveryProfileLocationsHydrateQuery,
+    variables: capture.variables,
+    query: capture.query,
     response: {
       status: capture.response.status,
       body: capture.response.payload,
@@ -626,6 +663,7 @@ let targetId: string | undefined;
 let targetDeleted = false;
 let baselineCatalog: CaptureCase | undefined;
 let finalCatalog: CaptureCase | undefined;
+let deliveryProfileLocationCatalogPages: CaptureCase[] = [];
 
 try {
   workflow.baselineAAdd = await runCase(
@@ -689,11 +727,8 @@ try {
   );
   targetId = readLocationIdFromPayload(workflow.firstAdd, 'locationAdd');
 
-  workflow.deliveryProfileLocationsBaseline = await runCase(
-    'deliveryProfileLocationsBaseline',
-    deliveryProfileLocationsHydrateQuery,
-  );
-  assertNoTopLevelErrors(workflow.deliveryProfileLocationsBaseline);
+  deliveryProfileLocationCatalogPages = await captureCompleteDeliveryProfileLocationCatalog();
+  workflow.deliveryProfileLocationsBaseline = deliveryProfileLocationCatalogPages[0] as CaptureCase;
 
   workflow.readAfterAdd = await captureRead(
     'readAfterAdd',
@@ -856,17 +891,18 @@ const capture = {
   workflow,
   cleanup,
   finalCatalog,
+  deliveryProfileLocationCatalogPages,
   upstreamCalls: [
     upstreamCall(baselineCatalog),
     upstreamCall(baselineCatalog),
-    deliveryProfileLocationsUpstreamCall(workflow.deliveryProfileLocationsBaseline),
+    ...deliveryProfileLocationCatalogPages.map(deliveryProfileLocationsUpstreamCall),
     upstreamCall(baselineCatalog),
   ],
   notes: [
     'Live Admin GraphQL 2026-04 capture for preserving an upstream location catalog while staged local lifecycle mutations overlay add/edit/deactivate/reactivate/delete behavior.',
     'The recorder creates two named baseline locations, fills active merchant-managed locations to one below shop.resourceLimits.locationLimit, then captures duplicate-name, sequential add near the limit, over-limit rejection, filtered connection/count reads, cursor windows, and lifecycle readbacks.',
     'The upstreamCalls cassette repeats the same real baseline StorePropertiesLocationLimitStatus capture for the three local locationAdd preflights; the proxy must derive base catalog and limit state from that Shopify response without sending supported mutations upstream.',
-    'A separate ShippingDeliveryProfileLocationsHydrate capture retains the delivery-profile eligibility catalog; staged location overlays update only rows already present in that catalog.',
+    'Separate cursor-paginated ShippingDeliveryProfileLocationsHydrate captures retain the complete delivery-profile eligibility catalog; staged location overlays update only rows already present in that catalog.',
   ],
 };
 

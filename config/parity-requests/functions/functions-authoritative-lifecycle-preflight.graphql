@@ -1,0 +1,41 @@
+mutation AuthoritativeLifecyclePreflight(
+  $validationFunctionId: String!
+  $secondCartFunctionId: String!
+) {
+  validationLimit: validationCreate(
+    validation: {
+      functionId: $validationFunctionId
+      title: "Twenty sixth active validation"
+      enable: true
+    }
+  ) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  reusedValidationFunction: cartTransformCreate(functionId: $validationFunctionId) {
+    cartTransform {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  secondCartTransform: cartTransformCreate(functionId: $secondCartFunctionId) {
+    cartTransform {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

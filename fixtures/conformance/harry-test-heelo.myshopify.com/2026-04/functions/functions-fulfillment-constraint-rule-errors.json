@@ -1,11 +1,29 @@
 {
   "scenarioId": "functions-fulfillment-constraint-rule-errors",
-  "capturedAt": "2026-06-21T19:46:54.963Z",
+  "capturedAt": "2026-07-20T04:17:54.005Z",
   "source": "live-shopify",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "summary": "fulfillmentConstraintRuleCreate deterministic userErrors, fulfillmentConstraintRuleDelete unknown-id shape, and empty fulfillmentConstraintRules read.",
-  "setupBlocker": "The conformance app currently has no released FULFILLMENT_CONSTRAINT_RULE Function, so live success-path, wrong-API-type, and read-after-created-rule capture require releasing a purchase.fulfillment-constraint-rule.run or cart.fulfillment-constraints.generate.run Function in the installed conformance app with read/write fulfillment constraint rule scopes.",
+  "summary": "Live fulfillment constraint rule validation errors plus an existing-rule update that preserves Function identity and metafields and is visible in the downstream rule catalog.",
+  "conformanceApp": {
+    "functionHandle": "conformance-fulfillment-constraint",
+    "function": {
+      "id": "019f7a32-10ba-78fc-91dc-4c0afaa7a584",
+      "title": "conformance-fulfillment-constraint",
+      "handle": "conformance-fulfillment-constraint",
+      "apiType": "fulfillment_constraints",
+      "description": "conformance-fulfillment-constraint",
+      "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+      "app": {
+        "__typename": "App",
+        "id": "gid://shopify/App/347082227713",
+        "title": "hermes-conformance-products",
+        "handle": "hermes-conformance-products",
+        "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+      }
+    },
+    "requiredScopes": ["read_fulfillment_constraint_rules", "write_fulfillment_constraint_rules"]
+  },
   "schemaFindings": {
     "singularReadRoot": "Admin GraphQL 2026-04 exposes fulfillmentConstraintRules only; no fulfillmentConstraintRule(id:) query root was present in live introspection."
   },
@@ -69,9 +87,6 @@
                 },
                 {
                   "name": "assignedFulfillmentOrders"
-                },
-                {
-                  "name": "automaticDiscountNode"
                 },
                 {
                   "name": "automaticDiscountSavedSearches"
@@ -167,9 +182,6 @@
                   "name": "checkoutAndAccountsConfigurations"
                 },
                 {
-                  "name": "codeDiscountNode"
-                },
-                {
                   "name": "codeDiscountNodeByCode"
                 },
                 {
@@ -252,9 +264,6 @@
                 },
                 {
                   "name": "customerPaymentMethod"
-                },
-                {
-                  "name": "customerSavedSearches"
                 },
                 {
                   "name": "customerSegmentMembers"
@@ -678,9 +687,6 @@
                 },
                 {
                   "name": "segmentFilters"
-                },
-                {
-                  "name": "segmentMigrations"
                 },
                 {
                   "name": "segmentValueSuggestions"
@@ -5893,23 +5899,114 @@
     }
   },
   "functionCatalog": {
-    "query": "query FulfillmentConstraintRuleFunctionCatalog {\n  fulfillmentConstraintFunctions: shopifyFunctions(apiType: \"FULFILLMENT_CONSTRAINT_RULE\", first: 10) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n    }\n  }\n}\n",
+    "query": "query FulfillmentConstraintRuleFunctionCatalog {\n  fulfillmentConstraintFunctions: shopifyFunctions(first: 100) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n",
     "variables": {},
     "response": {
       "status": 200,
       "payload": {
         "data": {
           "fulfillmentConstraintFunctions": {
-            "nodes": []
+            "nodes": [
+              {
+                "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+                "title": "conformance-payment-customization",
+                "handle": "conformance-payment-customization",
+                "apiType": "payment_customization",
+                "description": "conformance-payment-customization",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                "title": "conformance-validation",
+                "handle": "conformance-validation",
+                "apiType": "cart_checkout_validation",
+                "description": "conformance-validation",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+                "title": "conformance-cart-transform",
+                "handle": "conformance-cart-transform",
+                "apiType": "cart_transform",
+                "description": "conformance-cart-transform",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+                "title": "conformance-discount",
+                "handle": "conformance-discount",
+                "apiType": "discount",
+                "description": "conformance-discount",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019f7a30-08b0-7799-8dcc-3a1720d5d8af",
+                "title": "conformance-cart-transform-secondary",
+                "handle": "conformance-cart-transform-secondary",
+                "apiType": "cart_transform",
+                "description": "conformance-cart-transform-secondary",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019f7a32-10ba-78fc-91dc-4c0afaa7a584",
+                "title": "conformance-fulfillment-constraint",
+                "handle": "conformance-fulfillment-constraint",
+                "apiType": "fulfillment_constraints",
+                "description": "conformance-fulfillment-constraint",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              }
+            ]
           }
         },
         "extensions": {
           "cost": {
-            "requestedQueryCost": 6,
-            "actualQueryCost": 6,
+            "requestedQueryCost": 20,
+            "actualQueryCost": 4,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1994,
+              "currentlyAvailable": 1996,
               "restoreRate": 100
             }
           }
@@ -5917,8 +6014,32 @@
       }
     }
   },
+  "preCaptureCatalog": {
+    "query": "query FunctionFulfillmentConstraintRulesHydrate {\n  fulfillmentConstraintRules {\n    id\n    deliveryMethodTypes\n    function {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n    metafields(first: 100) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        compareDigest\n        ownerType\n        createdAt\n        updatedAt\n      }\n    }\n  }\n}\n",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fulfillmentConstraintRules": []
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 14,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "preCaptureCleanup": [],
   "errorShape": {
-    "query": "mutation FulfillmentConstraintRuleErrorShape {\n  missing: fulfillmentConstraintRuleCreate(deliveryMethodTypes: [SHIPPING]) {\n    fulfillmentConstraintRule {\n      id\n    }\n    userErrors {\n      code\n      field\n      message\n    }\n  }\n  multiple: fulfillmentConstraintRuleCreate(\n    functionId: \"gid://shopify/ShopifyFunction/999999999999\"\n    functionHandle: \"definitely-missing-fulfillment-constraint\"\n    deliveryMethodTypes: [SHIPPING]\n  ) {\n    fulfillmentConstraintRule {\n      id\n    }\n    userErrors {\n      code\n      field\n      message\n    }\n  }\n  emptyDelivery: fulfillmentConstraintRuleCreate(\n    functionId: \"gid://shopify/ShopifyFunction/999999999999\"\n    deliveryMethodTypes: []\n  ) {\n    fulfillmentConstraintRule {\n      id\n    }\n    userErrors {\n      code\n      field\n      message\n    }\n  }\n  deleteUnknown: fulfillmentConstraintRuleDelete(id: \"gid://shopify/FulfillmentConstraintRule/999999999999\") {\n    success\n    userErrors {\n      code\n      field\n      message\n    }\n  }\n}\n",
+    "query": "mutation FulfillmentConstraintRuleErrorShape {\n  missing: fulfillmentConstraintRuleCreate(deliveryMethodTypes: [SHIPPING]) {\n    fulfillmentConstraintRule {\n      id\n    }\n    userErrors {\n      code\n      field\n      message\n    }\n  }\n  multiple: fulfillmentConstraintRuleCreate(\n    functionId: \"gid://shopify/ShopifyFunction/999999999999\"\n    functionHandle: \"definitely-missing-fulfillment-constraint\"\n    deliveryMethodTypes: [SHIPPING]\n  ) {\n    fulfillmentConstraintRule {\n      id\n    }\n    userErrors {\n      code\n      field\n      message\n    }\n  }\n  emptyDelivery: fulfillmentConstraintRuleCreate(\n    functionId: \"gid://shopify/ShopifyFunction/999999999999\"\n    deliveryMethodTypes: []\n  ) {\n    fulfillmentConstraintRule {\n      id\n    }\n    userErrors {\n      code\n      field\n      message\n    }\n  }\n  deleteUnknown: fulfillmentConstraintRuleDelete(id: \"gid://shopify/FulfillmentConstraintRule/999999999999\") {\n    success\n    userErrors {\n      code\n      field\n      message\n    }\n  }\n  updateUnknown: fulfillmentConstraintRuleUpdate(\n    id: \"gid://shopify/FulfillmentConstraintRule/999999999999\"\n    deliveryMethodTypes: [PICK_UP]\n  ) {\n    fulfillmentConstraintRule {\n      id\n    }\n    userErrors {\n      code\n      field\n      message\n    }\n  }\n}\n",
     "variables": {},
     "response": {
       "status": 200,
@@ -5963,15 +6084,25 @@
                 "message": "Could not find FulfillmentConstraintRule with id: gid://shopify/FulfillmentConstraintRule/999999999999"
               }
             ]
+          },
+          "updateUnknown": {
+            "fulfillmentConstraintRule": null,
+            "userErrors": [
+              {
+                "code": "NOT_FOUND",
+                "field": ["id"],
+                "message": "Could not find FulfillmentConstraintRule with id: gid://shopify/FulfillmentConstraintRule/999999999999"
+              }
+            ]
           }
         },
         "extensions": {
           "cost": {
-            "requestedQueryCost": 40,
-            "actualQueryCost": 40,
+            "requestedQueryCost": 50,
+            "actualQueryCost": 50,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1960,
+              "currentlyAvailable": 1950,
               "restoreRate": 100
             }
           }
@@ -5994,7 +6125,7 @@
             "actualQueryCost": 1,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1969,
+              "currentlyAvailable": 1958,
               "restoreRate": 100
             }
           }
@@ -6036,7 +6167,7 @@
             "actualQueryCost": 20,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1962,
+              "currentlyAvailable": 1949,
               "restoreRate": 100
             }
           }
@@ -6044,5 +6175,337 @@
       }
     }
   },
-  "upstreamCalls": []
+  "setupCreate": {
+    "query": "mutation FulfillmentConstraintRuleCreateForUpdate(\n  $functionHandle: String!\n  $deliveryMethodTypes: [DeliveryMethodType!]!\n) {\n  setupCreate: fulfillmentConstraintRuleCreate(\n    functionHandle: $functionHandle\n    deliveryMethodTypes: $deliveryMethodTypes\n    metafields: [{\n      namespace: \"custom\"\n      key: \"update-config\"\n      type: \"json\"\n      value: \"{\\\"preserve\\\":true}\"\n    }]\n  ) {\n    fulfillmentConstraintRule {\n      id\n      deliveryMethodTypes\n      function {\n        id\n        title\n        handle\n        apiType\n        description\n        appKey\n        app { __typename id title handle apiKey }\n      }\n      metafields(first: 100) {\n        nodes { id namespace key type value compareDigest ownerType createdAt updatedAt }\n      }\n    }\n    userErrors { code field message }\n  }\n}\n",
+    "variables": {
+      "functionHandle": "conformance-fulfillment-constraint",
+      "deliveryMethodTypes": ["SHIPPING"]
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "setupCreate": {
+            "fulfillmentConstraintRule": {
+              "id": "gid://shopify/FulfillmentConstraintRule/55247154",
+              "deliveryMethodTypes": ["SHIPPING"],
+              "function": {
+                "id": "019f7a32-10ba-78fc-91dc-4c0afaa7a584",
+                "title": "conformance-fulfillment-constraint",
+                "handle": "conformance-fulfillment-constraint",
+                "apiType": "fulfillment_constraints",
+                "description": "conformance-fulfillment-constraint",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/45221796512050",
+                    "namespace": "custom",
+                    "key": "update-config",
+                    "type": "json",
+                    "value": "{\"preserve\":true}",
+                    "compareDigest": "6803241f2c3bb1e185421864005d52765233fb06b0660ed68c4676170b01afe3",
+                    "ownerType": "FULFILLMENT_CONSTRAINT_RULE",
+                    "createdAt": "2026-07-20T04:17:53Z",
+                    "updatedAt": "2026-07-20T04:17:53Z"
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 23,
+            "actualQueryCost": 15,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1945,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "hydrationBaseline": {
+    "query": "query FunctionFulfillmentConstraintRulesHydrate {\n  fulfillmentConstraintRules {\n    id\n    deliveryMethodTypes\n    function {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n    metafields(first: 100) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        compareDigest\n        ownerType\n        createdAt\n        updatedAt\n      }\n    }\n  }\n}\n",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fulfillmentConstraintRules": [
+            {
+              "id": "gid://shopify/FulfillmentConstraintRule/55247154",
+              "deliveryMethodTypes": ["SHIPPING"],
+              "function": {
+                "id": "019f7a32-10ba-78fc-91dc-4c0afaa7a584",
+                "title": "conformance-fulfillment-constraint",
+                "handle": "conformance-fulfillment-constraint",
+                "apiType": "fulfillment_constraints",
+                "description": "conformance-fulfillment-constraint",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/45221796512050",
+                    "namespace": "custom",
+                    "key": "update-config",
+                    "type": "json",
+                    "value": "{\"preserve\":true}",
+                    "compareDigest": "6803241f2c3bb1e185421864005d52765233fb06b0660ed68c4676170b01afe3",
+                    "ownerType": "FULFILLMENT_CONSTRAINT_RULE",
+                    "createdAt": "2026-07-20T04:17:53Z",
+                    "updatedAt": "2026-07-20T04:17:53Z"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 14,
+            "actualQueryCost": 6,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1957,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "updateExistingRule": {
+    "query": "mutation FulfillmentConstraintRuleUpdateExisting(\n  $id: ID!\n  $deliveryMethodTypes: [DeliveryMethodType!]!\n) {\n  successfulUpdate: fulfillmentConstraintRuleUpdate(\n    id: $id\n    deliveryMethodTypes: $deliveryMethodTypes\n  ) {\n    fulfillmentConstraintRule {\n      id\n      deliveryMethodTypes\n      function {\n        id\n        title\n        handle\n        apiType\n        description\n        appKey\n        app { __typename id title handle apiKey }\n      }\n      metafields(first: 100) {\n        nodes { id namespace key type value compareDigest ownerType createdAt updatedAt }\n      }\n    }\n    userErrors { code field message }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/FulfillmentConstraintRule/55247154",
+      "deliveryMethodTypes": ["PICK_UP"]
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "successfulUpdate": {
+            "fulfillmentConstraintRule": {
+              "id": "gid://shopify/FulfillmentConstraintRule/55247154",
+              "deliveryMethodTypes": ["PICK_UP"],
+              "function": {
+                "id": "019f7a32-10ba-78fc-91dc-4c0afaa7a584",
+                "title": "conformance-fulfillment-constraint",
+                "handle": "conformance-fulfillment-constraint",
+                "apiType": "fulfillment_constraints",
+                "description": "conformance-fulfillment-constraint",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/45221796512050",
+                    "namespace": "custom",
+                    "key": "update-config",
+                    "type": "json",
+                    "value": "{\"preserve\":true}",
+                    "compareDigest": "6803241f2c3bb1e185421864005d52765233fb06b0660ed68c4676170b01afe3",
+                    "ownerType": "FULFILLMENT_CONSTRAINT_RULE",
+                    "createdAt": "2026-07-20T04:17:53Z",
+                    "updatedAt": "2026-07-20T04:17:53Z"
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 23,
+            "actualQueryCost": 15,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1954,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "query": "query FulfillmentConstraintRuleUpdatedRead {\n  fulfillmentConstraintRules {\n    id\n    deliveryMethodTypes\n    function {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app { __typename id title handle apiKey }\n    }\n    metafields(first: 100) {\n      nodes { id namespace key type value compareDigest ownerType createdAt updatedAt }\n    }\n  }\n}\n",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fulfillmentConstraintRules": [
+            {
+              "id": "gid://shopify/FulfillmentConstraintRule/55247154",
+              "deliveryMethodTypes": ["PICK_UP"],
+              "function": {
+                "id": "019f7a32-10ba-78fc-91dc-4c0afaa7a584",
+                "title": "conformance-fulfillment-constraint",
+                "handle": "conformance-fulfillment-constraint",
+                "apiType": "fulfillment_constraints",
+                "description": "conformance-fulfillment-constraint",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/45221796512050",
+                    "namespace": "custom",
+                    "key": "update-config",
+                    "type": "json",
+                    "value": "{\"preserve\":true}",
+                    "compareDigest": "6803241f2c3bb1e185421864005d52765233fb06b0660ed68c4676170b01afe3",
+                    "ownerType": "FULFILLMENT_CONSTRAINT_RULE",
+                    "createdAt": "2026-07-20T04:17:53Z",
+                    "updatedAt": "2026-07-20T04:17:53Z"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 14,
+            "actualQueryCost": 6,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1963,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "query": "mutation FulfillmentConstraintRuleCaptureCleanup($id: ID!) {\n  cleanup: fulfillmentConstraintRuleDelete(id: $id) {\n    success\n    userErrors { code field message }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/FulfillmentConstraintRule/55247154"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "cleanup": {
+            "success": true,
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1964,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "FunctionFulfillmentConstraintRulesHydrate",
+      "variables": {},
+      "query": "query FunctionFulfillmentConstraintRulesHydrate {\n  fulfillmentConstraintRules {\n    id\n    deliveryMethodTypes\n    function {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n    metafields(first: 100) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        compareDigest\n        ownerType\n        createdAt\n        updatedAt\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentConstraintRules": [
+              {
+                "id": "gid://shopify/FulfillmentConstraintRule/55247154",
+                "deliveryMethodTypes": ["SHIPPING"],
+                "function": {
+                  "id": "019f7a32-10ba-78fc-91dc-4c0afaa7a584",
+                  "title": "conformance-fulfillment-constraint",
+                  "handle": "conformance-fulfillment-constraint",
+                  "apiType": "fulfillment_constraints",
+                  "description": "conformance-fulfillment-constraint",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                "metafields": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Metafield/45221796512050",
+                      "namespace": "custom",
+                      "key": "update-config",
+                      "type": "json",
+                      "value": "{\"preserve\":true}",
+                      "compareDigest": "6803241f2c3bb1e185421864005d52765233fb06b0660ed68c4676170b01afe3",
+                      "ownerType": "FULFILLMENT_CONSTRAINT_RULE",
+                      "createdAt": "2026-07-20T04:17:53Z",
+                      "updatedAt": "2026-07-20T04:17:53Z"
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1957,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": {
+    "lifecycle": "The registered capture removes stale rules for the released conformance Function, creates one disposable rule with a metafield, records the exact pre-update catalog used for proxy hydration, updates only deliveryMethodTypes, verifies a downstream read, and deletes the rule.",
+    "ownership": "The captured rule retains the released Function id, handle, API type, app key, and app identity through the update; unknown rule ids return NOT_FOUND without fabricating a rule."
+  }
 }

@@ -1,0 +1,96 @@
+query OrdersManualPaymentOrderRead($id: ID!) {
+  order(id: $id) {
+    id
+    name
+    createdAt
+    updatedAt
+    closed
+    closedAt
+    cancelledAt
+    cancelReason
+    currencyCode
+    presentmentCurrencyCode
+    displayFinancialStatus
+    displayFulfillmentStatus
+    capturable
+    totalCapturable
+    totalCapturableSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+      presentmentMoney {
+        amount
+        currencyCode
+      }
+    }
+    totalOutstandingSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+      presentmentMoney {
+        amount
+        currencyCode
+      }
+    }
+    currentTotalPriceSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+      presentmentMoney {
+        amount
+        currencyCode
+      }
+    }
+    totalPriceSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+      presentmentMoney {
+        amount
+        currencyCode
+      }
+    }
+    totalReceivedSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+      presentmentMoney {
+        amount
+        currencyCode
+      }
+    }
+    netPaymentSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+      presentmentMoney {
+        amount
+        currencyCode
+      }
+    }
+    paymentGatewayNames
+    transactions {
+      id
+      kind
+      status
+      gateway
+      processedAt
+      amountSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+        presentmentMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+  }
+}

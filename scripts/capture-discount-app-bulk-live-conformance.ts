@@ -8,6 +8,10 @@ import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './confo
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { assertDiscountConformanceScopes, probeDiscountConformanceScopes } from './discount-conformance-lib.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+import {
+  captureDiscountUniquenessCheck,
+  type RecordedUpstreamCall,
+} from './support/shopify/runtime-hydration-capture.js';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -270,6 +274,7 @@ const runId = readRunId();
 const startsAt = new Date(Date.now() - 60_000).toISOString();
 const codeDiscountIds = new Set<string>();
 const automaticDiscountIds = new Set<string>();
+const prerequisiteCalls: RecordedUpstreamCall[] = [];
 
 function basicInput(title: string, code: string): JsonRecord {
   return {
@@ -384,6 +389,16 @@ try {
   const update = await captureRequest(documents.update, updateVariables, 'discount app bulk update');
   assertNoUserErrors(update, 'discount app bulk update');
 
+  prerequisiteCalls.push(
+    await captureDiscountUniquenessCheck(
+      runGraphqlRaw,
+      requireStringPath(preconditionVariables, ['bulkInput', 'code'], 'bulk precondition code'),
+    ),
+    await captureDiscountUniquenessCheck(
+      runGraphqlRaw,
+      requireStringPath(preconditionVariables, ['redeemInput', 'code'], 'redeem precondition code'),
+    ),
+  );
   const preconditions = await captureRequest(
     documents.preconditions,
     preconditionVariables,
@@ -498,6 +513,7 @@ try {
     upstreamCalls: [
       captureHydrateCall(functionId, discountFunction),
       captureHydrateCall(functionId, discountFunction),
+      ...prerequisiteCalls,
       captureRecordedCall('DiscountAppBulkLiveJobs', documents.bulkJobs, bulkJobVariables, bulkJobs),
     ],
     notes:

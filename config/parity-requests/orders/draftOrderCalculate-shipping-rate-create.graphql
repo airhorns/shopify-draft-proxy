@@ -1,0 +1,23 @@
+mutation DraftOrderShippingRateCreate($input: DraftOrderInput!) {
+  draftOrderCreate(input: $input) {
+    draftOrder {
+      id
+      shippingLine {
+        title
+        code
+        custom
+        shippingRateHandle
+        originalPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

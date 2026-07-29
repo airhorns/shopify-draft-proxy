@@ -17,7 +17,7 @@ const primaryDocumentPath =
 const readAfterDocumentPath =
   'config/parity-requests/metafields/standard-metafield-definition-enable-reenable-read.graphql';
 
-const { runGraphql } = createAdminGraphqlClient({
+const { runGraphql, runGraphqlRaw } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
@@ -115,6 +115,16 @@ type GraphqlResponse = {
   data?: Record<string, unknown>;
 };
 
+type UpstreamCall = {
+  method: 'POST';
+  apiSurface: 'admin';
+  path: string;
+  operationName: string;
+  variables: Record<string, unknown>;
+  query: string;
+  response: { status: number; body: unknown };
+};
+
 const namespace = `standard_reenable_${Date.now().toString(36)}`;
 const variables = {
   namespace,
@@ -123,6 +133,18 @@ const variables = {
 
 const primaryDocument = await readFile(primaryDocumentPath, 'utf8');
 const readAfterDocument = await readFile(readAfterDocumentPath, 'utf8');
+const hydrateByIdentifierDocument = await readFile(
+  'config/parity-requests/metafields/metafield-definition-hydrate-by-identifier.graphql',
+  'utf8',
+);
+const hydrateResourceScopeDocument = await readFile(
+  'config/parity-requests/metafields/metafield-definitions-hydrate-resource-scope.graphql',
+  'utf8',
+);
+const hydratePinnedOwnerDocument = await readFile(
+  'config/parity-requests/metafields/metafield-definitions-hydrate-pinned-owner.graphql',
+  'utf8',
+);
 const baselinePinned =
   ((await runGraphql(readPinnedDefinitionsQuery)).data?.metafieldDefinitions?.nodes as DefinitionNode[] | undefined) ??
   [];
@@ -147,6 +169,66 @@ function readStandardInitialId(response: GraphqlResponse): string {
     throw new Error(`standardInitial.createdDefinition.id missing from response: ${JSON.stringify(response, null, 2)}`);
   }
   return id;
+}
+
+function readObject(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function readPath(value: unknown, parts: string[]): unknown {
+  let current = value;
+  for (const part of parts) current = readObject(current)?.[part];
+  return current;
+}
+
+async function recordUpstreamCall(
+  operationName: string,
+  query: string,
+  callVariables: Record<string, unknown>,
+): Promise<UpstreamCall> {
+  const result = await runGraphqlRaw(query, callVariables);
+  if (result.status < 200 || result.status >= 300 || result.payload.errors) {
+    throw new Error(`${operationName} failed: ${JSON.stringify(result, null, 2)}`);
+  }
+  return {
+    method: 'POST',
+    apiSurface: 'admin',
+    path: `/admin/api/${apiVersion}/graphql.json`,
+    operationName,
+    variables: callVariables,
+    query,
+    response: { status: result.status, body: result.payload },
+  };
+}
+
+async function recordIdentity(targetNamespace: string, key: string): Promise<UpstreamCall> {
+  return await recordUpstreamCall('MetafieldDefinitionHydrateByIdentifier', hydrateByIdentifierDocument, {
+    identifier: { ownerType: 'PRODUCT', namespace: targetNamespace, key },
+  });
+}
+
+async function recordResourceScope(): Promise<UpstreamCall[]> {
+  const calls: UpstreamCall[] = [];
+  let after: string | null = null;
+  let observed = 0;
+  for (let page = 0; page < 3; page += 1) {
+    const callVariables = { ownerType: 'PRODUCT', query: '-namespace:app--*', first: 250, after };
+    const call = await recordUpstreamCall(
+      'MetafieldDefinitionsHydrateResourceScope',
+      hydrateResourceScopeDocument,
+      callVariables,
+    );
+    calls.push(call);
+    const nodes = readPath(call.response.body, ['data', 'metafieldDefinitions', 'nodes']);
+    if (!Array.isArray(nodes)) throw new Error(`resource-scope page ${page + 1} omitted nodes`);
+    observed += nodes.filter((node) => readObject(node)?.['namespace'] !== 'shopify').length;
+    const pageInfo = readObject(readPath(call.response.body, ['data', 'metafieldDefinitions', 'pageInfo']));
+    if (observed >= 256 || pageInfo?.['hasNextPage'] !== true) break;
+    const endCursor = pageInfo?.['endCursor'];
+    if (typeof endCursor !== 'string') throw new Error(`resource-scope page ${page + 1} omitted endCursor`);
+    after = endCursor;
+  }
+  return calls;
 }
 
 async function deleteNamespaceDefinitions(): Promise<DefinitionNode[]> {
@@ -195,6 +277,7 @@ let readAfterResponse: GraphqlResponse | null = null;
 let readAfterVariables: { definitionId: string } | null = null;
 let deletedDefinitions: DefinitionNode[] = [];
 let deletedStandardDefinition: DefinitionNode | null = null;
+const upstreamCalls: UpstreamCall[] = [];
 
 try {
   await mkdir(outputDir, { recursive: true });
@@ -202,6 +285,18 @@ try {
   for (const definition of baselinePinned) {
     await runGraphql(unpinByIdMutation, { definitionId: definition.id });
   }
+
+  upstreamCalls.push(await recordIdentity(namespace, 'pin_01'));
+  upstreamCalls.push(...(await recordResourceScope()));
+  upstreamCalls.push(
+    await recordUpstreamCall('MetafieldDefinitionsHydratePinnedOwner', hydratePinnedOwnerDocument, {
+      ownerType: 'PRODUCT',
+    }),
+  );
+  for (let index = 2; index <= 20; index += 1) {
+    upstreamCalls.push(await recordIdentity(namespace, `pin_${String(index).padStart(2, '0')}`));
+  }
+  upstreamCalls.push(await recordIdentity('descriptors', 'subtitle'));
 
   primaryResponse = (await runGraphql(primaryDocument, variables)) as GraphqlResponse;
   readAfterVariables = { definitionId: readStandardInitialId(primaryResponse) };
@@ -240,7 +335,7 @@ await writeFile(
         deletedStandardDefinition,
         restoredPinnedDefinitions: baselinePinned,
       },
-      upstreamCalls: [],
+      upstreamCalls,
     },
     null,
     2,
