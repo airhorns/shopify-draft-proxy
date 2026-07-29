@@ -2,9 +2,9 @@
   "preconditionRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/10225391599922",
+        "id": "gid://shopify/Product/10252752617778",
         "primarySpec": {
-          "id": "gid://shopify/Metafield/44627837845810",
+          "id": "gid://shopify/Metafield/45359476998450",
           "namespace": "custom",
           "key": "material",
           "type": "single_line_text_field",
@@ -12,7 +12,7 @@
           "compareDigest": "f55dea39da94d1715ee468a944c83b312a71b15194d2de449d2356c6f3ba3a22"
         },
         "origin": {
-          "id": "gid://shopify/Metafield/44627837878578",
+          "id": "gid://shopify/Metafield/45359477031218",
           "namespace": "details",
           "key": "origin",
           "type": "single_line_text_field",
@@ -23,7 +23,7 @@
         "metafields": {
           "nodes": [
             {
-              "id": "gid://shopify/Metafield/44627837845810",
+              "id": "gid://shopify/Metafield/45359476998450",
               "namespace": "custom",
               "key": "material",
               "type": "single_line_text_field",
@@ -31,7 +31,7 @@
               "compareDigest": "f55dea39da94d1715ee468a944c83b312a71b15194d2de449d2356c6f3ba3a22"
             },
             {
-              "id": "gid://shopify/Metafield/44627837878578",
+              "id": "gid://shopify/Metafield/45359477031218",
               "namespace": "details",
               "key": "origin",
               "type": "single_line_text_field",
@@ -42,8 +42,8 @@
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjo0NDYyNzgzNzg0NTgxMCwibGFzdF92YWx1ZSI6IjQ0NjI3ODM3ODQ1ODEwIn0=",
-            "endCursor": "eyJsYXN0X2lkIjo0NDYyNzgzNzg3ODU3OCwibGFzdF92YWx1ZSI6IjQ0NjI3ODM3ODc4NTc4In0="
+            "startCursor": "eyJsYXN0X2lkIjo0NTM1OTQ3Njk5ODQ1MCwibGFzdF92YWx1ZSI6IjQ1MzU5NDc2OTk4NDUwIn0=",
+            "endCursor": "eyJsYXN0X2lkIjo0NTM1OTQ3NzAzMTIxOCwibGFzdF92YWx1ZSI6IjQ1MzU5NDc3MDMxMjE4In0="
           }
         }
       }
@@ -64,7 +64,7 @@
     "variables": {
       "metafields": [
         {
-          "ownerId": "gid://shopify/Product/10225391599922",
+          "ownerId": "gid://shopify/Product/10252752617778",
           "namespace": "details",
           "key": "season",
           "type": "single_line_text_field",
@@ -78,7 +78,7 @@
         "metafieldsSet": {
           "metafields": [
             {
-              "id": "gid://shopify/Metafield/44627838075186",
+              "id": "gid://shopify/Metafield/45359477358898",
               "namespace": "details",
               "key": "season",
               "type": "single_line_text_field",
@@ -103,14 +103,14 @@
     }
   },
   "downstreamReadVariables": {
-    "id": "gid://shopify/Product/10225391599922"
+    "id": "gid://shopify/Product/10252752617778"
   },
   "downstreamRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/10225391599922",
+        "id": "gid://shopify/Product/10252752617778",
         "primarySpec": {
-          "id": "gid://shopify/Metafield/44627837845810",
+          "id": "gid://shopify/Metafield/45359476998450",
           "namespace": "custom",
           "key": "material",
           "type": "single_line_text_field",
@@ -118,7 +118,7 @@
           "compareDigest": "f55dea39da94d1715ee468a944c83b312a71b15194d2de449d2356c6f3ba3a22"
         },
         "origin": {
-          "id": "gid://shopify/Metafield/44627837878578",
+          "id": "gid://shopify/Metafield/45359477031218",
           "namespace": "details",
           "key": "origin",
           "type": "single_line_text_field",
@@ -126,7 +126,7 @@
           "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3"
         },
         "season": {
-          "id": "gid://shopify/Metafield/44627838075186",
+          "id": "gid://shopify/Metafield/45359477358898",
           "namespace": "details",
           "key": "season",
           "type": "single_line_text_field",
@@ -136,7 +136,7 @@
         "metafields": {
           "nodes": [
             {
-              "id": "gid://shopify/Metafield/44627837845810",
+              "id": "gid://shopify/Metafield/45359476998450",
               "namespace": "custom",
               "key": "material",
               "type": "single_line_text_field",
@@ -144,7 +144,7 @@
               "compareDigest": "f55dea39da94d1715ee468a944c83b312a71b15194d2de449d2356c6f3ba3a22"
             },
             {
-              "id": "gid://shopify/Metafield/44627837878578",
+              "id": "gid://shopify/Metafield/45359477031218",
               "namespace": "details",
               "key": "origin",
               "type": "single_line_text_field",
@@ -152,7 +152,7 @@
               "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3"
             },
             {
-              "id": "gid://shopify/Metafield/44627838075186",
+              "id": "gid://shopify/Metafield/45359477358898",
               "namespace": "details",
               "key": "season",
               "type": "single_line_text_field",
@@ -163,8 +163,8 @@
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjo0NDYyNzgzNzg0NTgxMCwibGFzdF92YWx1ZSI6IjQ0NjI3ODM3ODQ1ODEwIn0=",
-            "endCursor": "eyJsYXN0X2lkIjo0NDYyNzgzODA3NTE4NiwibGFzdF92YWx1ZSI6IjQ0NjI3ODM4MDc1MTg2In0="
+            "startCursor": "eyJsYXN0X2lkIjo0NTM1OTQ3Njk5ODQ1MCwibGFzdF92YWx1ZSI6IjQ1MzU5NDc2OTk4NDUwIn0=",
+            "endCursor": "eyJsYXN0X2lkIjo0NTM1OTQ3NzM1ODg5OCwibGFzdF92YWx1ZSI6IjQ1MzU5NDc3MzU4ODk4In0="
           }
         }
       }
@@ -180,5 +180,6 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": []
 }

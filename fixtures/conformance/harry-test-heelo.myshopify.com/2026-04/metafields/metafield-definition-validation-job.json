@@ -1,8 +1,8 @@
 {
-  "capturedAt": "2026-05-07T12:04:21.951Z",
+  "capturedAt": "2026-07-29T03:42:46.141Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "namespace": "validation_job_movfuluv",
+  "namespace": "validation_job_ms5jh7qh",
   "key": "probe",
   "schema": {
     "request": {
@@ -109,7 +109,7 @@
       "query": "#graphql\nmutation ValidationJobProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product { id title }\n    userErrors { field message }\n  }\n}\n",
       "variables": {
         "product": {
-          "title": "validation job movfuluv"
+          "title": "validation job ms5jh7qh"
         }
       }
     },
@@ -118,8 +118,8 @@
       "data": {
         "productCreate": {
           "product": {
-            "id": "gid://shopify/Product/10179777560882",
-            "title": "validation job movfuluv"
+            "id": "gid://shopify/Product/10252753469746",
+            "title": "validation job ms5jh7qh"
           },
           "userErrors": []
         }
@@ -143,7 +143,7 @@
       "variables": {
         "definition": {
           "name": "Validation Job Definition",
-          "namespace": "validation_job_movfuluv",
+          "namespace": "validation_job_ms5jh7qh",
           "key": "probe",
           "ownerType": "PRODUCT",
           "type": "single_line_text_field"
@@ -155,8 +155,8 @@
       "data": {
         "metafieldDefinitionCreate": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/207233843506",
-            "namespace": "validation_job_movfuluv",
+            "id": "gid://shopify/MetafieldDefinition/229768298802",
+            "namespace": "validation_job_ms5jh7qh",
             "key": "probe",
             "ownerType": "PRODUCT",
             "validations": [],
@@ -184,8 +184,8 @@
       "variables": {
         "metafields": [
           {
-            "ownerId": "gid://shopify/Product/10179777560882",
-            "namespace": "validation_job_movfuluv",
+            "ownerId": "gid://shopify/Product/10252753469746",
+            "namespace": "validation_job_ms5jh7qh",
             "key": "probe",
             "type": "single_line_text_field",
             "value": "ABCDE"
@@ -199,9 +199,9 @@
         "metafieldsSet": {
           "metafields": [
             {
-              "id": "gid://shopify/Metafield/43122509152562",
+              "id": "gid://shopify/Metafield/45359499378994",
               "ownerType": "PRODUCT",
-              "namespace": "validation_job_movfuluv",
+              "namespace": "validation_job_ms5jh7qh",
               "key": "probe",
               "type": "single_line_text_field",
               "value": "ABCDE"
@@ -228,7 +228,7 @@
       "documentPath": "config/parity-requests/metafield-definitions/validation-job-update.graphql",
       "variables": {
         "definition": {
-          "namespace": "validation_job_movfuluv",
+          "namespace": "validation_job_ms5jh7qh",
           "key": "probe",
           "ownerType": "PRODUCT",
           "validations": [
@@ -245,8 +245,8 @@
       "data": {
         "metafieldDefinitionUpdate": {
           "updatedDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/207233843506",
-            "namespace": "validation_job_movfuluv",
+            "id": "gid://shopify/MetafieldDefinition/229768298802",
+            "namespace": "validation_job_ms5jh7qh",
             "key": "probe",
             "ownerType": "PRODUCT",
             "validations": [
@@ -259,7 +259,7 @@
           },
           "validationJob": {
             "__typename": "Job",
-            "id": "gid://shopify/Job/4917411e-3fe0-400c-bd97-7310a0971d01",
+            "id": "gid://shopify/Job/907a220c-c105-4b29-ac98-0f5588d0c353",
             "done": false,
             "query": null
           },
@@ -283,7 +283,7 @@
     "request": {
       "documentPath": "config/parity-requests/metafield-definitions/validation-job-read.graphql",
       "variables": {
-        "id": "gid://shopify/Job/4917411e-3fe0-400c-bd97-7310a0971d01"
+        "id": "gid://shopify/Job/907a220c-c105-4b29-ac98-0f5588d0c353"
       }
     },
     "status": 200,
@@ -291,7 +291,7 @@
       "data": {
         "job": {
           "__typename": "Job",
-          "id": "gid://shopify/Job/4917411e-3fe0-400c-bd97-7310a0971d01",
+          "id": "gid://shopify/Job/907a220c-c105-4b29-ac98-0f5588d0c353",
           "done": false,
           "query": null
         }
@@ -302,7 +302,7 @@
           "actualQueryCost": 2,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1997,
+            "currentlyAvailable": 1998,
             "restoreRate": 100
           }
         }
@@ -314,7 +314,7 @@
       "documentPath": "config/parity-requests/metafield-definitions/validation-job-rename.graphql",
       "variables": {
         "definition": {
-          "namespace": "validation_job_movfuluv",
+          "namespace": "validation_job_ms5jh7qh",
           "key": "probe",
           "ownerType": "PRODUCT",
           "name": "Validation Job Definition Renamed"
@@ -326,9 +326,9 @@
       "data": {
         "metafieldDefinitionUpdate": {
           "updatedDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/207233843506",
+            "id": "gid://shopify/MetafieldDefinition/229768298802",
             "name": "Validation Job Definition Renamed",
-            "namespace": "validation_job_movfuluv",
+            "namespace": "validation_job_ms5jh7qh",
             "key": "probe",
             "ownerType": "PRODUCT",
             "validations": [
@@ -361,14 +361,14 @@
       "request": {
         "query": "#graphql\nmutation ValidationJobDefinitionDelete($id: ID!) {\n  metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n    deletedDefinitionId\n    userErrors { field message code }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/MetafieldDefinition/207233843506"
+          "id": "gid://shopify/MetafieldDefinition/229768298802"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metafieldDefinitionDelete": {
-            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/207233843506",
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229768298802",
             "userErrors": []
           }
         },
@@ -390,7 +390,7 @@
         "query": "#graphql\nmutation ValidationJobProductDelete($input: ProductDeleteInput!) {\n  productDelete(input: $input) {\n    deletedProductId\n    userErrors { field message }\n  }\n}\n",
         "variables": {
           "input": {
-            "id": "gid://shopify/Product/10179777560882"
+            "id": "gid://shopify/Product/10252753469746"
           }
         }
       },
@@ -398,7 +398,7 @@
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10179777560882",
+            "deletedProductId": "gid://shopify/Product/10252753469746",
             "userErrors": []
           }
         },
@@ -417,6 +417,41 @@
     }
   ],
   "upstreamCalls": [
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "path": "/admin/api/2026-04/graphql.json",
+      "operationName": "OwnerMetafieldsExistenceHydrate",
+      "variables": {
+        "ids": ["gid://shopify/Product/10252753469746"]
+      },
+      "query": "query OwnerMetafieldsExistenceHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10252753469746"
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
     {
       "method": "POST",
       "path": "/admin/api/2026-04/graphql.json",
@@ -3366,23 +3401,36 @@
       "query": "query OwnerMetafieldsHydrateNodes($ids: [ID!]!, $metafield0Namespace: String!, $metafield0Key: String!) { nodes(ids: $ids) { __typename id ... on HasMetafields { metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } } ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt  } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } } ... on Collection { id title handle } ... on Customer { id displayName email } ... on Order { id name } ... on Company { id name } ... on Page { id title } ... on Article { id title } } }",
       "operationName": "OwnerMetafieldsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10179777560882"],
+        "ids": ["gid://shopify/Product/10252753469746"],
         "metafield0Key": "probe",
-        "metafield0Namespace": "validation_job_movfuluv"
+        "metafield0Namespace": "validation_job_ms5jh7qh"
       },
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "nodes": [null]
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10252753469746",
+                "metafield0": null,
+                "title": "validation job ms5jh7qh",
+                "handle": "validation-job-ms5jh7qh",
+                "status": "ACTIVE",
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "createdAt": "2026-07-29T03:42:42Z",
+                "updatedAt": "2026-07-29T03:42:44Z"
+              }
+            ]
           },
           "extensions": {
             "cost": {
               "requestedQueryCost": 8,
-              "actualQueryCost": 1,
+              "actualQueryCost": 3,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1999,
+                "currentlyAvailable": 1997,
                 "restoreRate": 100
               }
             }

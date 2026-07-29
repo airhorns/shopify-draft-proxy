@@ -4,6 +4,11 @@ import 'dotenv/config';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import {
+  captureMetafieldsSetOwnerExistence,
+  recordParityUpstreamCalls,
+  type RecordedUpstreamCall,
+} from './conformance-capture-lib.js';
 import { createAdminGraphqlClient, type ConformanceGraphqlPayload } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
@@ -12,7 +17,7 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ e
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'metafields');
 const outputPath = path.join(outputDir, 'metafields-set-input-validation.json');
-const { runGraphql } = createAdminGraphqlClient({
+const { runGraphql, runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
@@ -230,7 +235,31 @@ await mkdir(outputDir, { recursive: true });
 const runId = Date.now().toString(36);
 let productId: string | null = null;
 let cleanup: ConformanceGraphqlPayload<ProductDeleteData> | null = null;
+let ownerExistence: RecordedUpstreamCall | null = null;
+let recordedUpstreamCalls: RecordedUpstreamCall[] | null = null;
 const cases: Record<string, ValidationCase> = {};
+
+function buildFixture() {
+  if (!productId || Object.keys(cases).length === 0) {
+    throw new Error('metafieldsSet input validation capture did not produce cases.');
+  }
+  return {
+    scenarioId: 'metafields-set-input-validation',
+    storeDomain,
+    apiVersion,
+    capturedAt: new Date().toISOString(),
+    setup: {
+      productId,
+    },
+    cases,
+    cleanup,
+    upstreamCalls: recordedUpstreamCalls ?? (ownerExistence ? [ownerExistence] : []),
+  };
+}
+
+async function writeFixture(): Promise<void> {
+  await writeFile(outputPath, `${JSON.stringify(buildFixture(), null, 2)}\n`, 'utf8');
+}
 
 try {
   const setup = await runGraphql<ProductCreateData>(createProductMutation, {
@@ -243,10 +272,15 @@ try {
   if (!productId) {
     throw new Error(`Product setup failed: ${JSON.stringify(setup)}`);
   }
+  ownerExistence = await captureMetafieldsSetOwnerExistence(runGraphqlRequest, apiVersion, [productId]);
 
   for (const [caseName, variables] of Object.entries(buildCases(productId))) {
     cases[caseName] = await captureCase(variables);
   }
+  await writeFixture();
+  recordedUpstreamCalls = recordParityUpstreamCalls(['metafields-set-input-validation'], apiVersion, [outputPath])[
+    outputPath
+  ];
 } finally {
   if (productId) {
     try {
@@ -270,30 +304,7 @@ try {
   }
 }
 
-if (!productId || Object.keys(cases).length === 0) {
-  throw new Error('metafieldsSet input validation capture did not produce cases.');
-}
-
-await writeFile(
-  outputPath,
-  `${JSON.stringify(
-    {
-      scenarioId: 'metafields-set-input-validation',
-      storeDomain,
-      apiVersion,
-      capturedAt: new Date().toISOString(),
-      setup: {
-        productId,
-      },
-      cases,
-      cleanup,
-      upstreamCalls: [],
-    },
-    null,
-    2,
-  )}\n`,
-  'utf8',
-);
+await writeFixture();
 
 console.log(
   JSON.stringify(

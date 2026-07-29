@@ -4,6 +4,11 @@ import 'dotenv/config';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import {
+  captureMetafieldsSetOwnerExistence,
+  recordParityUpstreamCalls,
+  type RecordedUpstreamCall,
+} from './conformance-capture-lib.js';
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
@@ -111,6 +116,7 @@ type FlowSetup = {
   create: CapturedInteraction;
   definitionId: string;
   metafieldsSet?: CapturedInteraction;
+  ownerExistence?: RecordedUpstreamCall;
 };
 
 function assertHttpOk(result: ConformanceGraphqlResult, label: string): void {
@@ -201,6 +207,9 @@ async function setupFlow(label: string, suffix: string, withMetafield: boolean):
     },
   });
   const definitionId = createdDefinitionId(create);
+  const ownerExistence = productId
+    ? await captureMetafieldsSetOwnerExistence(runGraphqlRaw, apiVersion, [productId])
+    : undefined;
   const metafieldsSet =
     productId === undefined
       ? undefined
@@ -216,7 +225,7 @@ async function setupFlow(label: string, suffix: string, withMetafield: boolean):
           ],
         });
 
-  return { namespace, key, product, productId, create, definitionId, metafieldsSet };
+  return { namespace, key, product, productId, create, definitionId, metafieldsSet, ownerExistence };
 }
 
 async function cleanup(productId?: string, definitionId?: string): Promise<CapturedInteraction[]> {
@@ -248,17 +257,12 @@ async function cleanup(productId?: string, definitionId?: string): Promise<Captu
 
 const suffix = `metafield_precondition_${Date.now().toString(36)}`;
 const cleanupCaptures: CapturedInteraction[] = [];
+let recordedUpstreamCalls: RecordedUpstreamCall[] | null = null;
 
 const deleteWithoutFlag = await setupFlow('delete_without_flag', suffix, true);
 const deleteWithoutFlagDelete = await captureDocument('delete without flag', deleteNoFlagDocumentPath, {
   id: deleteWithoutFlag.definitionId,
 });
-cleanupCaptures.push(
-  ...(await cleanup(
-    deleteWithoutFlag.productId,
-    deleteSucceeded(deleteWithoutFlagDelete) ? undefined : deleteWithoutFlag.definitionId,
-  )),
-);
 
 const deleteFalseFlag = await setupFlow('delete_false_flag', suffix, true);
 const deleteFalseFlagDelete = await captureDocument(
@@ -269,12 +273,6 @@ const deleteFalseFlagDelete = await captureDocument(
     deleteAllAssociatedMetafields: false,
   },
 );
-cleanupCaptures.push(
-  ...(await cleanup(
-    deleteFalseFlag.productId,
-    deleteSucceeded(deleteFalseFlagDelete) ? undefined : deleteFalseFlag.definitionId,
-  )),
-);
 
 const deleteWithFlag = await setupFlow('delete_with_flag', suffix, true);
 const deleteWithFlagDelete = await captureDocument(
@@ -284,12 +282,6 @@ const deleteWithFlagDelete = await captureDocument(
     id: deleteWithFlag.definitionId,
     deleteAllAssociatedMetafields: true,
   },
-);
-cleanupCaptures.push(
-  ...(await cleanup(
-    deleteWithFlag.productId,
-    deleteSucceeded(deleteWithFlagDelete) ? undefined : deleteWithFlag.definitionId,
-  )),
 );
 
 const updateNamespace = await setupFlow('update_namespace', suffix, false);
@@ -333,78 +325,108 @@ const deleteGuardCandidateDiscovery = await captureQuery(
   },
 );
 
-await mkdir(outputDir, { recursive: true });
-await writeFile(
-  outputPath,
-  `${JSON.stringify(
-    {
-      capturedAt: new Date().toISOString(),
-      storeDomain,
-      apiVersion,
-      suffix,
-      deleteWithoutFlag: {
-        namespace: deleteWithoutFlag.namespace,
-        key: deleteWithoutFlag.key,
-        product: deleteWithoutFlag.product,
-        create: deleteWithoutFlag.create,
-        metafieldsSet: deleteWithoutFlag.metafieldsSet,
-        delete: deleteWithoutFlagDelete,
-      },
-      deleteFalseFlag: {
-        namespace: deleteFalseFlag.namespace,
-        key: deleteFalseFlag.key,
-        product: deleteFalseFlag.product,
-        create: deleteFalseFlag.create,
-        metafieldsSet: deleteFalseFlag.metafieldsSet,
-        delete: deleteFalseFlagDelete,
-      },
-      deleteWithFlag: {
-        namespace: deleteWithFlag.namespace,
-        key: deleteWithFlag.key,
-        product: deleteWithFlag.product,
-        create: deleteWithFlag.create,
-        metafieldsSet: deleteWithFlag.metafieldsSet,
-        delete: deleteWithFlagDelete,
-      },
-      updateNamespace: {
-        namespace: updateNamespace.namespace,
-        key: updateNamespace.key,
-        create: updateNamespace.create,
-        update: updateNamespaceUpdate,
-      },
-      updateKey: {
-        namespace: updateKey.namespace,
-        key: updateKey.key,
-        create: updateKey.create,
-        update: updateKeyUpdate,
-      },
-      updateOwnerType: {
-        namespace: updateOwnerType.namespace,
-        key: updateOwnerType.key,
-        create: updateOwnerType.create,
-        update: updateOwnerTypeUpdate,
-      },
-      deleteGuardCandidateDiscovery,
-      unavailableDeleteGuardEvidence: [
-        {
-          code: 'APP_CONFIG_MANAGED',
-          reason:
-            'Public Admin GraphQL does not expose app_config_managed metadata on MetafieldDefinition, and the current conformance shop exposes no safe other-app app-managed definition candidate through this credential.',
-        },
-        {
-          code: 'STANDARD_METAFIELD_DEFINITION_DEPENDENT_ON_APP',
-          reason:
-            'Public Admin GraphQL exposes standardTemplate but not the internal dependent_on_app metadata needed to identify a standard metafield definition whose owning app remains installed.',
-        },
-      ],
-      cleanup: cleanupCaptures,
-      upstreamCalls: [],
+function buildFixture() {
+  return {
+    capturedAt: new Date().toISOString(),
+    storeDomain,
+    apiVersion,
+    suffix,
+    deleteWithoutFlag: {
+      namespace: deleteWithoutFlag.namespace,
+      key: deleteWithoutFlag.key,
+      product: deleteWithoutFlag.product,
+      create: deleteWithoutFlag.create,
+      metafieldsSet: deleteWithoutFlag.metafieldsSet,
+      delete: deleteWithoutFlagDelete,
     },
-    null,
-    2,
-  )}\n`,
-  'utf8',
-);
+    deleteFalseFlag: {
+      namespace: deleteFalseFlag.namespace,
+      key: deleteFalseFlag.key,
+      product: deleteFalseFlag.product,
+      create: deleteFalseFlag.create,
+      metafieldsSet: deleteFalseFlag.metafieldsSet,
+      delete: deleteFalseFlagDelete,
+    },
+    deleteWithFlag: {
+      namespace: deleteWithFlag.namespace,
+      key: deleteWithFlag.key,
+      product: deleteWithFlag.product,
+      create: deleteWithFlag.create,
+      metafieldsSet: deleteWithFlag.metafieldsSet,
+      delete: deleteWithFlagDelete,
+    },
+    updateNamespace: {
+      namespace: updateNamespace.namespace,
+      key: updateNamespace.key,
+      create: updateNamespace.create,
+      update: updateNamespaceUpdate,
+    },
+    updateKey: {
+      namespace: updateKey.namespace,
+      key: updateKey.key,
+      create: updateKey.create,
+      update: updateKeyUpdate,
+    },
+    updateOwnerType: {
+      namespace: updateOwnerType.namespace,
+      key: updateOwnerType.key,
+      create: updateOwnerType.create,
+      update: updateOwnerTypeUpdate,
+    },
+    deleteGuardCandidateDiscovery,
+    unavailableDeleteGuardEvidence: [
+      {
+        code: 'APP_CONFIG_MANAGED',
+        reason:
+          'Public Admin GraphQL does not expose app_config_managed metadata on MetafieldDefinition, and the current conformance shop exposes no safe other-app app-managed definition candidate through this credential.',
+      },
+      {
+        code: 'STANDARD_METAFIELD_DEFINITION_DEPENDENT_ON_APP',
+        reason:
+          'Public Admin GraphQL exposes standardTemplate but not the internal dependent_on_app metadata needed to identify a standard metafield definition whose owning app remains installed.',
+      },
+    ],
+    cleanup: cleanupCaptures,
+    upstreamCalls:
+      recordedUpstreamCalls ??
+      [deleteWithoutFlag.ownerExistence, deleteFalseFlag.ownerExistence, deleteWithFlag.ownerExistence].filter(
+        (call): call is RecordedUpstreamCall => call !== undefined,
+      ),
+  };
+}
+
+async function writeFixture(): Promise<void> {
+  await mkdir(outputDir, { recursive: true });
+  await writeFile(outputPath, `${JSON.stringify(buildFixture(), null, 2)}\n`, 'utf8');
+}
+
+try {
+  await writeFixture();
+  recordedUpstreamCalls = recordParityUpstreamCalls(['metafield-definition-update-delete-preconditions'], apiVersion, [
+    outputPath,
+  ])[outputPath];
+} finally {
+  cleanupCaptures.push(
+    ...(await cleanup(
+      deleteWithoutFlag.productId,
+      deleteSucceeded(deleteWithoutFlagDelete) ? undefined : deleteWithoutFlag.definitionId,
+    )),
+  );
+  cleanupCaptures.push(
+    ...(await cleanup(
+      deleteFalseFlag.productId,
+      deleteSucceeded(deleteFalseFlagDelete) ? undefined : deleteFalseFlag.definitionId,
+    )),
+  );
+  cleanupCaptures.push(
+    ...(await cleanup(
+      deleteWithFlag.productId,
+      deleteSucceeded(deleteWithFlagDelete) ? undefined : deleteWithFlag.definitionId,
+    )),
+  );
+}
+
+await writeFixture();
 
 console.log(
   JSON.stringify(

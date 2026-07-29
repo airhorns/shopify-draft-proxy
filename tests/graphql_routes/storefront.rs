@@ -6042,7 +6042,14 @@ fn storefront_shop_metafields_use_known_shop_owner_without_hydration() {
     restore_state_with(&mut proxy, |state| {
         state["baseState"]["shop"] = json!({
             "id": shop_id,
-            "name": "Known Storefront metafields shop"
+            "name": "Known Storefront metafields shop",
+            "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                }
+            }
         });
     });
 
@@ -6857,7 +6864,9 @@ fn stage_metafields_set(proxy: &mut DraftProxy, owner_id: &str, metafields: Valu
     assert_eq!(response.status, 200);
     assert_eq!(
         response.body["data"]["metafieldsSet"]["userErrors"],
-        json!([])
+        json!([]),
+        "{:#?}",
+        response.body
     );
     response.body["data"]["metafieldsSet"]["metafields"].clone()
 }

@@ -4,6 +4,11 @@ import 'dotenv/config';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import {
+  captureMetafieldsSetOwnerExistence,
+  recordParityUpstreamCalls,
+  type RecordedUpstreamCall,
+} from './conformance-capture-lib.js';
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
@@ -170,6 +175,28 @@ let productId: string | null = null;
 let definitionId: string | null = null;
 const captures = [];
 const cleanup = [];
+let ownerExistence: RecordedUpstreamCall | null = null;
+let recordedUpstreamCalls: RecordedUpstreamCall[] | null = null;
+
+function buildFixture() {
+  return {
+    capturedAt: new Date().toISOString(),
+    storeDomain,
+    apiVersion,
+    namespace,
+    key,
+    looseNamespace,
+    looseKey,
+    captures,
+    cleanup,
+    upstreamCalls: recordedUpstreamCalls ?? (ownerExistence ? [ownerExistence] : []),
+  };
+}
+
+async function writeFixture(): Promise<void> {
+  await mkdir(outputDir, { recursive: true });
+  await writeFile(outputPath, `${JSON.stringify(buildFixture(), null, 2)}\n`, 'utf8');
+}
 
 try {
   const productCreate = await capture('productCreate setup', productCreateMutation, {
@@ -183,6 +210,7 @@ try {
   if (!productId) {
     throw new Error('productCreate setup did not return a product id');
   }
+  ownerExistence = await captureMetafieldsSetOwnerExistence(runGraphqlRaw, apiVersion, [productId]);
 
   const createDefinition = await capture('metafieldDefinitionCreate success', createDefinitionMutation, {
     definition: {
@@ -264,6 +292,11 @@ try {
       looseKey,
     }),
   );
+
+  await writeFixture();
+  recordedUpstreamCalls = recordParityUpstreamCalls(['metafield-definition-lifecycle-mutations'], apiVersion, [
+    outputPath,
+  ])[outputPath];
 } finally {
   if (definitionId) {
     cleanup.push(
@@ -283,19 +316,6 @@ try {
   }
 }
 
-const fixture = {
-  capturedAt: new Date().toISOString(),
-  storeDomain,
-  apiVersion,
-  namespace,
-  key,
-  looseNamespace,
-  looseKey,
-  captures,
-  cleanup,
-};
-
-await mkdir(outputDir, { recursive: true });
-await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
+await writeFixture();
 
 console.log(`Wrote ${outputPath}`);

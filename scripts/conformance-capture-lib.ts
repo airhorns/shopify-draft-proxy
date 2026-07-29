@@ -1,6 +1,8 @@
 /* oxlint-disable no-console -- shared CLI capture helpers intentionally write progress to stdio. */
 import 'dotenv/config';
 
+import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -9,6 +11,20 @@ import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 export type JsonRecord = Record<string, unknown>;
+
+export type RecordedUpstreamCall = {
+  method: 'POST';
+  apiSurface: 'admin' | 'storefront';
+  apiVersion: string;
+  path: string;
+  operationName: string;
+  variables: JsonRecord;
+  query: string;
+  response: {
+    status: number;
+    body: unknown;
+  };
+};
 
 export function readRecord(value: unknown): JsonRecord | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as JsonRecord) : null;
@@ -101,6 +117,80 @@ export async function createConformanceCapture(): Promise<ConformanceCapture> {
       await writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`);
     },
   };
+}
+
+export async function captureMetafieldsSetOwnerExistence(
+  runGraphqlRequest: <T = JsonRecord>(query: string, variables: JsonRecord) => Promise<ConformanceGraphqlResult<T>>,
+  apiVersion: string,
+  ownerIds: string[],
+): Promise<RecordedUpstreamCall> {
+  const ids = [...new Set(ownerIds)].sort();
+  if (ids.length === 0 || ids.some((id) => id.length === 0)) {
+    throw new Error('metafieldsSet owner-existence capture requires at least one non-empty owner ID');
+  }
+
+  const query = await readFile(
+    path.join('config', 'parity-requests', 'products', 'metafieldsSet-owner-existence-hydrate.graphql'),
+    'utf8',
+  );
+  const variables = { ids };
+  const result = await runGraphqlRequest<JsonRecord>(query, variables);
+  const data = readRecord(result.payload.data);
+  const nodes = readArray(data?.['nodes']);
+  const returnedIds = nodes.map((node) => readRecord(node)?.['id'] ?? null);
+  if (
+    result.status < 200 ||
+    result.status >= 300 ||
+    result.payload.errors ||
+    nodes.length !== ids.length ||
+    returnedIds.some((id, index) => id !== ids[index])
+  ) {
+    throw new Error(
+      `metafieldsSet owner-existence capture did not resolve every live owner: ${JSON.stringify(result, null, 2)}`,
+    );
+  }
+
+  return {
+    method: 'POST',
+    apiSurface: 'admin',
+    apiVersion,
+    path: `/admin/api/${apiVersion}/graphql.json`,
+    operationName: 'OwnerMetafieldsExistenceHydrate',
+    variables,
+    query,
+    response: {
+      status: result.status,
+      body: result.payload,
+    },
+  };
+}
+
+export function recordParityUpstreamCalls(
+  scenarioIds: string[],
+  apiVersion: string,
+  fixturePaths: string[],
+): Record<string, RecordedUpstreamCall[]> {
+  if (scenarioIds.length === 0 || fixturePaths.length === 0) {
+    throw new Error('parity upstream recording requires scenario IDs and fixture paths');
+  }
+  const result = spawnSync('corepack', ['pnpm', 'parity:record', ...scenarioIds], {
+    env: {
+      ...process.env,
+      SHOPIFY_CONFORMANCE_API_VERSION: apiVersion,
+    },
+    stdio: 'inherit',
+  });
+  if (result.status !== 0) {
+    throw new Error(`parity upstream recording failed for ${scenarioIds.join(', ')}`);
+  }
+
+  return Object.fromEntries(
+    fixturePaths.map((fixturePath) => {
+      const fixture = readRecord(JSON.parse(readFileSync(fixturePath, 'utf8')));
+      const calls = readArray(fixture?.['upstreamCalls']) as RecordedUpstreamCall[];
+      return [fixturePath, calls];
+    }),
+  );
 }
 
 /** A safely-future ISO instant `days` out at noon UTC, for reserve-until style inputs. */

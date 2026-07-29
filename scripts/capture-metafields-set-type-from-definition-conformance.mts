@@ -4,6 +4,11 @@ import 'dotenv/config';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import {
+  captureMetafieldsSetOwnerExistence,
+  recordParityUpstreamCalls,
+  type RecordedUpstreamCall,
+} from './conformance-capture-lib.js';
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
@@ -149,6 +154,31 @@ let productCreate: CapturedInteraction | null = null;
 let createDefinition: CapturedInteraction | null = null;
 let setWithoutType: CapturedInteraction | null = null;
 let readAfterSet: CapturedInteraction | null = null;
+let ownerExistence: RecordedUpstreamCall | null = null;
+let recordedUpstreamCalls: RecordedUpstreamCall[] | null = null;
+
+function buildFixture() {
+  return {
+    storeDomain,
+    apiVersion,
+    capturedAt: new Date().toISOString(),
+    namespace,
+    key,
+    metafieldType,
+    metafieldValue,
+    productCreate: requireCapture(productCreate, 'productCreate'),
+    createDefinition: requireCapture(createDefinition, 'createDefinition'),
+    setWithoutType: requireCapture(setWithoutType, 'setWithoutType'),
+    readAfterSet: requireCapture(readAfterSet, 'readAfterSet'),
+    cleanup,
+    upstreamCalls: recordedUpstreamCalls ?? (ownerExistence ? [ownerExistence] : []),
+  };
+}
+
+async function writeFixture(): Promise<void> {
+  await mkdir(outputDir, { recursive: true });
+  await writeFile(outputPath, `${JSON.stringify(buildFixture(), null, 2)}\n`, 'utf8');
+}
 
 try {
   productCreate = await captureQuery('productCreate setup', productCreateMutation, {
@@ -156,6 +186,7 @@ try {
   });
   requireNoUserErrors(productCreate.response, ['data', 'productCreate', 'userErrors'], 'productCreate setup');
   productId = requireString(readPath(productCreate.response, ['data', 'productCreate', 'product', 'id']), 'product id');
+  ownerExistence = await captureMetafieldsSetOwnerExistence(runGraphqlRaw, apiVersion, [productId]);
 
   createDefinition = await captureDocument('metafieldDefinitionCreate setup', createDefinitionDocumentPath, {
     definition: {
@@ -212,6 +243,14 @@ try {
     metafieldValue,
     'downstream product metafield value',
   );
+
+  cleanup.push(await captureQuery('cleanup metafieldDefinitionDelete', deleteDefinitionMutation, { id: definitionId }));
+  definitionId = null;
+
+  await writeFixture();
+  recordedUpstreamCalls = recordParityUpstreamCalls(['metafieldsSet-type-from-definition'], apiVersion, [outputPath])[
+    outputPath
+  ];
 } finally {
   if (definitionId) {
     cleanup.push(
@@ -237,22 +276,5 @@ try {
   }
 }
 
-const fixture = {
-  storeDomain,
-  apiVersion,
-  capturedAt: new Date().toISOString(),
-  namespace,
-  key,
-  metafieldType,
-  metafieldValue,
-  productCreate: requireCapture(productCreate, 'productCreate'),
-  createDefinition: requireCapture(createDefinition, 'createDefinition'),
-  setWithoutType: requireCapture(setWithoutType, 'setWithoutType'),
-  readAfterSet: requireCapture(readAfterSet, 'readAfterSet'),
-  cleanup,
-  upstreamCalls: [],
-};
-
-await mkdir(outputDir, { recursive: true });
-await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
+await writeFixture();
 console.log(JSON.stringify({ ok: true, outputPath, productId, definitionId, namespace, key }, null, 2));

@@ -98,9 +98,8 @@ const OWNER_METAFIELD_PAGE_INFO_FIELDS: &str =
 const OWNER_PRODUCT_BASE_FIELDS: &str =
     "id title handle status totalInventory tracksInventory createdAt updatedAt";
 const OWNER_PRODUCT_VARIANT_BASE_FIELDS: &str = "id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping }";
-const OWNER_METAFIELDS_EXISTENCE_HYDRATE_QUERY: &str = include_str!(
-    "../../../config/parity-requests/products/metafieldsSet-owner-existence-hydrate.graphql"
-);
+const OWNER_METAFIELDS_EXISTENCE_HYDRATE_QUERY: &str =
+    "query OwnerMetafieldsExistenceHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n  }\n}\n";
 
 const LOCAL_OWNER_METAFIELD_RESOURCE_TYPES: &[&str] = &[
     "Article",
@@ -912,7 +911,7 @@ impl DraftProxy {
         let mut unresolved_ids = inputs
             .iter()
             .filter_map(|input| resolved_string_field(input, "ownerId"))
-            .filter(|id| shopify_gid_resource_type(id).is_some())
+            .filter(|id| self.owner_metafield_owner_supported(request, id))
             .filter(
                 |id| match self.local_owner_metafield_existence(id, Some(request)) {
                     Some(true) => false,
@@ -3140,17 +3139,28 @@ mod tests {
         let calls = calls.lock().unwrap();
         assert_eq!(
             calls.len(),
-            1,
+            2,
             "read-after-write unexpectedly hydrated: {calls:#?}"
         );
         assert_eq!(
-            calls[0]["operationName"], "OwnerMetafieldsHydrateNodes",
-            "the supported write itself must never be forwarded upstream"
+            calls.iter()
+                .map(|call| call["operationName"].as_str().unwrap())
+                .collect::<Vec<_>>(),
+            vec![
+                "OwnerMetafieldsExistenceHydrate",
+                "OwnerMetafieldsHydrateNodes"
+            ],
+            "the supported write may issue query-only hydration but must never be forwarded upstream"
         );
-        assert!(calls[0]["query"]
+        assert!(calls[1]["query"]
             .as_str()
             .unwrap()
             .contains("... on HasMetafields"));
+        assert!(calls.iter().all(|call| {
+            call["query"]
+                .as_str()
+                .is_some_and(|query| query.trim_start().starts_with("query "))
+        }));
     }
 
     #[test]
@@ -3393,7 +3403,23 @@ mod tests {
             "custom".to_string(),
             "owner_state".to_string(),
         )));
-        assert_eq!(calls.lock().unwrap().len(), 2);
+        let calls = calls.lock().unwrap();
+        assert_eq!(
+            calls
+                .iter()
+                .map(|call| call["operationName"].as_str().unwrap())
+                .collect::<Vec<_>>(),
+            vec![
+                "OwnerMetafieldsExistenceHydrate",
+                "OwnerMetafieldsHydrateNodes",
+                "OwnerMetafieldsHydrateNodes"
+            ]
+        );
+        assert!(calls.iter().all(|call| {
+            call["query"]
+                .as_str()
+                .is_some_and(|query| query.trim_start().starts_with("query "))
+        }));
     }
 
     #[test]

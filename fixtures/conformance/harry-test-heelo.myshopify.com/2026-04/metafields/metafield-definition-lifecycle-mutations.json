@@ -1,10 +1,10 @@
 {
-  "capturedAt": "2026-07-19T14:47:50.434Z",
+  "capturedAt": "2026-07-29T03:34:53.169Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "namespace": "definition_lifecycle_mrrwu1fq",
+  "namespace": "definition_lifecycle_ms5j71ux",
   "key": "definition_lifecycle",
-  "looseNamespace": "definition_loose_mrrwu1fq",
+  "looseNamespace": "definition_loose_ms5j71ux",
   "looseKey": "loose_metafield",
   "captures": [
     {
@@ -13,7 +13,7 @@
         "query": "#graphql\n  mutation CreateProduct($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product { id title }\n      userErrors { field message }\n    }\n  }\n",
         "variables": {
           "product": {
-            "title": "Metafield definition lifecycle mrrwu1fq"
+            "title": "Metafield definition lifecycle ms5j71ux"
           }
         }
       },
@@ -22,8 +22,8 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10243937141042",
-              "title": "Metafield definition lifecycle mrrwu1fq"
+              "id": "gid://shopify/Product/10252751569202",
+              "title": "Metafield definition lifecycle ms5j71ux"
             },
             "userErrors": []
           }
@@ -48,7 +48,7 @@
         "variables": {
           "definition": {
             "name": "Lifecycle definition",
-            "namespace": "definition_lifecycle_mrrwu1fq",
+            "namespace": "definition_lifecycle_ms5j71ux",
             "key": "definition_lifecycle",
             "ownerType": "PRODUCT",
             "type": "single_line_text_field",
@@ -67,9 +67,9 @@
         "data": {
           "metafieldDefinitionCreate": {
             "createdDefinition": {
-              "id": "gid://shopify/MetafieldDefinition/227275309362",
+              "id": "gid://shopify/MetafieldDefinition/229758009650",
               "name": "Lifecycle definition",
-              "namespace": "definition_lifecycle_mrrwu1fq",
+              "namespace": "definition_lifecycle_ms5j71ux",
               "key": "definition_lifecycle",
               "ownerType": "PRODUCT",
               "type": {
@@ -109,15 +109,15 @@
         "variables": {
           "metafields": [
             {
-              "ownerId": "gid://shopify/Product/10243937141042",
-              "namespace": "definition_lifecycle_mrrwu1fq",
+              "ownerId": "gid://shopify/Product/10252751569202",
+              "namespace": "definition_lifecycle_ms5j71ux",
               "key": "definition_lifecycle",
               "type": "single_line_text_field",
               "value": "ABCDEFGH"
             },
             {
-              "ownerId": "gid://shopify/Product/10243937141042",
-              "namespace": "definition_loose_mrrwu1fq",
+              "ownerId": "gid://shopify/Product/10252751569202",
+              "namespace": "definition_loose_ms5j71ux",
               "key": "loose_metafield",
               "type": "single_line_text_field",
               "value": "loose"
@@ -131,14 +131,14 @@
           "metafieldsSet": {
             "metafields": [
               {
-                "id": "gid://shopify/Metafield/45214299029810",
-                "namespace": "definition_lifecycle_mrrwu1fq",
+                "id": "gid://shopify/Metafield/45359459926322",
+                "namespace": "definition_lifecycle_ms5j71ux",
                 "key": "definition_lifecycle",
                 "type": "single_line_text_field",
                 "value": "ABCDEFGH",
                 "definition": {
-                  "id": "gid://shopify/MetafieldDefinition/227275309362",
-                  "namespace": "definition_lifecycle_mrrwu1fq",
+                  "id": "gid://shopify/MetafieldDefinition/229758009650",
+                  "namespace": "definition_lifecycle_ms5j71ux",
                   "key": "definition_lifecycle",
                   "type": {
                     "name": "single_line_text_field"
@@ -146,8 +146,8 @@
                 }
               },
               {
-                "id": "gid://shopify/Metafield/45214299062578",
-                "namespace": "definition_loose_mrrwu1fq",
+                "id": "gid://shopify/Metafield/45359459959090",
+                "namespace": "definition_loose_ms5j71ux",
                 "key": "loose_metafield",
                 "type": "single_line_text_field",
                 "value": "loose",
@@ -175,10 +175,10 @@
       "request": {
         "query": "#graphql\n  query DownstreamDefinitionRead($productId: ID!, $namespace: String!, $key: String!, $looseNamespace: String!, $looseKey: String!) {\n    definition: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: $key }) {\n      id\n      name\n      namespace\n      key\n      ownerType\n      validations { name value }\n      metafieldsCount\n    }\n    definitions: metafieldDefinitions(ownerType: PRODUCT, namespace: $namespace, first: 5) {\n      nodes { id namespace key name }\n    }\n    product(id: $productId) {\n      id\n      metafield(namespace: $namespace, key: $key) {\n        id\n        namespace\n        key\n        type\n        value\n        definition { id namespace key type { name } }\n      }\n      looseMetafield: metafield(namespace: $looseNamespace, key: $looseKey) {\n        id\n        namespace\n        key\n        type\n        value\n        definition { id }\n      }\n    }\n  }\n",
         "variables": {
-          "productId": "gid://shopify/Product/10243937141042",
-          "namespace": "definition_lifecycle_mrrwu1fq",
+          "productId": "gid://shopify/Product/10252751569202",
+          "namespace": "definition_lifecycle_ms5j71ux",
           "key": "definition_lifecycle",
-          "looseNamespace": "definition_loose_mrrwu1fq",
+          "looseNamespace": "definition_loose_ms5j71ux",
           "looseKey": "loose_metafield"
         }
       },
@@ -186,9 +186,9 @@
       "response": {
         "data": {
           "definition": {
-            "id": "gid://shopify/MetafieldDefinition/227275309362",
+            "id": "gid://shopify/MetafieldDefinition/229758009650",
             "name": "Lifecycle definition",
-            "namespace": "definition_lifecycle_mrrwu1fq",
+            "namespace": "definition_lifecycle_ms5j71ux",
             "key": "definition_lifecycle",
             "ownerType": "PRODUCT",
             "validations": [
@@ -202,24 +202,24 @@
           "definitions": {
             "nodes": [
               {
-                "id": "gid://shopify/MetafieldDefinition/227275309362",
-                "namespace": "definition_lifecycle_mrrwu1fq",
+                "id": "gid://shopify/MetafieldDefinition/229758009650",
+                "namespace": "definition_lifecycle_ms5j71ux",
                 "key": "definition_lifecycle",
                 "name": "Lifecycle definition"
               }
             ]
           },
           "product": {
-            "id": "gid://shopify/Product/10243937141042",
+            "id": "gid://shopify/Product/10252751569202",
             "metafield": {
-              "id": "gid://shopify/Metafield/45214299029810",
-              "namespace": "definition_lifecycle_mrrwu1fq",
+              "id": "gid://shopify/Metafield/45359459926322",
+              "namespace": "definition_lifecycle_ms5j71ux",
               "key": "definition_lifecycle",
               "type": "single_line_text_field",
               "value": "ABCDEFGH",
               "definition": {
-                "id": "gid://shopify/MetafieldDefinition/227275309362",
-                "namespace": "definition_lifecycle_mrrwu1fq",
+                "id": "gid://shopify/MetafieldDefinition/229758009650",
+                "namespace": "definition_lifecycle_ms5j71ux",
                 "key": "definition_lifecycle",
                 "type": {
                   "name": "single_line_text_field"
@@ -227,8 +227,8 @@
               }
             },
             "looseMetafield": {
-              "id": "gid://shopify/Metafield/45214299062578",
-              "namespace": "definition_loose_mrrwu1fq",
+              "id": "gid://shopify/Metafield/45359459959090",
+              "namespace": "definition_loose_ms5j71ux",
               "key": "loose_metafield",
               "type": "single_line_text_field",
               "value": "loose",
@@ -256,7 +256,7 @@
         "variables": {
           "definition": {
             "name": "Lifecycle definition updated",
-            "namespace": "definition_lifecycle_mrrwu1fq",
+            "namespace": "definition_lifecycle_ms5j71ux",
             "key": "definition_lifecycle",
             "ownerType": "PRODUCT",
             "description": "Updated temporary conformance definition for lifecycle capture"
@@ -268,9 +268,9 @@
         "data": {
           "metafieldDefinitionUpdate": {
             "updatedDefinition": {
-              "id": "gid://shopify/MetafieldDefinition/227275309362",
+              "id": "gid://shopify/MetafieldDefinition/229758009650",
               "name": "Lifecycle definition updated",
-              "namespace": "definition_lifecycle_mrrwu1fq",
+              "namespace": "definition_lifecycle_ms5j71ux",
               "key": "definition_lifecycle",
               "ownerType": "PRODUCT",
               "type": {
@@ -309,7 +309,7 @@
       "request": {
         "query": "#graphql\n  mutation DeleteDefinition($id: ID!, $deleteAllAssociatedMetafields: Boolean!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: $deleteAllAssociatedMetafields) {\n      deletedDefinitionId\n      deletedDefinition { ownerType namespace key }\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetafieldDefinition/227275309362",
+          "id": "gid://shopify/MetafieldDefinition/229758009650",
           "deleteAllAssociatedMetafields": true
         }
       },
@@ -317,10 +317,10 @@
       "response": {
         "data": {
           "metafieldDefinitionDelete": {
-            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227275309362",
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229758009650",
             "deletedDefinition": {
               "ownerType": "PRODUCT",
-              "namespace": "definition_lifecycle_mrrwu1fq",
+              "namespace": "definition_lifecycle_ms5j71ux",
               "key": "definition_lifecycle"
             },
             "userErrors": []
@@ -332,7 +332,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1989,
               "restoreRate": 100
             }
           }
@@ -344,10 +344,10 @@
       "request": {
         "query": "#graphql\n  query DownstreamDefinitionRead($productId: ID!, $namespace: String!, $key: String!, $looseNamespace: String!, $looseKey: String!) {\n    definition: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: $key }) {\n      id\n      name\n      namespace\n      key\n      ownerType\n      validations { name value }\n      metafieldsCount\n    }\n    definitions: metafieldDefinitions(ownerType: PRODUCT, namespace: $namespace, first: 5) {\n      nodes { id namespace key name }\n    }\n    product(id: $productId) {\n      id\n      metafield(namespace: $namespace, key: $key) {\n        id\n        namespace\n        key\n        type\n        value\n        definition { id namespace key type { name } }\n      }\n      looseMetafield: metafield(namespace: $looseNamespace, key: $looseKey) {\n        id\n        namespace\n        key\n        type\n        value\n        definition { id }\n      }\n    }\n  }\n",
         "variables": {
-          "productId": "gid://shopify/Product/10243937141042",
-          "namespace": "definition_lifecycle_mrrwu1fq",
+          "productId": "gid://shopify/Product/10252751569202",
+          "namespace": "definition_lifecycle_ms5j71ux",
           "key": "definition_lifecycle",
-          "looseNamespace": "definition_loose_mrrwu1fq",
+          "looseNamespace": "definition_loose_ms5j71ux",
           "looseKey": "loose_metafield"
         }
       },
@@ -359,11 +359,11 @@
             "nodes": []
           },
           "product": {
-            "id": "gid://shopify/Product/10243937141042",
+            "id": "gid://shopify/Product/10252751569202",
             "metafield": null,
             "looseMetafield": {
-              "id": "gid://shopify/Metafield/45214299062578",
-              "namespace": "definition_loose_mrrwu1fq",
+              "id": "gid://shopify/Metafield/45359459959090",
+              "namespace": "definition_loose_ms5j71ux",
               "key": "loose_metafield",
               "type": "single_line_text_field",
               "value": "loose",
@@ -385,8 +385,75 @@
       }
     }
   ],
-  "cleanup": [],
+  "cleanup": [
+    {
+      "label": "cleanup productDelete",
+      "request": {
+        "query": "#graphql\n  mutation DeleteProduct($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors { field message }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Product/10252751569202"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10252751569202",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
   "upstreamCalls": [
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "path": "/admin/api/2026-04/graphql.json",
+      "operationName": "OwnerMetafieldsExistenceHydrate",
+      "variables": {
+        "ids": ["gid://shopify/Product/10252751569202"]
+      },
+      "query": "query OwnerMetafieldsExistenceHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10252751569202"
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
     {
       "method": "POST",
       "path": "/admin/api/2026-04/graphql.json",
@@ -3336,11 +3403,11 @@
       "query": "query OwnerMetafieldsHydrateNodes($ids: [ID!]!, $metafield0Namespace: String!, $metafield0Key: String!, $metafield1Namespace: String!, $metafield1Key: String!) { nodes(ids: $ids) { __typename id ... on HasMetafields { metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } metafield1: metafield(namespace: $metafield1Namespace, key: $metafield1Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } } ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt  } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } } ... on Collection { id title handle } ... on Customer { id displayName email } ... on Order { id name } ... on Company { id name } ... on Page { id title } ... on Article { id title } } }",
       "operationName": "OwnerMetafieldsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10243937141042"],
+        "ids": ["gid://shopify/Product/10252751569202"],
         "metafield0Key": "definition_lifecycle",
-        "metafield0Namespace": "definition_lifecycle_mrrwu1fq",
+        "metafield0Namespace": "definition_lifecycle_ms5j71ux",
         "metafield1Key": "loose_metafield",
-        "metafield1Namespace": "definition_loose_mrrwu1fq"
+        "metafield1Namespace": "definition_loose_ms5j71ux"
       },
       "response": {
         "status": 200,
@@ -3349,28 +3416,28 @@
             "nodes": [
               {
                 "__typename": "Product",
-                "id": "gid://shopify/Product/10243937141042",
+                "id": "gid://shopify/Product/10252751569202",
                 "metafield0": null,
                 "metafield1": {
-                  "id": "gid://shopify/Metafield/45214299062578",
-                  "namespace": "definition_loose_mrrwu1fq",
+                  "id": "gid://shopify/Metafield/45359459959090",
+                  "namespace": "definition_loose_ms5j71ux",
                   "key": "loose_metafield",
                   "type": "single_line_text_field",
                   "value": "loose",
                   "jsonValue": "loose",
                   "compareDigest": "ae11c1d3723d521407fe6373d0ed9bbb684b2217a1240b4fdf8c3aeed74c734d",
-                  "createdAt": "2026-07-19T14:47:49Z",
-                  "updatedAt": "2026-07-19T14:47:49Z",
+                  "createdAt": "2026-07-29T03:34:49Z",
+                  "updatedAt": "2026-07-29T03:34:49Z",
                   "ownerType": "PRODUCT",
                   "definition": null
                 },
-                "title": "Metafield definition lifecycle mrrwu1fq",
-                "handle": "metafield-definition-lifecycle-mrrwu1fq",
+                "title": "Metafield definition lifecycle ms5j71ux",
+                "handle": "metafield-definition-lifecycle-ms5j71ux",
                 "status": "ACTIVE",
                 "totalInventory": 0,
                 "tracksInventory": false,
-                "createdAt": "2026-07-19T14:47:49Z",
-                "updatedAt": "2026-07-19T14:47:52Z"
+                "createdAt": "2026-07-29T03:34:48Z",
+                "updatedAt": "2026-07-29T03:34:51Z"
               }
             ]
           },

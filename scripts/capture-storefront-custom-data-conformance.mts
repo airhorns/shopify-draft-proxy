@@ -8,6 +8,11 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { createAdminGraphqlClient, runStorefrontGraphqlRequest } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import {
+  captureMetafieldsSetOwnerExistence,
+  recordParityUpstreamCalls,
+  type RecordedUpstreamCall,
+} from './conformance-capture-lib.js';
+import {
   buildAdminAuthHeaders,
   buildStorefrontRequestHeaders,
   getStoredStorefrontAccessToken,
@@ -117,6 +122,11 @@ let sourceDefinitionCapture: Capture | null = null;
 let sourceEntryCapture: Capture | null = null;
 let shopMetafieldsSetCapture: Capture | null = null;
 let storefrontReadCapture: StorefrontCapture | null = null;
+let fixture: Record<string, unknown> | null = null;
+let upstreamCalls: RecordedUpstreamCall[] = [];
+
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'storefront');
+const outputPath = path.join(outputDir, 'storefront-custom-data-read-after-admin-setup.json');
 
 async function captureAdmin(name: string, query: string, variables: Record<string, unknown>): Promise<Capture> {
   const result = await runGraphqlRaw(query, variables);
@@ -130,14 +140,16 @@ async function captureAdmin(name: string, query: string, variables: Record<strin
   return capture;
 }
 
-async function captureAdminCleanup(name: string, query: string, variables: Record<string, unknown>): Promise<void> {
+async function captureAdminCleanup(name: string, query: string, variables: Record<string, unknown>): Promise<Capture> {
   const result = await runGraphqlRaw(query, variables);
-  cleanupCaptures.push({
+  const capture = {
     name,
     request: { query, variables },
     status: result.status,
     response: result.payload,
-  });
+  };
+  cleanupCaptures.push(capture);
+  return capture;
 }
 
 async function storefrontRequest(
@@ -270,10 +282,49 @@ const metafieldDefinitionDeleteMutation = `#graphql
   }
 `;
 
+async function cleanupCreatedResources(): Promise<void> {
+  while (createdMetaobjectIds.length > 0) {
+    const id = createdMetaobjectIds.at(-1)!;
+    const capture = await captureAdminCleanup('metaobjectDelete-cleanup', metaobjectDeleteMutation, { id });
+    assertNoTopLevelErrors(capture.response, 'metaobject cleanup');
+    assertNoUserErrors(capture.response, ['data', 'metaobjectDelete', 'userErrors'], 'metaobject cleanup');
+    createdMetaobjectIds.pop();
+  }
+  while (createdMetafieldDefinitionIds.length > 0) {
+    const id = createdMetafieldDefinitionIds.at(-1)!;
+    const capture = await captureAdminCleanup('metafieldDefinitionDelete-cleanup', metafieldDefinitionDeleteMutation, {
+      id,
+    });
+    assertNoTopLevelErrors(capture.response, 'metafield definition cleanup');
+    assertNoUserErrors(
+      capture.response,
+      ['data', 'metafieldDefinitionDelete', 'userErrors'],
+      'metafield definition cleanup',
+    );
+    createdMetafieldDefinitionIds.pop();
+  }
+  while (createdMetaobjectDefinitionIds.length > 0) {
+    const id = createdMetaobjectDefinitionIds.at(-1)!;
+    const capture = await captureAdminCleanup(
+      'metaobjectDefinitionDelete-cleanup',
+      metaobjectDefinitionDeleteMutation,
+      { id },
+    );
+    assertNoTopLevelErrors(capture.response, 'metaobject definition cleanup');
+    assertNoUserErrors(
+      capture.response,
+      ['data', 'metaobjectDefinitionDelete', 'userErrors'],
+      'metaobject definition cleanup',
+    );
+    createdMetaobjectDefinitionIds.pop();
+  }
+}
+
 try {
   adminShopCapture = await captureAdmin('admin-shop', adminShopQuery, {});
   assertNoTopLevelErrors(adminShopCapture.response, 'admin shop');
   const shopId = readRequiredString(adminShopCapture.response, ['data', 'shop', 'id'], 'admin shop id');
+  upstreamCalls = [await captureMetafieldsSetOwnerExistence(runGraphqlRaw, apiVersion, [shopId])];
 
   primarySetupCapture = await captureAdmin('admin-primary-setup', documents.primarySetup, {
     targetDefinition: {
@@ -506,16 +557,39 @@ try {
     metafieldNamespace,
   };
   storefrontReadCapture = await waitForStorefrontCustomData(storefrontVariables);
+
+  fixture = {
+    scenarioId: 'storefront-custom-data-read-after-admin-setup',
+    capturedAt: new Date().toISOString(),
+    storeDomain,
+    apiVersion,
+    apiSurface: 'storefront',
+    endpoint: storefrontEndpoint,
+    authMode: 'storefront-access-token',
+    storefrontToken: {
+      id: storedStorefrontAuth.storefront_token_id || '<unknown>',
+      title: storedStorefrontAuth.storefront_token_title || '<unknown>',
+      accessScopes: storedStorefrontAuth.storefront_access_scopes,
+      obtainedAt: storedStorefrontAuth.obtained_at || '<unknown>',
+    },
+    adminShop: adminShopCapture,
+    primarySetup: primarySetupCapture,
+    targetEntriesSetup: targetEntriesCapture,
+    sourceDefinitionSetup: sourceDefinitionCapture,
+    sourceEntrySetup: sourceEntryCapture,
+    shopMetafieldsSet: shopMetafieldsSetCapture,
+    storefrontRead: storefrontReadCapture,
+    cleanup: cleanupCaptures,
+    upstreamCalls,
+  };
+  await mkdir(outputDir, { recursive: true });
+  await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
+  await cleanupCreatedResources();
+  fixture.upstreamCalls = recordParityUpstreamCalls(['storefront-custom-data-read-after-admin-setup'], apiVersion, [
+    outputPath,
+  ])[outputPath]!;
 } finally {
-  for (const id of createdMetaobjectIds.reverse()) {
-    await captureAdminCleanup('metaobjectDelete-cleanup', metaobjectDeleteMutation, { id });
-  }
-  for (const id of createdMetafieldDefinitionIds.reverse()) {
-    await captureAdminCleanup('metafieldDefinitionDelete-cleanup', metafieldDefinitionDeleteMutation, { id });
-  }
-  for (const id of createdMetaobjectDefinitionIds.reverse()) {
-    await captureAdminCleanup('metaobjectDefinitionDelete-cleanup', metaobjectDefinitionDeleteMutation, { id });
-  }
+  await cleanupCreatedResources();
 }
 
 if (
@@ -525,46 +599,14 @@ if (
   sourceDefinitionCapture === null ||
   sourceEntryCapture === null ||
   shopMetafieldsSetCapture === null ||
-  storefrontReadCapture === null
+  storefrontReadCapture === null ||
+  fixture === null
 ) {
   throw new Error('Storefront custom-data capture did not complete.');
 }
 
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'storefront');
 await mkdir(outputDir, { recursive: true });
-const outputPath = path.join(outputDir, 'storefront-custom-data-read-after-admin-setup.json');
-await writeFile(
-  outputPath,
-  `${JSON.stringify(
-    {
-      scenarioId: 'storefront-custom-data-read-after-admin-setup',
-      capturedAt: new Date().toISOString(),
-      storeDomain,
-      apiVersion,
-      apiSurface: 'storefront',
-      endpoint: storefrontEndpoint,
-      authMode: 'storefront-access-token',
-      storefrontToken: {
-        id: storedStorefrontAuth.storefront_token_id || '<unknown>',
-        title: storedStorefrontAuth.storefront_token_title || '<unknown>',
-        accessScopes: storedStorefrontAuth.storefront_access_scopes,
-        obtainedAt: storedStorefrontAuth.obtained_at || '<unknown>',
-      },
-      adminShop: adminShopCapture,
-      primarySetup: primarySetupCapture,
-      targetEntriesSetup: targetEntriesCapture,
-      sourceDefinitionSetup: sourceDefinitionCapture,
-      sourceEntrySetup: sourceEntryCapture,
-      shopMetafieldsSet: shopMetafieldsSetCapture,
-      storefrontRead: storefrontReadCapture,
-      cleanup: cleanupCaptures,
-      upstreamCalls: [],
-    },
-    null,
-    2,
-  )}\n`,
-  'utf8',
-);
+await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
 
 console.log(`Wrote ${outputPath}`);
 console.log(`Captured authenticated Storefront custom-data status ${storefrontReadCapture.response.status}`);

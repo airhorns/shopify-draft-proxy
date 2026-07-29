@@ -4,6 +4,11 @@ import 'dotenv/config';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import {
+  captureMetafieldsSetOwnerExistence,
+  recordParityUpstreamCalls,
+  type RecordedUpstreamCall,
+} from './conformance-capture-lib.js';
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
@@ -131,12 +136,39 @@ let validationUpdate: CapturedInteraction | null = null;
 let setTooLongAfterUpdate: CapturedInteraction | null = null;
 let setShortAfterUpdate: CapturedInteraction | null = null;
 let readAfterShortSet: CapturedInteraction | null = null;
+let ownerExistence: RecordedUpstreamCall | null = null;
+let recordedUpstreamCalls: RecordedUpstreamCall[] | null = null;
+
+function buildFixture() {
+  return {
+    capturedAt: new Date().toISOString(),
+    storeDomain,
+    apiVersion,
+    namespace,
+    key,
+    productCreate: requireCapture(productCreate, 'productCreate'),
+    create: requireCapture(create, 'create'),
+    setBeforeUpdate: requireCapture(setBeforeUpdate, 'setBeforeUpdate'),
+    validationUpdate: requireCapture(validationUpdate, 'validationUpdate'),
+    setTooLongAfterUpdate: requireCapture(setTooLongAfterUpdate, 'setTooLongAfterUpdate'),
+    setShortAfterUpdate: requireCapture(setShortAfterUpdate, 'setShortAfterUpdate'),
+    readAfterShortSet: requireCapture(readAfterShortSet, 'readAfterShortSet'),
+    cleanup,
+    upstreamCalls: recordedUpstreamCalls ?? (ownerExistence ? [ownerExistence] : []),
+  };
+}
+
+async function writeFixture(): Promise<void> {
+  await mkdir(fixtureDir, { recursive: true });
+  await writeFile(fixturePath, `${JSON.stringify(buildFixture(), null, 2)}\n`, 'utf8');
+}
 
 try {
   productCreate = await captureQuery('productCreate setup', productCreateMutation, {
     product: { title: `validation affects values ${suffix}` },
   });
   productId = requireString(readPath(productCreate.response, ['data', 'productCreate', 'product', 'id']), 'product id');
+  ownerExistence = await captureMetafieldsSetOwnerExistence(runGraphqlRaw, apiVersion, [productId]);
 
   create = await captureDocument('metafieldDefinitionCreate setup', createDocumentPath, {
     definition: {
@@ -202,6 +234,14 @@ try {
     namespace,
     key,
   });
+
+  cleanup.push(await captureQuery('cleanup metafieldDefinitionDelete', deleteDefinitionMutation, { id: definitionId }));
+  definitionId = null;
+
+  await writeFixture();
+  recordedUpstreamCalls = recordParityUpstreamCalls(['metafield-definition-validation-affects-values'], apiVersion, [
+    fixturePath,
+  ])[fixturePath];
 } finally {
   if (definitionId) {
     cleanup.push(
@@ -227,31 +267,7 @@ try {
   }
 }
 
-await mkdir(fixtureDir, { recursive: true });
-await writeFile(
-  fixturePath,
-  `${JSON.stringify(
-    {
-      capturedAt: new Date().toISOString(),
-      storeDomain,
-      apiVersion,
-      namespace,
-      key,
-      productCreate: requireCapture(productCreate, 'productCreate'),
-      create: requireCapture(create, 'create'),
-      setBeforeUpdate: requireCapture(setBeforeUpdate, 'setBeforeUpdate'),
-      validationUpdate: requireCapture(validationUpdate, 'validationUpdate'),
-      setTooLongAfterUpdate: requireCapture(setTooLongAfterUpdate, 'setTooLongAfterUpdate'),
-      setShortAfterUpdate: requireCapture(setShortAfterUpdate, 'setShortAfterUpdate'),
-      readAfterShortSet: requireCapture(readAfterShortSet, 'readAfterShortSet'),
-      cleanup,
-      upstreamCalls: [],
-    },
-    null,
-    2,
-  )}\n`,
-  'utf8',
-);
+await writeFixture();
 
 console.log(
   JSON.stringify(

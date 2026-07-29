@@ -1,12 +1,12 @@
 {
-  "capturedAt": "2026-06-25T03:17:26.942Z",
+  "capturedAt": "2026-07-29T04:09:05.328Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "seed": {
-    "runId": "mqsxlpuk",
+    "runId": "ms5kf14w",
     "requestingApiClientId": "347082227713",
-    "appNamespaceInput": "$app:protected_guards_mqsxlpuk",
-    "appNamespaceResolved": "app--347082227713--protected_guards_mqsxlpuk",
+    "appNamespaceInput": "$app:protected_guards_ms5kf14w",
+    "appNamespaceResolved": "app--347082227713--protected_guards_ms5kf14w",
     "standardTemplateId": "gid://shopify/StandardMetafieldDefinitionTemplate/1",
     "standardCreatedByCapture": true
   },
@@ -53,7 +53,7 @@
         "data": {
           "standardMetafieldDefinitionEnable": {
             "createdDefinition": {
-              "id": "gid://shopify/MetafieldDefinition/220406186290",
+              "id": "gid://shopify/MetafieldDefinition/229775507762",
               "name": "Product subtitle",
               "namespace": "descriptors",
               "key": "subtitle",
@@ -90,8 +90,8 @@
             "ownerType": "PRODUCT",
             "namespace": "descriptors",
             "key": "subtitle",
-            "name": "Renamed product subtitle mqsxlpuk",
-            "description": "Changed standard description mqsxlpuk",
+            "name": "Renamed product subtitle ms5kf14w",
+            "description": "Changed standard description ms5kf14w",
             "validations": [
               {
                 "name": "max",
@@ -187,7 +187,7 @@
         "query": "#graphql\n  mutation MetafieldDefinitionProtectedGuardsProductCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product { id title }\n      userErrors { field message }\n    }\n  }\n",
         "variables": {
           "product": {
-            "title": "Metafield definition protected guards mqsxlpuk"
+            "title": "Metafield definition protected guards ms5kf14w"
           }
         }
       },
@@ -196,8 +196,8 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10220870140210",
-              "title": "Metafield definition protected guards mqsxlpuk"
+              "id": "gid://shopify/Product/10252763398450",
+              "title": "Metafield definition protected guards ms5kf14w"
             },
             "userErrors": []
           }
@@ -221,9 +221,9 @@
         "variables": {
           "definition": {
             "ownerType": "PRODUCT",
-            "namespace": "$app:protected_guards_mqsxlpuk",
+            "namespace": "$app:protected_guards_ms5kf14w",
             "key": "config",
-            "name": "Protected config mqsxlpuk",
+            "name": "Protected config ms5kf14w",
             "type": "single_line_text_field"
           }
         }
@@ -233,9 +233,9 @@
         "data": {
           "metafieldDefinitionCreate": {
             "createdDefinition": {
-              "id": "gid://shopify/MetafieldDefinition/220406219058",
-              "name": "Protected config mqsxlpuk",
-              "namespace": "app--347082227713--protected_guards_mqsxlpuk",
+              "id": "gid://shopify/MetafieldDefinition/229775540530",
+              "name": "Protected config ms5kf14w",
+              "namespace": "app--347082227713--protected_guards_ms5kf14w",
               "key": "config",
               "ownerType": "PRODUCT",
               "type": {
@@ -268,8 +268,8 @@
         "variables": {
           "metafields": [
             {
-              "ownerId": "gid://shopify/Product/10220870140210",
-              "namespace": "$app:protected_guards_mqsxlpuk",
+              "ownerId": "gid://shopify/Product/10252763398450",
+              "namespace": "$app:protected_guards_ms5kf14w",
               "key": "config",
               "type": "single_line_text_field",
               "value": "enabled"
@@ -283,8 +283,8 @@
           "metafieldsSet": {
             "metafields": [
               {
-                "id": "gid://shopify/Metafield/44484213080370",
-                "namespace": "app--347082227713--protected_guards_mqsxlpuk",
+                "id": "gid://shopify/Metafield/45359588639026",
+                "namespace": "app--347082227713--protected_guards_ms5kf14w",
                 "key": "config",
                 "type": "single_line_text_field",
                 "value": "enabled"
@@ -310,7 +310,7 @@
       "request": {
         "documentPath": "config/parity-requests/metafields/metafield-definition-protected-guards-delete-no-flag.graphql",
         "variables": {
-          "namespace": "$app:protected_guards_mqsxlpuk",
+          "namespace": "$app:protected_guards_ms5kf14w",
           "key": "config"
         }
       },
@@ -347,7 +347,7 @@
         "variables": {
           "identifier": {
             "ownerType": "PRODUCT",
-            "namespace": "$app:protected_guards_mqsxlpuk",
+            "namespace": "$app:protected_guards_ms5kf14w",
             "key": "config"
           }
         }
@@ -356,8 +356,8 @@
       "response": {
         "data": {
           "metafieldDefinition": {
-            "name": "Protected config mqsxlpuk",
-            "namespace": "app--347082227713--protected_guards_mqsxlpuk",
+            "name": "Protected config ms5kf14w",
+            "namespace": "app--347082227713--protected_guards_ms5kf14w",
             "key": "config",
             "ownerType": "PRODUCT",
             "description": null,
@@ -370,7 +370,7 @@
             "actualQueryCost": 2,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1998,
+              "currentlyAvailable": 1997,
               "restoreRate": 100
             }
           }
@@ -381,7 +381,7 @@
       "request": {
         "documentPath": "config/parity-requests/metafields/metafield-definition-protected-guards-delete-with-flag.graphql",
         "variables": {
-          "namespace": "$app:protected_guards_mqsxlpuk",
+          "namespace": "$app:protected_guards_ms5kf14w",
           "key": "config",
           "deleteAllAssociatedMetafields": true
         }
@@ -392,7 +392,7 @@
           "metafieldDefinitionDelete": {
             "deletedDefinition": {
               "ownerType": "PRODUCT",
-              "namespace": "app--347082227713--protected_guards_mqsxlpuk",
+              "namespace": "app--347082227713--protected_guards_ms5kf14w",
               "key": "config"
             },
             "userErrors": []
@@ -418,7 +418,7 @@
         "query": "#graphql\n  mutation MetafieldDefinitionProtectedGuardsProductDelete($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors { field message }\n    }\n  }\n",
         "variables": {
           "input": {
-            "id": "gid://shopify/Product/10220870140210"
+            "id": "gid://shopify/Product/10252763398450"
           }
         }
       },
@@ -426,7 +426,7 @@
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10220870140210",
+            "deletedProductId": "gid://shopify/Product/10252763398450",
             "userErrors": []
           }
         },
@@ -447,14 +447,14 @@
       "request": {
         "query": "#graphql\n  mutation MetafieldDefinitionProtectedGuardsCleanupDefinition($id: ID!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n      deletedDefinitionId\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetafieldDefinition/220406186290"
+          "id": "gid://shopify/MetafieldDefinition/229775507762"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metafieldDefinitionDelete": {
-            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/220406186290",
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/229775507762",
             "userErrors": []
           }
         },
@@ -472,5 +472,123 @@
       }
     }
   ],
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "path": "/admin/api/2026-04/graphql.json",
+      "operationName": "OwnerMetafieldsExistenceHydrate",
+      "variables": {
+        "ids": ["gid://shopify/Product/10252763398450"]
+      },
+      "query": "query OwnerMetafieldsExistenceHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10252763398450"
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "query OwnerMetafieldsHydrateNodes($ids: [ID!]!, $metafield0Namespace: String!, $metafield0Key: String!) { nodes(ids: $ids) { __typename id ... on HasMetafields { metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } } ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt  } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } } ... on Collection { id title handle } ... on Customer { id displayName email } ... on Order { id name } ... on Company { id name } ... on Page { id title } ... on Article { id title } } }",
+      "operationName": "OwnerMetafieldsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/10252763398450"],
+        "metafield0Key": "config",
+        "metafield0Namespace": "$app:protected_guards_ms5kf14w"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10252763398450",
+                "metafield0": null,
+                "title": "Metafield definition protected guards ms5kf14w",
+                "handle": "metafield-definition-protected-guards-ms5kf14w",
+                "status": "ACTIVE",
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "createdAt": "2026-07-29T04:09:00Z",
+                "updatedAt": "2026-07-29T04:09:03Z"
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 8,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "query MetafieldDefinitionsHydrateByNamespace(\n  $ownerType: MetafieldOwnerType!\n  $namespace: String!\n  $first: Int!\n  $after: String\n) {\n  metafieldDefinitions(\n    ownerType: $ownerType\n    first: $first\n    after: $after\n    namespace: $namespace\n    sortKey: PINNED_POSITION\n  ) {\n    nodes {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      description\n      validations {\n        name\n        value\n      }\n      access {\n        admin\n        storefront\n        customerAccount\n      }\n      capabilities {\n        adminFilterable {\n          enabled\n          eligible\n          status\n        }\n        smartCollectionCondition {\n          enabled\n          eligible\n        }\n        uniqueValues {\n          enabled\n          eligible\n        }\n      }\n      constraints {\n        key\n        values(first: 50) {\n          nodes {\n            value\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pinnedPosition\n      validationStatus\n      metafieldsCount\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
+      "operationName": "MetafieldDefinitionsHydrateByNamespace",
+      "variables": {
+        "after": null,
+        "first": 250,
+        "namespace": "$app:protected_guards_ms5kf14w",
+        "ownerType": "PRODUCT"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "metafieldDefinitions": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 200,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

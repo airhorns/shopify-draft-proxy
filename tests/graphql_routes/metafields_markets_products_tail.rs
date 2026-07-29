@@ -1578,7 +1578,8 @@ fn generic_product_domain_metafields_set_accepts_idempotent_malformed_digest_ato
         ReadMode::Snapshot,
         Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
     );
-    let owner_id = "gid://shopify/Product/987654398";
+    let (owner_id, _) =
+        create_product_metafield_owner(&mut proxy, "Idempotent malformed digest owner");
 
     let initial = proxy.process_request(json_graphql_request(
         r#"
@@ -1599,7 +1600,7 @@ fn generic_product_domain_metafields_set_accepts_idempotent_malformed_digest_ato
         .as_str()
         .unwrap()
         .to_string();
-    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 2);
 
     let rejected_batch = proxy.process_request(json_graphql_request(
         r#"
@@ -1628,7 +1629,7 @@ fn generic_product_domain_metafields_set_accepts_idempotent_malformed_digest_ato
             "elementIndex": null
         }])
     );
-    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 2);
 
     let after_rejected_batch = proxy.process_request(json_graphql_request(
         r#"
@@ -1674,7 +1675,7 @@ fn generic_product_domain_metafields_set_accepts_idempotent_malformed_digest_ato
             "userErrors": []
         })
     );
-    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 2);
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 3);
 
     let rejected_change = proxy.process_request(json_graphql_request(
         r#"
@@ -1699,7 +1700,7 @@ fn generic_product_domain_metafields_set_accepts_idempotent_malformed_digest_ato
             }]
         })
     );
-    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 2);
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 3);
 
     let after_rejected_change = proxy.process_request(json_graphql_request(
         r#"
@@ -1841,6 +1842,7 @@ fn generic_product_domain_metafields_set_rejects_compare_digest_without_current_
         Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
     );
     let (owner_id, _) = create_product_metafield_owner(&mut proxy, "Missing CAS metafield owner");
+    let log_before = log_snapshot(&proxy)["entries"].clone();
 
     let invalid_compare_digest = proxy.process_request(json_graphql_request(
         r#"
@@ -1865,7 +1867,7 @@ fn generic_product_domain_metafields_set_rejects_compare_digest_without_current_
         invalid_compare_digest.body["data"]["metafieldsSet"]["userErrors"][0]["field"],
         json!(["metafields", "0"])
     );
-    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], log_before);
 }
 
 #[test]
@@ -2743,15 +2745,17 @@ fn metafields_set_accepts_an_owner_observed_through_a_public_nodes_read() {
                 serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
             let query = body["query"].as_str().unwrap_or_default();
             transport_seen_documents.lock().unwrap().push(body.clone());
-            assert!(query.contains("ObserveMetafieldOwner"));
+            let node = if query.contains("ObserveMetafieldOwner") {
+                json!({"__typename": "Page", "id": owner_id})
+            } else if query.contains("OwnerMetafieldsHydrateNodes") {
+                json!({"__typename": "Page", "id": owner_id, "metafield0": null})
+            } else {
+                panic!("unexpected owner observation request: {query}");
+            };
             Response {
                 status: 200,
                 headers: Default::default(),
-                body: json!({
-                    "data": {
-                        "nodes": [{"__typename": "Page", "id": owner_id}]
-                    }
-                }),
+                body: json!({"data": {"nodes": [node]}}),
             }
         });
 
@@ -2793,7 +2797,18 @@ fn metafields_set_accepts_an_owner_observed_through_a_public_nodes_read() {
         set.body["data"]["metafieldsSet"]["metafields"][0]["owner"],
         json!({"__typename": "Page", "id": owner_id})
     );
-    assert_eq!(seen_upstream_documents.lock().unwrap().len(), 1);
+    let upstream_documents = seen_upstream_documents.lock().unwrap();
+    assert_eq!(upstream_documents.len(), 2);
+    assert!(upstream_documents.iter().all(|body| {
+        body["query"]
+            .as_str()
+            .is_some_and(|query| !query.contains("mutation"))
+    }));
+    assert!(upstream_documents.iter().all(|body| {
+        body["query"]
+            .as_str()
+            .is_some_and(|query| !query.contains("OwnerMetafieldsExistenceHydrate"))
+    }));
 }
 
 #[test]
@@ -2808,8 +2823,9 @@ fn metafields_set_accepts_staged_and_hydrated_owners_without_forwarding_the_writ
             let query = body["query"].as_str().unwrap_or_default();
             transport_seen_documents.lock().unwrap().push(body.clone());
             assert!(
-                query.contains("OwnerMetafieldsExistenceHydrate"),
-                "metafieldsSet must only issue its read-only owner hydration query, got {query}"
+                query.contains("OwnerMetafieldsExistenceHydrate")
+                    || query.contains("OwnerMetafieldsHydrateNodes"),
+                "metafieldsSet must only issue read-only owner hydration queries, got {query}"
             );
             let nodes = body["variables"]["ids"]
                 .as_array()
@@ -2817,7 +2833,7 @@ fn metafields_set_accepts_staged_and_hydrated_owners_without_forwarding_the_writ
                 .iter()
                 .map(|id| {
                     if id.as_str() == Some(hydrated_page_id) {
-                        json!({"__typename": "Page", "id": hydrated_page_id})
+                        json!({"__typename": "Page", "id": hydrated_page_id, "metafield0": null})
                     } else {
                         Value::Null
                     }
@@ -2889,11 +2905,20 @@ fn metafields_set_accepts_staged_and_hydrated_owners_without_forwarding_the_writ
         ])
     );
     let upstream_documents = seen_upstream_documents.lock().unwrap();
-    assert_eq!(upstream_documents.len(), 1);
+    assert_eq!(upstream_documents.len(), 2);
     assert_eq!(
         upstream_documents[0]["variables"]["ids"],
         json!([hydrated_page_id])
     );
+    assert_eq!(
+        upstream_documents[1]["variables"]["ids"],
+        json!([hydrated_page_id])
+    );
+    assert!(upstream_documents.iter().all(|body| {
+        body["query"]
+            .as_str()
+            .is_some_and(|query| !query.contains("mutation"))
+    }));
     assert!(upstream_documents[0]["query"]
         .as_str()
         .is_some_and(|query| query.trim_start().starts_with("query ")));
@@ -2902,29 +2927,20 @@ fn metafields_set_accepts_staged_and_hydrated_owners_without_forwarding_the_writ
 #[test]
 fn metafields_set_rejects_nonexistent_owners_for_supported_owner_types() {
     let owner_types = [
-        "AppInstallation",
         "Article",
-        "Blog",
         "CartTransform",
         "Collection",
         "Company",
-        "CompanyLocation",
         "Customer",
         "DeliveryCustomization",
-        "DiscountAutomaticNode",
-        "DiscountCodeNode",
-        "DraftOrder",
         "FulfillmentConstraintRule",
-        "InventoryTransfer",
         "Location",
         "Market",
-        "MediaImage",
         "Order",
         "Page",
         "PaymentCustomization",
         "Product",
         "ProductVariant",
-        "SellingPlan",
         "Shop",
         "Validation",
     ];
@@ -3369,6 +3385,8 @@ fn metafields_app_namespace_set_delete_stages_product_readback() {
         set_canonical.body["data"]["metafieldsSet"]["metafields"][0]["namespace"],
         json!(canonical_namespace)
     );
+    let canonical_metafield_id =
+        set_canonical.body["data"]["metafieldsSet"]["metafields"][0]["id"].clone();
 
     let read_after_canonical = proxy.process_request(json_graphql_request(
         r#"
@@ -3386,7 +3404,7 @@ fn metafields_app_namespace_set_delete_stages_product_readback() {
         read_after_canonical.body["data"]["product"],
         json!({
             "id": owner_id,
-            "canonical": {"id": "gid://shopify/Metafield/1", "namespace": canonical_namespace, "key": "tier", "type": "single_line_text_field", "value": "gold"},
+            "canonical": {"id": canonical_metafield_id, "namespace": canonical_namespace, "key": "tier", "type": "single_line_text_field", "value": "gold"},
             "defaulted": null
         })
     );
@@ -3411,6 +3429,8 @@ fn metafields_app_namespace_set_delete_stages_product_readback() {
         set_default.body["data"]["metafieldsSet"]["metafields"][1]["namespace"],
         json!("custom")
     );
+    let default_metafield_id =
+        set_default.body["data"]["metafieldsSet"]["metafields"][0]["id"].clone();
 
     let read_after_shorthand = proxy.process_request(app_namespace_graphql_request(
         r#"
@@ -3490,7 +3510,7 @@ fn metafields_app_namespace_set_delete_stages_product_readback() {
         json!({
             "id": owner_id,
             "canonical": null,
-            "defaulted": {"id": "gid://shopify/Metafield/2", "namespace": default_namespace, "key": "default_mowuw5ai", "type": "single_line_text_field", "value": "silver"}
+            "defaulted": {"id": default_metafield_id, "namespace": default_namespace, "key": "default_mowuw5ai", "type": "single_line_text_field", "value": "silver"}
         })
     );
 }
