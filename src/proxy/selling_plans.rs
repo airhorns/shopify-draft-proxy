@@ -16,62 +16,8 @@ query sellingPlanGroupHydrateNodes($ids: [ID!]!) {
       options
       position
       createdAt
-      products(first: 250) {
-        edges {
-          cursor
-          node {
-          __typename
-          id
-          title
-          handle
-          status
-          createdAt
-          updatedAt
-          variants(first: 50) {
-            edges {
-              cursor
-              node {
-              __typename
-              id
-              title
-              sku
-              barcode
-              price
-              compareAtPrice
-              taxable
-              inventoryPolicy
-              inventoryQuantity
-              selectedOptions { name value }
-              inventoryItem { id tracked requiresShipping }
-              }
-            }
-            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
-          }
-          }
-        }
-        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
-      }
-      productVariants(first: 250) {
-        edges {
-          cursor
-          node {
-          __typename
-          id
-          title
-          sku
-          barcode
-          price
-          compareAtPrice
-          taxable
-          inventoryPolicy
-          inventoryQuantity
-          selectedOptions { name value }
-          inventoryItem { id tracked requiresShipping }
-          product { id title handle status createdAt updatedAt }
-          }
-        }
-        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
-      }
+      productsCount { count precision }
+      productVariantsCount { count precision }
       sellingPlans(first: 250) {
         edges {
           cursor
@@ -123,85 +69,162 @@ query sellingPlanGroupHydrateNodes($ids: [ID!]!) {
 }
 "#;
 
-const SELLING_PLAN_GROUPS_CONNECTION_BASELINE_QUERY: &str = r#"
-query SellingPlanGroupsConnectionBaseline(
-  $first: Int!
+const SELLING_PLAN_GROUP_PRODUCTS_WINDOW_QUERY: &str = r#"
+query SellingPlanGroupProductsWindow(
+  $id: ID!
+  $first: Int
   $after: String
-  $query: String
-  $sortKey: SellingPlanGroupSortKeys
+  $last: Int
+  $before: String
+  $reverse: Boolean!
 ) {
-  sellingPlanGroupsBaseline: sellingPlanGroups(
-    first: $first
-    after: $after
-    query: $query
-    sortKey: $sortKey
-  ) {
-    edges { cursor node { id } }
-    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
-  }
-}
-"#;
-
-const SELLING_PLAN_GROUP_PRODUCTS_PAGE_QUERY: &str = r#"
-query SellingPlanGroupProductsPage($id: ID!, $first: Int!, $after: String) {
   sellingPlanGroup(id: $id) {
-    products(first: $first, after: $after) {
+    products(first: $first, after: $after, last: $last, before: $before, reverse: $reverse) {
       edges {
         cursor
         node {
-          __typename id title handle status createdAt updatedAt
-          variants(first: 50) {
-            edges {
-              cursor
-              node {
-                __typename id title sku barcode price compareAtPrice taxable
-                inventoryPolicy inventoryQuantity selectedOptions { name value }
-                inventoryItem { id tracked requiresShipping }
-              }
-            }
-            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
-          }
+          __typename
+          id
+          title
+          handle
+          status
+          createdAt
+          updatedAt
         }
       }
       pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
     }
+    productsCount { count precision }
   }
 }
 "#;
 
-const SELLING_PLAN_GROUP_PRODUCT_VARIANTS_PAGE_QUERY: &str = r#"
-query SellingPlanGroupProductVariantsPage($id: ID!, $first: Int!, $after: String) {
+const SELLING_PLAN_GROUP_PRODUCT_VARIANTS_WINDOW_QUERY: &str = r#"
+query SellingPlanGroupProductVariantsWindow(
+  $id: ID!
+  $productId: ID
+  $first: Int
+  $after: String
+  $last: Int
+  $before: String
+  $reverse: Boolean!
+) {
   sellingPlanGroup(id: $id) {
-    productVariants(first: $first, after: $after) {
+    productVariants(
+      productId: $productId
+      first: $first
+      after: $after
+      last: $last
+      before: $before
+      reverse: $reverse
+    ) {
       edges {
         cursor
         node {
-          __typename id title sku barcode price compareAtPrice taxable
-          inventoryPolicy inventoryQuantity selectedOptions { name value }
+          __typename
+          id
+          title
+          sku
+          barcode
+          price
+          compareAtPrice
+          taxable
+          inventoryPolicy
+          inventoryQuantity
+          selectedOptions { name value }
           inventoryItem { id tracked requiresShipping }
           product { id title handle status createdAt updatedAt }
         }
       }
       pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
     }
+    productVariantsCount(productId: $productId) { count precision }
   }
 }
 "#;
 
-const SELLING_PLAN_PRODUCT_VARIANTS_PAGE_QUERY: &str = r#"
-query SellingPlanProductVariantsPage($id: ID!, $first: Int!, $after: String) {
-  product(id: $id) {
-    variants(first: $first, after: $after) {
-      edges {
-        cursor
-        node {
-          __typename id title sku barcode price compareAtPrice taxable
-          inventoryPolicy inventoryQuantity selectedOptions { name value }
-          inventoryItem { id tracked requiresShipping }
+const SELLING_PLAN_GROUPS_CONNECTION_WINDOW_QUERY: &str = r#"
+query SellingPlanGroupsConnectionWindow(
+  $first: Int
+  $after: String
+  $last: Int
+  $before: String
+  $query: String
+  $sortKey: SellingPlanGroupSortKeys
+  $reverse: Boolean!
+) {
+  sellingPlanGroupsWindow: sellingPlanGroups(
+    first: $first
+    after: $after
+    last: $last
+    before: $before
+    query: $query
+    sortKey: $sortKey
+    reverse: $reverse
+  ) {
+    edges {
+      cursor
+      node {
+        __typename
+        id
+        appId
+        name
+        merchantCode
+        description
+        options
+        position
+        createdAt
+        productsCount { count precision }
+        productVariantsCount { count precision }
+        sellingPlans(first: 31) {
+          edges {
+            cursor
+            node {
+              __typename
+              id
+              name
+              description
+              options
+              position
+              category
+              createdAt
+              billingPolicy {
+                __typename
+                ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }
+              }
+              deliveryPolicy {
+                __typename
+                ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }
+              }
+              inventoryPolicy { reserve }
+              pricingPolicies {
+                __typename
+                ... on SellingPlanFixedPricingPolicy {
+                  adjustmentType
+                  adjustmentValue {
+                    __typename
+                    ... on SellingPlanPricingPolicyPercentageValue { percentage }
+                    ... on MoneyV2 { amount currencyCode }
+                  }
+                }
+                ... on SellingPlanRecurringPricingPolicy {
+                  afterCycle
+                  createdAt
+                  adjustmentType
+                  adjustmentValue {
+                    __typename
+                    ... on SellingPlanPricingPolicyPercentageValue { percentage }
+                    ... on MoneyV2 { amount currencyCode }
+                  }
+                }
+              }
+            }
+          }
+          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
         }
       }
-      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
     }
+    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
   }
 }
 "#;
@@ -310,7 +333,7 @@ fn selling_plan_field_arguments(
 
 fn selling_plan_group_applies_to_product_field(
     proxy: &mut DraftProxy,
-    _request: &Request,
+    request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
     let id = invocation
@@ -318,16 +341,29 @@ fn selling_plan_group_applies_to_product_field(
         .get("productId")
         .and_then(Value::as_str)
         .unwrap_or_default();
-    Ok(json!(selling_plan_group_field_record(proxy, invocation)
-        .is_some_and(|group| group
-            .product_ids
-            .iter()
-            .any(|product_id| product_id == id))))
+    let Some(group) = selling_plan_group_field_record(proxy, invocation) else {
+        return Ok(json!(false));
+    };
+    if group.removed_product_ids.contains(id) {
+        return Ok(json!(false));
+    }
+    if group.product_ids.iter().any(|product_id| product_id == id) {
+        return Ok(json!(true));
+    }
+    if proxy.config.read_mode == ReadMode::LiveHybrid && !group.products_complete {
+        let memberships = proxy.hydrate_selling_plan_group_memberships(
+            request,
+            ResourceKind::Product,
+            vec![(group.id, id.to_string())],
+        );
+        return Ok(json!(memberships.values().next().copied().unwrap_or(false)));
+    }
+    Ok(json!(false))
 }
 
 fn selling_plan_group_applies_to_product_variant_field(
     proxy: &mut DraftProxy,
-    _request: &Request,
+    request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
     let id = invocation
@@ -335,11 +371,28 @@ fn selling_plan_group_applies_to_product_variant_field(
         .get("productVariantId")
         .and_then(Value::as_str)
         .unwrap_or_default();
-    Ok(json!(selling_plan_group_field_record(proxy, invocation)
-        .is_some_and(|group| group
-            .product_variant_ids
-            .iter()
-            .any(|variant_id| variant_id == id))))
+    let Some(group) = selling_plan_group_field_record(proxy, invocation) else {
+        return Ok(json!(false));
+    };
+    if group.removed_product_variant_ids.contains(id) {
+        return Ok(json!(false));
+    }
+    if group
+        .product_variant_ids
+        .iter()
+        .any(|variant_id| variant_id == id)
+    {
+        return Ok(json!(true));
+    }
+    if proxy.config.read_mode == ReadMode::LiveHybrid && !group.product_variants_complete {
+        let memberships = proxy.hydrate_selling_plan_group_memberships(
+            request,
+            ResourceKind::ProductVariant,
+            vec![(group.id, id.to_string())],
+        );
+        return Ok(json!(memberships.values().next().copied().unwrap_or(false)));
+    }
+    Ok(json!(false))
 }
 
 fn selling_plan_group_applies_to_product_variants_field(
@@ -369,12 +422,26 @@ fn selling_plan_group_applies_to_product_variants_field(
 
 fn selling_plan_group_products_field(
     proxy: &mut DraftProxy,
-    _request: &Request,
+    request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
     let Some(group) = selling_plan_group_field_record(proxy, invocation) else {
         return Ok(connection_json(Vec::new()));
     };
+    let arguments = selling_plan_field_arguments(invocation);
+    if proxy.config.read_mode == ReadMode::LiveHybrid
+        && group.locally_staged
+        && !group.products_complete
+    {
+        if let Some(connection) = proxy.selling_plan_group_relationship_window_value(
+            request,
+            &group.id,
+            ResourceKind::Product,
+            &arguments,
+        ) {
+            return Ok(connection);
+        }
+    }
     Ok(connection_value_with_args(
         group
             .product_ids
@@ -382,19 +449,33 @@ fn selling_plan_group_products_field(
             .filter_map(|id| proxy.store.product_by_id(id))
             .map(|product| proxy.product_canonical_value(product))
             .collect(),
-        &selling_plan_field_arguments(invocation),
+        &arguments,
         |node| selling_plan_relationship_cursor(&group.product_cursors, node),
     ))
 }
 
 fn selling_plan_group_product_variants_field(
     proxy: &mut DraftProxy,
-    _request: &Request,
+    request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
     let Some(group) = selling_plan_group_field_record(proxy, invocation) else {
         return Ok(connection_json(Vec::new()));
     };
+    let arguments = selling_plan_field_arguments(invocation);
+    if proxy.config.read_mode == ReadMode::LiveHybrid
+        && group.locally_staged
+        && !group.product_variants_complete
+    {
+        if let Some(connection) = proxy.selling_plan_group_relationship_window_value(
+            request,
+            &group.id,
+            ResourceKind::ProductVariant,
+            &arguments,
+        ) {
+            return Ok(connection);
+        }
+    }
     Ok(connection_value_with_args(
         group
             .product_variant_ids
@@ -402,7 +483,7 @@ fn selling_plan_group_product_variants_field(
             .filter_map(|id| proxy.store.product_variant_by_id(id))
             .map(|variant| proxy.product_variant_canonical_value(variant))
             .collect(),
-        &selling_plan_field_arguments(invocation),
+        &arguments,
         |node| selling_plan_relationship_cursor(&group.product_variant_cursors, node),
     ))
 }
@@ -447,7 +528,7 @@ fn selling_plan_group_products_count_field(
 ) -> Result<Value, String> {
     Ok(count_object(
         selling_plan_group_field_record(proxy, invocation)
-            .map(|group| group.product_ids.len())
+            .map(|group| effective_resource_count(&group, ResourceKind::Product))
             .unwrap_or(0),
     ))
 }
@@ -459,7 +540,7 @@ fn selling_plan_group_product_variants_count_field(
 ) -> Result<Value, String> {
     Ok(count_object(
         selling_plan_group_field_record(proxy, invocation)
-            .map(|group| group.product_variant_ids.len())
+            .map(|group| effective_resource_count(&group, ResourceKind::ProductVariant))
             .unwrap_or(0),
     ))
 }
@@ -490,14 +571,59 @@ fn selling_plan_group_cursor(group: &SellingPlanGroupRecord) -> String {
     group.cursor.clone().unwrap_or_else(|| group.id.clone())
 }
 
-fn selling_plan_groups_baseline_variables(
+fn selling_plan_groups_window_variables(
+    proxy: &DraftProxy,
     arguments: &BTreeMap<String, ResolvedValue>,
 ) -> serde_json::Map<String, Value> {
+    let slack = proxy
+        .store
+        .staged
+        .selling_plan_groups
+        .records
+        .values()
+        .filter(|group| group.locally_staged)
+        .count()
+        .saturating_add(proxy.store.staged.selling_plan_groups.tombstones.len())
+        as i64;
+    let staged_cursors = proxy
+        .store
+        .staged
+        .selling_plan_groups
+        .records
+        .values()
+        .filter(|group| group.locally_staged)
+        .map(selling_plan_group_cursor)
+        .collect::<BTreeSet<_>>();
+    let requested_after = resolved_string_field(arguments, "after");
+    let requested_before = resolved_string_field(arguments, "before");
+    let before_is_local = requested_before
+        .as_ref()
+        .is_some_and(|cursor| staged_cursors.contains(cursor));
+    let mut first = resolved_int_field(arguments, "first");
+    let mut last = resolved_int_field(arguments, "last");
+    if let Some(value) = &mut first {
+        *value = value.saturating_add(slack);
+    } else if before_is_local {
+        first = Some(last.unwrap_or(50).saturating_add(slack));
+        last = None;
+    } else if let Some(value) = &mut last {
+        *value = value.saturating_add(slack);
+    } else {
+        first = Some(50_i64.saturating_add(slack));
+    }
+    let after = requested_after.filter(|cursor| !staged_cursors.contains(cursor));
+    let before = requested_before.filter(|cursor| !staged_cursors.contains(cursor));
     let mut variables = serde_json::Map::from_iter([
-        ("first".to_string(), json!(250)),
-        ("after".to_string(), Value::Null),
+        ("first".to_string(), json!(first)),
+        ("after".to_string(), json!(after)),
+        ("last".to_string(), json!(last)),
+        ("before".to_string(), json!(before)),
         ("query".to_string(), Value::Null),
         ("sortKey".to_string(), Value::Null),
+        (
+            "reverse".to_string(),
+            json!(resolved_bool_field(arguments, "reverse").unwrap_or(false)),
+        ),
     ]);
     for name in ["query", "sortKey"] {
         if let Some(value) = arguments.get(name) {
@@ -507,28 +633,28 @@ fn selling_plan_groups_baseline_variables(
     variables
 }
 
-fn selling_plan_relationship_page_variables(
-    id: &str,
-    first: usize,
-) -> serde_json::Map<String, Value> {
-    serde_json::Map::from_iter([
-        ("id".to_string(), json!(id)),
-        ("first".to_string(), json!(first)),
-        ("after".to_string(), Value::Null),
-    ])
-}
-
 impl DraftProxy {
     pub(crate) fn selling_plan_group_root(
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
-        self.hydrate_selling_plan_group_read(&invocation, false);
         let id = invocation
             .arguments
             .get("id")
             .and_then(Value::as_str)
             .unwrap_or_default();
+        let locally_staged = self
+            .store
+            .selling_plan_group_by_id(id)
+            .is_some_and(|group| group.locally_staged)
+            || self.store.staged.selling_plan_groups.is_tombstoned(id);
+        if self.config.read_mode == ReadMode::LiveHybrid && !locally_staged {
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
+        }
+        self.hydrate_selling_plan_group_read(&invocation, false);
         ResolverOutcome::value(
             self.store
                 .selling_plan_group_by_id(id)
@@ -543,58 +669,79 @@ impl DraftProxy {
     ) -> ResolverOutcome<Value> {
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         if self.config.read_mode == ReadMode::LiveHybrid {
-            let mut outcome = self.cached_or_forward_upstream_root_outcome(
-                invocation.request,
-                invocation.response_key,
-            );
-            if !outcome.errors.is_empty() || !self.store.staged.selling_plan_groups_overlay_dirty {
-                return outcome;
-            }
-            let baseline = self
-                .complete_upstream_connection(
+            if !self.store.staged.selling_plan_groups_overlay_dirty {
+                return self.cached_or_forward_upstream_root_outcome(
                     invocation.request,
-                    SELLING_PLAN_GROUPS_CONNECTION_BASELINE_QUERY,
-                    "SellingPlanGroupsConnectionBaseline",
-                    selling_plan_groups_baseline_variables(&arguments),
-                    "/data/sellingPlanGroupsBaseline",
-                    None,
-                )
-                .or_else(|| {
-                    upstream_page_is_complete_baseline(&outcome.value, &arguments)
-                        .then(|| outcome.value.clone())
-                });
-            let Some(baseline) = baseline else {
-                return outcome;
+                    invocation.response_key,
+                );
+            }
+            let response = self.upstream_post(
+                invocation.request,
+                json!({
+                    "query": SELLING_PLAN_GROUPS_CONNECTION_WINDOW_QUERY,
+                    "operationName": "SellingPlanGroupsConnectionWindow",
+                    "variables": selling_plan_groups_window_variables(self, &arguments),
+                }),
+            );
+            if !(200..300).contains(&response.status) || response.body.get("errors").is_some() {
+                return self.cached_or_forward_upstream_root_outcome(
+                    invocation.request,
+                    invocation.response_key,
+                );
             };
-            let rows = observed_connection_rows(&baseline);
-            let ids = rows
+            let upstream_connection = response
+                .body
+                .pointer("/data/sellingPlanGroupsWindow")
+                .or_else(|| response.body.pointer("/data/sellingPlanGroups"))
+                .cloned()
+                .unwrap_or_else(|| connection_json(Vec::new()));
+            let rows = observed_connection_rows(&upstream_connection);
+            let window_ids = rows
                 .iter()
-                .filter_map(|row| {
-                    row.node
-                        .get("id")
-                        .and_then(Value::as_str)
-                        .map(str::to_string)
-                })
-                .collect();
-            self.hydrate_selling_plan_group_nodes_for_observation(invocation.request, ids);
-            for row in rows {
+                .filter_map(|row| row.node.get("id").and_then(Value::as_str))
+                .map(str::to_string)
+                .collect::<BTreeSet<_>>();
+            for row in &rows {
+                self.observe_selling_plan_group_value(&row.node, false);
                 let Some(id) = row.node.get("id").and_then(Value::as_str) else {
                     continue;
                 };
                 if let Some(group) = self.store.staged.selling_plan_groups.get_mut(id) {
-                    group.cursor = row.cursor;
+                    group.cursor = row.cursor.clone();
                 }
             }
-            outcome.value = staged_connection_value_with_args(
-                self.store.selling_plan_groups(),
+            let records = self
+                .store
+                .selling_plan_groups()
+                .into_iter()
+                .filter(|group| group.locally_staged || window_ids.contains(&group.id))
+                .collect::<Vec<_>>();
+            let result = staged_connection_query(
+                records,
                 &arguments,
                 selling_plan_group_search_decision,
                 selling_plan_group_staged_sort_key,
-                |group| selling_plan_group_canonical_value(self, group),
                 selling_plan_group_cursor,
             );
-            outcome.value_source = crate::admin_graphql::ResolverValueSource::Local;
-            return outcome;
+            let mut page_info = result.page_info;
+            let upstream_page_info = upstream_connection
+                .get("pageInfo")
+                .cloned()
+                .unwrap_or_else(empty_page_info);
+            for key in ["hasNextPage", "hasPreviousPage"] {
+                let value = page_info.get(key).and_then(Value::as_bool).unwrap_or(false)
+                    || upstream_page_info
+                        .get(key)
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false);
+                page_info[key] = json!(value);
+            }
+            return ResolverOutcome::value(typed_connection_value(
+                &result.records,
+                |group| selling_plan_group_canonical_value(self, group),
+                selling_plan_group_cursor,
+                page_info,
+            ));
         }
         ResolverOutcome::value(staged_connection_value_with_args(
             self.store.selling_plan_groups(),
@@ -640,6 +787,8 @@ impl DraftProxy {
         let mut group_ids = Vec::new();
         let mut product_ids = Vec::new();
         let mut variant_ids = Vec::new();
+        let mut membership_kind = None;
+        let mut membership_pairs = Vec::new();
         match root_field {
             "sellingPlanGroupCreate" => {
                 let resources = resolved_object_field(arguments, "resources").unwrap_or_default();
@@ -661,27 +810,51 @@ impl DraftProxy {
                     "sellingPlanGroupAddProducts" | "sellingPlanGroupRemoveProducts"
                 ) {
                     product_ids.extend(list_string_field(arguments, "productIds"));
+                    membership_kind = Some(ResourceKind::Product);
+                    membership_pairs.extend(product_ids.iter().cloned().map(|resource_id| {
+                        (
+                            resolved_string_field(arguments, "id").unwrap_or_default(),
+                            resource_id,
+                        )
+                    }));
                 }
                 if matches!(
                     root_field,
                     "sellingPlanGroupAddProductVariants" | "sellingPlanGroupRemoveProductVariants"
                 ) {
                     variant_ids.extend(list_string_field(arguments, "productVariantIds"));
+                    membership_kind = Some(ResourceKind::ProductVariant);
+                    membership_pairs.extend(variant_ids.iter().cloned().map(|resource_id| {
+                        (
+                            resolved_string_field(arguments, "id").unwrap_or_default(),
+                            resource_id,
+                        )
+                    }));
                 }
             }
             "productJoinSellingPlanGroups" | "productLeaveSellingPlanGroups" => {
-                push_unique_string(
-                    &mut product_ids,
-                    resolved_string_field(arguments, "id").unwrap_or_default(),
-                );
+                let resource_id = resolved_string_field(arguments, "id").unwrap_or_default();
+                push_unique_string(&mut product_ids, resource_id.clone());
                 group_ids.extend(list_string_field(arguments, "sellingPlanGroupIds"));
+                membership_kind = Some(ResourceKind::Product);
+                membership_pairs.extend(
+                    group_ids
+                        .iter()
+                        .cloned()
+                        .map(|group_id| (group_id, resource_id.clone())),
+                );
             }
             "productVariantJoinSellingPlanGroups" | "productVariantLeaveSellingPlanGroups" => {
-                push_unique_string(
-                    &mut variant_ids,
-                    resolved_string_field(arguments, "id").unwrap_or_default(),
-                );
+                let resource_id = resolved_string_field(arguments, "id").unwrap_or_default();
+                push_unique_string(&mut variant_ids, resource_id.clone());
                 group_ids.extend(list_string_field(arguments, "sellingPlanGroupIds"));
+                membership_kind = Some(ResourceKind::ProductVariant);
+                membership_pairs.extend(
+                    group_ids
+                        .iter()
+                        .cloned()
+                        .map(|group_id| (group_id, resource_id.clone())),
+                );
             }
             _ => {}
         }
@@ -689,6 +862,108 @@ impl DraftProxy {
         self.hydrate_product_nodes_for_observation_with_request(request, product_ids);
         self.hydrate_product_nodes_for_observation_with_request(request, variant_ids);
         self.hydrate_selling_plan_group_nodes_for_observation(request, group_ids);
+        if let Some(resource_kind) = membership_kind {
+            membership_pairs.retain(|(group_id, _)| {
+                self.store
+                    .selling_plan_group_by_id(group_id)
+                    .is_some_and(|group| match resource_kind {
+                        ResourceKind::Product => !group.products_complete,
+                        ResourceKind::ProductVariant => !group.product_variants_complete,
+                    })
+            });
+            self.hydrate_selling_plan_group_memberships(request, resource_kind, membership_pairs);
+        }
+    }
+
+    fn hydrate_selling_plan_group_memberships(
+        &mut self,
+        request: &Request,
+        resource_kind: ResourceKind,
+        pairs: Vec<(String, String)>,
+    ) -> BTreeMap<(String, String), bool> {
+        let mut pairs = pairs
+            .into_iter()
+            .filter(|(group_id, resource_id)| !group_id.is_empty() && !resource_id.is_empty())
+            .collect::<Vec<_>>();
+        pairs.sort();
+        pairs.dedup();
+        if pairs.is_empty() {
+            return BTreeMap::new();
+        }
+
+        let mut declarations = Vec::new();
+        let mut selections = Vec::new();
+        let mut variables = serde_json::Map::new();
+        for (index, (group_id, resource_id)) in pairs.iter().enumerate() {
+            declarations.push(format!("$groupId{index}: ID!, $resourceId{index}: ID!"));
+            let (membership_field, count_field) = match resource_kind {
+                ResourceKind::Product => (
+                    format!("appliesToProduct(productId: $resourceId{index})"),
+                    "productsCount { count precision }",
+                ),
+                ResourceKind::ProductVariant => (
+                    format!("appliesToProductVariant(productVariantId: $resourceId{index})"),
+                    "productVariantsCount { count precision }",
+                ),
+            };
+            selections.push(format!(
+                "probe{index}: sellingPlanGroup(id: $groupId{index}) {{ id membership: {membership_field} {count_field} }}"
+            ));
+            variables.insert(format!("groupId{index}"), json!(group_id));
+            variables.insert(format!("resourceId{index}"), json!(resource_id));
+        }
+        let operation_name = match resource_kind {
+            ResourceKind::Product => "SellingPlanGroupProductMembershipProbe",
+            ResourceKind::ProductVariant => "SellingPlanGroupProductVariantMembershipProbe",
+        };
+        let query = format!(
+            "query {operation_name}({}) {{ {} }}",
+            declarations.join(", "),
+            selections.join(" ")
+        );
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": query,
+                "operationName": operation_name,
+                "variables": variables,
+            }),
+        );
+        if !(200..300).contains(&response.status) || response.body.get("errors").is_some() {
+            return BTreeMap::new();
+        }
+
+        let mut memberships = BTreeMap::new();
+        for (index, (group_id, resource_id)) in pairs.into_iter().enumerate() {
+            let Some(probe) = response.body.pointer(&format!("/data/probe{index}")) else {
+                continue;
+            };
+            let membership = probe
+                .get("membership")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            let count = match resource_kind {
+                ResourceKind::Product => observed_count(probe.get("productsCount")),
+                ResourceKind::ProductVariant => observed_count(probe.get("productVariantsCount")),
+            };
+            if let Some(group) = self.store.staged.selling_plan_groups.get_mut(&group_id) {
+                if let Some(count) = count {
+                    *resource_baseline_count_mut(group, resource_kind) = Some(count);
+                }
+                let locally_added =
+                    resource_added_members(group, resource_kind).contains(&resource_id);
+                let locally_removed =
+                    resource_removed_members(group, resource_kind).contains(&resource_id);
+                if membership && !locally_removed {
+                    push_unique_string(resource_members_mut(group, resource_kind), &resource_id);
+                } else if !membership && !locally_added {
+                    resource_members_mut(group, resource_kind)
+                        .retain(|member| member != &resource_id);
+                }
+            }
+            memberships.insert((group_id, resource_id), membership);
+        }
+        memberships
     }
 
     fn hydrate_selling_plan_group_nodes_for_observation(
@@ -696,12 +971,14 @@ impl DraftProxy {
         request: &Request,
         ids: Vec<String>,
     ) {
-        let ids = ids
+        let mut ids = ids
             .into_iter()
             .filter(|id| !id.is_empty())
             .filter(|id| !self.store.staged.selling_plan_groups.is_tombstoned(id))
             .filter(|id| self.store.selling_plan_group_by_id(id).is_none())
             .collect::<Vec<_>>();
+        ids.sort();
+        ids.dedup();
         if ids.is_empty() {
             return;
         }
@@ -719,80 +996,13 @@ impl DraftProxy {
 
     fn observe_selling_plan_groups_response(
         &mut self,
-        request: &Request,
+        _request: &Request,
         response: &Response,
         replace: bool,
     ) {
-        for mut group in observed_selling_plan_group_values(response) {
-            if !self.complete_selling_plan_group_relationships(request, &mut group) {
-                continue;
-            }
+        for group in observed_selling_plan_group_values(response) {
             self.observe_selling_plan_group_value(&group, replace);
         }
-    }
-
-    fn complete_selling_plan_group_relationships(
-        &self,
-        request: &Request,
-        group: &mut Value,
-    ) -> bool {
-        let Some(group_id) = group.get("id").and_then(Value::as_str).map(str::to_string) else {
-            return false;
-        };
-        let Some(products) = self.complete_upstream_connection(
-            request,
-            SELLING_PLAN_GROUP_PRODUCTS_PAGE_QUERY,
-            "SellingPlanGroupProductsPage",
-            selling_plan_relationship_page_variables(&group_id, 250),
-            "/data/sellingPlanGroup/products",
-            group.get("products"),
-        ) else {
-            return false;
-        };
-        let mut product_rows = observed_connection_rows(&products);
-        for row in &mut product_rows {
-            // Registered Shopify requests always select this connection. Older
-            // injected transports may omit unselected nested data entirely;
-            // absence is distinct from a bounded page whose pageInfo requires
-            // another request.
-            if row.node.get("variants").is_none() {
-                row.node["variants"] = connection_json(Vec::new());
-                continue;
-            }
-            let Some(product_id) = row
-                .node
-                .get("id")
-                .and_then(Value::as_str)
-                .map(str::to_string)
-            else {
-                continue;
-            };
-            let Some(variants) = self.complete_upstream_connection(
-                request,
-                SELLING_PLAN_PRODUCT_VARIANTS_PAGE_QUERY,
-                "SellingPlanProductVariantsPage",
-                selling_plan_relationship_page_variables(&product_id, 250),
-                "/data/product/variants",
-                row.node.get("variants"),
-            ) else {
-                return false;
-            };
-            row.node["variants"] = variants;
-        }
-        group["products"] = complete_connection_value(product_rows);
-
-        let Some(product_variants) = self.complete_upstream_connection(
-            request,
-            SELLING_PLAN_GROUP_PRODUCT_VARIANTS_PAGE_QUERY,
-            "SellingPlanGroupProductVariantsPage",
-            selling_plan_relationship_page_variables(&group_id, 250),
-            "/data/sellingPlanGroup/productVariants",
-            group.get("productVariants"),
-        ) else {
-            return false;
-        };
-        group["productVariants"] = product_variants;
-        true
     }
 
     fn observe_selling_plan_group_value(&mut self, value: &Value, replace: bool) {
@@ -847,6 +1057,220 @@ impl DraftProxy {
             }
         }
         self.store.observe_selling_plan_group(group);
+    }
+
+    fn selling_plan_group_relationship_window_value(
+        &mut self,
+        request: &Request,
+        group_id: &str,
+        resource_kind: ResourceKind,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        let group = self.store.selling_plan_group_by_id(group_id)?.clone();
+        let removed_count = resource_removed_members(&group, resource_kind).len() as i64;
+        let mut first = resolved_int_field(arguments, "first");
+        let mut last = resolved_int_field(arguments, "last");
+        if let Some(value) = &mut first {
+            *value = value.saturating_add(removed_count);
+        } else if let Some(value) = &mut last {
+            *value = value.saturating_add(removed_count);
+        } else {
+            first = Some(50_i64.saturating_add(removed_count));
+        }
+
+        let product_id = resolved_string_field(arguments, "productId");
+        let added_cursors = resource_added_members(&group, resource_kind);
+        let requested_after = resolved_string_field(arguments, "after");
+        let requested_before = resolved_string_field(arguments, "before");
+        let after_is_local = requested_after
+            .as_ref()
+            .is_some_and(|cursor| added_cursors.contains(cursor));
+        let before_is_local = requested_before
+            .as_ref()
+            .is_some_and(|cursor| added_cursors.contains(cursor));
+        let after = requested_after.filter(|_| !after_is_local);
+        let before = requested_before.filter(|_| !before_is_local);
+        let variables = serde_json::Map::from_iter([
+            ("id".to_string(), json!(group_id)),
+            ("productId".to_string(), json!(product_id)),
+            ("first".to_string(), json!(first)),
+            ("after".to_string(), json!(after)),
+            ("last".to_string(), json!(last)),
+            ("before".to_string(), json!(before)),
+            (
+                "reverse".to_string(),
+                json!(resolved_bool_field(arguments, "reverse").unwrap_or(false)),
+            ),
+        ]);
+        let (query, operation_name, connection_pointer, count_pointer) = match resource_kind {
+            ResourceKind::Product => (
+                SELLING_PLAN_GROUP_PRODUCTS_WINDOW_QUERY,
+                "SellingPlanGroupProductsWindow",
+                "/data/sellingPlanGroup/products",
+                "/data/sellingPlanGroup/productsCount",
+            ),
+            ResourceKind::ProductVariant => (
+                SELLING_PLAN_GROUP_PRODUCT_VARIANTS_WINDOW_QUERY,
+                "SellingPlanGroupProductVariantsWindow",
+                "/data/sellingPlanGroup/productVariants",
+                "/data/sellingPlanGroup/productVariantsCount",
+            ),
+        };
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": query,
+                "operationName": operation_name,
+                "variables": variables,
+            }),
+        );
+        if !(200..300).contains(&response.status) || response.body.get("errors").is_some() {
+            return None;
+        }
+        let upstream_connection = response.body.pointer(connection_pointer)?.clone();
+        let mut rows = observed_connection_rows(&upstream_connection);
+        let baseline_count = observed_count(response.body.pointer(count_pointer));
+
+        for row in &rows {
+            match resource_kind {
+                ResourceKind::Product => self.store.stage_observed_product_json(&row.node),
+                ResourceKind::ProductVariant => {
+                    if let Some(variant) = product_variant_state_from_observed_json(&row.node) {
+                        self.store.stage_product_variant(variant);
+                    }
+                }
+            }
+        }
+
+        if let Some(stored) = self.store.staged.selling_plan_groups.get_mut(group_id) {
+            let members = resource_members_mut(stored, resource_kind);
+            for row in &rows {
+                let Some(id) = row.node.get("id").and_then(Value::as_str) else {
+                    continue;
+                };
+                push_unique_string(members, id);
+            }
+            let cursors = resource_member_cursors_mut(stored, resource_kind);
+            for row in &rows {
+                if let (Some(id), Some(cursor)) =
+                    (row.node.get("id").and_then(Value::as_str), &row.cursor)
+                {
+                    cursors.insert(id.to_string(), cursor.clone());
+                }
+            }
+            if resource_kind != ResourceKind::ProductVariant || product_id.is_none() {
+                if let Some(count) = baseline_count {
+                    *resource_baseline_count_mut(stored, resource_kind) = Some(count);
+                }
+            }
+            if !arguments.contains_key("after")
+                && !arguments.contains_key("before")
+                && (resource_kind != ResourceKind::ProductVariant || product_id.is_none())
+                && !connection_has_next_page(&upstream_connection)
+                && upstream_connection
+                    .pointer("/pageInfo/hasPreviousPage")
+                    .and_then(Value::as_bool)
+                    != Some(true)
+            {
+                *resource_complete_mut(stored, resource_kind) = true;
+            }
+        }
+
+        let current = self.store.selling_plan_group_by_id(group_id)?.clone();
+        let removed = resource_removed_members(&current, resource_kind);
+        rows.retain(|row| {
+            row.node
+                .get("id")
+                .and_then(Value::as_str)
+                .is_some_and(|id| !removed.contains(id))
+        });
+        let mut added_rows = resource_added_members(&current, resource_kind)
+            .iter()
+            .filter_map(|id| match resource_kind {
+                ResourceKind::Product => self
+                    .store
+                    .product_by_id(id)
+                    .map(|product| self.product_canonical_value(product)),
+                ResourceKind::ProductVariant => {
+                    self.store.product_variant_by_id(id).and_then(|variant| {
+                        product_id
+                            .as_ref()
+                            .is_none_or(|product_id| &variant.product_id == product_id)
+                            .then(|| self.product_variant_canonical_value(variant))
+                    })
+                }
+            })
+            .map(|node| ObservedConnectionRow {
+                cursor: node.get("id").and_then(Value::as_str).map(str::to_string),
+                node,
+            })
+            .collect::<Vec<_>>();
+        if resolved_bool_field(arguments, "reverse").unwrap_or(false) {
+            added_rows.reverse();
+            added_rows.extend(rows);
+            rows = added_rows;
+        } else {
+            rows.extend(added_rows);
+        }
+
+        let window_arguments = arguments
+            .iter()
+            .filter(|(name, _)| {
+                matches!(name.as_str(), "first" | "last")
+                    || (name.as_str() == "after" && after_is_local)
+                    || (name.as_str() == "before" && before_is_local)
+            })
+            .map(|(name, value)| (name.clone(), value.clone()))
+            .collect::<BTreeMap<_, _>>();
+        let (window, local_page_info) = connection_window(&rows, &window_arguments, |row| {
+            row.cursor.clone().unwrap_or_else(|| {
+                row.node
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string()
+            })
+        });
+        let upstream_page_info = upstream_connection
+            .get("pageInfo")
+            .cloned()
+            .unwrap_or_else(empty_page_info);
+        let has_next_page = local_page_info
+            .get("hasNextPage")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+            || upstream_page_info
+                .get("hasNextPage")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+        let has_previous_page = local_page_info
+            .get("hasPreviousPage")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+            || upstream_page_info
+                .get("hasPreviousPage")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+        let start_cursor = window.first().and_then(|row| row.cursor.clone());
+        let end_cursor = window.last().and_then(|row| row.cursor.clone());
+        let nodes = window
+            .iter()
+            .map(|row| row.node.clone())
+            .collect::<Vec<_>>();
+        let edges = window
+            .into_iter()
+            .map(|row| json!({ "cursor": row.cursor, "node": row.node }))
+            .collect::<Vec<_>>();
+        Some(json!({
+            "nodes": nodes,
+            "edges": edges,
+            "pageInfo": connection_page_info(
+                has_next_page,
+                has_previous_page,
+                start_cursor,
+                end_cursor,
+            ),
+        }))
     }
 
     pub(crate) fn selling_plan_outcome(
@@ -994,6 +1418,15 @@ impl DraftProxy {
             updated_at: created_at,
             name,
             selling_plans,
+            products_count: Some(unique_product_ids.len()),
+            product_variants_count: Some(unique_product_variant_ids.len()),
+            products_complete: true,
+            product_variants_complete: true,
+            added_product_ids: BTreeSet::new(),
+            removed_product_ids: BTreeSet::new(),
+            added_product_variant_ids: BTreeSet::new(),
+            removed_product_variant_ids: BTreeSet::new(),
+            locally_staged: true,
             product_ids: unique_product_ids,
             product_variant_ids: unique_product_variant_ids,
             product_cursors: BTreeMap::new(),
@@ -1162,8 +1595,10 @@ impl DraftProxy {
                 "Selling plan group membership validation failed; original raw mutation retained for observability.",
             );
         }
-        let members = resource_members_mut(&mut group, resource_kind);
-        if ids.iter().any(|resource_id| members.contains(resource_id)) {
+        if ids.iter().any(|resource_id| {
+            resource_members(&group, resource_kind).contains(resource_id)
+                && !resource_removed_members(&group, resource_kind).contains(resource_id)
+        }) {
             return self.selling_plan_group_failed_outcome(
                 root_field,
                 None,
@@ -1175,7 +1610,7 @@ impl DraftProxy {
                 "Selling plan group membership validation failed; original raw mutation retained for observability.",
             );
         }
-        extend_unique_strings(members, ids.clone());
+        add_resource_memberships(&mut group, resource_kind, &ids);
         self.store.stage_selling_plan_group(group.clone());
         let mut staged_ids = vec![group.id.clone()];
         staged_ids.extend(ids);
@@ -1209,13 +1644,7 @@ impl DraftProxy {
             ));
         };
 
-        let members = resource_members_mut(&mut group, resource_kind);
-        let mut removed = Vec::new();
-        for resource_id in ids {
-            if let Some(position) = members.iter().position(|member| member == &resource_id) {
-                removed.push(members.remove(position));
-            }
-        }
+        let removed = remove_resource_memberships(&mut group, resource_kind, &ids);
         self.store.stage_selling_plan_group(group);
         ResolverOutcome::value(group_remove_payload_value(
             Some(removed.clone()),
@@ -1254,12 +1683,18 @@ impl DraftProxy {
             let Some(mut group) = self.store.selling_plan_group_by_id(group_id).cloned() else {
                 continue;
             };
-            let members = resource_members_mut(&mut group, resource_kind);
             if is_join {
-                push_unique_string(members, &resource_id);
-            } else if let Some(position) = members.iter().position(|member| member == &resource_id)
-            {
-                members.remove(position);
+                add_resource_memberships(
+                    &mut group,
+                    resource_kind,
+                    std::slice::from_ref(&resource_id),
+                );
+            } else {
+                remove_resource_memberships(
+                    &mut group,
+                    resource_kind,
+                    std::slice::from_ref(&resource_id),
+                );
             }
             self.store.stage_selling_plan_group(group);
         }
@@ -1638,6 +2073,12 @@ fn selling_plan_group_record_from_observed_json(value: &Value) -> Option<Selling
             ))
         })
         .collect();
+    let products_complete = observed_relationship_is_complete(value.get("products"));
+    let product_variants_complete = observed_relationship_is_complete(value.get("productVariants"));
+    let products_count = observed_count(value.get("productsCount"))
+        .or_else(|| products_complete.then_some(product_ids.len()));
+    let product_variants_count = observed_count(value.get("productVariantsCount"))
+        .or_else(|| product_variants_complete.then_some(product_variant_ids.len()));
     let selling_plans = value
         .get("sellingPlans")
         .map(observed_connection_rows)
@@ -1678,9 +2119,33 @@ fn selling_plan_group_record_from_observed_json(value: &Value) -> Option<Selling
         selling_plans,
         product_ids,
         product_variant_ids,
+        products_count,
+        product_variants_count,
+        products_complete,
+        product_variants_complete,
+        added_product_ids: BTreeSet::new(),
+        removed_product_ids: BTreeSet::new(),
+        added_product_variant_ids: BTreeSet::new(),
+        removed_product_variant_ids: BTreeSet::new(),
+        locally_staged: false,
         product_cursors,
         product_variant_cursors,
     })
+}
+
+fn observed_count(value: Option<&Value>) -> Option<usize> {
+    value?
+        .get("count")?
+        .as_u64()
+        .and_then(|count| usize::try_from(count).ok())
+}
+
+fn observed_relationship_is_complete(value: Option<&Value>) -> bool {
+    let Some(page_info) = value.and_then(|value| value.get("pageInfo")) else {
+        return false;
+    };
+    page_info.get("hasNextPage").and_then(Value::as_bool) == Some(false)
+        && page_info.get("hasPreviousPage").and_then(Value::as_bool) == Some(false)
 }
 
 fn selling_plan_record_from_observed_json(
@@ -2762,8 +3227,8 @@ fn selling_plan_group_canonical_value(proxy: &DraftProxy, group: &SellingPlanGro
         "options": group.options,
         "position": group.position,
         "summary": selling_plan_group_summary(group, proxy.store.shop_money_format().as_deref()),
-        "productsCount": count_object(group.product_ids.len()),
-        "productVariantsCount": count_object(group.product_variant_ids.len()),
+        "productsCount": count_object(effective_resource_count(group, ResourceKind::Product)),
+        "productVariantsCount": count_object(effective_resource_count(group, ResourceKind::ProductVariant)),
         "products": connection_json(group.product_ids.iter().filter_map(|id| {
             proxy.store.product_by_id(id).map(|product| proxy.product_canonical_value(product))
         }).collect()),
@@ -2814,4 +3279,146 @@ fn resource_members_mut(
         ResourceKind::Product => &mut group.product_ids,
         ResourceKind::ProductVariant => &mut group.product_variant_ids,
     }
+}
+
+fn resource_added_members(
+    group: &SellingPlanGroupRecord,
+    resource_kind: ResourceKind,
+) -> &BTreeSet<String> {
+    match resource_kind {
+        ResourceKind::Product => &group.added_product_ids,
+        ResourceKind::ProductVariant => &group.added_product_variant_ids,
+    }
+}
+
+fn resource_added_members_mut(
+    group: &mut SellingPlanGroupRecord,
+    resource_kind: ResourceKind,
+) -> &mut BTreeSet<String> {
+    match resource_kind {
+        ResourceKind::Product => &mut group.added_product_ids,
+        ResourceKind::ProductVariant => &mut group.added_product_variant_ids,
+    }
+}
+
+fn resource_removed_members(
+    group: &SellingPlanGroupRecord,
+    resource_kind: ResourceKind,
+) -> &BTreeSet<String> {
+    match resource_kind {
+        ResourceKind::Product => &group.removed_product_ids,
+        ResourceKind::ProductVariant => &group.removed_product_variant_ids,
+    }
+}
+
+fn resource_removed_members_mut(
+    group: &mut SellingPlanGroupRecord,
+    resource_kind: ResourceKind,
+) -> &mut BTreeSet<String> {
+    match resource_kind {
+        ResourceKind::Product => &mut group.removed_product_ids,
+        ResourceKind::ProductVariant => &mut group.removed_product_variant_ids,
+    }
+}
+
+fn resource_member_cursors_mut(
+    group: &mut SellingPlanGroupRecord,
+    resource_kind: ResourceKind,
+) -> &mut BTreeMap<String, String> {
+    match resource_kind {
+        ResourceKind::Product => &mut group.product_cursors,
+        ResourceKind::ProductVariant => &mut group.product_variant_cursors,
+    }
+}
+
+fn resource_baseline_count_mut(
+    group: &mut SellingPlanGroupRecord,
+    resource_kind: ResourceKind,
+) -> &mut Option<usize> {
+    match resource_kind {
+        ResourceKind::Product => &mut group.products_count,
+        ResourceKind::ProductVariant => &mut group.product_variants_count,
+    }
+}
+
+fn resource_complete_mut(
+    group: &mut SellingPlanGroupRecord,
+    resource_kind: ResourceKind,
+) -> &mut bool {
+    match resource_kind {
+        ResourceKind::Product => &mut group.products_complete,
+        ResourceKind::ProductVariant => &mut group.product_variants_complete,
+    }
+}
+
+fn effective_resource_count(group: &SellingPlanGroupRecord, resource_kind: ResourceKind) -> usize {
+    let baseline = match resource_kind {
+        ResourceKind::Product => group.products_count,
+        ResourceKind::ProductVariant => group.product_variants_count,
+    }
+    .unwrap_or_else(|| resource_members(group, resource_kind).len());
+    baseline
+        .saturating_add(resource_added_members(group, resource_kind).len())
+        .saturating_sub(resource_removed_members(group, resource_kind).len())
+}
+
+fn add_resource_memberships(
+    group: &mut SellingPlanGroupRecord,
+    resource_kind: ResourceKind,
+    ids: &[String],
+) {
+    let complete = match resource_kind {
+        ResourceKind::Product => group.products_complete,
+        ResourceKind::ProductVariant => group.product_variants_complete,
+    };
+    for id in ids {
+        let was_member = resource_members(group, resource_kind).contains(id)
+            && !resource_removed_members(group, resource_kind).contains(id);
+        if was_member {
+            continue;
+        }
+        resource_removed_members_mut(group, resource_kind).remove(id);
+        if !complete {
+            resource_added_members_mut(group, resource_kind).insert(id.clone());
+        }
+        push_unique_string(resource_members_mut(group, resource_kind), id);
+    }
+    if complete {
+        *resource_baseline_count_mut(group, resource_kind) =
+            Some(resource_members(group, resource_kind).len());
+    }
+}
+
+fn remove_resource_memberships(
+    group: &mut SellingPlanGroupRecord,
+    resource_kind: ResourceKind,
+    ids: &[String],
+) -> Vec<String> {
+    let complete = match resource_kind {
+        ResourceKind::Product => group.products_complete,
+        ResourceKind::ProductVariant => group.product_variants_complete,
+    };
+    let mut removed = Vec::new();
+    for id in ids {
+        let was_member = resource_members(group, resource_kind).contains(id)
+            && !resource_removed_members(group, resource_kind).contains(id);
+        if !was_member {
+            continue;
+        }
+        if let Some(position) = resource_members(group, resource_kind)
+            .iter()
+            .position(|member| member == id)
+        {
+            resource_members_mut(group, resource_kind).remove(position);
+        }
+        if !resource_added_members_mut(group, resource_kind).remove(id) && !complete {
+            resource_removed_members_mut(group, resource_kind).insert(id.clone());
+        }
+        removed.push(id.clone());
+    }
+    if complete {
+        *resource_baseline_count_mut(group, resource_kind) =
+            Some(resource_members(group, resource_kind).len());
+    }
+    removed
 }

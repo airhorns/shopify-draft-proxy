@@ -349,10 +349,8 @@ impl DraftProxy {
             );
         }
         if input.contains_key("productOptions") {
-            product.extra_fields.insert(
-                "options".to_string(),
-                product_set_options_json(&mut self.next_synthetic_id, &input),
-            );
+            let options = product_set_options_json(self, &input);
+            product.extra_fields.insert("options".to_string(), options);
         }
         if input.contains_key("variants") {
             for location_id in product_set_inventory_location_ids(&input) {
@@ -385,17 +383,6 @@ impl DraftProxy {
                     .insert("metafield".to_string(), first.clone());
             }
         }
-        // Shopify returns a store-specific signed preview URL for staged products; the
-        // parity spec matches it via `non-empty-string`, so a stable local URL suffices.
-        product
-            .extra_fields
-            .entry("onlineStorePreviewUrl".to_string())
-            .or_insert_with(|| {
-                json!(format!(
-                    "https://shopify-draft-proxy.preview/products/{}",
-                    resource_id_tail(&product_id)
-                ))
-            });
         // Shopify reports `null` (not an empty string) for unset SEO fields and template
         // suffix. Render the effective value (input or carried-over base) as null when empty.
         product.extra_fields.insert(
@@ -880,6 +867,10 @@ impl DraftProxy {
         duplicate.created_at = timestamp.clone();
         duplicate.updated_at = timestamp;
         duplicate.variants = Vec::new();
+        // A hydrated preview URL is signed for the source product. The locally staged
+        // duplicate has a different identity, so carrying that URL over would make an
+        // authoritative value point at the wrong resource.
+        duplicate.extra_fields.remove("onlineStorePreviewUrl");
         // Shopify copies media asynchronously: the duplicate's immediate payload (and the
         // downstream read right after) expose an empty media connection.
         duplicate.media = Vec::new();
@@ -1244,7 +1235,7 @@ fn product_set_variant_input_errors(input: &BTreeMap<String, ResolvedValue>) -> 
 }
 
 fn product_set_options_json(
-    next_synthetic_id: &mut u64,
+    proxy: &mut DraftProxy,
     input: &BTreeMap<String, ResolvedValue>,
 ) -> Value {
     Value::Array(
@@ -1255,13 +1246,11 @@ fn product_set_options_json(
                 let name = resolved_string_field(&option, "name")
                     .unwrap_or_else(|| format!("Option{}", index + 1));
                 let values = product_set_option_value_names(&option);
-                let option_id = synthetic_shopify_gid("ProductOption", *next_synthetic_id);
-                *next_synthetic_id += 1;
+                let option_id = proxy.next_proxy_synthetic_gid("ProductOption");
                 let option_values = values
                     .iter()
                     .map(|value| {
-                        let id = synthetic_shopify_gid("ProductOptionValue", *next_synthetic_id);
-                        *next_synthetic_id += 1;
+                        let id = proxy.next_proxy_synthetic_gid("ProductOptionValue");
                         json!({
                             "id": id,
                             "name": value,

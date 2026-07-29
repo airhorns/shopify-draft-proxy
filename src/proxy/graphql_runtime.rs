@@ -2607,36 +2607,38 @@ mod graphql_runtime_tests {
     #[test]
     fn request_owned_proxy_restores_latest_state_after_unwind() {
         let mut proxy = DraftProxy::new(Config::default());
-        proxy.next_synthetic_id = 17;
+        proxy.store.next_synthetic_id = 17;
 
         let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             with_request_owned_proxy(&mut proxy, |shared| {
                 shared
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .store
                     .next_synthetic_id = 29;
                 panic!("resolver panic");
             });
         }));
 
         assert!(outcome.is_err());
-        assert_eq!(proxy.next_synthetic_id, 29);
+        assert_eq!(proxy.store.next_synthetic_id, 29);
     }
 
     #[test]
     fn request_owned_proxy_restores_state_when_a_reference_is_retained() {
         let mut proxy = DraftProxy::new(Config::default());
-        proxy.next_synthetic_id = 31;
+        proxy.store.next_synthetic_id = 31;
 
         let retained = with_request_owned_proxy(&mut proxy, |shared| {
             shared
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .store
                 .next_synthetic_id = 43;
             shared
         });
 
-        assert_eq!(proxy.next_synthetic_id, 43);
+        assert_eq!(proxy.store.next_synthetic_id, 43);
         drop(retained);
     }
 }

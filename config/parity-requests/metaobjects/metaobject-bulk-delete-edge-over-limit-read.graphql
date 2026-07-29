@@ -1,0 +1,19 @@
+query MetaobjectBulkDeleteEdgeOverLimitRead($id: ID!, $type: String!, $query: String!) {
+  selected: metaobject(id: $id) {
+    id
+    handle
+    type
+  }
+  catalog: metaobjects(type: $type, first: 10, query: $query) {
+    nodes {
+      id
+      handle
+      type
+    }
+  }
+  definition: metaobjectDefinitionByType(type: $type) {
+    id
+    type
+    metaobjectsCount
+  }
+}
