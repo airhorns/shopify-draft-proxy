@@ -11262,6 +11262,227 @@ fn functions_fulfillment_constraint_rule_catalog_fallback_proves_absence() {
 }
 
 #[test]
+fn functions_complete_compatibility_windows_backfill_private_lifecycle_decisions() {
+    let validation_function = function_metadata_record(
+        "gid://shopify/ShopifyFunction/compat-validation",
+        "Compatibility Validation",
+        "compat-validation",
+        "VALIDATION",
+        "compat-validation-key",
+        "compat-validation-app",
+    );
+    let cart_function = function_metadata_record(
+        "gid://shopify/ShopifyFunction/compat-cart-transform",
+        "Compatibility Cart Transform",
+        "compat-cart-transform",
+        "CART_TRANSFORM",
+        "compat-cart-key",
+        "compat-cart-app",
+    );
+    let hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let recorded_hits = Arc::clone(&hits);
+    let validation_function_for_transport = validation_function.clone();
+    let cart_function_for_transport = cart_function.clone();
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body).unwrap();
+        recorded_hits.lock().unwrap().push(body.clone());
+        let query = body["query"].as_str().unwrap_or_default();
+        let (status, response_body) = match body["operationName"].as_str() {
+            Some("FunctionHydrateById") => {
+                let function = match body["variables"]["id"].as_str() {
+                    Some("gid://shopify/ShopifyFunction/compat-validation") => {
+                        validation_function_for_transport.clone()
+                    }
+                    Some("gid://shopify/ShopifyFunction/compat-cart-transform") => {
+                        cart_function_for_transport.clone()
+                    }
+                    _ => Value::Null,
+                };
+                (200, json!({ "data": { "shopifyFunction": function } }))
+            }
+            Some("FunctionValidationDecisionPreflight")
+            | Some("FunctionCartTransformDecisionPreflight") => (
+                500,
+                json!({ "errors": [{ "message": "minimal decision probe unavailable" }] }),
+            ),
+            Some("FunctionConnectionWindowHydrate") if query.contains("validations(first: 3") => (
+                200,
+                json!({
+                    "data": {
+                        "validations": {
+                            "edges": [
+                                {
+                                    "cursor": "compat-validation-2",
+                                    "node": {
+                                        "id": "gid://shopify/Validation/compat-2",
+                                        "title": "Compatibility two",
+                                        "enabled": false,
+                                        "blockOnFailure": false,
+                                        "shopifyFunction": {
+                                            "id": "gid://shopify/ShopifyFunction/other-2",
+                                            "apiType": "cart_checkout_validation"
+                                        }
+                                    }
+                                },
+                                {
+                                    "cursor": "compat-validation-1",
+                                    "node": {
+                                        "id": "gid://shopify/Validation/compat-1",
+                                        "title": "Compatibility one",
+                                        "enabled": true,
+                                        "blockOnFailure": true,
+                                        "shopifyFunction": {
+                                            "id": "gid://shopify/ShopifyFunction/other-1",
+                                            "apiType": "cart_checkout_validation"
+                                        }
+                                    }
+                                }
+                            ],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "compat-validation-2",
+                                "endCursor": "compat-validation-1"
+                            }
+                        }
+                    }
+                }),
+            ),
+            Some("FunctionConnectionWindowHydrate")
+                if query.contains("cartTransforms(first: 3") =>
+            {
+                (
+                    200,
+                    json!({
+                        "data": {
+                            "cartTransforms": {
+                                "edges": [],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": null,
+                                    "endCursor": null
+                                }
+                            }
+                        }
+                    }),
+                )
+            }
+            _ => panic!("unexpected compatibility decision request: {body}"),
+        };
+        Response {
+            status,
+            headers: Default::default(),
+            body: response_body,
+        }
+    });
+
+    let validation_query = r#"mutation CompatibilityValidationCreate {
+      validationCreate(validation: {
+        functionId: "gid://shopify/ShopifyFunction/compat-validation"
+        title: "Compatibility staged validation"
+        enable: true
+      }) {
+        validation { id title }
+        userErrors { field message code }
+      }
+    }"#;
+    let validation = proxy.process_request(json_graphql_request(validation_query, json!({})));
+    assert_eq!(
+        validation.body["data"]["validationCreate"]["userErrors"],
+        json!([])
+    );
+    let validation_id = validation.body["data"]["validationCreate"]["validation"]["id"]
+        .as_str()
+        .unwrap();
+    assert_synthetic_gid(validation_id, "Validation");
+
+    let cart_query = r#"mutation CompatibilityCartTransformCreate {
+      cartTransformCreate(
+        functionId: "gid://shopify/ShopifyFunction/compat-cart-transform"
+      ) {
+        cartTransform { id functionId }
+        userErrors { field message code }
+      }
+    }"#;
+    let cart_transform = proxy.process_request(json_graphql_request(cart_query, json!({})));
+    assert_eq!(
+        cart_transform.body["data"]["cartTransformCreate"]["userErrors"],
+        json!([])
+    );
+    let cart_transform_id = cart_transform.body["data"]["cartTransformCreate"]["cartTransform"]
+        ["id"]
+        .as_str()
+        .unwrap();
+    assert_synthetic_gid(cart_transform_id, "CartTransform");
+
+    let hits = hits.lock().unwrap();
+    assert_eq!(
+        hits.iter()
+            .filter(|body| body["operationName"] == "FunctionValidationDecisionPreflight")
+            .count(),
+        1
+    );
+    assert_eq!(
+        hits.iter()
+            .filter(|body| body["operationName"] == "FunctionCartTransformDecisionPreflight")
+            .count(),
+        1
+    );
+    let compatibility_windows = hits
+        .iter()
+        .filter(|body| body["operationName"] == "FunctionConnectionWindowHydrate")
+        .collect::<Vec<_>>();
+    assert_eq!(compatibility_windows.len(), 2);
+    assert!(compatibility_windows.iter().any(|body| body["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("validations(first: 3, reverse: true)")));
+    assert!(compatibility_windows.iter().any(|body| body["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("cartTransforms(first: 3)")));
+    drop(hits);
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(
+        dump.body["state"]["baseState"]["functionValidationDecisionCatalogComplete"],
+        json!(true)
+    );
+    assert_eq!(
+        dump.body["state"]["baseState"]["functionValidationDecisionRecords"]
+            .as_object()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert_eq!(
+        dump.body["state"]["baseState"]["functionCartTransformDecisionHydrated"],
+        json!(true)
+    );
+    assert!(dump.body["state"]["baseState"]
+        .get("functionValidations")
+        .is_none());
+    assert!(dump.body["state"]["baseState"]
+        .get("functionCartTransforms")
+        .is_none());
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 2);
+    assert!(log["entries"][0]["rawBody"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("CompatibilityValidationCreate"));
+    assert!(log["entries"][1]["rawBody"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("CompatibilityCartTransformCreate"));
+}
+
+#[test]
 fn functions_authoritative_preflight_failures_do_not_stage_or_claim_not_found() {
     let cart_function = function_metadata_record(
         "gid://shopify/ShopifyFunction/cart-transform-unavailable-preflight",

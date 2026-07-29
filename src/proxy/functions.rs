@@ -59,6 +59,10 @@ const FUNCTION_VALIDATION_DECISION_PREFLIGHT_QUERY: &str = r#"query FunctionVali
   }
 }
 "#;
+// A bounded ordinary connection window can recover a lifecycle decision when
+// the field-minimal probe is unavailable, but only when that one page proves
+// the whole catalog. Partial compatibility windows remain fail-closed.
+const FUNCTION_VALIDATION_DECISION_COMPATIBILITY_QUERY: &str = "query FunctionConnectionWindowHydrate { validations(first: 3, reverse: true) { edges { cursor node { id title enabled blockOnFailure shopifyFunction { id apiType } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }";
 const FUNCTION_VALIDATION_HYDRATE_BY_ID_QUERY: &str = "query FunctionValidationHydrateById($id: ID!) {\n  validation(id: $id) {\n    id\n    title\n    enabled\n    blockOnFailure\n    shopifyFunction {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n    metafields(first: 100) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        updatedAt\n      }\n    }\n  }\n}\n";
 const FUNCTION_CART_TRANSFORM_DECISION_PREFLIGHT_QUERY: &str = r#"query FunctionCartTransformDecisionPreflight {
   cartTransforms(first: 1) {
@@ -69,6 +73,7 @@ const FUNCTION_CART_TRANSFORM_DECISION_PREFLIGHT_QUERY: &str = r#"query Function
   }
 }
 "#;
+const FUNCTION_CART_TRANSFORM_DECISION_COMPATIBILITY_QUERY: &str = "query FunctionConnectionWindowHydrate { cartTransforms(first: 3) { edges { cursor node { id functionId blockOnFailure } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }";
 const FUNCTION_CART_TRANSFORM_HYDRATE_BY_ID_QUERY: &str = "query FunctionCartTransformHydrateById($id: ID!) {\n  node(id: $id) {\n    ... on CartTransform {\n      id\n      functionId\n      blockOnFailure\n      metafields(first: 100) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n}\n";
 const FUNCTION_FULFILLMENT_CONSTRAINT_RULE_HYDRATE_BY_ID_QUERY: &str = "query FunctionFulfillmentConstraintRuleHydrateById($id: ID!) {\n  node(id: $id) {\n    ... on FulfillmentConstraintRule {\n      id\n      deliveryMethodTypes\n      function {\n        id\n        title\n        handle\n        apiType\n        description\n        appKey\n        app {\n          __typename\n          id\n          title\n          handle\n          apiKey\n        }\n      }\n      metafields(first: 100) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n}\n";
 const FUNCTION_FULFILLMENT_CONSTRAINT_RULES_HYDRATE_QUERY: &str = "query FunctionFulfillmentConstraintRulesHydrate {\n  fulfillmentConstraintRules {\n    id\n    deliveryMethodTypes\n    function {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n    metafields(first: 100) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        compareDigest\n        ownerType\n        createdAt\n        updatedAt\n      }\n    }\n  }\n}\n";
@@ -957,14 +962,35 @@ impl DraftProxy {
             }
             "validations" => {
                 self.observe_function_connection(request, root_name, arguments, value);
-                for row in function_observed_connection_rows(value) {
+                let rows = function_observed_connection_rows(value);
+                let decision_rows_are_complete = rows
+                    .iter()
+                    .all(|row| function_validation_decision_value(&row.node).is_some());
+                for row in rows {
                     self.stage_base_function_validation(row.node);
+                }
+                if decision_rows_are_complete
+                    && function_observed_window_is_full_catalog(value, arguments)
+                {
+                    self.store
+                        .base
+                        .function_validation_decision_catalog_complete = true;
+                    self.store.base.function_validation_decision_next_cursor = None;
                 }
             }
             "cartTransforms" => {
                 self.observe_function_connection(request, root_name, arguments, value);
-                for row in function_observed_connection_rows(value) {
+                let rows = function_observed_connection_rows(value);
+                let decision_rows_are_complete = rows
+                    .iter()
+                    .all(|row| row.node["id"].is_string() && row.node["functionId"].is_string());
+                for row in rows {
                     self.stage_base_function_cart_transform(row.node);
+                }
+                if decision_rows_are_complete
+                    && function_observed_window_is_full_catalog(value, arguments)
+                {
+                    self.store.base.function_cart_transform_decision_hydrated = true;
                 }
             }
             "fulfillmentConstraintRules" => {
@@ -1061,32 +1087,15 @@ impl DraftProxy {
         }
     }
 
-    fn record_function_validation_decision(&mut self, validation: &Value) {
-        let Some(id) = validation["id"].as_str() else {
-            return;
+    fn record_function_validation_decision(&mut self, validation: &Value) -> bool {
+        let Some((id, decision)) = function_validation_decision_value(validation) else {
+            return false;
         };
-        let Some(enabled) = validation
-            .get("enabled")
-            .and_then(Value::as_bool)
-            .or_else(|| validation.get("enable").and_then(Value::as_bool))
-        else {
-            return;
-        };
-        let function_id = validation
-            .get("functionId")
-            .and_then(Value::as_str)
-            .or_else(|| validation["shopifyFunction"]["id"].as_str());
-        let mut decision = json!({
-            "id": id,
-            "enabled": enabled
-        });
-        if let Some(function_id) = function_id {
-            decision["functionId"] = json!(function_id);
-        }
         self.store
             .base
             .function_validation_decision_records
-            .insert(id.to_string(), decision);
+            .insert(id, decision);
+        true
     }
 
     fn hydrate_next_function_validation_decision_page(&mut self, request: &Request) -> bool {
@@ -1111,11 +1120,17 @@ impl DraftProxy {
             }),
         );
         let connection = &response.body["data"]["validations"];
-        let Some(nodes) = connection["nodes"].as_array() else {
-            return false;
-        };
         if response.status != 200 || response.body.get("errors").is_some() {
-            return false;
+            return self.hydrate_function_validation_decision_compatibility_window(request);
+        }
+        let Some(nodes) = connection["nodes"].as_array() else {
+            return self.hydrate_function_validation_decision_compatibility_window(request);
+        };
+        if !nodes
+            .iter()
+            .all(|validation| function_validation_decision_value(validation).is_some())
+        {
+            return self.hydrate_function_validation_decision_compatibility_window(request);
         }
         for validation in nodes {
             self.record_function_validation_decision(validation);
@@ -1138,8 +1153,49 @@ impl DraftProxy {
                 self.store.base.function_validation_decision_next_cursor = Some(cursor.to_string());
                 true
             }
-            None => false,
+            None => self.hydrate_function_validation_decision_compatibility_window(request),
         }
+    }
+
+    fn hydrate_function_validation_decision_compatibility_window(
+        &mut self,
+        request: &Request,
+    ) -> bool {
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": FUNCTION_VALIDATION_DECISION_COMPATIBILITY_QUERY,
+                "operationName": "FunctionConnectionWindowHydrate",
+                "variables": {}
+            }),
+        );
+        if response.status != 200 || response.body.get("errors").is_some() {
+            return false;
+        }
+        let connection = &response.body["data"]["validations"];
+        let arguments = BTreeMap::from([
+            ("first".to_string(), ResolvedValue::Int(3)),
+            ("reverse".to_string(), ResolvedValue::Bool(true)),
+        ]);
+        if !function_observed_window_is_full_catalog(connection, &arguments) {
+            return false;
+        }
+        let rows = function_observed_connection_rows(connection);
+        if rows
+            .iter()
+            .any(|row| function_validation_decision_value(&row.node).is_none())
+        {
+            return false;
+        }
+        self.observe_function_connection(request, "validations", &arguments, connection);
+        for row in rows {
+            self.record_function_validation_decision(&row.node);
+        }
+        self.store
+            .base
+            .function_validation_decision_catalog_complete = true;
+        self.store.base.function_validation_decision_next_cursor = None;
+        true
     }
 
     fn ensure_function_validation_active_limit_decision(
@@ -1198,12 +1254,12 @@ impl DraftProxy {
                 "variables": {}
             }),
         );
-        let Some(nodes) = response.body["data"]["cartTransforms"]["nodes"].as_array() else {
-            return false;
-        };
         if response.status != 200 || response.body.get("errors").is_some() {
-            return false;
+            return self.hydrate_function_cart_transform_decision_compatibility_window(request);
         }
+        let Some(nodes) = response.body["data"]["cartTransforms"]["nodes"].as_array() else {
+            return self.hydrate_function_cart_transform_decision_compatibility_window(request);
+        };
         let decision = match nodes.first() {
             Some(node)
                 if node["id"].is_string()
@@ -1218,6 +1274,43 @@ impl DraftProxy {
         self.store.base.function_cart_transform_decision_hydrated = true;
         true
     }
+
+    fn hydrate_function_cart_transform_decision_compatibility_window(
+        &mut self,
+        request: &Request,
+    ) -> bool {
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": FUNCTION_CART_TRANSFORM_DECISION_COMPATIBILITY_QUERY,
+                "operationName": "FunctionConnectionWindowHydrate",
+                "variables": {}
+            }),
+        );
+        if response.status != 200 || response.body.get("errors").is_some() {
+            return false;
+        }
+        let connection = &response.body["data"]["cartTransforms"];
+        let arguments = BTreeMap::from([("first".to_string(), ResolvedValue::Int(3))]);
+        let rows = function_observed_connection_rows(connection);
+        let decision = rows
+            .iter()
+            .find(|row| row.node["id"].is_string() && row.node["functionId"].is_string())
+            .map(|row| {
+                json!({
+                    "id": row.node["id"].clone(),
+                    "functionId": row.node["functionId"].clone()
+                })
+            });
+        if decision.is_none() && !function_observed_window_is_full_catalog(connection, &arguments) {
+            return false;
+        }
+        self.observe_function_connection(request, "cartTransforms", &arguments, connection);
+        self.store.base.function_cart_transform_decision = decision;
+        self.store.base.function_cart_transform_decision_hydrated = true;
+        true
+    }
+
     fn hydrate_function_validation_by_id(&mut self, request: &Request, id: &str) -> Option<Value> {
         if self
             .store
@@ -2046,6 +2139,35 @@ fn function_observed_window_is_complete(
             connection["pageInfo"]["hasPreviousPage"].as_bool() == Some(false)
         }
     }
+}
+
+fn function_observed_window_is_full_catalog(
+    connection: &Value,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    !arguments.contains_key("after")
+        && !arguments.contains_key("before")
+        && function_observed_window_is_complete(connection, arguments)
+}
+
+fn function_validation_decision_value(validation: &Value) -> Option<(String, Value)> {
+    let id = validation["id"].as_str()?;
+    let enabled = validation
+        .get("enabled")
+        .and_then(Value::as_bool)
+        .or_else(|| validation.get("enable").and_then(Value::as_bool))?;
+    let function_id = validation
+        .get("functionId")
+        .and_then(Value::as_str)
+        .or_else(|| validation["shopifyFunction"]["id"].as_str())?;
+    Some((
+        id.to_string(),
+        json!({
+            "id": id,
+            "enabled": enabled,
+            "functionId": function_id
+        }),
+    ))
 }
 
 fn empty_function_connection() -> Value {

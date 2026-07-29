@@ -5017,6 +5017,10 @@ Practical rule:
 - for the active-validation cap, request no more rows or fields than the exact
   threshold decision needs, and keep those private decision facts separate
   from public validation rows
+- if that minimal probe is unavailable, a bounded ordinary connection window
+  may supply private lifecycle facts only when it starts at the catalog boundary,
+  has every required decision field, and terminal `pageInfo` proves completeness;
+  a partial or malformed window must still fail closed
 - for cart-transform uniqueness, resolve the requested Function exactly, scan
   validation registrations only when the wrong-API precedence needs it, and
   use a one-record transform lookup for global presence
