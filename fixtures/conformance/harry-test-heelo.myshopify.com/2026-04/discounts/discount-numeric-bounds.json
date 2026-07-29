@@ -1,6 +1,6 @@
 {
   "scenarioId": "discount-numeric-bounds",
-  "capturedAt": "2026-05-07T22:58:47.503Z",
+  "capturedAt": "2026-07-28T00:00:12.492Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "accessScopes": {
@@ -112,8 +112,8 @@
       "query": "mutation DiscountNumericBoundsSetup(\n  $codeInput: DiscountCodeBasicInput!\n  $automaticInput: DiscountAutomaticBasicInput!\n) {\n  codeSetup: discountCodeBasicCreate(basicCodeDiscount: $codeInput) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  automaticSetup: discountAutomaticBasicCreate(automaticBasicDiscount: $automaticInput) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
         "codeInput": {
-          "title": "Numeric bounds code SETUP 1778194725813",
-          "code": "NUMBOUNDSSETUP1778194725813",
+          "title": "Numeric bounds code SETUP 1785196809636",
+          "code": "NUMBOUNDSSETUP1785196809636",
           "startsAt": "2026-04-25T00:00:00Z",
           "combinesWith": {
             "productDiscounts": false,
@@ -133,7 +133,7 @@
           }
         },
         "automaticInput": {
-          "title": "Numeric bounds automatic SETUP 1778194725813",
+          "title": "Numeric bounds automatic SETUP 1785196809636",
           "startsAt": "2026-04-25T00:00:00Z",
           "combinesWith": {
             "productDiscounts": false,
@@ -163,13 +163,13 @@
         "data": {
           "codeSetup": {
             "codeDiscountNode": {
-              "id": "gid://shopify/DiscountCodeNode/1640808874290"
+              "id": "gid://shopify/DiscountCodeNode/1663207407922"
             },
             "userErrors": []
           },
           "automaticSetup": {
             "automaticDiscountNode": {
-              "id": "gid://shopify/DiscountAutomaticNode/1640808907058"
+              "id": "gid://shopify/DiscountAutomaticNode/1663207440690"
             },
             "userErrors": []
           }
@@ -195,8 +195,8 @@
         "query": "mutation DiscountNumericBoundsCodeBasicCreate(\n  $usageHigh: DiscountCodeBasicInput!\n  $usageLow: DiscountCodeBasicInput!\n  $recurringHigh: DiscountCodeBasicInput!\n  $amountHigh: DiscountCodeBasicInput!\n) {\n  usageHigh: discountCodeBasicCreate(basicCodeDiscount: $usageHigh) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  usageLow: discountCodeBasicCreate(basicCodeDiscount: $usageLow) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  recurringHigh: discountCodeBasicCreate(basicCodeDiscount: $recurringHigh) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  amountHigh: discountCodeBasicCreate(basicCodeDiscount: $amountHigh) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
         "variables": {
           "usageHigh": {
-            "title": "Numeric bounds code CREATEUSAGEHIGH 1778194725813",
-            "code": "NUMBOUNDSCREATEUSAGEHIGH1778194725813",
+            "title": "Numeric bounds code CREATEUSAGEHIGH 1785196809636",
+            "code": "NUMBOUNDSCREATEUSAGEHIGH1785196809636",
             "startsAt": "2026-04-25T00:00:00Z",
             "combinesWith": {
               "productDiscounts": false,
@@ -217,8 +217,8 @@
             "usageLimit": 2147483648
           },
           "usageLow": {
-            "title": "Numeric bounds code CREATEUSAGELOW 1778194725813",
-            "code": "NUMBOUNDSCREATEUSAGELOW1778194725813",
+            "title": "Numeric bounds code CREATEUSAGELOW 1785196809636",
+            "code": "NUMBOUNDSCREATEUSAGELOW1785196809636",
             "startsAt": "2026-04-25T00:00:00Z",
             "combinesWith": {
               "productDiscounts": false,
@@ -239,8 +239,8 @@
             "usageLimit": -2147483649
           },
           "recurringHigh": {
-            "title": "Numeric bounds code CREATERECURRINGHIGH 1778194725813",
-            "code": "NUMBOUNDSCREATERECURRINGHIGH1778194725813",
+            "title": "Numeric bounds code CREATERECURRINGHIGH 1785196809636",
+            "code": "NUMBOUNDSCREATERECURRINGHIGH1785196809636",
             "startsAt": "2026-04-25T00:00:00Z",
             "combinesWith": {
               "productDiscounts": false,
@@ -263,8 +263,8 @@
             "recurringCycleLimit": 2147483648
           },
           "amountHigh": {
-            "title": "Numeric bounds code CREATEAMOUNTHIGH 1778194725813",
-            "code": "NUMBOUNDSCREATEAMOUNTHIGH1778194725813",
+            "title": "Numeric bounds code CREATEAMOUNTHIGH 1785196809636",
+            "code": "NUMBOUNDSCREATEAMOUNTHIGH1785196809636",
             "startsAt": "2026-04-25T00:00:00Z",
             "combinesWith": {
               "productDiscounts": false,
@@ -362,10 +362,10 @@
         "documentPath": "config/parity-requests/discounts/discount-numeric-bounds-code-basic-update.graphql",
         "query": "mutation DiscountNumericBoundsCodeBasicUpdate(\n  $id: ID!\n  $usageHigh: DiscountCodeBasicInput!\n  $recurringHigh: DiscountCodeBasicInput!\n  $amountHigh: DiscountCodeBasicInput!\n) {\n  usageHigh: discountCodeBasicUpdate(id: $id, basicCodeDiscount: $usageHigh) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  recurringHigh: discountCodeBasicUpdate(id: $id, basicCodeDiscount: $recurringHigh) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  amountHigh: discountCodeBasicUpdate(id: $id, basicCodeDiscount: $amountHigh) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/DiscountCodeNode/1640808874290",
+          "id": "gid://shopify/DiscountCodeNode/1663207407922",
           "usageHigh": {
-            "title": "Numeric bounds code UPDATEUSAGEHIGH 1778194725813",
-            "code": "NUMBOUNDSUPDATEUSAGEHIGH1778194725813",
+            "title": "Numeric bounds code UPDATEUSAGEHIGH 1785196809636",
+            "code": "NUMBOUNDSUPDATEUSAGEHIGH1785196809636",
             "startsAt": "2026-04-25T00:00:00Z",
             "combinesWith": {
               "productDiscounts": false,
@@ -386,8 +386,8 @@
             "usageLimit": 2147483648
           },
           "recurringHigh": {
-            "title": "Numeric bounds code UPDATERECURRINGHIGH 1778194725813",
-            "code": "NUMBOUNDSUPDATERECURRINGHIGH1778194725813",
+            "title": "Numeric bounds code UPDATERECURRINGHIGH 1785196809636",
+            "code": "NUMBOUNDSUPDATERECURRINGHIGH1785196809636",
             "startsAt": "2026-04-25T00:00:00Z",
             "combinesWith": {
               "productDiscounts": false,
@@ -410,8 +410,8 @@
             "recurringCycleLimit": 2147483648
           },
           "amountHigh": {
-            "title": "Numeric bounds code UPDATEAMOUNTHIGH 1778194725813",
-            "code": "NUMBOUNDSUPDATEAMOUNTHIGH1778194725813",
+            "title": "Numeric bounds code UPDATEAMOUNTHIGH 1785196809636",
+            "code": "NUMBOUNDSUPDATEAMOUNTHIGH1785196809636",
             "startsAt": "2026-04-25T00:00:00Z",
             "combinesWith": {
               "productDiscounts": false,
@@ -479,7 +479,7 @@
               "actualQueryCost": 30,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1956,
+                "currentlyAvailable": 1970,
                 "restoreRate": 100
               }
             }
@@ -493,7 +493,7 @@
         "query": "mutation DiscountNumericBoundsAutomaticBasicCreate(\n  $recurringHigh: DiscountAutomaticBasicInput!\n  $amountHigh: DiscountAutomaticBasicInput!\n) {\n  recurringHigh: discountAutomaticBasicCreate(automaticBasicDiscount: $recurringHigh) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  amountHigh: discountAutomaticBasicCreate(automaticBasicDiscount: $amountHigh) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
         "variables": {
           "recurringHigh": {
-            "title": "Numeric bounds automatic CREATERECURRINGHIGH 1778194725813",
+            "title": "Numeric bounds automatic CREATERECURRINGHIGH 1785196809636",
             "startsAt": "2026-04-25T00:00:00Z",
             "combinesWith": {
               "productDiscounts": false,
@@ -516,7 +516,7 @@
             "recurringCycleLimit": 2147483648
           },
           "amountHigh": {
-            "title": "Numeric bounds automatic CREATEAMOUNTHIGH 1778194725813",
+            "title": "Numeric bounds automatic CREATEAMOUNTHIGH 1785196809636",
             "startsAt": "2026-04-25T00:00:00Z",
             "combinesWith": {
               "productDiscounts": false,
@@ -575,7 +575,7 @@
               "actualQueryCost": 20,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1965,
+                "currentlyAvailable": 1970,
                 "restoreRate": 100
               }
             }
@@ -588,9 +588,9 @@
         "documentPath": "config/parity-requests/discounts/discount-numeric-bounds-automatic-basic-update.graphql",
         "query": "mutation DiscountNumericBoundsAutomaticBasicUpdate(\n  $id: ID!\n  $recurringHigh: DiscountAutomaticBasicInput!\n  $amountHigh: DiscountAutomaticBasicInput!\n) {\n  recurringHigh: discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $recurringHigh) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  amountHigh: discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $amountHigh) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/DiscountAutomaticNode/1640808907058",
+          "id": "gid://shopify/DiscountAutomaticNode/1663207440690",
           "recurringHigh": {
-            "title": "Numeric bounds automatic UPDATERECURRINGHIGH 1778194725813",
+            "title": "Numeric bounds automatic UPDATERECURRINGHIGH 1785196809636",
             "startsAt": "2026-04-25T00:00:00Z",
             "combinesWith": {
               "productDiscounts": false,
@@ -613,7 +613,7 @@
             "recurringCycleLimit": 2147483648
           },
           "amountHigh": {
-            "title": "Numeric bounds automatic UPDATEAMOUNTHIGH 1778194725813",
+            "title": "Numeric bounds automatic UPDATEAMOUNTHIGH 1785196809636",
             "startsAt": "2026-04-25T00:00:00Z",
             "combinesWith": {
               "productDiscounts": false,
@@ -672,7 +672,7 @@
               "actualQueryCost": 20,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1962,
+                "currentlyAvailable": 1964,
                 "restoreRate": 100
               }
             }
@@ -686,7 +686,7 @@
         "query": "mutation DiscountNumericBoundsRecurringFloatVariable($input: DiscountAutomaticBasicInput!) {\n  discountAutomaticBasicCreate(automaticBasicDiscount: $input) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
         "variables": {
           "input": {
-            "title": "Numeric bounds automatic FLOATVARIABLE 1778194725813",
+            "title": "Numeric bounds automatic FLOATVARIABLE 1785196809636",
             "startsAt": "2026-04-25T00:00:00Z",
             "combinesWith": {
               "productDiscounts": false,
@@ -725,7 +725,7 @@
               "extensions": {
                 "code": "INVALID_VARIABLE",
                 "value": {
-                  "title": "Numeric bounds automatic FLOATVARIABLE 1778194725813",
+                  "title": "Numeric bounds automatic FLOATVARIABLE 1785196809636",
                   "startsAt": "2026-04-25T00:00:00Z",
                   "combinesWith": {
                     "productDiscounts": false,
@@ -800,7 +800,7 @@
       "payload": {
         "data": {
           "discountAutomaticDelete": {
-            "deletedAutomaticDiscountId": "gid://shopify/DiscountAutomaticNode/1640808907058",
+            "deletedAutomaticDiscountId": "gid://shopify/DiscountAutomaticNode/1663207440690",
             "userErrors": []
           }
         },
@@ -810,7 +810,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1988,
               "restoreRate": 100
             }
           }
@@ -822,7 +822,7 @@
       "payload": {
         "data": {
           "discountCodeDelete": {
-            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640808874290",
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1663207407922",
             "userErrors": []
           }
         },
@@ -844,9 +844,9 @@
     {
       "operationName": "DiscountUniquenessCheck",
       "variables": {
-        "code": "NUMBOUNDSSETUP1778194725813"
+        "code": "NUMBOUNDSSETUP1785196809636"
       },
-      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) { id }\n}\n",
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -888,6 +888,188 @@
               "throttleStatus": {
                 "maximumAvailable": 2000,
                 "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "NUMBOUNDSCREATEUSAGEHIGH1785196809636"
+      },
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "NUMBOUNDSCREATEUSAGELOW1785196809636"
+      },
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "NUMBOUNDSCREATERECURRINGHIGH1785196809636"
+      },
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "NUMBOUNDSCREATEAMOUNTHIGH1785196809636"
+      },
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "NUMBOUNDSUPDATEUSAGEHIGH1785196809636"
+      },
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1977,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "NUMBOUNDSUPDATERECURRINGHIGH1785196809636"
+      },
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "NUMBOUNDSUPDATEAMOUNTHIGH1785196809636"
+      },
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
                 "restoreRate": 100
               }
             }

@@ -573,7 +573,7 @@ async function recordSpec(opts: RecordOptions): Promise<void> {
     existingCalls: preservedCalls,
   });
   let calls: RecordedCall[] = preservedCalls;
-  let rewriteCaptureNow: (() => void) | null = null;
+  let completed = false;
   let proxy: { dispose?: () => void } | null = null;
   try {
     const shim = await import(shimEntrypoint);
@@ -662,18 +662,23 @@ async function recordSpec(opts: RecordOptions): Promise<void> {
       // diagnostic logging.
     }
 
-    calls = [...preservedCalls, ...recorder.recordedCalls];
-    rewriteCaptureNow = () => rewriteCapture(captureFile, calls, []);
+    completed = true;
   } finally {
+    calls = [...preservedCalls, ...recorder.recordedCalls];
     proxy?.dispose?.();
     await recorder.close();
+    if (!completed && recorder.recordedCalls.length > 0) {
+      rewriteCapture(captureFile, calls, []);
+      log(
+        `[parity-record] wrote ${calls.length} upstreamCalls to ${relative(
+          repoRoot,
+          captureFile,
+        )} before the replay stopped; rerun to continue recording dependent requests`,
+      );
+    }
   }
 
-  if (rewriteCaptureNow) {
-    rewriteCaptureNow();
-  } else {
-    rewriteCapture(captureFile, calls, []);
-  }
+  rewriteCapture(captureFile, calls, []);
   log(`[parity-record] wrote ${calls.length} upstreamCalls to ${relative(repoRoot, captureFile)}`);
 }
 
