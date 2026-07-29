@@ -46,7 +46,7 @@ mutation FulfillmentConstraintRuleErrorShape {
   }
   updateUnknown: fulfillmentConstraintRuleUpdate(
     id: "gid://shopify/FulfillmentConstraintRule/999999999999"
-    deliveryMethodTypes: [SHIPPING]
+    deliveryMethodTypes: [PICK_UP]
   ) {
     fulfillmentConstraintRule {
       id
