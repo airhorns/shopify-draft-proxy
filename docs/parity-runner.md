@@ -378,6 +378,19 @@ Shopify, plays the spec's primary and targets through it, intercepts every
 upstream call the operation handlers issue, and writes the result into the
 capture file's `upstreamCalls` field.
 
+When a newly required read is a prerequisite for a later request, the first
+recording pass can fail safely before the proxy produces an ID needed by that
+later request. The recorder still writes every exact read-only Shopify call it
+captured before stopping and exits non-zero with a message to rerun. Rerun the
+same scenario until the dependent replay completes; each pass reuses the exact
+recorded calls and records the next unresolved reads. Do not replace this retry
+flow by editing cassette requests or responses.
+
+If the prerequisite must prove that a disposable product, variant, collection,
+or other setup resource exists, record it in the registered live capture script
+while that resource still exists, before cleanup. A later `parity:record` pass
+cannot turn a deleted resource into known-present evidence.
+
 Credentials come from the existing OAuth flow:
 `pnpm conformance:auth-link`, `pnpm conformance:exchange-auth`,
 `pnpm conformance:probe`. Stored in `~/.shopify-draft-proxy/`.

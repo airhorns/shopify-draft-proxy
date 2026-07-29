@@ -473,6 +473,131 @@
           ]
         }
       }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "variables": {
+        "code": "HAR593S1777950794226"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "variables": {
+        "code": "HAR593E1777950794226"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "variables": {
+        "code": "HAR593A1777950794226"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "query DiscountStatusTimeWindowDerivationRead(\n  $scheduledId: ID!\n  $expiredId: ID!\n  $activeId: ID!\n  $scheduledQuery: String!\n  $expiredQuery: String!\n) {\n  scheduledNode: codeDiscountNode(id: $scheduledId) {\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        status\n        startsAt\n        endsAt\n      }\n    }\n  }\n  expiredNode: codeDiscountNode(id: $expiredId) {\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        status\n        startsAt\n        endsAt\n      }\n    }\n  }\n  activeNode: discountNode(id: $activeId) {\n    discount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        status\n        startsAt\n        endsAt\n      }\n    }\n  }\n  scheduledDiscountNodes: discountNodes(first: 5, query: $scheduledQuery) {\n    nodes {\n      discount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n        }\n      }\n    }\n  }\n  expiredDiscountNodesCount: discountNodesCount(query: $expiredQuery) {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "scheduledId": "gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic",
+        "expiredId": "gid://shopify/DiscountCodeNode/3?shopify-draft-proxy=synthetic",
+        "activeId": "gid://shopify/DiscountCodeNode/5?shopify-draft-proxy=synthetic",
+        "scheduledQuery": "status:scheduled title:'HAR-593 scheduled 1777950794226'",
+        "expiredQuery": "status:expired title:'HAR-593 expired 1777950794226'"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "scheduledNode": null,
+            "expiredNode": null,
+            "activeNode": null,
+            "scheduledDiscountNodes": {
+              "nodes": []
+            },
+            "expiredDiscountNodesCount": {
+              "count": 0,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 24,
+              "actualQueryCost": 18,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1982,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
     }
   ]
 }

@@ -1,0 +1,31 @@
+{
+  "scenarioId": "functions-fulfillment-constraint-rules-empty-read",
+  "operationNames": ["fulfillmentConstraintRules"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["live-capture", "payload-shape", "empty-state-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-fulfillment-constraint-rule-errors.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "proxyConfig": {
+    "readMode": "snapshot"
+  },
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/functions/functions-fulfillment-constraint-rules-empty-read.graphql",
+    "variablesCapturePath": "$.readEmpty.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "fulfillment-constraint-rules-empty-read",
+        "capturePath": "$.readEmpty.response.payload.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 empty fulfillmentConstraintRules evidence recorded before the disposable update lifecycle. Snapshot mode verifies that a proxy with no observed or staged rules returns the same empty list without inventing a rule."
+}

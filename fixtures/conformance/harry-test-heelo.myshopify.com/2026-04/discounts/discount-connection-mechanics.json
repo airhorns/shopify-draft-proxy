@@ -672,5 +672,210 @@
         }
       }
     }
+  ],
+  "upstreamCalls": [
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "variables": {
+        "code": "SDPCONNZSEED1783175824302"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "variables": {
+        "code": "SDPCONNBSEED1783175824302"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "variables": {
+        "code": "SDPCONNZADD1783175824302"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "variables": {
+        "code": "SDPCONNZPLUS1783175824302"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "variables": {
+        "code": "SDPCONNZTAIL1783175824302"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "query DiscountConnectionMechanicsReadFirst($query: String!, $first: Int!, $nestedId: ID!, $countLimit: Int!) {\n  discountNodes(first: $first, query: $query, sortKey: TITLE, reverse: true) {\n    nodes {\n      id\n      discount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n        }\n        ... on DiscountAutomaticBasic {\n          title\n        }\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        discount {\n          __typename\n          ... on DiscountCodeBasic {\n            title\n          }\n          ... on DiscountAutomaticBasic {\n            title\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  codeDiscountNodesReverse: codeDiscountNodes(first: 2, query: $query, sortKey: TITLE, reverse: true) {\n    nodes {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  automaticDiscountNodesReverse: automaticDiscountNodes(first: 2, query: $query, sortKey: CREATED_AT, reverse: true) {\n    nodes {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  limitedCount: discountNodesCount(query: $query, limit: $countLimit) {\n    count\n    precision\n  }\n  nestedCode: codeDiscountNode(id: $nestedId) {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        codes(first: 2) {\n          nodes {\n            code\n          }\n          edges {\n            cursor\n            node {\n              code\n            }\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n        codesCount {\n          count\n          precision\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "query": "status:scheduled",
+        "first": 2,
+        "nestedId": "gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic",
+        "countLimit": 2
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "discountNodes": {
+              "nodes": [],
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            },
+            "codeDiscountNodesReverse": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            },
+            "automaticDiscountNodesReverse": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            },
+            "limitedCount": {
+              "count": 0,
+              "precision": "EXACT"
+            },
+            "nestedCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 31,
+              "actualQueryCost": 20,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
   ]
 }
