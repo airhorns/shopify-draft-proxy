@@ -840,6 +840,13 @@ impl DraftProxy {
                 .function_fulfillment_constraint_rule_order
                 .clone());
         }
+        if self
+            .store
+            .base
+            .function_fulfillment_constraint_rule_catalog_complete
+        {
+            snapshot["baseState"]["functionFulfillmentConstraintRuleCatalogComplete"] = json!(true);
+        }
         if !self.store.base.function_connection_observations.is_empty() {
             snapshot["baseState"]["functionConnectionObservations"] =
                 json!(self.store.base.function_connection_observations.clone());
@@ -2232,6 +2239,12 @@ impl DraftProxy {
                     .cloned()
                     .collect()
             });
+        self.store
+            .base
+            .function_fulfillment_constraint_rule_catalog_complete = state["baseState"]
+            ["functionFulfillmentConstraintRuleCatalogComplete"]
+            .as_bool()
+            .unwrap_or(false);
         self.store
             .base
             .function_fulfillment_constraint_rule_known_missing_ids = string_set_from_json(

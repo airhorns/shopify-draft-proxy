@@ -546,6 +546,7 @@ struct BaseState {
     function_cart_transform_decision_hydrated: bool,
     function_fulfillment_constraint_rules: BTreeMap<String, Value>,
     function_fulfillment_constraint_rule_order: Vec<String>,
+    function_fulfillment_constraint_rule_catalog_complete: bool,
     function_fulfillment_constraint_rule_known_missing_ids: BTreeSet<String>,
     function_connection_observations: BTreeMap<String, Value>,
     metafield_definitions: BTreeMap<MetafieldDefinitionKey, Value>,
