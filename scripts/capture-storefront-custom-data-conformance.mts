@@ -5,13 +5,9 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
+import { captureMetafieldsSetOwnerExistence } from './conformance-capture-lib.js';
 import { createAdminGraphqlClient, runStorefrontGraphqlRequest } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
-import {
-  captureMetafieldsSetOwnerExistence,
-  recordParityUpstreamCalls,
-  type RecordedUpstreamCall,
-} from './conformance-capture-lib.js';
 import {
   buildAdminAuthHeaders,
   buildStorefrontRequestHeaders,
@@ -45,6 +41,16 @@ type StorefrontCapture = {
     status: number;
     body: unknown;
   };
+};
+
+type UpstreamCall = {
+  method: 'POST';
+  apiSurface: 'admin';
+  path: string;
+  operationName: string;
+  variables: Record<string, unknown>;
+  query: string;
+  response: { status: number; body: unknown };
 };
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
@@ -99,6 +105,16 @@ const documents = {
   shopMetafieldsSet: await readFile(documentPaths.shopMetafieldsSet, 'utf8'),
   storefrontRead: await readFile(documentPaths.storefrontRead, 'utf8'),
 };
+const hydrateByIdentifierDocument = await readFile(
+  'config/parity-requests/metafields/metafield-definition-hydrate-by-identifier.graphql',
+  'utf8',
+);
+const hydrateResourceScopeDocument = await readFile(
+  'config/parity-requests/metafields/metafield-definitions-hydrate-resource-scope.graphql',
+  'utf8',
+);
+const ownerMetafieldsHydrateQuery =
+  'query OwnerMetafieldsHydrateNodes($ids: [ID!]!, $metafield0Namespace: String!, $metafield0Key: String!, $metafield1Namespace: String!, $metafield1Key: String!) { nodes(ids: $ids) { __typename id ... on HasMetafields { metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } metafield1: metafield(namespace: $metafield1Namespace, key: $metafield1Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } } ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt  } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } } ... on Collection { id title handle } ... on Customer { id displayName email } ... on Order { id name } ... on Company { id name } ... on Page { id title } ... on Article { id title } } }';
 
 const suffix = new Date().toISOString().replace(/\D/gu, '').slice(0, 14);
 const targetType = `codex_sfc_target_${suffix}`;
@@ -112,6 +128,7 @@ const metafieldNamespace = `sfc_${suffix}`;
 
 const adminCaptures: Capture[] = [];
 const cleanupCaptures: Capture[] = [];
+const upstreamCalls: UpstreamCall[] = [];
 const createdMetaobjectIds: string[] = [];
 const createdMetaobjectDefinitionIds: string[] = [];
 const createdMetafieldDefinitionIds: string[] = [];
@@ -122,11 +139,6 @@ let sourceDefinitionCapture: Capture | null = null;
 let sourceEntryCapture: Capture | null = null;
 let shopMetafieldsSetCapture: Capture | null = null;
 let storefrontReadCapture: StorefrontCapture | null = null;
-let fixture: Record<string, unknown> | null = null;
-let upstreamCalls: RecordedUpstreamCall[] = [];
-
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'storefront');
-const outputPath = path.join(outputDir, 'storefront-custom-data-read-after-admin-setup.json');
 
 async function captureAdmin(name: string, query: string, variables: Record<string, unknown>): Promise<Capture> {
   const result = await runGraphqlRaw(query, variables);
@@ -140,16 +152,54 @@ async function captureAdmin(name: string, query: string, variables: Record<strin
   return capture;
 }
 
-async function captureAdminCleanup(name: string, query: string, variables: Record<string, unknown>): Promise<Capture> {
+async function captureAdminCleanup(name: string, query: string, variables: Record<string, unknown>): Promise<void> {
   const result = await runGraphqlRaw(query, variables);
-  const capture = {
+  cleanupCaptures.push({
     name,
     request: { query, variables },
     status: result.status,
     response: result.payload,
+  });
+}
+
+async function recordAdminUpstreamCall(
+  operationName: string,
+  query: string,
+  variables: Record<string, unknown>,
+): Promise<UpstreamCall> {
+  const result = await runGraphqlRaw(query, variables);
+  assertNoTopLevelErrors(result.payload, operationName);
+  if (result.status < 200 || result.status >= 300) {
+    throw new Error(`${operationName} returned HTTP ${result.status}: ${JSON.stringify(result.payload)}`);
+  }
+  return {
+    method: 'POST',
+    apiSurface: 'admin',
+    path: `/admin/api/${apiVersion}/graphql.json`,
+    operationName,
+    variables,
+    query,
+    response: { status: result.status, body: result.payload },
   };
-  cleanupCaptures.push(capture);
-  return capture;
+}
+
+async function recordResourceScope(): Promise<void> {
+  let after: string | null = null;
+  for (let page = 0; page < 3; page += 1) {
+    const call = await recordAdminUpstreamCall(
+      'MetafieldDefinitionsHydrateResourceScope',
+      hydrateResourceScopeDocument,
+      { ownerType: 'SHOP', query: '-namespace:app--*', first: 250, after },
+    );
+    upstreamCalls.push(call);
+    const pageInfo = readPath(call.response.body, ['data', 'metafieldDefinitions', 'pageInfo']);
+    if (readPath(pageInfo, ['hasNextPage']) !== true) return;
+    const endCursor = readPath(pageInfo, ['endCursor']);
+    if (typeof endCursor !== 'string') {
+      throw new Error(`resource-scope page ${page + 1} omitted endCursor`);
+    }
+    after = endCursor;
+  }
 }
 
 async function storefrontRequest(
@@ -282,49 +332,23 @@ const metafieldDefinitionDeleteMutation = `#graphql
   }
 `;
 
-async function cleanupCreatedResources(): Promise<void> {
-  while (createdMetaobjectIds.length > 0) {
-    const id = createdMetaobjectIds.at(-1)!;
-    const capture = await captureAdminCleanup('metaobjectDelete-cleanup', metaobjectDeleteMutation, { id });
-    assertNoTopLevelErrors(capture.response, 'metaobject cleanup');
-    assertNoUserErrors(capture.response, ['data', 'metaobjectDelete', 'userErrors'], 'metaobject cleanup');
-    createdMetaobjectIds.pop();
-  }
-  while (createdMetafieldDefinitionIds.length > 0) {
-    const id = createdMetafieldDefinitionIds.at(-1)!;
-    const capture = await captureAdminCleanup('metafieldDefinitionDelete-cleanup', metafieldDefinitionDeleteMutation, {
-      id,
-    });
-    assertNoTopLevelErrors(capture.response, 'metafield definition cleanup');
-    assertNoUserErrors(
-      capture.response,
-      ['data', 'metafieldDefinitionDelete', 'userErrors'],
-      'metafield definition cleanup',
-    );
-    createdMetafieldDefinitionIds.pop();
-  }
-  while (createdMetaobjectDefinitionIds.length > 0) {
-    const id = createdMetaobjectDefinitionIds.at(-1)!;
-    const capture = await captureAdminCleanup(
-      'metaobjectDefinitionDelete-cleanup',
-      metaobjectDefinitionDeleteMutation,
-      { id },
-    );
-    assertNoTopLevelErrors(capture.response, 'metaobject definition cleanup');
-    assertNoUserErrors(
-      capture.response,
-      ['data', 'metaobjectDefinitionDelete', 'userErrors'],
-      'metaobject definition cleanup',
-    );
-    createdMetaobjectDefinitionIds.pop();
-  }
-}
-
 try {
   adminShopCapture = await captureAdmin('admin-shop', adminShopQuery, {});
   assertNoTopLevelErrors(adminShopCapture.response, 'admin shop');
   const shopId = readRequiredString(adminShopCapture.response, ['data', 'shop', 'id'], 'admin shop id');
-  upstreamCalls = [await captureMetafieldsSetOwnerExistence(runGraphqlRaw, apiVersion, [shopId])];
+
+  upstreamCalls.push(await captureMetafieldsSetOwnerExistence(runGraphqlRaw, apiVersion, [shopId]));
+  upstreamCalls.push(
+    await recordAdminUpstreamCall('MetafieldDefinitionHydrateByIdentifier', hydrateByIdentifierDocument, {
+      identifier: { ownerType: 'SHOP', namespace: metafieldNamespace, key: 'visible' },
+    }),
+  );
+  await recordResourceScope();
+  upstreamCalls.push(
+    await recordAdminUpstreamCall('MetafieldDefinitionHydrateByIdentifier', hydrateByIdentifierDocument, {
+      identifier: { ownerType: 'SHOP', namespace: metafieldNamespace, key: 'hidden' },
+    }),
+  );
 
   primarySetupCapture = await captureAdmin('admin-primary-setup', documents.primarySetup, {
     targetDefinition: {
@@ -527,6 +551,16 @@ try {
     readPath(sourceEntryCapture.response, ['data', 'sourceEntry', 'metaobject', 'id']),
   );
 
+  upstreamCalls.push(
+    await recordAdminUpstreamCall('OwnerMetafieldsHydrateNodes', ownerMetafieldsHydrateQuery, {
+      ids: [shopId],
+      metafield0Namespace: metafieldNamespace,
+      metafield0Key: 'visible',
+      metafield1Namespace: metafieldNamespace,
+      metafield1Key: 'hidden',
+    }),
+  );
+
   shopMetafieldsSetCapture = await captureAdmin('admin-shop-metafields-set', documents.shopMetafieldsSet, {
     metafields: [
       {
@@ -557,39 +591,16 @@ try {
     metafieldNamespace,
   };
   storefrontReadCapture = await waitForStorefrontCustomData(storefrontVariables);
-
-  fixture = {
-    scenarioId: 'storefront-custom-data-read-after-admin-setup',
-    capturedAt: new Date().toISOString(),
-    storeDomain,
-    apiVersion,
-    apiSurface: 'storefront',
-    endpoint: storefrontEndpoint,
-    authMode: 'storefront-access-token',
-    storefrontToken: {
-      id: storedStorefrontAuth.storefront_token_id || '<unknown>',
-      title: storedStorefrontAuth.storefront_token_title || '<unknown>',
-      accessScopes: storedStorefrontAuth.storefront_access_scopes,
-      obtainedAt: storedStorefrontAuth.obtained_at || '<unknown>',
-    },
-    adminShop: adminShopCapture,
-    primarySetup: primarySetupCapture,
-    targetEntriesSetup: targetEntriesCapture,
-    sourceDefinitionSetup: sourceDefinitionCapture,
-    sourceEntrySetup: sourceEntryCapture,
-    shopMetafieldsSet: shopMetafieldsSetCapture,
-    storefrontRead: storefrontReadCapture,
-    cleanup: cleanupCaptures,
-    upstreamCalls,
-  };
-  await mkdir(outputDir, { recursive: true });
-  await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
-  await cleanupCreatedResources();
-  fixture.upstreamCalls = recordParityUpstreamCalls(['storefront-custom-data-read-after-admin-setup'], apiVersion, [
-    outputPath,
-  ])[outputPath]!;
 } finally {
-  await cleanupCreatedResources();
+  for (const id of createdMetaobjectIds.reverse()) {
+    await captureAdminCleanup('metaobjectDelete-cleanup', metaobjectDeleteMutation, { id });
+  }
+  for (const id of createdMetafieldDefinitionIds.reverse()) {
+    await captureAdminCleanup('metafieldDefinitionDelete-cleanup', metafieldDefinitionDeleteMutation, { id });
+  }
+  for (const id of createdMetaobjectDefinitionIds.reverse()) {
+    await captureAdminCleanup('metaobjectDefinitionDelete-cleanup', metaobjectDefinitionDeleteMutation, { id });
+  }
 }
 
 if (
@@ -599,14 +610,46 @@ if (
   sourceDefinitionCapture === null ||
   sourceEntryCapture === null ||
   shopMetafieldsSetCapture === null ||
-  storefrontReadCapture === null ||
-  fixture === null
+  storefrontReadCapture === null
 ) {
   throw new Error('Storefront custom-data capture did not complete.');
 }
 
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'storefront');
 await mkdir(outputDir, { recursive: true });
-await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
+const outputPath = path.join(outputDir, 'storefront-custom-data-read-after-admin-setup.json');
+await writeFile(
+  outputPath,
+  `${JSON.stringify(
+    {
+      scenarioId: 'storefront-custom-data-read-after-admin-setup',
+      capturedAt: new Date().toISOString(),
+      storeDomain,
+      apiVersion,
+      apiSurface: 'storefront',
+      endpoint: storefrontEndpoint,
+      authMode: 'storefront-access-token',
+      storefrontToken: {
+        id: storedStorefrontAuth.storefront_token_id || '<unknown>',
+        title: storedStorefrontAuth.storefront_token_title || '<unknown>',
+        accessScopes: storedStorefrontAuth.storefront_access_scopes,
+        obtainedAt: storedStorefrontAuth.obtained_at || '<unknown>',
+      },
+      adminShop: adminShopCapture,
+      primarySetup: primarySetupCapture,
+      targetEntriesSetup: targetEntriesCapture,
+      sourceDefinitionSetup: sourceDefinitionCapture,
+      sourceEntrySetup: sourceEntryCapture,
+      shopMetafieldsSet: shopMetafieldsSetCapture,
+      storefrontRead: storefrontReadCapture,
+      cleanup: cleanupCaptures,
+      upstreamCalls,
+    },
+    null,
+    2,
+  )}\n`,
+  'utf8',
+);
 
 console.log(`Wrote ${outputPath}`);
 console.log(`Captured authenticated Storefront custom-data status ${storefrontReadCapture.response.status}`);

@@ -1,14 +1,10 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write capture status output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import {
-  captureMetafieldsSetOwnerExistence,
-  recordParityUpstreamCalls,
-  type RecordedUpstreamCall,
-} from './conformance-capture-lib.js';
+import { captureMetafieldsSetOwnerExistence } from './conformance-capture-lib.js';
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
@@ -21,6 +17,16 @@ type CapturedInteraction = {
   };
   status: number;
   response: unknown;
+};
+
+type UpstreamCall = {
+  method: 'POST';
+  apiSurface: 'admin';
+  path: string;
+  operationName: string;
+  variables: Record<string, unknown>;
+  query: string;
+  response: { status: number; body: unknown };
 };
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
@@ -198,6 +204,57 @@ async function captureDocument(
   };
 }
 
+const hydrateByIdentifierDocument = await readFile(
+  'config/parity-requests/metafields/metafield-definition-hydrate-by-identifier.graphql',
+  'utf8',
+);
+const hydrateResourceScopeDocument = await readFile(
+  'config/parity-requests/metafields/metafield-definitions-hydrate-resource-scope.graphql',
+  'utf8',
+);
+const ownerMetafieldHydrateQuery =
+  'query OwnerMetafieldsHydrateNodes($ids: [ID!]!, $metafield0Namespace: String!, $metafield0Key: String!) { nodes(ids: $ids) { __typename id ... on HasMetafields { metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } } ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt  } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } } ... on Collection { id title handle } ... on Customer { id displayName email } ... on Order { id name } ... on Company { id name } ... on Page { id title } ... on Article { id title } } }';
+const upstreamCalls: UpstreamCall[] = [];
+
+async function recordUpstreamCall(
+  operationName: string,
+  query: string,
+  variables: Record<string, unknown>,
+): Promise<UpstreamCall> {
+  const result = await runGraphqlRaw(query, variables);
+  assertHttpOk(result, operationName);
+  return {
+    method: 'POST',
+    apiSurface: 'admin',
+    path: `/admin/api/${apiVersion}/graphql.json`,
+    operationName,
+    variables,
+    query,
+    response: { status: result.status, body: result.payload },
+  };
+}
+
+async function recordResourceScope(): Promise<void> {
+  let after: string | null = null;
+  for (let page = 0; page < 3; page += 1) {
+    const call = await recordUpstreamCall('MetafieldDefinitionsHydrateResourceScope', hydrateResourceScopeDocument, {
+      ownerType: 'PRODUCT',
+      query: '-namespace:app--*',
+      first: 250,
+      after,
+    });
+    upstreamCalls.push(call);
+    const connection = readObject(readPath(call.response.body, ['data', 'metafieldDefinitions']));
+    const pageInfo = readObject(connection?.['pageInfo']);
+    if (pageInfo?.['hasNextPage'] !== true) return;
+    const endCursor = pageInfo['endCursor'];
+    if (typeof endCursor !== 'string') {
+      throw new Error(`resource-scope page ${page + 1} omitted endCursor`);
+    }
+    after = endCursor;
+  }
+}
+
 function requireString(value: unknown, label: string): string {
   if (typeof value !== 'string' || value.length === 0) {
     throw new Error(`${label} was not returned: ${JSON.stringify(value)}`);
@@ -218,8 +275,6 @@ let metafieldsSet: CapturedInteraction | null = null;
 let validationUpdate: CapturedInteraction | null = null;
 let jobRead: CapturedInteraction | null = null;
 let rename: CapturedInteraction | null = null;
-let ownerExistence: RecordedUpstreamCall | null = null;
-let recordedUpstreamCalls: RecordedUpstreamCall[] | null = null;
 
 try {
   schema = await captureQuery('payload schema', payloadSchemaQuery, {});
@@ -228,7 +283,14 @@ try {
     product: { title: `validation job ${suffix}` },
   });
   productId = requireString(readPath(productCreate.response, ['data', 'productCreate', 'product', 'id']), 'product id');
-  ownerExistence = await captureMetafieldsSetOwnerExistence(runGraphqlRaw, apiVersion, [productId]);
+
+  upstreamCalls.push(await captureMetafieldsSetOwnerExistence(runGraphqlRaw, apiVersion, [productId]));
+  upstreamCalls.push(
+    await recordUpstreamCall('MetafieldDefinitionHydrateByIdentifier', hydrateByIdentifierDocument, {
+      identifier: { ownerType: 'PRODUCT', namespace, key },
+    }),
+  );
+  await recordResourceScope();
 
   create = await captureDocument('metafieldDefinitionCreate setup', createDocumentPath, createDocument, {
     definition: {
@@ -242,6 +304,14 @@ try {
   definitionId = requireString(
     readPath(create.response, ['data', 'metafieldDefinitionCreate', 'createdDefinition', 'id']),
     'definition id',
+  );
+
+  upstreamCalls.push(
+    await recordUpstreamCall('OwnerMetafieldsHydrateNodes', ownerMetafieldHydrateQuery, {
+      ids: [productId],
+      metafield0Namespace: namespace,
+      metafield0Key: key,
+    }),
   );
 
   metafieldsSet = await captureDocument(
@@ -289,14 +359,6 @@ try {
       name: 'Validation Job Definition Renamed',
     },
   });
-
-  cleanup.push(await captureQuery('cleanup metafieldDefinitionDelete', deleteDefinitionMutation, { id: definitionId }));
-  definitionId = null;
-
-  await writeGeneratedFiles();
-  recordedUpstreamCalls = recordParityUpstreamCalls(['metafield-definition-validation-job'], apiVersion, [fixturePath])[
-    fixturePath
-  ];
 } finally {
   if (definitionId) {
     cleanup.push(
@@ -329,141 +391,133 @@ function requireCapture(value: CapturedInteraction | null, label: string): Captu
   return value;
 }
 
-function buildFixture() {
-  return {
-    capturedAt: new Date().toISOString(),
-    storeDomain,
-    apiVersion,
-    namespace,
-    key,
-    schema: requireCapture(schema, 'schema'),
-    productCreate: requireCapture(productCreate, 'productCreate'),
-    create: requireCapture(create, 'create'),
-    metafieldsSet: requireCapture(metafieldsSet, 'metafieldsSet'),
-    validationUpdate: requireCapture(validationUpdate, 'validationUpdate'),
-    jobRead: requireCapture(jobRead, 'jobRead'),
-    rename: requireCapture(rename, 'rename'),
-    cleanup,
-    upstreamCalls: recordedUpstreamCalls ?? (ownerExistence ? [ownerExistence] : []),
-  };
-}
+const fixture = {
+  capturedAt: new Date().toISOString(),
+  storeDomain,
+  apiVersion,
+  namespace,
+  key,
+  schema: requireCapture(schema, 'schema'),
+  productCreate: requireCapture(productCreate, 'productCreate'),
+  create: requireCapture(create, 'create'),
+  metafieldsSet: requireCapture(metafieldsSet, 'metafieldsSet'),
+  validationUpdate: requireCapture(validationUpdate, 'validationUpdate'),
+  jobRead: requireCapture(jobRead, 'jobRead'),
+  rename: requireCapture(rename, 'rename'),
+  cleanup,
+  upstreamCalls,
+};
 
-function buildSpec() {
-  return {
-    scenarioId: 'metafield-definition-validation-job',
-    operationNames: ['metafieldDefinitionCreate', 'metafieldsSet', 'metafieldDefinitionUpdate', 'job'],
-    scenarioStatus: 'captured',
-    assertionKinds: ['payload-shape', 'validation-backfill-job', 'async-job-readback', 'null-noop-job'],
-    liveCaptureFiles: [fixturePath],
-    proxyRequest: {
-      documentPath: createDocumentPath,
-      variablesCapturePath: '$.create.request.variables',
-      apiVersion,
-    },
-    comparisonMode: 'captured-vs-proxy-request',
-    notes:
-      'Executable parity for metafieldDefinitionUpdate validation backfill jobs. The live schema exposes validationJob on MetafieldDefinitionUpdatePayload, not on MetafieldDefinitionCreatePayload or MetafieldDefinition; a validation change over an existing matching metafield returns a pending payload Job, job(id:) readback returns the same pending shape in this capture, and a subsequent non-validation update returns validationJob null.',
-    comparison: {
-      mode: 'strict-json',
-      expectedDifferences: [
-        {
-          path: '$.metafieldDefinitionCreate.createdDefinition.id',
-          matcher: 'shopify-gid:MetafieldDefinition',
-          reason: 'Shopify and the local parity harness allocate definition identifiers independently.',
+const spec = {
+  scenarioId: 'metafield-definition-validation-job',
+  operationNames: ['metafieldDefinitionCreate', 'metafieldsSet', 'metafieldDefinitionUpdate', 'job'],
+  scenarioStatus: 'captured',
+  assertionKinds: ['payload-shape', 'validation-backfill-job', 'async-job-readback', 'null-noop-job'],
+  liveCaptureFiles: [fixturePath],
+  proxyRequest: {
+    documentPath: createDocumentPath,
+    variablesCapturePath: '$.create.request.variables',
+    apiVersion,
+  },
+  comparisonMode: 'captured-vs-proxy-request',
+  notes:
+    'Executable parity for metafieldDefinitionUpdate validation backfill jobs. The live schema exposes validationJob on MetafieldDefinitionUpdatePayload, not on MetafieldDefinitionCreatePayload or MetafieldDefinition; a validation change over an existing matching metafield returns a pending payload Job, job(id:) readback returns the same pending shape in this capture, and a subsequent non-validation update returns validationJob null.',
+  comparison: {
+    mode: 'strict-json',
+    expectedDifferences: [
+      {
+        path: '$.metafieldDefinitionCreate.createdDefinition.id',
+        matcher: 'shopify-gid:MetafieldDefinition',
+        reason: 'Shopify and the local parity harness allocate definition identifiers independently.',
+      },
+      {
+        path: '$.metafieldsSet.metafields[0].id',
+        matcher: 'shopify-gid:Metafield',
+        reason: 'Shopify and the local parity harness allocate metafield identifiers independently.',
+      },
+      {
+        path: '$.metafieldDefinitionUpdate.updatedDefinition.id',
+        matcher: 'shopify-gid:MetafieldDefinition',
+        reason:
+          'The proxy updates its staged synthetic definition while Shopify returned the live-store definition ID.',
+      },
+      {
+        path: '$.metafieldDefinitionUpdate.validationJob.id',
+        matcher: 'shopify-gid:Job',
+        reason: 'Shopify and the local parity harness allocate async job identifiers independently.',
+      },
+      {
+        path: '$.job.id',
+        matcher: 'shopify-gid:Job',
+        reason: 'The job readback targets the job ID allocated by the current proxy run.',
+      },
+    ],
+    targets: [
+      {
+        name: 'create-definition',
+        capturePath: '$.create.response.data',
+        proxyPath: '$.data',
+      },
+      {
+        name: 'stage-existing-metafield',
+        capturePath: '$.metafieldsSet.response.data',
+        proxyRequest: {
+          documentPath: metafieldsSetDocumentPath,
+          variablesCapturePath: '$.metafieldsSet.request.variables',
+          apiVersion,
         },
-        {
-          path: '$.metafieldsSet.metafields[0].id',
-          matcher: 'shopify-gid:Metafield',
-          reason: 'Shopify and the local parity harness allocate metafield identifiers independently.',
+        proxyPath: '$.data',
+      },
+      {
+        name: 'validation-update-job',
+        capturePath: '$.validationUpdate.response.data',
+        proxyRequest: {
+          documentPath: updateDocumentPath,
+          variablesCapturePath: '$.validationUpdate.request.variables',
+          apiVersion,
         },
-        {
-          path: '$.metafieldDefinitionUpdate.updatedDefinition.id',
-          matcher: 'shopify-gid:MetafieldDefinition',
-          reason:
-            'The proxy updates its staged synthetic definition while Shopify returned the live-store definition ID.',
-        },
-        {
-          path: '$.metafieldDefinitionUpdate.validationJob.id',
-          matcher: 'shopify-gid:Job',
-          reason: 'Shopify and the local parity harness allocate async job identifiers independently.',
-        },
-        {
-          path: '$.job.id',
-          matcher: 'shopify-gid:Job',
-          reason: 'The job readback targets the job ID allocated by the current proxy run.',
-        },
-      ],
-      targets: [
-        {
-          name: 'create-definition',
-          capturePath: '$.create.response.data',
-          proxyPath: '$.data',
-        },
-        {
-          name: 'stage-existing-metafield',
-          capturePath: '$.metafieldsSet.response.data',
-          proxyRequest: {
-            documentPath: metafieldsSetDocumentPath,
-            variablesCapturePath: '$.metafieldsSet.request.variables',
-            apiVersion,
-          },
-          proxyPath: '$.data',
-        },
-        {
-          name: 'validation-update-job',
-          capturePath: '$.validationUpdate.response.data',
-          proxyRequest: {
-            documentPath: updateDocumentPath,
-            variablesCapturePath: '$.validationUpdate.request.variables',
-            apiVersion,
-          },
-          proxyPath: '$.data',
-        },
-        {
-          name: 'job-readback',
-          capturePath: '$.jobRead.response.data',
-          proxyRequest: {
-            documentPath: jobReadDocumentPath,
-            apiVersion,
-            variables: {
-              id: {
-                fromProxyResponse: 'validation-update-job',
-                path: '$.data.metafieldDefinitionUpdate.validationJob.id',
-              },
+        proxyPath: '$.data',
+      },
+      {
+        name: 'job-readback',
+        capturePath: '$.jobRead.response.data',
+        proxyRequest: {
+          documentPath: jobReadDocumentPath,
+          apiVersion,
+          variables: {
+            id: {
+              fromProxyResponse: 'validation-update-job',
+              path: '$.data.metafieldDefinitionUpdate.validationJob.id',
             },
           },
-          proxyPath: '$.data',
         },
-        {
-          name: 'rename-no-validation-change',
-          capturePath: '$.rename.response.data',
-          proxyRequest: {
-            documentPath: renameDocumentPath,
-            variablesCapturePath: '$.rename.request.variables',
-            apiVersion,
-          },
-          proxyPath: '$.data',
+        proxyPath: '$.data',
+      },
+      {
+        name: 'rename-no-validation-change',
+        capturePath: '$.rename.response.data',
+        proxyRequest: {
+          documentPath: renameDocumentPath,
+          variablesCapturePath: '$.rename.request.variables',
+          apiVersion,
         },
-      ],
-    },
-  };
-}
+        proxyPath: '$.data',
+      },
+    ],
+  },
+};
 
-async function writeGeneratedFiles(): Promise<void> {
-  await mkdir(requestDir, { recursive: true });
-  await mkdir(specDir, { recursive: true });
-  await mkdir(fixtureDir, { recursive: true });
+await mkdir(requestDir, { recursive: true });
+await mkdir(specDir, { recursive: true });
+await mkdir(fixtureDir, { recursive: true });
 
-  await writeFile(createDocumentPath, createDocument, 'utf8');
-  await writeFile(metafieldsSetDocumentPath, metafieldsSetDocument, 'utf8');
-  await writeFile(updateDocumentPath, updateDocument, 'utf8');
-  await writeFile(jobReadDocumentPath, jobReadDocument, 'utf8');
-  await writeFile(renameDocumentPath, renameDocument, 'utf8');
-  await writeFile(fixturePath, `${JSON.stringify(buildFixture(), null, 2)}\n`, 'utf8');
-  await writeFile(specPath, `${JSON.stringify(buildSpec(), null, 2)}\n`, 'utf8');
-}
-
-await writeGeneratedFiles();
+await writeFile(createDocumentPath, createDocument, 'utf8');
+await writeFile(metafieldsSetDocumentPath, metafieldsSetDocument, 'utf8');
+await writeFile(updateDocumentPath, updateDocument, 'utf8');
+await writeFile(jobReadDocumentPath, jobReadDocument, 'utf8');
+await writeFile(renameDocumentPath, renameDocument, 'utf8');
+await writeFile(fixturePath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
+await writeFile(specPath, `${JSON.stringify(spec, null, 2)}\n`, 'utf8');
 
 console.log(
   JSON.stringify(

@@ -16,7 +16,7 @@
     "variablesCapturePath": "$.pinByIdentifier.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Executable strict snapshot parity for product-owned metafield definition pin/unpin. The fixture captures identifier and id argument forms plus downstream pinnedStatus and PINNED_POSITION catalog effects.",
+  "notes": "Executable strict LiveHybrid parity for product-owned metafield definition pin/unpin. The fixture captures exact identity and pinned-owner prerequisite reads plus argument-keyed downstream windows, covering identifier and id forms, already-pinned/not-pinned failures, and pinnedStatus/PINNED_POSITION effects without an owner-catalog scan.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [

@@ -6038,7 +6038,34 @@ fn storefront_shop_metafields_use_known_shop_owner_without_hydration() {
     let mut proxy = configured_proxy(
         ReadMode::LiveHybrid,
         Some(UnsupportedMutationMode::Passthrough),
-    );
+    )
+    .with_upstream_transport(|request| {
+        let body: Value = serde_json::from_str(&request.body).expect("upstream JSON body");
+        match body["operationName"].as_str().unwrap_or_default() {
+            "MetafieldDefinitionHydrateByIdentifier" => Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "metafieldDefinition": null } }),
+            },
+            "MetafieldDefinitionsHydrateResourceScope" => Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "metafieldDefinitions": {
+                            "nodes": [],
+                            "pageInfo": { "hasNextPage": false, "endCursor": null }
+                        }
+                    }
+                }),
+            },
+            _ => Response {
+                status: 502,
+                headers: Default::default(),
+                body: json!({ "errors": [{ "message": "No setup hydration configured" }] }),
+            },
+        }
+    });
     restore_state_with(&mut proxy, |state| {
         state["baseState"]["shop"] = json!({
             "id": shop_id,
@@ -6864,9 +6891,7 @@ fn stage_metafields_set(proxy: &mut DraftProxy, owner_id: &str, metafields: Valu
     assert_eq!(response.status, 200);
     assert_eq!(
         response.body["data"]["metafieldsSet"]["userErrors"],
-        json!([]),
-        "{:#?}",
-        response.body
+        json!([])
     );
     response.body["data"]["metafieldsSet"]["metafields"].clone()
 }

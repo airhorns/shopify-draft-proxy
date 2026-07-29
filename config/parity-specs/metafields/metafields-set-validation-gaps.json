@@ -1,6 +1,11 @@
 {
   "scenarioId": "metafields-set-validation-gaps",
-  "operationNames": ["metafieldDefinitionCreate", "metaobjectDefinitionCreate", "metaobjectCreate", "metafieldsSet"],
+  "operationNames": [
+    "metafieldDefinitionCreate",
+    "metaobjectDefinitionCreate",
+    "metaobjectCreate",
+    "metafieldsSet"
+  ],
   "scenarioStatus": "captured",
   "assertionKinds": [
     "definition-validation-effects",

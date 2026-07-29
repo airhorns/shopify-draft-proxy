@@ -393,6 +393,7 @@ pub(in crate::proxy) enum StagedSortValue {
     Null,
     I64(i64),
     String(String),
+    Descending(std::cmp::Reverse<Box<StagedSortValue>>),
 }
 
 pub(in crate::proxy) type StagedSortKey = Vec<StagedSortValue>;

@@ -1,0 +1,26 @@
+{
+  "scenarioId": "product-operation-cold-authoritative-read",
+  "operationNames": ["productOperation"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "live-hybrid-read-through"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-operation-cold-authoritative-read.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productOperation-cold-authoritative-read.graphql",
+    "variablesCapturePath": "$.operationRead.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "A cold LiveHybrid productOperation read uses the caller's exact document to retrieve a real asynchronous ProductSetOperation created outside the proxy session. The strict target covers the whole selected operation payload.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "cold-authoritative-product-operation-payload",
+        "capturePath": "$.operationRead.response.payload.data.productOperation",
+        "proxyPath": "$.data.productOperation"
+      }
+    ]
+  }
+}

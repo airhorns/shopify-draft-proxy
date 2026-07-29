@@ -1,0 +1,10 @@
+mutation FunctionsLiveHybridOverlayDelete($id: ID!) {
+  validationDelete(id: $id) {
+    deletedId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

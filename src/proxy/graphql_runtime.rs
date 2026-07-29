@@ -443,6 +443,7 @@ impl RootFieldExecutor for ProxyRootExecutor {
                         raw_arguments: call.field.raw_arguments.clone(),
                         arguments,
                         requested_field_paths,
+                        field_selection: call.field.selection.clone(),
                         upstream_value,
                         // Native resolvers receive the caller's complete request.
                         // A domain that needs upstream evidence therefore warms the
@@ -1520,6 +1521,9 @@ impl DraftProxy {
                 raw_arguments,
                 arguments,
                 requested_field_paths: BTreeSet::new(),
+                field_selection: compatibility_root_field
+                    .map(|field| field.selection.clone())
+                    .unwrap_or_default(),
                 upstream_value: None,
                 request,
                 query: &query,

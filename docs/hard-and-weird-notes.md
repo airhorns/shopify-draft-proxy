@@ -4971,3 +4971,72 @@ Practical rule:
   `-1`
 - preserve Blog's distinct suffix/no-op behavior rather than sharing the Page
   and Article `TAKEN` branch
+
+## 118. Admin 2025-01 rejects a null metafield-definition pinned filter
+
+Live read-only Admin GraphQL 2025-01 probes showed that a
+`metafieldDefinitions` connection document containing
+`pinnedStatus: $pinnedStatus` returns a top-level
+`INTERNAL_SERVER_ERROR` when `$pinnedStatus` is explicitly `null`. The same
+connection, variables, and selection succeed when the argument is omitted.
+Supplying the schema-coerced default `ANY`, or an explicit `PINNED` or
+`UNPINNED`, succeeds and remains the correct bounded filter.
+
+Practical rule:
+
+- preserve the executable schema's coerced `ANY` default in bounded hydration
+  requests; do not replace it with null
+- continue keying cached definition windows by the caller's full argument set;
+  the document split is an upstream compatibility detail, not catalog
+  completeness evidence
+
+## 119. Metafield-definition mutation limits can lead search indexing
+
+Live Admin 2026-04 recording created disposable PRODUCT definitions until the
+authoritative create mutation returned `RESOURCE_TYPE_LIMIT_EXCEEDED` at the
+256-definition merchant boundary. Immediately afterward, the bounded
+`metafieldDefinitions(query: "-namespace:app--*")` window exposed fewer than
+256 merchant rows before converging. The mutation limit and connection search
+index are therefore not transactionally synchronized during rapid bulk setup.
+
+The same capture confirms that the merchant resource-limit bucket excludes the
+Shopify-owned `shopify` namespace but includes enabled standard-template
+definitions in ordinary merchant namespaces. App-reserved namespaces remain
+bucketed by their app identity.
+
+Practical rule:
+
+- use bounded argument-keyed threshold evidence and known staged deltas at
+  runtime; never treat the observed rows as a complete owner catalog
+- live recorders that rapidly construct a boundary must wait for the bounded
+  search window to converge before saving its production-equivalent cassette
+- count enabled standard definitions in their merchant/app bucket, but do not
+  count Shopify's system namespace as merchant capacity
+
+## 120. Function overlay boundaries are app-scoped and window-shaped
+
+Admin GraphQL 2026-04 live probes and the registered Functions overlay capture
+against `harry-test-heelo.myshopify.com` exercised cart-transform continuation
+and fulfillment-constraint rule tombstone behavior.
+
+Observed behavior:
+
+- after one cart transform existed for the conformance API client, creating a
+  second transform backed by another released cart-transform Function returned
+  `An API client cannot have more than 1 cart transform functions per shop`
+- requesting the window after the sole cart-transform cursor returned an empty
+  connection with both `hasNextPage` and `hasPreviousPage` false and both
+  boundary cursors null
+- the released `conformance-fulfillment-constraint` Function appeared in the
+  Admin Function catalog with API type `fulfillment_constraints`; a real rule
+  backed by it could be created, listed, and deleted
+
+Practical rule:
+
+- enforce cart-transform cardinality per API client rather than assuming each
+  released Function may own a separate transform
+- preserve Shopify's captured all-false/null `pageInfo` for an empty
+  continuation after a local cursor; the presence of an `after` argument alone
+  does not prove a previous page
+- recognize the plural `fulfillment_constraints` API type when resolving a
+  Function for fulfillment-constraint rule lifecycle operations
