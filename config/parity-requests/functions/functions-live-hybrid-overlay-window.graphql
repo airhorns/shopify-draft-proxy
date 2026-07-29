@@ -1,0 +1,23 @@
+query FunctionsLiveHybridOverlayWindow($after: String) {
+  validations(first: 1, after: $after, reverse: true) {
+    edges {
+      cursor
+      node {
+        id
+        title
+        enabled
+        blockOnFailure
+        shopifyFunction {
+          id
+          apiType
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

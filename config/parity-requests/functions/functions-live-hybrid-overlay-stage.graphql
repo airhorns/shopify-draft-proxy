@@ -7,7 +7,6 @@ mutation FunctionsLiveHybridOverlayStage($validation: ValidationCreateInput!) {
       blockOnFailure
       shopifyFunction {
         id
-        handle
         apiType
         app {
           apiKey
