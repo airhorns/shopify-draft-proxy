@@ -605,6 +605,184 @@
           }
         }
       }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "OnlineStoreBlogHandleReservationHydrate",
+      "query": "query OnlineStoreBlogHandleReservationHydrate($query: String!, $after: String) {\n  blogs(first: 250, after: $after, query: $query) {\n    nodes {\n      __typename\n      id\n      handle\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "after": null,
+        "query": "handle:online-store-content-lifecycle-20260705075419-blog"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "blogs": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "OnlineStorePageHandleReservationHydrate",
+      "query": "query OnlineStorePageHandleReservationHydrate($query: String!, $after: String) {\n  pages(first: 250, after: $after, query: $query) {\n    nodes {\n      __typename\n      id\n      handle\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "after": null,
+        "query": "handle:online-store-content-lifecycle-20260705075419-page"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "pages": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1982,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "OnlineStoreCommentHydrate",
+      "query": "query OnlineStoreCommentHydrate($id: ID!) { comment(id: $id) { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } }",
+      "variables": {
+        "id": "gid://shopify/Comment/999999999999"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Internal error. Looks like something went wrong on our end.\nRequest ID: dfe4a41d-a8ea-4770-bc30-8cd3b4f9f634-1784553813 (include this in support requests).",
+              "extensions": {
+                "requestId": "dfe4a41d-a8ea-4770-bc30-8cd3b4f9f634-1784553813",
+                "code": "INTERNAL_SERVER_ERROR"
+              }
+            }
+          ],
+          "data": null
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "OnlineStoreCommentHydrate",
+      "query": "query OnlineStoreCommentHydrate($id: ID!) { comment(id: $id) { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } }",
+      "variables": {
+        "id": "gid://shopify/Comment/999999999999"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Internal error. Looks like something went wrong on our end.\nRequest ID: caa89307-333f-4c3d-b044-710e5d15c0eb-1784553813 (include this in support requests).",
+              "extensions": {
+                "requestId": "caa89307-333f-4c3d-b044-710e5d15c0eb-1784553813",
+                "code": "INTERNAL_SERVER_ERROR"
+              }
+            }
+          ],
+          "data": null
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "OnlineStoreCommentHydrate",
+      "query": "query OnlineStoreCommentHydrate($id: ID!) { comment(id: $id) { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } }",
+      "variables": {
+        "id": "gid://shopify/Comment/999999999999"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Internal error. Looks like something went wrong on our end.\nRequest ID: 3024b7d9-b241-435b-9129-b42cd41fcccd-1784553814 (include this in support requests).",
+              "extensions": {
+                "requestId": "3024b7d9-b241-435b-9129-b42cd41fcccd-1784553814",
+                "code": "INTERNAL_SERVER_ERROR"
+              }
+            }
+          ],
+          "data": null
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "OnlineStoreCommentHydrate",
+      "query": "query OnlineStoreCommentHydrate($id: ID!) { comment(id: $id) { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } }",
+      "variables": {
+        "id": "gid://shopify/Comment/999999999999"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Internal error. Looks like something went wrong on our end.\nRequest ID: ce0013ec-c875-47da-aa60-c49543f6776f-1784553814 (include this in support requests).",
+              "extensions": {
+                "requestId": "ce0013ec-c875-47da-aa60-c49543f6776f-1784553814",
+                "code": "INTERNAL_SERVER_ERROR"
+              }
+            }
+          ],
+          "data": null
+        }
+      }
     }
   ]
 }

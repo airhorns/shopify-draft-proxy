@@ -383,6 +383,11 @@
             "reason": "The proxy target is the locally staged Location ID."
           },
           {
+            "path": "$.availableForDeliveryProfiles.nodes[62].id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The deactivated delivery-profile eligibility row uses the locally staged synthetic Location ID."
+          },
+          {
             "path": "$.defaultActive.edges[*].cursor",
             "matcher": "non-empty-string",
             "reason": "Shopify and the proxy use different opaque connection cursor encodings."
@@ -484,6 +489,11 @@
             "path": "$.target.id",
             "matcher": "shopify-gid:Location",
             "reason": "The proxy target is the locally staged Location ID."
+          },
+          {
+            "path": "$.availableForDeliveryProfiles.nodes[62].id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The reactivated delivery-profile eligibility row uses the locally staged synthetic Location ID."
           },
           {
             "path": "$.defaultActive.edges[*].cursor",
