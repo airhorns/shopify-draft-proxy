@@ -24,10 +24,17 @@ impl DraftProxy {
             let log_id = log_entry_id(&self.log_entries[index]);
             let path = log_entry_path(&self.log_entries[index]);
             let body = replay_body(&self.log_entries[index], &id_map);
+            let mut headers = commit_request.headers.clone();
+            if log_entry_is_service_app(&self.log_entries[index]) {
+                headers.insert(
+                    OP_CREDENTIAL_HEADER.to_string(),
+                    OP_CREDENTIAL_SERVICE_APP.to_string(),
+                );
+            }
             let replay = Request {
                 method: "POST".to_string(),
                 path: path.clone(),
-                headers: commit_request.headers.clone(),
+                headers,
                 body,
             };
             let outcome = transport(replay);
@@ -108,6 +115,10 @@ fn log_entry_id(entry: &Value) -> String {
         .and_then(Value::as_str)
         .unwrap_or("unknown")
         .to_string()
+}
+
+fn log_entry_is_service_app(entry: &Value) -> bool {
+    entry.get("serviceApp").and_then(Value::as_bool) == Some(true)
 }
 
 fn log_entry_path(entry: &Value) -> String {
