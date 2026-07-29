@@ -1,0 +1,9 @@
+query FunctionsLiveHybridFulfillmentRuleTombstoneRead {
+  fulfillmentConstraintRules {
+    deliveryMethodTypes
+    function {
+      handle
+      apiType
+    }
+  }
+}

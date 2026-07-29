@@ -1900,6 +1900,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'media-file-mutation-first-lifecycle',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-media-file-mutation-first-lifecycle-conformance.mts',
+    purpose:
+      'Mutation-first fileAcknowledgeUpdateFailed/fileDelete target hydration and downstream product-media cascade.',
+    requiredAuthScopes: ['read_files', 'write_files', 'read_products', 'write_products'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/media/media-file-mutation-first-lifecycle.json',
+      'config/parity-requests/media/media-file-mutation-first-acknowledge.graphql',
+      'config/parity-requests/media/media-file-mutation-first-delete.graphql',
+      'config/parity-requests/media/media-file-mutation-first-downstream.graphql',
+      'config/parity-specs/media/media-file-mutation-first-lifecycle.json',
+      'config/parity-specs/media/fileDelete-product-media-parity.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable draft product and attached image, deletes the file during capture, and deletes the product in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'media-file-interface-fields',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-media-file-interface-fields-conformance.mts',
@@ -1937,6 +1957,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   {
     domain: 'files',
     captureId: 'media-file-cascade-variant-media-clear',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-media-file-cascade-variant-media-clear-conformance.mts',
     purpose:
       'Files API fileDelete and fileUpdate.referencesToRemove cascades that clear ProductVariant media membership after removing product media associations.',
@@ -11481,22 +11502,32 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-functions-live-hybrid-overlay-conformance.ts',
     purpose:
-      'LiveHybrid Functions overlay evidence that one locally staged validation lifecycle preserves unrelated upstream/base validations, cart transforms, and ShopifyFunction metadata.',
+      'LiveHybrid validation/cart-transform/fulfillment-rule overlay evidence for first/after windows, local-cursor continuation, tombstones, and bounded or identity-only refills.',
     requiredAuthScopes: [
       'shopifyFunctions read access',
       'read_validations',
       'write_validations for disposable validation create/delete lifecycle capture',
       'read_cart_transforms',
       'write_cart_transforms for disposable cart transform create/delete lifecycle capture',
+      'read_fulfillment_constraint_rules',
+      'write_fulfillment_constraint_rules for disposable fulfillment-rule create/delete lifecycle capture',
     ],
     fixtureOutputs: [
       `${CAPTURE_ROOT}functions-live-hybrid-overlay-read.json`,
       'config/parity-specs/functions/functions-live-hybrid-overlay-read.json',
       'config/parity-requests/functions/functions-live-hybrid-overlay-stage.graphql',
       'config/parity-requests/functions/functions-live-hybrid-overlay-read.graphql',
+      'config/parity-requests/functions/functions-live-hybrid-overlay-window.graphql',
+      'config/parity-requests/functions/functions-live-hybrid-overlay-delete.graphql',
+      'config/parity-requests/functions/functions-live-hybrid-cart-overlay-stage.graphql',
+      'config/parity-requests/functions/functions-live-hybrid-cart-overlay-window.graphql',
+      'config/parity-requests/functions/functions-live-hybrid-cart-overlay-delete.graphql',
+      'config/parity-requests/functions/functions-live-hybrid-fulfillment-rule-base-read.graphql',
+      'config/parity-requests/functions/functions-live-hybrid-fulfillment-rule-delete.graphql',
+      'config/parity-requests/functions/functions-live-hybrid-fulfillment-rule-tombstone-read.graphql',
     ],
     cleanupBehavior:
-      'Deletes disposable validations and cart transforms for the released conformance Functions before capture, creates one base validation and one base cart transform, records upstream hydrate cassettes, creates one later validation lifecycle, captures downstream overlay reads, then deletes created resources.',
+      'Deletes disposable Function resources before capture, creates two base validations and one base fulfillment rule, records exact caller/refill cassettes, runs one validation and one cart-transform lifecycle plus the fulfillment-rule tombstone, then deletes every created resource.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

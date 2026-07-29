@@ -1,0 +1,18 @@
+query FunctionsLiveHybridCartOverlayWindow($after: String) {
+  cartTransforms(first: 1, after: $after) {
+    edges {
+      cursor
+      node {
+        id
+        functionId
+        blockOnFailure
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

@@ -4257,7 +4257,7 @@ Practical rule:
   deterministic public or approved disposable-store setup can leave a real
   incomplete relocation job observable through `locationActivate`
 
-## 91. Public 2026-04 Files API does not expose `MediaImage.references`
+## 91. File deletion cannot depend on `MediaImage.references`
 
 Admin GraphQL 2026-04 live capture against
 `harry-test-heelo.myshopify.com` recorded the runtime
@@ -4268,14 +4268,29 @@ Older checked-in 2025-01 cascade evidence has a successful
 `MediaImage.references(first:)` response for product/media/variant relationship
 hydration, so do not assume this field is stable across public API versions.
 
+A fresh 2025-01 mutation-first lifecycle capture started with an unobserved
+`MediaImage` attached to a product. A public `nodes(ids:)` File lookup hydrated
+the real target for both `fileAcknowledgeUpdateFailed` and `fileDelete`, and the
+immediate post-delete `product.media` read omitted the deleted file. The capture
+therefore supports target hydration and the downstream lifecycle result, but it
+does not make a bounded reverse-reference page authoritative for every owner.
+
 Practical rule:
 
 - media parity cassettes must store the exact hydrate query and exact Shopify
   response, including public schema errors when that is what the runtime query
   receives
-- future file-delete cascade improvements should prefer a public,
-  version-stable product/media hydration path over relying on
-  `MediaImage.references` in API versions where the field is not exposed
+- hydrate mutation-first file targets through public `nodes(ids:)` File fields
+  before returning not-found validation
+- treat the local file tombstone as the authoritative relationship exclusion:
+  clear known product/variant associations immediately, and filter the same ID
+  from owners observed after the delete
+- when a cold product must be materialized after a delete, exhaust its public
+  product-media, variants, and per-variant media connections before staging it;
+  never promote the first bounded page into a domain-complete owner graph
+- a cold top-level `productVariant(id:)` read after delete must likewise exhaust
+  that variant's media connection before filtering the tombstone; otherwise a
+  deleted file beyond the first page can reappear while unrelated media vanish
 
 ## 92. Public 2026-04 Files API selection boundaries for local replacement parity
 
@@ -4946,3 +4961,31 @@ Practical rule:
   `-1`
 - preserve Blog's distinct suffix/no-op behavior rather than sharing the Page
   and Article `TAKEN` branch
+
+## 118. Function overlay boundaries are app-scoped and window-shaped
+
+Admin GraphQL 2026-04 live probes and the registered Functions overlay capture
+against `harry-test-heelo.myshopify.com` exercised cart-transform continuation
+and fulfillment-constraint rule tombstone behavior.
+
+Observed behavior:
+
+- after one cart transform existed for the conformance API client, creating a
+  second transform backed by another released cart-transform Function returned
+  `An API client cannot have more than 1 cart transform functions per shop`
+- requesting the window after the sole cart-transform cursor returned an empty
+  connection with both `hasNextPage` and `hasPreviousPage` false and both
+  boundary cursors null
+- the released `conformance-fulfillment-constraint` Function appeared in the
+  Admin Function catalog with API type `fulfillment_constraints`; a real rule
+  backed by it could be created, listed, and deleted
+
+Practical rule:
+
+- enforce cart-transform cardinality per API client rather than assuming each
+  released Function may own a separate transform
+- preserve Shopify's captured all-false/null `pageInfo` for an empty
+  continuation after a local cursor; the presence of an `after` argument alone
+  does not prove a previous page
+- recognize the plural `fulfillment_constraints` API type when resolving a
+  Function for fulfillment-constraint rule lifecycle operations

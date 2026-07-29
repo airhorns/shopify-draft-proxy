@@ -532,17 +532,13 @@ struct BaseState {
     localization_product_ids: BTreeSet<String>,
     function_metadata: BTreeMap<String, Value>,
     function_metadata_order: Vec<String>,
-    function_metadata_catalog_hydrated: bool,
-    function_metadata_hydrated_api_types: BTreeSet<String>,
     function_validations: BTreeMap<String, Value>,
     function_validation_order: Vec<String>,
-    function_validations_catalog_hydrated: bool,
     function_cart_transforms: BTreeMap<String, Value>,
     function_cart_transform_order: Vec<String>,
-    function_cart_transforms_catalog_hydrated: bool,
     function_fulfillment_constraint_rules: BTreeMap<String, Value>,
     function_fulfillment_constraint_rule_order: Vec<String>,
-    function_fulfillment_constraint_rules_catalog_hydrated: bool,
+    function_connection_observations: BTreeMap<String, Value>,
     metafield_definitions: BTreeMap<MetafieldDefinitionKey, Value>,
     metafield_definition_owner_catalogs: BTreeSet<String>,
     metafield_definition_namespaces: BTreeSet<(String, String)>,
@@ -2097,7 +2093,12 @@ impl Store {
     }
 
     fn stage_observed_product_json(&mut self, value: &Value) {
-        if let Some(product) = product_state_from_json(value) {
+        let mut value = value.clone();
+        media_products_saved_searches::remove_media_ids_from_observed_product(
+            &mut value,
+            &self.staged.media_files.tombstones,
+        );
+        if let Some(product) = product_state_from_json(&value) {
             self.stage_observed_product(product);
         }
     }
@@ -2401,16 +2402,22 @@ impl Store {
         })
     }
 
-    fn stage_product_variant(&mut self, variant: ProductVariantRecord) {
+    fn stage_product_variant(&mut self, mut variant: ProductVariantRecord) {
+        variant
+            .media_ids
+            .retain(|id| !self.staged.media_files.is_tombstoned(id));
         self.product_variants
             .staged
             .stage(variant.id.clone(), variant);
     }
 
-    fn observe_base_product_variant(&mut self, variant: ProductVariantRecord) {
+    fn observe_base_product_variant(&mut self, mut variant: ProductVariantRecord) {
         if self.product_variants.staged.is_tombstoned(&variant.id) {
             return;
         }
+        variant
+            .media_ids
+            .retain(|id| !self.staged.media_files.is_tombstoned(id));
         self.product_variants
             .base
             .insert(variant.id.clone(), variant);
