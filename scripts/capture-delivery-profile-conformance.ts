@@ -248,18 +248,25 @@ const detailQuery = `#graphql
   }
 `;
 
-const locationsHydrateQuery = `#graphql
-  query ShippingDeliveryProfileLocationsHydrate {
-    locationsAvailableForDeliveryProfilesConnection(first: 3) {
+const locationsCatalogPageQuery = `#graphql
+  query CaptureDeliveryProfileLocations($after: String) {
+    locationsAvailableForDeliveryProfilesConnection(first: 250, after: $after) {
       nodes {
         id
         name
         isActive
         isFulfillmentService
       }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
     }
   }
 `;
+
+const locationNodesHydrateQuery =
+  'query ShippingDeliveryProfileLocationNodesHydrate($ids: [ID!]!) { nodes(ids: $ids) { __typename ... on Location { id name isActive isFulfillmentService } } }';
 
 const defaultProfileHydrateQuery =
   'query ShippingDeliveryProfileHydrate($id: ID!) { deliveryProfile(id: $id) { id name default version } }';
@@ -428,6 +435,45 @@ function readUsableLocationIds(hydrate: GraphqlCapture): string[] {
   });
 }
 
+async function captureCompleteLocationCatalog(): Promise<GraphqlCapture[]> {
+  const pages: GraphqlCapture[] = [];
+  const seenCursors = new Set<string>();
+  let after: string | null = null;
+
+  for (let page = 0; page < 10_000; page += 1) {
+    const capturePage = await captureGraphql(locationsCatalogPageQuery, { after });
+    assertHttpOk('locations catalog page', capturePage.result);
+    pages.push(capturePage);
+    const pageInfo = readObject(
+      readPath(capturePage.result.payload, ['data', 'locationsAvailableForDeliveryProfilesConnection', 'pageInfo']),
+    );
+    if (pageInfo?.['hasNextPage'] === false) return pages;
+    const endCursor = pageInfo?.['endCursor'];
+    if (pageInfo?.['hasNextPage'] !== true || typeof endCursor !== 'string' || endCursor.length === 0) {
+      throw new Error(`locations catalog did not prove completeness: ${JSON.stringify(capturePage.result.payload)}`);
+    }
+    if (seenCursors.has(endCursor)) {
+      throw new Error(`locations catalog repeated cursor ${JSON.stringify(endCursor)}`);
+    }
+    seenCursors.add(endCursor);
+    after = endCursor;
+  }
+
+  throw new Error('locations catalog exceeded the 10,000-page capture bound');
+}
+
+function assertLocationNodeCapture(captureResult: GraphqlCapture, id: string, expectedFound: boolean): void {
+  assertHttpOk('location nodes hydrate', captureResult.result);
+  const nodes = readPath(captureResult.result.payload, ['data', 'nodes']);
+  const node = Array.isArray(nodes) ? nodes[0] : undefined;
+  const found = readObject(node)?.['id'] === id && readObject(node)?.['__typename'] === 'Location';
+  if (found !== expectedFound) {
+    throw new Error(
+      `location nodes hydrate expected ${id} found=${expectedFound}, got ${JSON.stringify(captureResult.result.payload)}`,
+    );
+  }
+}
+
 function readCreatedProfileId(
   captureResult: GraphqlCapture,
   root: 'deliveryProfileCreate' | 'deliveryProfileUpdate',
@@ -486,14 +532,28 @@ const deliveryProfileLifecycleDefaultRemoveMutation = await readRequest(
 const deliveryProfilesMergedReadQuery = await readRequest('delivery-profiles-merged-read.graphql');
 const deliveryProfilesCatalogReadQuery = await readRequest('delivery-profiles-catalog-read.graphql');
 
-const locationsHydrate = await captureGraphql(locationsHydrateQuery);
-const usableLocationIds = readUsableLocationIds(locationsHydrate);
+const locationCatalogPages = await captureCompleteLocationCatalog();
+const usableLocationIds = locationCatalogPages.flatMap(readUsableLocationIds);
 const primaryLocationId = usableLocationIds[0];
 const secondaryLocationId = usableLocationIds.find((id) => id !== primaryLocationId);
 if (primaryLocationId === undefined) {
   throw new Error(
-    `No active merchant delivery-profile location found: ${JSON.stringify(locationsHydrate.result.payload)}`,
+    `No active merchant delivery-profile location found: ${JSON.stringify(
+      locationCatalogPages.at(-1)?.result.payload,
+    )}`,
   );
+}
+const unknownLocationId = 'gid://shopify/Location/999999999';
+const primaryLocationNodesHydrate = await captureGraphql(locationNodesHydrateQuery, { ids: [primaryLocationId] });
+assertLocationNodeCapture(primaryLocationNodesHydrate, primaryLocationId, true);
+const unknownLocationNodesHydrate = await captureGraphql(locationNodesHydrateQuery, { ids: [unknownLocationId] });
+assertLocationNodeCapture(unknownLocationNodesHydrate, unknownLocationId, false);
+const secondaryLocationNodesHydrate =
+  secondaryLocationId === undefined
+    ? null
+    : await captureGraphql(locationNodesHydrateQuery, { ids: [secondaryLocationId] });
+if (secondaryLocationId !== undefined && secondaryLocationNodesHydrate !== null) {
+  assertLocationNodeCapture(secondaryLocationNodesHydrate, secondaryLocationId, true);
 }
 
 const createBlankName = await captureGraphql(deliveryProfileCreateValidationMutation, {
@@ -505,7 +565,7 @@ const createLongName = await captureGraphql(deliveryProfileCreateValidationMutat
 const createUnknownLocation = await captureGraphql(deliveryProfileCreateValidationMutation, {
   profile: {
     name: 'Unknown location',
-    locationGroupsToCreate: [{ locations: ['gid://shopify/Location/999999999'], zonesToCreate: [] }],
+    locationGroupsToCreate: [{ locations: [unknownLocationId], zonesToCreate: [] }],
   },
 });
 const createEmptyCountries = await captureGraphql(deliveryProfileCreateValidationMutation, {
@@ -544,12 +604,21 @@ await writeFile(
       ],
       upstreamCalls: [
         {
-          operationName: 'ShippingDeliveryProfileLocationsHydrate',
-          variables: {},
-          query: trimGraphql(locationsHydrateQuery),
+          operationName: 'ShippingDeliveryProfileLocationNodesHydrate',
+          variables: unknownLocationNodesHydrate.variables,
+          query: unknownLocationNodesHydrate.query,
           response: {
-            status: locationsHydrate.result.status,
-            body: locationsHydrate.result.payload,
+            status: unknownLocationNodesHydrate.result.status,
+            body: unknownLocationNodesHydrate.result.payload,
+          },
+        },
+        {
+          operationName: 'ShippingDeliveryProfileLocationNodesHydrate',
+          variables: primaryLocationNodesHydrate.variables,
+          query: primaryLocationNodesHydrate.query,
+          response: {
+            status: primaryLocationNodesHydrate.result.status,
+            body: primaryLocationNodesHydrate.result.payload,
           },
         },
       ],
@@ -566,6 +635,8 @@ const lifecycleBlankCreate = await captureGraphql(deliveryProfileLifecycleBlankC
 });
 const lifecyclePreCreateCatalog = await captureGraphql(deliveryProfilesCatalogReadQuery, { first: 250 });
 readDefaultProfileId(lifecyclePreCreateCatalog.result);
+const lifecyclePreCreateMergedRead = await captureGraphql(deliveryProfilesMergedReadQuery, { first: 10 });
+readDefaultProfileId(lifecyclePreCreateMergedRead.result);
 const lifecycleNestedCreate = await captureGraphql(deliveryProfileLifecycleCreateMutation, {
   profile: {
     name: `Delivery profile lifecycle ${lifecycleStamp}`,
@@ -790,6 +861,7 @@ await writeFile(
       },
       queries: {
         preCreateCatalog: lifecyclePreCreateCatalog,
+        preCreateMergedRead: lifecyclePreCreateMergedRead,
       },
       notes: [
         'Captured with home-folder conformance auth against a disposable Shopify test store.',
@@ -799,14 +871,27 @@ await writeFile(
       ],
       upstreamCalls: [
         {
-          operationName: 'ShippingDeliveryProfileLocationsHydrate',
-          variables: {},
-          query: trimGraphql(locationsHydrateQuery),
+          operationName: 'ShippingDeliveryProfileLocationNodesHydrate',
+          variables: primaryLocationNodesHydrate.variables,
+          query: primaryLocationNodesHydrate.query,
           response: {
-            status: locationsHydrate.result.status,
-            body: locationsHydrate.result.payload,
+            status: primaryLocationNodesHydrate.result.status,
+            body: primaryLocationNodesHydrate.result.payload,
           },
         },
+        ...(secondaryLocationNodesHydrate === null
+          ? []
+          : [
+              {
+                operationName: 'ShippingDeliveryProfileLocationNodesHydrate',
+                variables: secondaryLocationNodesHydrate.variables,
+                query: secondaryLocationNodesHydrate.query,
+                response: {
+                  status: secondaryLocationNodesHydrate.result.status,
+                  body: secondaryLocationNodesHydrate.result.payload,
+                },
+              },
+            ]),
         {
           operationName: 'DeliveryProfilesCatalog',
           variables: lifecyclePreCreateCatalog.variables,
@@ -814,6 +899,15 @@ await writeFile(
           response: {
             status: lifecyclePreCreateCatalog.result.status,
             body: lifecyclePreCreateCatalog.result.payload,
+          },
+        },
+        {
+          operationName: 'DeliveryProfilesMergedRead',
+          variables: lifecyclePreCreateMergedRead.variables,
+          query: lifecyclePreCreateMergedRead.query,
+          response: {
+            status: lifecyclePreCreateMergedRead.result.status,
+            body: lifecyclePreCreateMergedRead.result.payload,
           },
         },
         {

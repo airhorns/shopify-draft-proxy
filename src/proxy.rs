@@ -425,10 +425,6 @@ impl<T> ResourceStore<T> {
         effective_find(&self.base, &self.staged, predicate)
     }
 
-    fn count(&self) -> usize {
-        effective_count(&self.base, &self.staged)
-    }
-
     fn has_state(&self) -> bool {
         !self.base.records.is_empty()
             || !self.staged.records.is_empty()
@@ -622,6 +618,8 @@ struct StagedState {
     delivery_promise_participants: StagedRecords<Value>,
     observed_shipping_locations: BTreeMap<String, Value>,
     observed_shipping_location_order: Vec<String>,
+    observed_shipping_locations_complete: bool,
+    observed_shipping_locations_next_cursor: Option<String>,
     locations: StagedRecords<Value>,
     location_limit_reached: bool,
     delivery_customizations: StagedRecords<Value>,
@@ -732,13 +730,16 @@ struct StagedState {
     online_store_blog_order: Vec<String>,
     deleted_online_store_blog_ids: BTreeSet<String>,
     online_store_blogs_count_base: Option<usize>,
+    observed_online_store_blog_handle_owners: BTreeMap<String, String>,
     online_store_pages: BTreeMap<String, Value>,
     online_store_page_order: Vec<String>,
     deleted_online_store_page_ids: BTreeSet<String>,
     online_store_pages_count_base: Option<usize>,
+    observed_online_store_page_handle_owners: BTreeMap<String, String>,
     online_store_articles: BTreeMap<String, Value>,
     online_store_article_order: Vec<String>,
     deleted_online_store_article_ids: BTreeSet<String>,
+    observed_online_store_article_handle_owners: BTreeMap<String, BTreeMap<String, String>>,
     online_store_comments: BTreeMap<String, Value>,
     online_store_comment_order: Vec<String>,
     deleted_online_store_comment_ids: BTreeSet<String>,
@@ -747,6 +748,8 @@ struct StagedState {
     mandate_payment_keys: BTreeSet<String>,
     payment_terms: BTreeMap<String, Value>,
     payment_terms_owner_index: BTreeMap<String, String>,
+    deleted_payment_terms_ids: BTreeSet<String>,
+    deleted_payment_schedule_ids: BTreeSet<String>,
     payment_reminder_schedule_ids: BTreeSet<String>,
     payment_customizations: BTreeMap<String, Value>,
     deleted_payment_customization_ids: BTreeSet<String>,
@@ -1917,10 +1920,6 @@ impl Store {
         self.products.records()
     }
 
-    fn product_count(&self) -> usize {
-        self.products.count()
-    }
-
     fn has_product_state(&self) -> bool {
         self.products.has_state()
     }
@@ -2097,7 +2096,12 @@ impl Store {
     }
 
     fn stage_observed_product_json(&mut self, value: &Value) {
-        if let Some(product) = product_state_from_json(value) {
+        let mut value = value.clone();
+        media_products_saved_searches::remove_media_ids_from_observed_product(
+            &mut value,
+            &self.staged.media_files.tombstones,
+        );
+        if let Some(product) = product_state_from_json(&value) {
             self.stage_observed_product(product);
         }
     }
@@ -2237,6 +2241,10 @@ impl Store {
 
     fn collection_by_id(&self, id: &str) -> Option<&Value> {
         self.staged.collections.get(id)
+    }
+
+    fn collections(&self) -> Vec<Value> {
+        self.staged.collections.values().cloned().collect()
     }
 
     fn collection_by_handle(&self, handle: &str) -> Option<&Value> {
@@ -2397,16 +2405,22 @@ impl Store {
         })
     }
 
-    fn stage_product_variant(&mut self, variant: ProductVariantRecord) {
+    fn stage_product_variant(&mut self, mut variant: ProductVariantRecord) {
+        variant
+            .media_ids
+            .retain(|id| !self.staged.media_files.is_tombstoned(id));
         self.product_variants
             .staged
             .stage(variant.id.clone(), variant);
     }
 
-    fn observe_base_product_variant(&mut self, variant: ProductVariantRecord) {
+    fn observe_base_product_variant(&mut self, mut variant: ProductVariantRecord) {
         if self.product_variants.staged.is_tombstoned(&variant.id) {
             return;
         }
+        variant
+            .media_ids
+            .retain(|id| !self.staged.media_files.is_tombstoned(id));
         self.product_variants
             .base
             .insert(variant.id.clone(), variant);
@@ -2880,6 +2894,10 @@ pub struct DraftProxy {
     /// `restoreState` between a scenario's targets; it is reset on `/__meta/reset`,
     /// which the parity runner issues at the start of every scenario.
     shop_sells_subscriptions: Option<bool>,
+    /// Original upstream/base records for products changed during the current
+    /// staging session. Count overlays compare these pre-mutation records with
+    /// the effective staged records without loading the surrounding catalog.
+    product_catalog_base_records: BTreeMap<String, ProductRecord>,
     clock: RuntimeClock,
     last_mutation_timestamp: Option<time::OffsetDateTime>,
     /// All GraphQL-execution transients live behind one request-lifetime

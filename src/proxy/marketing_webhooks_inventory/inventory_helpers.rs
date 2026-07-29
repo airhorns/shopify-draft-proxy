@@ -857,17 +857,17 @@ const INVENTORY_TRANSFER_HYDRATE_NODES_QUERY: &str = r#"#graphql
 
 const INVENTORY_LIFECYCLE_REFERENCE_HYDRATE_NODES_QUERY: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/config/parity-requests/products/inventory-transfer-reference-hydrate.graphql"
+    "/src/runtime_graphql/products/inventory-transfer-reference-hydrate.graphql"
 ));
 
 const INVENTORY_TRANSFER_MUTATION_HYDRATE_QUERY: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/config/parity-requests/products/inventory-transfer-mutation-hydrate.graphql"
+    "/src/runtime_graphql/products/inventory-transfer-mutation-hydrate.graphql"
 ));
 
 const INVENTORY_SHIPMENT_MUTATION_HYDRATE_QUERY: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/config/parity-requests/products/inventory-shipment-mutation-hydrate.graphql"
+    "/src/runtime_graphql/products/inventory-shipment-mutation-hydrate.graphql"
 ));
 
 const INVENTORY_RICH_REFERENCE_HYDRATE_NODES_QUERY: &str = r#"query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on InventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } } } } ... on InventoryLevel { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } item { id tracked requiresShipping variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } } } } } } }"#;

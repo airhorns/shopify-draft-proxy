@@ -7,7 +7,7 @@ use self::order_edit::*;
 use crate::proxy::storefront::storefront_customer_email_key;
 
 const ORDER_CREATE_INVENTORY_PREFLIGHT_QUERY: &str =
-    include_str!("../../../config/parity-requests/orders/order-create-inventory-preflight.graphql");
+    include_str!("../../runtime_graphql/orders/order-create-inventory-preflight.graphql");
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct OrderCreateInventoryEffect {
