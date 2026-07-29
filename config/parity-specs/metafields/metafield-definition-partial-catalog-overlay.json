@@ -178,5 +178,5 @@
       }
     ]
   },
-  "notes": "Records a partial local metafield-definition overlay: the proxy must hydrate the real PRODUCT catalog before duplicate validation, reject a duplicate real namespace/key with TAKEN, stage a local create without forwarding it, merge real, unrelated, and staged definitions in detail/list/count reads, and tombstone the hydrated real definition on delete while preserving the staged local definition."
+  "notes": "Records a partial local metafield-definition overlay: the proxy uses an exact PRODUCT namespace/key probe for duplicate validation, a bounded merchant threshold probe for create limits, and argument-keyed connection windows for reads. It rejects a duplicate real definition with TAKEN, stages a local create without forwarding it, preserves unrelated upstream definitions in merged reads, and tombstones the exact real definition while retaining the staged local definition."
 }

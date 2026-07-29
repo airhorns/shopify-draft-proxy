@@ -6,24 +6,10 @@ mutation MetafieldDefinitionValidationJobRename($definition: MetafieldDefinition
       namespace
       key
       ownerType
-      validations {
-        name
-        value
-      }
+      validations { name value }
       validationStatus
     }
-    validationJob {
-      __typename
-      id
-      done
-      query {
-        __typename
-      }
-    }
-    userErrors {
-      field
-      message
-      code
-    }
+    validationJob { __typename id done query { __typename } }
+    userErrors { field message code }
   }
 }

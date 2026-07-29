@@ -1,0 +1,15 @@
+mutation CreateProductMetafieldDefinitionForResourceLimit($definition: MetafieldDefinitionInput!) {
+  metafieldDefinitionCreate(definition: $definition) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

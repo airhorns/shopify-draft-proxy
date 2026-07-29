@@ -63,6 +63,16 @@ type CapturedInteraction = {
   response: unknown;
 };
 
+type UpstreamCall = {
+  method: 'POST';
+  apiSurface: 'admin';
+  path: string;
+  operationName: string;
+  variables: Record<string, unknown>;
+  query: string;
+  response: { status: number; body: unknown };
+};
+
 function assertHttpOk(result: ConformanceGraphqlResult, label: string): void {
   if (result.status < 200 || result.status >= 300 || result.payload.errors) {
     throw new Error(`${label} failed: ${JSON.stringify(result, null, 2)}`);
@@ -118,6 +128,52 @@ async function captureQuery(
   };
 }
 
+const hydrateByIdentifierDocument = await readFile(
+  'src/runtime_graphql/metafields/metafield-definition-hydrate-by-identifier.graphql',
+  'utf8',
+);
+const hydrateResourceScopeDocument = await readFile(
+  'src/runtime_graphql/metafields/metafield-definitions-hydrate-resource-scope.graphql',
+  'utf8',
+);
+const upstreamCalls: UpstreamCall[] = [];
+
+async function recordUpstreamCall(
+  operationName: string,
+  query: string,
+  variables: Record<string, unknown>,
+): Promise<UpstreamCall> {
+  const result = await runGraphqlRaw(query, variables);
+  assertHttpOk(result, operationName);
+  return {
+    method: 'POST',
+    apiSurface: 'admin',
+    path: `/admin/api/${apiVersion}/graphql.json`,
+    operationName,
+    variables,
+    query,
+    response: { status: result.status, body: result.payload },
+  };
+}
+
+async function recordResourceScope(): Promise<void> {
+  let after: string | null = null;
+  for (let page = 0; page < 3; page += 1) {
+    const call = await recordUpstreamCall('MetafieldDefinitionsHydrateResourceScope', hydrateResourceScopeDocument, {
+      ownerType: 'PRODUCT',
+      query: '-namespace:app--*',
+      first: 250,
+      after,
+    });
+    upstreamCalls.push(call);
+    const pageInfo = readObject(readPath(call.response.body, ['data', 'metafieldDefinitions', 'pageInfo']));
+    if (pageInfo?.['hasNextPage'] !== true) return;
+    const endCursor = pageInfo['endCursor'];
+    if (typeof endCursor !== 'string') throw new Error(`resource-scope page ${page + 1} omitted endCursor`);
+    after = endCursor;
+  }
+}
+
 const suffix = `definition_collection_dependency_${Date.now().toString(36)}`;
 const namespace = suffix;
 const key = 'shade';
@@ -141,6 +197,13 @@ try {
     product: { title: `Metafield definition collection dependency ${suffix}` },
   });
   productId = requiredId(productCreate, ['data', 'productCreate', 'product', 'id'], 'productCreate');
+
+  upstreamCalls.push(
+    await recordUpstreamCall('MetafieldDefinitionHydrateByIdentifier', hydrateByIdentifierDocument, {
+      identifier: { ownerType: 'PRODUCT', namespace, key },
+    }),
+  );
+  await recordResourceScope();
 
   definitionCreate = await captureDocument('metafieldDefinitionCreate', definitionCreateDocumentPath, {
     definition: {
@@ -257,7 +320,7 @@ await writeFile(
       deleteTrue,
       readAfterTrue,
       cleanup,
-      upstreamCalls: [],
+      upstreamCalls,
     },
     null,
     2,

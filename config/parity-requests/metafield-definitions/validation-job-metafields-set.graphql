@@ -8,10 +8,6 @@ mutation MetafieldDefinitionValidationJobMetafieldsSet($metafields: [MetafieldsS
       type
       value
     }
-    userErrors {
-      field
-      message
-      code
-    }
+    userErrors { field message code }
   }
 }

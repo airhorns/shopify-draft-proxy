@@ -5,16 +5,9 @@ mutation MetafieldDefinitionValidationJobCreate($definition: MetafieldDefinition
       namespace
       key
       ownerType
-      validations {
-        name
-        value
-      }
+      validations { name value }
       validationStatus
     }
-    userErrors {
-      field
-      message
-      code
-    }
+    userErrors { field message code }
   }
 }
