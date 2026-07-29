@@ -1,10 +1,10 @@
 {
-  "capturedAt": "2026-06-26T23:06:49.697Z",
+  "capturedAt": "2026-07-19T14:47:50.434Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "namespace": "definition_lifecycle_mqvjj4ab",
+  "namespace": "definition_lifecycle_mrrwu1fq",
   "key": "definition_lifecycle",
-  "looseNamespace": "definition_loose_mqvjj4ab",
+  "looseNamespace": "definition_loose_mrrwu1fq",
   "looseKey": "loose_metafield",
   "captures": [
     {
@@ -13,7 +13,7 @@
         "query": "#graphql\n  mutation CreateProduct($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product { id title }\n      userErrors { field message }\n    }\n  }\n",
         "variables": {
           "product": {
-            "title": "Metafield definition lifecycle mqvjj4ab"
+            "title": "Metafield definition lifecycle mrrwu1fq"
           }
         }
       },
@@ -22,8 +22,8 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10222823801138",
-              "title": "Metafield definition lifecycle mqvjj4ab"
+              "id": "gid://shopify/Product/10243937141042",
+              "title": "Metafield definition lifecycle mrrwu1fq"
             },
             "userErrors": []
           }
@@ -48,7 +48,7 @@
         "variables": {
           "definition": {
             "name": "Lifecycle definition",
-            "namespace": "definition_lifecycle_mqvjj4ab",
+            "namespace": "definition_lifecycle_mrrwu1fq",
             "key": "definition_lifecycle",
             "ownerType": "PRODUCT",
             "type": "single_line_text_field",
@@ -67,9 +67,9 @@
         "data": {
           "metafieldDefinitionCreate": {
             "createdDefinition": {
-              "id": "gid://shopify/MetafieldDefinition/221092151602",
+              "id": "gid://shopify/MetafieldDefinition/227275309362",
               "name": "Lifecycle definition",
-              "namespace": "definition_lifecycle_mqvjj4ab",
+              "namespace": "definition_lifecycle_mrrwu1fq",
               "key": "definition_lifecycle",
               "ownerType": "PRODUCT",
               "type": {
@@ -109,15 +109,15 @@
         "variables": {
           "metafields": [
             {
-              "ownerId": "gid://shopify/Product/10222823801138",
-              "namespace": "definition_lifecycle_mqvjj4ab",
+              "ownerId": "gid://shopify/Product/10243937141042",
+              "namespace": "definition_lifecycle_mrrwu1fq",
               "key": "definition_lifecycle",
               "type": "single_line_text_field",
               "value": "ABCDEFGH"
             },
             {
-              "ownerId": "gid://shopify/Product/10222823801138",
-              "namespace": "definition_loose_mqvjj4ab",
+              "ownerId": "gid://shopify/Product/10243937141042",
+              "namespace": "definition_loose_mrrwu1fq",
               "key": "loose_metafield",
               "type": "single_line_text_field",
               "value": "loose"
@@ -131,14 +131,14 @@
           "metafieldsSet": {
             "metafields": [
               {
-                "id": "gid://shopify/Metafield/44577830764850",
-                "namespace": "definition_lifecycle_mqvjj4ab",
+                "id": "gid://shopify/Metafield/45214299029810",
+                "namespace": "definition_lifecycle_mrrwu1fq",
                 "key": "definition_lifecycle",
                 "type": "single_line_text_field",
                 "value": "ABCDEFGH",
                 "definition": {
-                  "id": "gid://shopify/MetafieldDefinition/221092151602",
-                  "namespace": "definition_lifecycle_mqvjj4ab",
+                  "id": "gid://shopify/MetafieldDefinition/227275309362",
+                  "namespace": "definition_lifecycle_mrrwu1fq",
                   "key": "definition_lifecycle",
                   "type": {
                     "name": "single_line_text_field"
@@ -146,8 +146,8 @@
                 }
               },
               {
-                "id": "gid://shopify/Metafield/44577830797618",
-                "namespace": "definition_loose_mqvjj4ab",
+                "id": "gid://shopify/Metafield/45214299062578",
+                "namespace": "definition_loose_mrrwu1fq",
                 "key": "loose_metafield",
                 "type": "single_line_text_field",
                 "value": "loose",
@@ -175,10 +175,10 @@
       "request": {
         "query": "#graphql\n  query DownstreamDefinitionRead($productId: ID!, $namespace: String!, $key: String!, $looseNamespace: String!, $looseKey: String!) {\n    definition: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: $key }) {\n      id\n      name\n      namespace\n      key\n      ownerType\n      validations { name value }\n      metafieldsCount\n    }\n    definitions: metafieldDefinitions(ownerType: PRODUCT, namespace: $namespace, first: 5) {\n      nodes { id namespace key name }\n    }\n    product(id: $productId) {\n      id\n      metafield(namespace: $namespace, key: $key) {\n        id\n        namespace\n        key\n        type\n        value\n        definition { id namespace key type { name } }\n      }\n      looseMetafield: metafield(namespace: $looseNamespace, key: $looseKey) {\n        id\n        namespace\n        key\n        type\n        value\n        definition { id }\n      }\n    }\n  }\n",
         "variables": {
-          "productId": "gid://shopify/Product/10222823801138",
-          "namespace": "definition_lifecycle_mqvjj4ab",
+          "productId": "gid://shopify/Product/10243937141042",
+          "namespace": "definition_lifecycle_mrrwu1fq",
           "key": "definition_lifecycle",
-          "looseNamespace": "definition_loose_mqvjj4ab",
+          "looseNamespace": "definition_loose_mrrwu1fq",
           "looseKey": "loose_metafield"
         }
       },
@@ -186,9 +186,9 @@
       "response": {
         "data": {
           "definition": {
-            "id": "gid://shopify/MetafieldDefinition/221092151602",
+            "id": "gid://shopify/MetafieldDefinition/227275309362",
             "name": "Lifecycle definition",
-            "namespace": "definition_lifecycle_mqvjj4ab",
+            "namespace": "definition_lifecycle_mrrwu1fq",
             "key": "definition_lifecycle",
             "ownerType": "PRODUCT",
             "validations": [
@@ -202,24 +202,24 @@
           "definitions": {
             "nodes": [
               {
-                "id": "gid://shopify/MetafieldDefinition/221092151602",
-                "namespace": "definition_lifecycle_mqvjj4ab",
+                "id": "gid://shopify/MetafieldDefinition/227275309362",
+                "namespace": "definition_lifecycle_mrrwu1fq",
                 "key": "definition_lifecycle",
                 "name": "Lifecycle definition"
               }
             ]
           },
           "product": {
-            "id": "gid://shopify/Product/10222823801138",
+            "id": "gid://shopify/Product/10243937141042",
             "metafield": {
-              "id": "gid://shopify/Metafield/44577830764850",
-              "namespace": "definition_lifecycle_mqvjj4ab",
+              "id": "gid://shopify/Metafield/45214299029810",
+              "namespace": "definition_lifecycle_mrrwu1fq",
               "key": "definition_lifecycle",
               "type": "single_line_text_field",
               "value": "ABCDEFGH",
               "definition": {
-                "id": "gid://shopify/MetafieldDefinition/221092151602",
-                "namespace": "definition_lifecycle_mqvjj4ab",
+                "id": "gid://shopify/MetafieldDefinition/227275309362",
+                "namespace": "definition_lifecycle_mrrwu1fq",
                 "key": "definition_lifecycle",
                 "type": {
                   "name": "single_line_text_field"
@@ -227,8 +227,8 @@
               }
             },
             "looseMetafield": {
-              "id": "gid://shopify/Metafield/44577830797618",
-              "namespace": "definition_loose_mqvjj4ab",
+              "id": "gid://shopify/Metafield/45214299062578",
+              "namespace": "definition_loose_mrrwu1fq",
               "key": "loose_metafield",
               "type": "single_line_text_field",
               "value": "loose",
@@ -256,7 +256,7 @@
         "variables": {
           "definition": {
             "name": "Lifecycle definition updated",
-            "namespace": "definition_lifecycle_mqvjj4ab",
+            "namespace": "definition_lifecycle_mrrwu1fq",
             "key": "definition_lifecycle",
             "ownerType": "PRODUCT",
             "description": "Updated temporary conformance definition for lifecycle capture"
@@ -268,9 +268,9 @@
         "data": {
           "metafieldDefinitionUpdate": {
             "updatedDefinition": {
-              "id": "gid://shopify/MetafieldDefinition/221092151602",
+              "id": "gid://shopify/MetafieldDefinition/227275309362",
               "name": "Lifecycle definition updated",
-              "namespace": "definition_lifecycle_mqvjj4ab",
+              "namespace": "definition_lifecycle_mrrwu1fq",
               "key": "definition_lifecycle",
               "ownerType": "PRODUCT",
               "type": {
@@ -309,7 +309,7 @@
       "request": {
         "query": "#graphql\n  mutation DeleteDefinition($id: ID!, $deleteAllAssociatedMetafields: Boolean!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: $deleteAllAssociatedMetafields) {\n      deletedDefinitionId\n      deletedDefinition { ownerType namespace key }\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetafieldDefinition/221092151602",
+          "id": "gid://shopify/MetafieldDefinition/227275309362",
           "deleteAllAssociatedMetafields": true
         }
       },
@@ -317,10 +317,10 @@
       "response": {
         "data": {
           "metafieldDefinitionDelete": {
-            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/221092151602",
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227275309362",
             "deletedDefinition": {
               "ownerType": "PRODUCT",
-              "namespace": "definition_lifecycle_mqvjj4ab",
+              "namespace": "definition_lifecycle_mrrwu1fq",
               "key": "definition_lifecycle"
             },
             "userErrors": []
@@ -344,10 +344,10 @@
       "request": {
         "query": "#graphql\n  query DownstreamDefinitionRead($productId: ID!, $namespace: String!, $key: String!, $looseNamespace: String!, $looseKey: String!) {\n    definition: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: $key }) {\n      id\n      name\n      namespace\n      key\n      ownerType\n      validations { name value }\n      metafieldsCount\n    }\n    definitions: metafieldDefinitions(ownerType: PRODUCT, namespace: $namespace, first: 5) {\n      nodes { id namespace key name }\n    }\n    product(id: $productId) {\n      id\n      metafield(namespace: $namespace, key: $key) {\n        id\n        namespace\n        key\n        type\n        value\n        definition { id namespace key type { name } }\n      }\n      looseMetafield: metafield(namespace: $looseNamespace, key: $looseKey) {\n        id\n        namespace\n        key\n        type\n        value\n        definition { id }\n      }\n    }\n  }\n",
         "variables": {
-          "productId": "gid://shopify/Product/10222823801138",
-          "namespace": "definition_lifecycle_mqvjj4ab",
+          "productId": "gid://shopify/Product/10243937141042",
+          "namespace": "definition_lifecycle_mrrwu1fq",
           "key": "definition_lifecycle",
-          "looseNamespace": "definition_loose_mqvjj4ab",
+          "looseNamespace": "definition_loose_mrrwu1fq",
           "looseKey": "loose_metafield"
         }
       },
@@ -359,11 +359,11 @@
             "nodes": []
           },
           "product": {
-            "id": "gid://shopify/Product/10222823801138",
+            "id": "gid://shopify/Product/10243937141042",
             "metafield": null,
             "looseMetafield": {
-              "id": "gid://shopify/Metafield/44577830797618",
-              "namespace": "definition_loose_mqvjj4ab",
+              "id": "gid://shopify/Metafield/45214299062578",
+              "namespace": "definition_loose_mrrwu1fq",
               "key": "loose_metafield",
               "type": "single_line_text_field",
               "value": "loose",
@@ -385,33 +385,3004 @@
       }
     }
   ],
-  "cleanup": [
+  "cleanup": [],
+  "upstreamCalls": [
     {
-      "label": "cleanup productDelete",
-      "request": {
-        "query": "#graphql\n  mutation DeleteProduct($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors { field message }\n    }\n  }\n",
-        "variables": {
-          "input": {
-            "id": "gid://shopify/Product/10222823801138"
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "query MetafieldDefinitionsHydrateOwnerCatalog(\n  $ownerType: MetafieldOwnerType!\n  $first: Int!\n  $after: String\n) {\n  metafieldDefinitions(\n    ownerType: $ownerType\n    first: $first\n    after: $after\n    sortKey: PINNED_POSITION\n  ) {\n    nodes {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      description\n      validations {\n        name\n        value\n      }\n      access {\n        admin\n        storefront\n        customerAccount\n      }\n      capabilities {\n        adminFilterable {\n          enabled\n          eligible\n          status\n        }\n        smartCollectionCondition {\n          enabled\n          eligible\n        }\n        uniqueValues {\n          enabled\n          eligible\n        }\n      }\n      constraints {\n        key\n        values(first: 50) {\n          nodes {\n            value\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pinnedPosition\n      validationStatus\n      metafieldsCount\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
+      "operationName": "MetafieldDefinitionsHydrateOwnerCatalog",
+      "variables": {
+        "after": null,
+        "first": 250,
+        "ownerType": "PRODUCT"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "metafieldDefinitions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217266946354",
+                  "name": "Create pin guard 50",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_50",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 50,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217266913586",
+                  "name": "Create pin guard 49",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_49",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 49,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217266880818",
+                  "name": "Create pin guard 48",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_48",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 48,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217266848050",
+                  "name": "Create pin guard 47",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_47",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 47,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217266815282",
+                  "name": "Create pin guard 46",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_46",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 46,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217266782514",
+                  "name": "Create pin guard 45",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_45",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 45,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217266749746",
+                  "name": "Create pin guard 44",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_44",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 44,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217266716978",
+                  "name": "Create pin guard 43",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_43",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 43,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217266684210",
+                  "name": "Create pin guard 42",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_42",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 42,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217266651442",
+                  "name": "Create pin guard 41",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_41",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 41,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217266618674",
+                  "name": "Create pin guard 40",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_40",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 40,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217266585906",
+                  "name": "Create pin guard 39",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_39",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 39,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217266553138",
+                  "name": "Create pin guard 38",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_38",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 38,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217266520370",
+                  "name": "Create pin guard 37",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_37",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 37,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217266487602",
+                  "name": "Create pin guard 36",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_36",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 36,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217266454834",
+                  "name": "Create pin guard 35",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_35",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 35,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217266422066",
+                  "name": "Create pin guard 34",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_34",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 34,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217266389298",
+                  "name": "Create pin guard 33",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_33",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 33,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217266356530",
+                  "name": "Create pin guard 32",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_32",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 32,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217266323762",
+                  "name": "Create pin guard 31",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_31",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 31,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217266290994",
+                  "name": "Create pin guard 30",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_30",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 30,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217266258226",
+                  "name": "Create pin guard 29",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_29",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 29,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217266225458",
+                  "name": "Create pin guard 28",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_28",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 28,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217266192690",
+                  "name": "Create pin guard 27",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_27",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 27,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217266159922",
+                  "name": "Create pin guard 26",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_26",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 26,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217266127154",
+                  "name": "Create pin guard 25",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_25",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 25,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217266094386",
+                  "name": "Create pin guard 24",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_24",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 24,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217266061618",
+                  "name": "Create pin guard 23",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_23",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 23,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217266028850",
+                  "name": "Create pin guard 22",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_22",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 22,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217265996082",
+                  "name": "Create pin guard 21",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_21",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 21,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217265963314",
+                  "name": "Create pin guard 20",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_20",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 20,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217265930546",
+                  "name": "Create pin guard 19",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_19",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 19,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217265897778",
+                  "name": "Create pin guard 18",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_18",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 18,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217265865010",
+                  "name": "Create pin guard 17",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_17",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 17,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217265832242",
+                  "name": "Create pin guard 16",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_16",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 16,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217265799474",
+                  "name": "Create pin guard 15",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_15",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 15,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217265766706",
+                  "name": "Create pin guard 14",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_14",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 14,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217265733938",
+                  "name": "Create pin guard 13",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_13",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 13,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217265701170",
+                  "name": "Create pin guard 12",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_12",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 12,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217265668402",
+                  "name": "Create pin guard 11",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_11",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 11,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217265635634",
+                  "name": "Create pin guard 10",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_10",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 10,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217265602866",
+                  "name": "Create pin guard 09",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_09",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 9,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217265570098",
+                  "name": "Create pin guard 08",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_08",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 8,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217265537330",
+                  "name": "Create pin guard 07",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_07",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 7,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217265504562",
+                  "name": "Create pin guard 06",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_06",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 6,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217265471794",
+                  "name": "Create pin guard 05",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_05",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 5,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217265439026",
+                  "name": "Create pin guard 04",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_04",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 4,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217265406258",
+                  "name": "Create pin guard 03",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_03",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 3,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217265373490",
+                  "name": "Create pin guard 02",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_02",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 2,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/217265340722",
+                  "name": "Create pin guard 01",
+                  "namespace": "create_pin_guard_mqcyt578",
+                  "key": "pin_01",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 1,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/220611084594",
+                  "name": "Material",
+                  "namespace": "shopify",
+                  "key": "material",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "list.metaobject_reference",
+                    "category": "REFERENCE"
+                  },
+                  "description": "Defines a product's primary material, such as cotton or wool",
+                  "validations": [
+                    {
+                      "name": "metaobject_definition_id",
+                      "value": "gid://shopify/MetaobjectDefinition/19338920242"
+                    }
+                  ],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "PUBLIC_READ",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": false
+                    }
+                  },
+                  "constraints": {
+                    "key": "category",
+                    "values": {
+                      "nodes": [
+                        {
+                          "value": "aa-2"
+                        },
+                        {
+                          "value": "aa-2-14-6"
+                        },
+                        {
+                          "value": "aa-2-14-6-2"
+                        },
+                        {
+                          "value": "aa-2-14-6-3"
+                        },
+                        {
+                          "value": "aa-2-14-6-4"
+                        },
+                        {
+                          "value": "aa-2-30"
+                        },
+                        {
+                          "value": "aa-2-30-1"
+                        },
+                        {
+                          "value": "aa-2-30-2"
+                        },
+                        {
+                          "value": "aa-2-30-3"
+                        },
+                        {
+                          "value": "aa-2-30-4"
+                        },
+                        {
+                          "value": "aa-2-30-5"
+                        },
+                        {
+                          "value": "aa-3"
+                        },
+                        {
+                          "value": "aa-4-1"
+                        },
+                        {
+                          "value": "aa-6-10"
+                        },
+                        {
+                          "value": "aa-6-10-4"
+                        },
+                        {
+                          "value": "aa-6-10-5"
+                        },
+                        {
+                          "value": "aa-6-10-6"
+                        },
+                        {
+                          "value": "aa-6-10-7"
+                        },
+                        {
+                          "value": "aa-6-10-8"
+                        },
+                        {
+                          "value": "ae-2-1"
+                        },
+                        {
+                          "value": "ae-2-1-1"
+                        },
+                        {
+                          "value": "ae-2-1-1-7"
+                        },
+                        {
+                          "value": "ae-2-1-2-1-3"
+                        },
+                        {
+                          "value": "ae-2-1-2-6-1"
+                        },
+                        {
+                          "value": "ae-2-1-2-6-1-1"
+                        },
+                        {
+                          "value": "ae-2-1-2-6-1-2"
+                        },
+                        {
+                          "value": "ae-2-1-2-10"
+                        },
+                        {
+                          "value": "ae-2-1-2-10-1"
+                        },
+                        {
+                          "value": "ae-2-1-2-10-2"
+                        },
+                        {
+                          "value": "ae-2-1-2-10-3"
+                        },
+                        {
+                          "value": "ae-2-1-2-11"
+                        },
+                        {
+                          "value": "ae-2-1-2-14-1-1"
+                        },
+                        {
+                          "value": "ae-2-1-2-14-1-1-4"
+                        },
+                        {
+                          "value": "ae-2-1-2-17-1-2"
+                        },
+                        {
+                          "value": "ae-2-1-2-17-1-2-1"
+                        },
+                        {
+                          "value": "ae-2-1-2-17-1-2-2"
+                        },
+                        {
+                          "value": "ae-2-1-2-17-1-3"
+                        },
+                        {
+                          "value": "ae-2-1-2-17-1-3-1"
+                        },
+                        {
+                          "value": "ae-2-1-2-17-1-3-2"
+                        },
+                        {
+                          "value": "ae-2-1-2-17-1-3-3"
+                        },
+                        {
+                          "value": "ae-2-1-2-17-1-3-4"
+                        },
+                        {
+                          "value": "ae-2-1-3"
+                        },
+                        {
+                          "value": "ae-2-1-3-1"
+                        },
+                        {
+                          "value": "ae-2-1-3-3"
+                        },
+                        {
+                          "value": "ae-2-1-3-4"
+                        },
+                        {
+                          "value": "ae-2-1-3-5"
+                        },
+                        {
+                          "value": "ae-2-1-3-6"
+                        },
+                        {
+                          "value": "ae-2-1-3-6-1"
+                        },
+                        {
+                          "value": "ae-2-1-3-6-2"
+                        },
+                        {
+                          "value": "ae-2-1-3-6-3"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": true,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjoxMDg3MzQ1ODc4NjYxMCwibGFzdF92YWx1ZSI6IjEwODczNDU4Nzg2NjEwIn0=",
+                        "endCursor": "eyJsYXN0X2lkIjoxMDg3MzQ2MDM5MjI0MiwibGFzdF92YWx1ZSI6IjEwODczNDYwMzkyMjQyIn0="
+                      }
+                    }
+                  },
+                  "pinnedPosition": null,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/206789771570",
+                  "name": "Color",
+                  "namespace": "shopify",
+                  "key": "color-pattern",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "list.metaobject_reference",
+                    "category": "REFERENCE"
+                  },
+                  "description": "Defines the primary color or pattern, such as blue or striped",
+                  "validations": [
+                    {
+                      "name": "metaobject_definition_id",
+                      "value": "gid://shopify/MetaobjectDefinition/17880285490"
+                    }
+                  ],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "PUBLIC_READ",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": false
+                    }
+                  },
+                  "constraints": {
+                    "key": "category",
+                    "values": {
+                      "nodes": [
+                        {
+                          "value": "ap-2-1-1"
+                        },
+                        {
+                          "value": "ap-2-1-1-1"
+                        },
+                        {
+                          "value": "ap-2-1-1-2"
+                        },
+                        {
+                          "value": "ap-2-1-1-2-1"
+                        },
+                        {
+                          "value": "ap-2-1-1-2-2"
+                        },
+                        {
+                          "value": "ap-2-1-1-2-3"
+                        },
+                        {
+                          "value": "ap-2-1-2"
+                        },
+                        {
+                          "value": "ap-2-2-2"
+                        },
+                        {
+                          "value": "ap-2-2-2-1"
+                        },
+                        {
+                          "value": "ap-2-2-2-2"
+                        },
+                        {
+                          "value": "ap-2-2-2-3"
+                        },
+                        {
+                          "value": "ap-2-2-2-4"
+                        },
+                        {
+                          "value": "ap-2-2-2-5"
+                        },
+                        {
+                          "value": "ap-2-2-2-6"
+                        },
+                        {
+                          "value": "ap-2-2-2-7"
+                        },
+                        {
+                          "value": "ap-2-2-4-2"
+                        },
+                        {
+                          "value": "ap-2-2-4-3"
+                        },
+                        {
+                          "value": "ap-2-3-2"
+                        },
+                        {
+                          "value": "ap-2-3-4"
+                        },
+                        {
+                          "value": "ap-2-3-6"
+                        },
+                        {
+                          "value": "ap-2-3-6-1"
+                        },
+                        {
+                          "value": "ap-2-3-6-2"
+                        },
+                        {
+                          "value": "ap-2-3-6-3"
+                        },
+                        {
+                          "value": "ap-2-3-6-4"
+                        },
+                        {
+                          "value": "ap-2-3-6-5"
+                        },
+                        {
+                          "value": "ap-2-4-1"
+                        },
+                        {
+                          "value": "ap-2-4-1-1"
+                        },
+                        {
+                          "value": "ap-2-4-1-2"
+                        },
+                        {
+                          "value": "ap-2-4-1-3"
+                        },
+                        {
+                          "value": "ap-2-4-1-4"
+                        },
+                        {
+                          "value": "ap-2-4-1-5"
+                        },
+                        {
+                          "value": "ap-2-4-2"
+                        },
+                        {
+                          "value": "ap-2-4-2-1"
+                        },
+                        {
+                          "value": "ap-2-4-2-2"
+                        },
+                        {
+                          "value": "ap-2-4-2-3"
+                        },
+                        {
+                          "value": "ap-2-4-2-4"
+                        },
+                        {
+                          "value": "ap-2-4-2-5"
+                        },
+                        {
+                          "value": "ap-2-4-4"
+                        },
+                        {
+                          "value": "ap-2-4-4-1"
+                        },
+                        {
+                          "value": "ap-2-4-4-2"
+                        },
+                        {
+                          "value": "ap-2-4-4-3"
+                        },
+                        {
+                          "value": "ap-2-4-4-4"
+                        },
+                        {
+                          "value": "ap-2-4-4-5"
+                        },
+                        {
+                          "value": "ap-2-4-4-6"
+                        },
+                        {
+                          "value": "ap-2-4-4-7"
+                        },
+                        {
+                          "value": "ap-2-4-4-8"
+                        },
+                        {
+                          "value": "ap-2-4-4-9"
+                        },
+                        {
+                          "value": "ap-2-4-6"
+                        },
+                        {
+                          "value": "ap-2-4-6-1"
+                        },
+                        {
+                          "value": "ap-2-4-6-2"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": true,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjoxMDEyNzg2OTYwODI0MiwibGFzdF92YWx1ZSI6IjEwMTI3ODY5NjA4MjQyIn0=",
+                        "endCursor": "eyJsYXN0X2lkIjoxMDEyNzg3MTIxMzg3NCwibGFzdF92YWx1ZSI6IjEwMTI3ODcxMjEzODc0In0="
+                      }
+                    }
+                  },
+                  "pinnedPosition": null,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 0
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/98376220978",
+                  "name": "Snowboard binding mount",
+                  "namespace": "test_data",
+                  "key": "binding_mount",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": "The type of binding mount used on the snowboard",
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": null,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 3
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/98376188210",
+                  "name": "Snowboard length",
+                  "namespace": "test_data",
+                  "key": "snowboard_length",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "dimension",
+                    "category": "MEASUREMENT"
+                  },
+                  "description": "The length of the snowboard",
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": false
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": false
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": null,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 2
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "endCursor": "eyJsYXN0X2lkIjo5ODM3NjE4ODIxMCwibGFzdF92YWx1ZSI6IjAifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 200,
+              "actualQueryCost": 29,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1971,
+                "restoreRate": 100
+              }
+            }
           }
         }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "query OwnerMetafieldsHydrateNodes($ids: [ID!]!, $metafield0Namespace: String!, $metafield0Key: String!, $metafield1Namespace: String!, $metafield1Key: String!) { nodes(ids: $ids) { __typename id ... on HasMetafields { metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } metafield1: metafield(namespace: $metafield1Namespace, key: $metafield1Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } } ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt  } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } } ... on Collection { id title handle } ... on Customer { id displayName email } ... on Order { id name } ... on Company { id name } ... on Page { id title } ... on Article { id title } } }",
+      "operationName": "OwnerMetafieldsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/10243937141042"],
+        "metafield0Key": "definition_lifecycle",
+        "metafield0Namespace": "definition_lifecycle_mrrwu1fq",
+        "metafield1Key": "loose_metafield",
+        "metafield1Namespace": "definition_loose_mrrwu1fq"
       },
-      "status": 200,
       "response": {
-        "data": {
-          "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10222823801138",
-            "userErrors": []
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 10,
-            "actualQueryCost": 10,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
-              "restoreRate": 100
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10243937141042",
+                "metafield0": null,
+                "metafield1": {
+                  "id": "gid://shopify/Metafield/45214299062578",
+                  "namespace": "definition_loose_mrrwu1fq",
+                  "key": "loose_metafield",
+                  "type": "single_line_text_field",
+                  "value": "loose",
+                  "jsonValue": "loose",
+                  "compareDigest": "ae11c1d3723d521407fe6373d0ed9bbb684b2217a1240b4fdf8c3aeed74c734d",
+                  "createdAt": "2026-07-19T14:47:49Z",
+                  "updatedAt": "2026-07-19T14:47:49Z",
+                  "ownerType": "PRODUCT",
+                  "definition": null
+                },
+                "title": "Metafield definition lifecycle mrrwu1fq",
+                "handle": "metafield-definition-lifecycle-mrrwu1fq",
+                "status": "ACTIVE",
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "createdAt": "2026-07-19T14:47:49Z",
+                "updatedAt": "2026-07-19T14:47:52Z"
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
             }
           }
         }

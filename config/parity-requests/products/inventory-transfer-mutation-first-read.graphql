@@ -1,0 +1,49 @@
+query InventoryTransferMutationFirstRead($id: ID!) {
+  inventoryTransfer(id: $id) {
+    id
+    name
+    dateCreated
+    status
+    tags
+    totalQuantity
+    origin {
+      name
+      location {
+        id
+        name
+        isActive
+      }
+    }
+    destination {
+      name
+      location {
+        id
+        name
+        isActive
+      }
+    }
+    lineItems(first: 100) {
+      nodes {
+        id
+        totalQuantity
+        shippableQuantity
+        shippedQuantity
+        processableQuantity
+        pickedForShipmentQuantity
+        inventoryItem {
+          id
+          sku
+          tracked
+          requiresShipping
+        }
+      }
+    }
+    shipments(first: 25) {
+      nodes {
+        id
+        name
+        status
+      }
+    }
+  }
+}

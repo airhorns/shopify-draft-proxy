@@ -107,16 +107,28 @@ errors. Effective `location`, `locationByIdentifier`, `locations`, and
 updates, exclude tombstones, and apply Shopify-like name filtering, sort keys,
 `reverse`, cursor windows, and `pageInfo`. The separately hydrated
 `locationsAvailableForDeliveryProfilesConnection` eligibility catalog keeps
-Shopify's ID ordering and overlays staged fields only for locations already in
-that catalog; a staged `locationAdd` does not invent delivery-profile
-eligibility. Successful location mutation slices stage local state, preserve
-the raw GraphQL request for commit replay, and expose read-after-write behavior
-through these reads, inventory-level location projection, and meta state/log
-inspection. Successful `locationDeactivate` calls with a
+Shopify's ID ordering. A staged `locationAdd` does not initially invent
+delivery-profile eligibility, but captured lifecycle behavior adds the location
+to that catalog after successful deactivation and preserves the eligible row
+when the location is reactivated; deletion removes it. Other staged field
+updates overlay locations already in the eligibility catalog. Successful
+location mutation slices stage local state, preserve the raw GraphQL request
+for commit replay, and expose read-after-write behavior through these reads,
+inventory-level location projection, and meta state/log inspection. Successful
+`locationDeactivate` calls with a
 `destinationLocationId` relocate source-location inventory levels into the
 destination in the modeled slice, merge same-name quantity rows when a
 destination level already exists, remove the source level from downstream
 inventory reads, and leave guard/userError branches without relocation.
+In LiveHybrid mode, mutation-first deactivation query-hydrates the source and
+submitted destination independently through the caller's Admin route and auth
+headers before making validation or relocation decisions. A confirmed missing
+destination returns `DESTINATION_LOCATION_NOT_SHOPIFY_MANAGED`; a confirmed
+inactive destination returns `DESTINATION_LOCATION_NOT_FOUND_OR_INACTIVE`;
+transport or GraphQL uncertainty stops without collapsing into either branch.
+Snapshot deactivation consults local state only. Hydrated location fields remain
+available through downstream source and destination reads after successful
+staging.
 Unknown source IDs return `location: null` with a `LOCATION_NOT_FOUND` userError
 and do not stage a synthetic location.
 Captured guard slices include same-destination rejection, inactive-destination

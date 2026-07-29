@@ -1,0 +1,26 @@
+{
+  "scenarioId": "orderCreateManualPayment-missing-order-parity",
+  "operationNames": ["orderCreateManualPayment"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "capability-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/orderCreateManualPayment-missing-order-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderCreateManualPayment-success-parity.graphql",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured 2026-04 missing-order behavior without an explicit amount after the same query-only capability context confirms write_orders eligibility on a non-Plus store.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "eligible-confirmed-missing-order-user-error",
+        "capturePath": "$.mutation.response.data.orderCreateManualPayment",
+        "proxyPath": "$.data.orderCreateManualPayment"
+      }
+    ]
+  }
+}

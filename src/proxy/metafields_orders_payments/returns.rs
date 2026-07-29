@@ -87,16 +87,14 @@ fn reverse_fulfillment_order_deliveries_field(
 }
 
 const RETURN_CALCULATION_ORDER_HYDRATE_QUERY: &str =
-    include_str!("../../../config/parity-requests/orders/return-calculation-order-hydrate.graphql");
-const REVERSE_LOGISTICS_RFO_MUTATION_HYDRATE_QUERY: &str = include_str!(
-    "../../../config/parity-requests/orders/reverse-logistics-rfo-mutation-hydrate.graphql"
-);
+    include_str!("../../runtime_graphql/orders/return-calculation-order-hydrate.graphql");
+const REVERSE_LOGISTICS_RFO_MUTATION_HYDRATE_QUERY: &str =
+    include_str!("../../runtime_graphql/orders/reverse-logistics-rfo-mutation-hydrate.graphql");
 const REVERSE_LOGISTICS_DELIVERY_MUTATION_HYDRATE_QUERY: &str = include_str!(
-    "../../../config/parity-requests/orders/reverse-logistics-delivery-mutation-hydrate.graphql"
+    "../../runtime_graphql/orders/reverse-logistics-delivery-mutation-hydrate.graphql"
 );
-const REVERSE_LOGISTICS_DISPOSE_MUTATION_HYDRATE_QUERY: &str = include_str!(
-    "../../../config/parity-requests/orders/reverse-logistics-dispose-mutation-hydrate.graphql"
-);
+const REVERSE_LOGISTICS_DISPOSE_MUTATION_HYDRATE_QUERY: &str =
+    include_str!("../../runtime_graphql/orders/reverse-logistics-dispose-mutation-hydrate.graphql");
 
 fn return_matches_id(return_value: &Value, value: &str) -> bool {
     let value = value.trim_matches('"').trim_matches('\'');
@@ -1090,9 +1088,13 @@ impl DraftProxy {
         let mut base = self.return_record_with_effective_reverse_orders(return_value);
         base["__typename"] = json!("Return");
         if let Some(order_id) = return_value["order"]["id"].as_str() {
+            let relationship_order = return_value["order"].clone();
             let mut order = self
-                .staged_order_record_for_id(order_id)
-                .unwrap_or_else(|| return_value["order"].clone());
+                .store
+                .observed_order_by_id(order_id)
+                .cloned()
+                .map(|observed| shallow_merged_object(observed, relationship_order.clone()))
+                .unwrap_or(relationship_order);
             if order.get("id").is_none() {
                 order["id"] = json!(order_id);
             }
@@ -1225,14 +1227,20 @@ impl DraftProxy {
                 let value = self.calculate_return(request, arguments);
                 Some(ResolverOutcome::value(value))
             }
-            "returnCreate" => {
-                let value = self.stage_return_from_input(request, arguments, "returnInput", "OPEN");
-                Some(ResolverOutcome::value(value))
-            }
-            "returnRequest" => {
-                let value = self.stage_return_from_input(request, arguments, "input", "REQUESTED");
-                Some(ResolverOutcome::value(value))
-            }
+            "returnCreate" => Some(self.stage_return_from_input(
+                request,
+                arguments,
+                "returnCreate",
+                "returnInput",
+                "OPEN",
+            )),
+            "returnRequest" => Some(self.stage_return_from_input(
+                request,
+                arguments,
+                "returnRequest",
+                "input",
+                "REQUESTED",
+            )),
             "returnApproveRequest" => {
                 let id = resolved_object_field(arguments, "input")
                     .and_then(|input| resolved_string_field(&input, "id"))?;
@@ -1318,10 +1326,15 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let order_id = resolved_string_field(arguments, "orderId").unwrap_or_default();
-        self.hydrate_order_for_return(request, &order_id);
-        let Some(order) = self.staged_order_record_for_id(&order_id) else {
-            return connection_json(Vec::new());
+        let order = match self.hydrate_order_for_return(request, &order_id, &BTreeSet::new()) {
+            ReturnOrderHydration::Resolved(order) => order,
+            ReturnOrderHydration::ConfirmedMissing | ReturnOrderHydration::Unresolved(_) => {
+                return connection_json(Vec::new());
+            }
         };
+        if order.is_null() {
+            return connection_json(Vec::new());
+        }
         let nodes = returnable_fulfillment_nodes(&order, &order_id, self);
         let (nodes, page_info) = connection_window(&nodes, arguments, value_id_cursor);
         typed_connection_value(
@@ -1437,20 +1450,21 @@ impl DraftProxy {
         &mut self,
         request: &Request,
         arguments: &BTreeMap<String, ResolvedValue>,
+        root_name: &str,
         input_name: &str,
         status: &str,
-    ) -> Value {
+    ) -> ResolverOutcome<Value> {
         let input = resolved_object_field(arguments, input_name).unwrap_or_default();
         let items = resolved_object_list_field(&input, "returnLineItems");
         if items.is_empty() {
-            return self.return_payload(
+            return ResolverOutcome::value(self.return_payload(
                 Value::Null,
                 vec![user_error(
                     ["returnLineItems"],
                     "Return must include at least one line item.",
                     Some("INVALID"),
                 )],
-            );
+            ));
         }
         let reason_errors = items
             .iter()
@@ -1458,24 +1472,31 @@ impl DraftProxy {
             .filter_map(|(index, item)| validate_return_line_item_reason(input_name, index, item))
             .collect::<Vec<_>>();
         if !reason_errors.is_empty() {
-            return self.return_payload(Value::Null, reason_errors);
+            return ResolverOutcome::value(self.return_payload(Value::Null, reason_errors));
         }
-        // Validate every line first, allocating return-line-item ids only for
-        // valid lines (matching the reference fold). Any error short-circuits
-        // the mutation with a null return and no state change.
         let order_id = resolved_string_field(&input, "orderId").unwrap_or_default();
-        // The order a return runs against is a precondition that may not have been
-        // created locally in this scenario; forward+observe it on a cold miss so
-        // line validation and quantity caps run against real store state.
-        self.hydrate_order_for_return(request, &order_id);
-        let order = self
-            .store
-            .staged
-            .orders
-            .get(&order_id)
-            .cloned()
-            .unwrap_or(Value::Null);
-        let mut line_items: Vec<Value> = Vec::new();
+        let requested_fulfillment_line_item_ids = items
+            .iter()
+            .filter_map(|item| resolved_string_field(item, "fulfillmentLineItemId"))
+            .collect::<BTreeSet<_>>();
+        let order = match self.hydrate_order_for_return(
+            request,
+            &order_id,
+            &requested_fulfillment_line_item_ids,
+        ) {
+            ReturnOrderHydration::Resolved(order) => order,
+            ReturnOrderHydration::ConfirmedMissing => Value::Null,
+            ReturnOrderHydration::Unresolved(status) => {
+                return resolver_http_error_outcome(
+                    status,
+                    "Unable to resolve return order preconditions from Shopify.",
+                );
+            }
+        };
+        // Build a complete, allocation-free plan. No synthetic identity,
+        // timestamp, return graph, reverse-fulfillment graph, or replay entry is
+        // produced until every input line validates.
+        let mut planned_line_items: Vec<(Value, BTreeMap<String, ResolvedValue>)> = Vec::new();
         let mut user_errors: Vec<Value> = Vec::new();
         for (index, item) in items.iter().enumerate() {
             let fli_id = resolved_string_field(item, "fulfillmentLineItemId");
@@ -1486,12 +1507,13 @@ impl DraftProxy {
             match fulfillment_line_item {
                 None => user_errors.push(user_error(
                     [
+                        input_name,
                         "returnLineItems",
                         &index.to_string(),
                         "fulfillmentLineItemId",
                     ],
-                    "Fulfillment line item does not exist.",
-                    Some("INVALID"),
+                    "Fulfillment Line Item was not found.",
+                    Some("NOT_FOUND"),
                 )),
                 Some(fulfillment_line_item) => {
                     let available = fulfillment_line_item["quantity"].as_i64().unwrap_or(0);
@@ -1513,19 +1535,21 @@ impl DraftProxy {
                             Some("INVALID"),
                         ));
                     } else {
-                        let rli_id = self.next_synthetic_gid("ReturnLineItem");
-                        line_items.push(build_return_line_item(
-                            &rli_id,
-                            &fulfillment_line_item,
-                            item,
-                        ));
+                        planned_line_items.push((fulfillment_line_item, item.clone()));
                     }
                 }
             }
         }
         if !user_errors.is_empty() {
-            return self.return_payload(Value::Null, user_errors);
+            return ResolverOutcome::value(self.return_payload(Value::Null, user_errors));
         }
+        let line_items = planned_line_items
+            .into_iter()
+            .map(|(fulfillment_line_item, item)| {
+                let id = self.next_synthetic_gid("ReturnLineItem");
+                build_return_line_item(&id, &fulfillment_line_item, &item)
+            })
+            .collect::<Vec<_>>();
         let return_id = self.next_synthetic_gid("Return");
         let order_name = order["name"].as_str().unwrap_or("#ORDER").to_string();
         let prior_returns = order_returns_array(&order).len()
@@ -1582,10 +1606,12 @@ impl DraftProxy {
         self.store
             .staged
             .returns_by_order
-            .entry(order_id)
+            .entry(order_id.clone())
             .or_default()
-            .push(return_id);
-        self.return_payload(return_record, Vec::new())
+            .push(return_id.clone());
+        self.store.staged.orders.insert(order_id, order);
+        ResolverOutcome::value(self.return_payload(return_record, Vec::new()))
+            .with_log_draft(LogDraft::staged(root_name, "orders", vec![return_id]))
     }
 
     /// Total quantity already consumed against a fulfillment line item by
@@ -1626,7 +1652,7 @@ impl DraftProxy {
     }
 
     fn return_order_value(&self, order_id: &str) -> Value {
-        let order = self.staged_order_record_for_id(order_id);
+        let order = self.store.observed_order_by_id(order_id).cloned();
         if let Some(order) = order.as_ref() {
             return self.order_with_return_status_value(order);
         }

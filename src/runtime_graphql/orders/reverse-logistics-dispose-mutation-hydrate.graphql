@@ -1,0 +1,32 @@
+query ReverseLogisticsDisposeMutationHydrate($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    __typename
+    ... on ReverseFulfillmentOrderLineItem {
+      id
+      totalQuantity
+      fulfillmentLineItem {
+        id
+        lineItem {
+          id
+          variant {
+            id
+          }
+        }
+      }
+      dispositions {
+        __typename
+        id
+        type
+        quantity
+        createdAt
+        location {
+          id
+        }
+      }
+    }
+    ... on Location {
+      id
+      isActive
+    }
+  }
+}

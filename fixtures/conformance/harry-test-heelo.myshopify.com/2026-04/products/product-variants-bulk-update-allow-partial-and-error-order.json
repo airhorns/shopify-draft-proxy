@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-06-26T23:09:45.223Z",
+  "capturedAt": "2026-07-19T14:55:03.851Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "setup": {
@@ -7,8 +7,8 @@
       "data": {
         "productCreate": {
           "product": {
-            "id": "gid://shopify/Product/10222827241778",
-            "title": "Bulk Variant Partial Update 1782515383266"
+            "id": "gid://shopify/Product/10243939729714",
+            "title": "Bulk Variant Partial Update 1784472901935"
           },
           "userErrors": []
         }
@@ -29,37 +29,37 @@
       "data": {
         "productOptionsCreate": {
           "product": {
-            "id": "gid://shopify/Product/10222827241778",
+            "id": "gid://shopify/Product/10243939729714",
             "options": [
               {
-                "id": "gid://shopify/ProductOption/12780705153330",
+                "id": "gid://shopify/ProductOption/12804840194354",
                 "name": "Color",
                 "values": ["Red"],
                 "optionValues": [
                   {
-                    "id": "gid://shopify/ProductOptionValue/8227232547122",
+                    "id": "gid://shopify/ProductOptionValue/8322102427954",
                     "name": "Red",
                     "hasVariants": true
                   },
                   {
-                    "id": "gid://shopify/ProductOptionValue/8227232579890",
+                    "id": "gid://shopify/ProductOptionValue/8322102460722",
                     "name": "Blue",
                     "hasVariants": false
                   }
                 ]
               },
               {
-                "id": "gid://shopify/ProductOption/12780705186098",
+                "id": "gid://shopify/ProductOption/12804840227122",
                 "name": "Size",
                 "values": ["Small"],
                 "optionValues": [
                   {
-                    "id": "gid://shopify/ProductOptionValue/8227232612658",
+                    "id": "gid://shopify/ProductOptionValue/8322102493490",
                     "name": "Small",
                     "hasVariants": true
                   },
                   {
-                    "id": "gid://shopify/ProductOptionValue/8227232645426",
+                    "id": "gid://shopify/ProductOptionValue/8322102526258",
                     "name": "Large",
                     "hasVariants": false
                   }
@@ -69,7 +69,7 @@
             "variants": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ProductVariant/51381368717618",
+                  "id": "gid://shopify/ProductVariant/51488193315122",
                   "title": "Red / Small",
                   "sku": null,
                   "price": "0.00",
@@ -96,7 +96,7 @@
           "actualQueryCost": 16,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1984,
+            "currentlyAvailable": 1978,
             "restoreRate": 100
           }
         }
@@ -106,11 +106,11 @@
       "data": {
         "productVariantsBulkCreate": {
           "product": {
-            "id": "gid://shopify/Product/10222827241778",
+            "id": "gid://shopify/Product/10243939729714",
             "variants": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ProductVariant/51381368717618",
+                  "id": "gid://shopify/ProductVariant/51488193315122",
                   "title": "Red / Small",
                   "sku": null,
                   "price": "0.00",
@@ -126,9 +126,9 @@
                   ]
                 },
                 {
-                  "id": "gid://shopify/ProductVariant/51381368783154",
+                  "id": "gid://shopify/ProductVariant/51488193380658",
                   "title": "Blue / Large",
-                  "sku": "PVBU-383266-BLUE",
+                  "sku": "PVBU-901935-BLUE",
                   "price": "11.00",
                   "selectedOptions": [
                     {
@@ -146,9 +146,9 @@
           },
           "productVariants": [
             {
-              "id": "gid://shopify/ProductVariant/51381368783154",
+              "id": "gid://shopify/ProductVariant/51488193380658",
               "title": "Blue / Large",
-              "sku": "PVBU-383266-BLUE",
+              "sku": "PVBU-901935-BLUE",
               "price": "11.00",
               "selectedOptions": [
                 {
@@ -171,293 +171,234 @@
           "actualQueryCost": 15,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1985,
+            "currentlyAvailable": 1980,
             "restoreRate": 100
           }
         }
       }
     },
-    "productId": "gid://shopify/Product/10222827241778",
-    "redVariantId": "gid://shopify/ProductVariant/51381368717618",
-    "blueVariantId": "gid://shopify/ProductVariant/51381368783154"
+    "productId": "gid://shopify/Product/10243939729714",
+    "redVariantId": "gid://shopify/ProductVariant/51488193315122",
+    "blueVariantId": "gid://shopify/ProductVariant/51488193380658"
   },
   "notes": "Live productVariantsBulkUpdate capture for allowPartialUpdates true with one valid and one invalid existing variant, downstream read-after-write, and same-input userErrors field/code ordering.",
   "upstreamCalls": [
     {
-      "operationName": "ProductsHydrateNodes",
+      "operationName": "ProductMutationPreflightHydrate",
       "variables": {
-        "ids": [
-          "gid://shopify/Product/10222827241778",
-          "gid://shopify/ProductVariant/51381368717618",
-          "gid://shopify/ProductVariant/51381368783154"
-        ]
+        "id": "gid://shopify/Product/10243939729714",
+        "variantsAfter": null,
+        "mediaAfter": null,
+        "collectionsAfter": null
       },
-      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
+      "query": "query ProductMutationPreflightHydrate(\n  $id: ID!\n  $variantsAfter: String\n  $mediaAfter: String\n  $collectionsAfter: String\n) {\n  product(id: $id) {\n    __typename\n    id\n    legacyResourceId\n    createdAt\n    updatedAt\n    title\n    handle\n    status\n    publishedAt\n    descriptionHtml\n    vendor\n    productType\n    tags\n    templateSuffix\n    totalInventory\n    tracksInventory\n    onlineStorePreviewUrl\n    requiresSellingPlan\n    isGiftCard\n    giftCardTemplateSuffix\n    seo {\n      title\n      description\n    }\n    category {\n      id\n      name\n      fullName\n      isLeaf\n      level\n      parentId\n    }\n    options {\n      id\n      name\n      position\n      values\n      optionValues {\n        id\n        name\n        hasVariants\n      }\n    }\n    variants(first: 250, after: $variantsAfter) {\n      nodes {\n        id\n        title\n        sku\n        barcode\n        price\n        compareAtPrice\n        position\n        taxable\n        taxCode\n        inventoryPolicy\n        inventoryQuantity\n        requiresComponents\n        showUnitPrice\n        unitPriceMeasurement {\n          quantityValue\n          quantityUnit\n          referenceValue\n          referenceUnit\n        }\n        selectedOptions {\n          name\n          value\n        }\n        metafields(first: 250) {\n          nodes {\n            id\n            namespace\n            key\n            type\n            value\n            compareDigest\n            jsonValue\n            createdAt\n            updatedAt\n            ownerType\n          }\n        }\n        inventoryItem {\n          id\n          tracked\n          requiresShipping\n          countryCodeOfOrigin\n          provinceCodeOfOrigin\n          harmonizedSystemCode\n          measurement {\n            weight {\n              unit\n              value\n            }\n          }\n        }\n        media(first: 10) {\n          nodes {\n            id\n          }\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    media(first: 250, after: $mediaAfter) {\n      nodes {\n        __typename\n        id\n        alt\n        mediaContentType\n        status\n        preview {\n          image {\n            url\n            width\n            height\n          }\n        }\n        ... on MediaImage {\n          image {\n            url\n            width\n            height\n          }\n        }\n        ... on ExternalVideo {\n          embedUrl\n          host\n          originUrl\n        }\n        ... on Video {\n          duration\n          filename\n          originalSource {\n            fileSize\n            format\n            height\n            mimeType\n            url\n            width\n          }\n          sources {\n            fileSize\n            format\n            height\n            mimeType\n            url\n            width\n          }\n        }\n        ... on Model3d {\n          filename\n          originalSource {\n            filesize\n            format\n            mimeType\n            url\n          }\n          sources {\n            filesize\n            format\n            mimeType\n            url\n          }\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    collections(first: 250, after: $collectionsAfter) {\n      nodes {\n        id\n        title\n        handle\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "nodes": [
-              {
-                "id": "gid://shopify/Product/10222827241778",
-                "title": "Bulk Variant Partial Update 1782515383266",
-                "handle": "bulk-variant-partial-update-1782515383266",
-                "status": "DRAFT",
-                "totalInventory": 0,
-                "tracksInventory": true,
-                "variants": {
-                  "nodes": [
+            "product": {
+              "__typename": "Product",
+              "id": "gid://shopify/Product/10243939729714",
+              "legacyResourceId": "10243939729714",
+              "createdAt": "2026-07-19T14:55:02Z",
+              "updatedAt": "2026-07-19T14:55:03Z",
+              "title": "Bulk Variant Partial Update 1784472901935",
+              "handle": "bulk-variant-partial-update-1784472901935",
+              "status": "DRAFT",
+              "publishedAt": null,
+              "descriptionHtml": "",
+              "vendor": "harry-test-heelo",
+              "productType": "",
+              "tags": [],
+              "templateSuffix": null,
+              "totalInventory": 0,
+              "tracksInventory": true,
+              "onlineStorePreviewUrl": "https://adwzshsg5sv0hlo4-92891250994.shopifypreview.com/products_preview?preview_key=601a8025d1262ed25da9bfa38d726e6c&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0xOVQxNTo1NTowMy4yMjJaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--6a90f256ed64bfafa7b4ea08eacaf750319e5aa4",
+              "requiresSellingPlan": false,
+              "isGiftCard": false,
+              "giftCardTemplateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              },
+              "category": null,
+              "options": [
+                {
+                  "id": "gid://shopify/ProductOption/12804840194354",
+                  "name": "Color",
+                  "position": 1,
+                  "values": ["Red", "Blue"],
+                  "optionValues": [
                     {
-                      "id": "gid://shopify/ProductVariant/51381368717618",
-                      "title": "Red / Small",
-                      "sku": null,
-                      "barcode": null,
-                      "price": "0.00",
-                      "compareAtPrice": null,
-                      "taxable": true,
-                      "inventoryPolicy": "DENY",
-                      "inventoryQuantity": 0,
-                      "selectedOptions": [
-                        {
-                          "name": "Color",
-                          "value": "Red"
-                        },
-                        {
-                          "name": "Size",
-                          "value": "Small"
-                        }
-                      ],
-                      "inventoryItem": {
-                        "id": "gid://shopify/InventoryItem/53486255669554",
-                        "tracked": false,
-                        "requiresShipping": true
-                      }
+                      "id": "gid://shopify/ProductOptionValue/8322102427954",
+                      "name": "Red",
+                      "hasVariants": true
                     },
                     {
-                      "id": "gid://shopify/ProductVariant/51381368783154",
-                      "title": "Blue / Large",
-                      "sku": "PVBU-383266-BLUE",
-                      "barcode": null,
-                      "price": "11.00",
-                      "compareAtPrice": null,
-                      "taxable": true,
-                      "inventoryPolicy": "DENY",
-                      "inventoryQuantity": 0,
-                      "selectedOptions": [
-                        {
-                          "name": "Color",
-                          "value": "Blue"
-                        },
-                        {
-                          "name": "Size",
-                          "value": "Large"
-                        }
-                      ],
-                      "inventoryItem": {
-                        "id": "gid://shopify/InventoryItem/53486255735090",
-                        "tracked": true,
-                        "requiresShipping": true
-                      }
+                      "id": "gid://shopify/ProductOptionValue/8322102460722",
+                      "name": "Blue",
+                      "hasVariants": true
                     }
                   ]
                 },
-                "collections": {
-                  "nodes": [],
-                  "pageInfo": {
-                    "hasNextPage": false,
-                    "hasPreviousPage": false
-                  }
+                {
+                  "id": "gid://shopify/ProductOption/12804840227122",
+                  "name": "Size",
+                  "position": 2,
+                  "values": ["Small", "Large"],
+                  "optionValues": [
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8322102493490",
+                      "name": "Small",
+                      "hasVariants": true
+                    },
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8322102526258",
+                      "name": "Large",
+                      "hasVariants": true
+                    }
+                  ]
                 }
-              },
-              {
-                "id": "gid://shopify/ProductVariant/51381368717618",
-                "title": "Red / Small",
-                "sku": null,
-                "barcode": null,
-                "price": "0.00",
-                "compareAtPrice": null,
-                "taxable": true,
-                "inventoryPolicy": "DENY",
-                "inventoryQuantity": 0,
-                "selectedOptions": [
+              ],
+              "variants": {
+                "nodes": [
                   {
-                    "name": "Color",
-                    "value": "Red"
-                  },
-                  {
-                    "name": "Size",
-                    "value": "Small"
-                  }
-                ],
-                "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53486255669554",
-                  "tracked": false,
-                  "requiresShipping": true
-                },
-                "product": {
-                  "id": "gid://shopify/Product/10222827241778",
-                  "title": "Bulk Variant Partial Update 1782515383266",
-                  "handle": "bulk-variant-partial-update-1782515383266",
-                  "status": "DRAFT",
-                  "totalInventory": 0,
-                  "tracksInventory": true,
-                  "variants": {
-                    "nodes": [
+                    "id": "gid://shopify/ProductVariant/51488193315122",
+                    "title": "Red / Small",
+                    "sku": null,
+                    "barcode": null,
+                    "price": "0.00",
+                    "compareAtPrice": null,
+                    "position": 1,
+                    "taxable": true,
+                    "taxCode": "",
+                    "inventoryPolicy": "DENY",
+                    "inventoryQuantity": 0,
+                    "requiresComponents": false,
+                    "showUnitPrice": false,
+                    "unitPriceMeasurement": {
+                      "quantityValue": 0,
+                      "quantityUnit": null,
+                      "referenceValue": 0,
+                      "referenceUnit": null
+                    },
+                    "selectedOptions": [
                       {
-                        "id": "gid://shopify/ProductVariant/51381368717618",
-                        "title": "Red / Small",
-                        "sku": null,
-                        "barcode": null,
-                        "price": "0.00",
-                        "compareAtPrice": null,
-                        "taxable": true,
-                        "inventoryPolicy": "DENY",
-                        "inventoryQuantity": 0,
-                        "selectedOptions": [
-                          {
-                            "name": "Color",
-                            "value": "Red"
-                          },
-                          {
-                            "name": "Size",
-                            "value": "Small"
-                          }
-                        ],
-                        "inventoryItem": {
-                          "id": "gid://shopify/InventoryItem/53486255669554",
-                          "tracked": false,
-                          "requiresShipping": true
-                        }
+                        "name": "Color",
+                        "value": "Red"
                       },
                       {
-                        "id": "gid://shopify/ProductVariant/51381368783154",
-                        "title": "Blue / Large",
-                        "sku": "PVBU-383266-BLUE",
-                        "barcode": null,
-                        "price": "11.00",
-                        "compareAtPrice": null,
-                        "taxable": true,
-                        "inventoryPolicy": "DENY",
-                        "inventoryQuantity": 0,
-                        "selectedOptions": [
-                          {
-                            "name": "Color",
-                            "value": "Blue"
-                          },
-                          {
-                            "name": "Size",
-                            "value": "Large"
-                          }
-                        ],
-                        "inventoryItem": {
-                          "id": "gid://shopify/InventoryItem/53486255735090",
-                          "tracked": true,
-                          "requiresShipping": true
+                        "name": "Size",
+                        "value": "Small"
+                      }
+                    ],
+                    "metafields": {
+                      "nodes": []
+                    },
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53593791234354",
+                      "tracked": false,
+                      "requiresShipping": true,
+                      "countryCodeOfOrigin": null,
+                      "provinceCodeOfOrigin": null,
+                      "harmonizedSystemCode": null,
+                      "measurement": {
+                        "weight": {
+                          "unit": "KILOGRAMS",
+                          "value": 0
                         }
                       }
-                    ]
-                  }
-                }
-              },
-              {
-                "id": "gid://shopify/ProductVariant/51381368783154",
-                "title": "Blue / Large",
-                "sku": "PVBU-383266-BLUE",
-                "barcode": null,
-                "price": "11.00",
-                "compareAtPrice": null,
-                "taxable": true,
-                "inventoryPolicy": "DENY",
-                "inventoryQuantity": 0,
-                "selectedOptions": [
-                  {
-                    "name": "Color",
-                    "value": "Blue"
+                    },
+                    "media": {
+                      "nodes": []
+                    }
                   },
                   {
-                    "name": "Size",
-                    "value": "Large"
-                  }
-                ],
-                "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53486255735090",
-                  "tracked": true,
-                  "requiresShipping": true
-                },
-                "product": {
-                  "id": "gid://shopify/Product/10222827241778",
-                  "title": "Bulk Variant Partial Update 1782515383266",
-                  "handle": "bulk-variant-partial-update-1782515383266",
-                  "status": "DRAFT",
-                  "totalInventory": 0,
-                  "tracksInventory": true,
-                  "variants": {
-                    "nodes": [
+                    "id": "gid://shopify/ProductVariant/51488193380658",
+                    "title": "Blue / Large",
+                    "sku": "PVBU-901935-BLUE",
+                    "barcode": null,
+                    "price": "11.00",
+                    "compareAtPrice": null,
+                    "position": 2,
+                    "taxable": true,
+                    "taxCode": "",
+                    "inventoryPolicy": "DENY",
+                    "inventoryQuantity": 0,
+                    "requiresComponents": false,
+                    "showUnitPrice": false,
+                    "unitPriceMeasurement": {
+                      "quantityValue": 0,
+                      "quantityUnit": null,
+                      "referenceValue": 0,
+                      "referenceUnit": null
+                    },
+                    "selectedOptions": [
                       {
-                        "id": "gid://shopify/ProductVariant/51381368717618",
-                        "title": "Red / Small",
-                        "sku": null,
-                        "barcode": null,
-                        "price": "0.00",
-                        "compareAtPrice": null,
-                        "taxable": true,
-                        "inventoryPolicy": "DENY",
-                        "inventoryQuantity": 0,
-                        "selectedOptions": [
-                          {
-                            "name": "Color",
-                            "value": "Red"
-                          },
-                          {
-                            "name": "Size",
-                            "value": "Small"
-                          }
-                        ],
-                        "inventoryItem": {
-                          "id": "gid://shopify/InventoryItem/53486255669554",
-                          "tracked": false,
-                          "requiresShipping": true
-                        }
+                        "name": "Color",
+                        "value": "Blue"
                       },
                       {
-                        "id": "gid://shopify/ProductVariant/51381368783154",
-                        "title": "Blue / Large",
-                        "sku": "PVBU-383266-BLUE",
-                        "barcode": null,
-                        "price": "11.00",
-                        "compareAtPrice": null,
-                        "taxable": true,
-                        "inventoryPolicy": "DENY",
-                        "inventoryQuantity": 0,
-                        "selectedOptions": [
-                          {
-                            "name": "Color",
-                            "value": "Blue"
-                          },
-                          {
-                            "name": "Size",
-                            "value": "Large"
-                          }
-                        ],
-                        "inventoryItem": {
-                          "id": "gid://shopify/InventoryItem/53486255735090",
-                          "tracked": true,
-                          "requiresShipping": true
+                        "name": "Size",
+                        "value": "Large"
+                      }
+                    ],
+                    "metafields": {
+                      "nodes": []
+                    },
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53593791299890",
+                      "tracked": true,
+                      "requiresShipping": true,
+                      "countryCodeOfOrigin": null,
+                      "provinceCodeOfOrigin": null,
+                      "harmonizedSystemCode": null,
+                      "measurement": {
+                        "weight": {
+                          "unit": "KILOGRAMS",
+                          "value": 0
                         }
                       }
-                    ]
+                    },
+                    "media": {
+                      "nodes": []
+                    }
                   }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo1MTQ4ODE5MzMxNTEyMiwibGFzdF92YWx1ZSI6IjEifQ==",
+                  "endCursor": "eyJsYXN0X2lkIjo1MTQ4ODE5MzM4MDY1OCwibGFzdF92YWx1ZSI6IjIifQ=="
+                }
+              },
+              "media": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "collections": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
                 }
               }
-            ]
+            }
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 21,
-              "actualQueryCost": 21,
+              "requestedQueryCost": 330,
+              "actualQueryCost": 36,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1979,
+                "currentlyAvailable": 1940,
                 "restoreRate": 100
               }
             }
@@ -469,17 +410,17 @@
   "partialUpdate": {
     "request": {
       "variables": {
-        "productId": "gid://shopify/Product/10222827241778",
+        "productId": "gid://shopify/Product/10243939729714",
         "variants": [
           {
-            "id": "gid://shopify/ProductVariant/51381368717618",
+            "id": "gid://shopify/ProductVariant/51488193315122",
             "inventoryItem": {
-              "sku": "PVBU-383266-RED-PARTIAL"
+              "sku": "PVBU-901935-RED-PARTIAL"
             },
             "price": "9.99"
           },
           {
-            "id": "gid://shopify/ProductVariant/51381368783154",
+            "id": "gid://shopify/ProductVariant/51488193380658",
             "price": "-1.00"
           }
         ]
@@ -491,19 +432,19 @@
         "data": {
           "productVariantsBulkUpdate": {
             "product": {
-              "id": "gid://shopify/Product/10222827241778",
+              "id": "gid://shopify/Product/10243939729714",
               "totalInventory": 0,
               "tracksInventory": true
             },
             "productVariants": [
               {
-                "id": "gid://shopify/ProductVariant/51381368717618",
-                "sku": "PVBU-383266-RED-PARTIAL",
+                "id": "gid://shopify/ProductVariant/51488193315122",
+                "sku": "PVBU-901935-RED-PARTIAL",
                 "price": "9.99"
               },
               {
-                "id": "gid://shopify/ProductVariant/51381368783154",
-                "sku": "PVBU-383266-BLUE",
+                "id": "gid://shopify/ProductVariant/51488193380658",
+                "sku": "PVBU-901935-BLUE",
                 "price": "11.00"
               }
             ],
@@ -522,7 +463,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1983,
+              "currentlyAvailable": 1932,
               "restoreRate": 100
             }
           }
@@ -533,9 +474,9 @@
   "partialRead": {
     "request": {
       "variables": {
-        "productId": "gid://shopify/Product/10222827241778",
-        "redVariantId": "gid://shopify/ProductVariant/51381368717618",
-        "blueVariantId": "gid://shopify/ProductVariant/51381368783154"
+        "productId": "gid://shopify/Product/10243939729714",
+        "redVariantId": "gid://shopify/ProductVariant/51488193315122",
+        "blueVariantId": "gid://shopify/ProductVariant/51488193380658"
       }
     },
     "response": {
@@ -543,26 +484,26 @@
       "payload": {
         "data": {
           "red": {
-            "id": "gid://shopify/ProductVariant/51381368717618",
-            "sku": "PVBU-383266-RED-PARTIAL",
+            "id": "gid://shopify/ProductVariant/51488193315122",
+            "sku": "PVBU-901935-RED-PARTIAL",
             "price": "9.99"
           },
           "blue": {
-            "id": "gid://shopify/ProductVariant/51381368783154",
-            "sku": "PVBU-383266-BLUE",
+            "id": "gid://shopify/ProductVariant/51488193380658",
+            "sku": "PVBU-901935-BLUE",
             "price": "11.00"
           },
           "product": {
             "variants": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ProductVariant/51381368717618",
-                  "sku": "PVBU-383266-RED-PARTIAL",
+                  "id": "gid://shopify/ProductVariant/51488193315122",
+                  "sku": "PVBU-901935-RED-PARTIAL",
                   "price": "9.99"
                 },
                 {
-                  "id": "gid://shopify/ProductVariant/51381368783154",
-                  "sku": "PVBU-383266-BLUE",
+                  "id": "gid://shopify/ProductVariant/51488193380658",
+                  "sku": "PVBU-901935-BLUE",
                   "price": "11.00"
                 }
               ]
@@ -575,7 +516,7 @@
             "actualQueryCost": 6,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1994,
+              "currentlyAvailable": 1931,
               "restoreRate": 100
             }
           }
@@ -586,10 +527,10 @@
   "errorOrdering": {
     "request": {
       "variables": {
-        "productId": "gid://shopify/Product/10222827241778",
+        "productId": "gid://shopify/Product/10243939729714",
         "variants": [
           {
-            "id": "gid://shopify/ProductVariant/51381368717618",
+            "id": "gid://shopify/ProductVariant/51488193315122",
             "price": "-1.00",
             "compareAtPrice": "1000000000000000000"
           }
@@ -603,7 +544,7 @@
           "productVariantsBulkUpdate": {
             "productVariants": [
               {
-                "id": "gid://shopify/ProductVariant/51381368717618"
+                "id": "gid://shopify/ProductVariant/51488193315122"
               }
             ],
             "userErrors": [
@@ -626,7 +567,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1921,
               "restoreRate": 100
             }
           }

@@ -1,0 +1,106 @@
+query MarketsMutationPreflightHydrate($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    __typename
+    ... on Market {
+      id
+      name
+      handle
+      status
+      enabled
+      type
+      conditions {
+        conditionTypes
+        regionsCondition {
+          applicationLevel
+          regions(first: 250) {
+            nodes {
+              __typename
+              id
+              name
+              ... on MarketRegionCountry {
+                code
+              }
+            }
+          }
+        }
+      }
+      currencySettings {
+        baseCurrency {
+          currencyCode
+          currencyName
+        }
+        localCurrencies
+        roundingEnabled
+      }
+      priceInclusions {
+        inclusiveDutiesPricingStrategy
+        inclusiveTaxPricingStrategy
+      }
+      catalogs(first: 250) {
+        nodes {
+          __typename
+          id
+          title
+          status
+          priceList {
+            id
+          }
+          publication {
+            id
+          }
+          ... on MarketCatalog {
+            markets(first: 250) {
+              nodes {
+                __typename
+                id
+                name
+                handle
+                status
+                type
+              }
+            }
+          }
+        }
+      }
+      webPresences(first: 250) {
+        nodes {
+          __typename
+          id
+          subfolderSuffix
+          domain {
+            id
+            host
+            url
+            sslEnabled
+          }
+          rootUrls {
+            locale
+            url
+          }
+          defaultLocale {
+            locale
+            name
+            primary
+            published
+          }
+          alternateLocales {
+            locale
+            name
+            primary
+            published
+          }
+          markets(first: 250) {
+            nodes {
+              __typename
+              id
+              name
+              handle
+              status
+              type
+            }
+          }
+        }
+      }
+    }
+  }
+}

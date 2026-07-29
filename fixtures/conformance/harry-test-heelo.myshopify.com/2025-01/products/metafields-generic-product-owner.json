@@ -1,12 +1,12 @@
 {
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
-  "capturedAt": "2026-06-14T01:58:13.939Z",
+  "capturedAt": "2026-07-19T14:49:00.601Z",
   "setupProduct": {
     "query": "#graphql\n  mutation GenericProductMetafieldsProductCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product { id title }\n      userErrors { field message }\n    }\n  }\n",
     "variables": {
       "product": {
-        "title": "Hermes Generic Metafields 1781402293016"
+        "title": "Hermes Generic Metafields 1784472539544"
       }
     },
     "status": 200,
@@ -14,8 +14,8 @@
       "data": {
         "productCreate": {
           "product": {
-            "id": "gid://shopify/Product/10213083578674",
-            "title": "Hermes Generic Metafields 1781402293016"
+            "id": "gid://shopify/Product/10243937567026",
+            "title": "Hermes Generic Metafields 1784472539544"
           },
           "userErrors": []
         }
@@ -38,11 +38,11 @@
     "variables": {
       "metafields": [
         {
-          "ownerId": "gid://shopify/Product/10213083578674",
+          "ownerId": "gid://shopify/Product/10243937567026",
           "namespace": "custom",
           "key": "generic_material",
           "type": "single_line_text_field",
-          "value": "Wool 1781402293016"
+          "value": "Wool 1784472539544"
         }
       ]
     },
@@ -55,7 +55,7 @@
               "namespace": "custom",
               "key": "generic_material",
               "type": "single_line_text_field",
-              "value": "Wool 1781402293016"
+              "value": "Wool 1784472539544"
             }
           ],
           "userErrors": []
@@ -77,18 +77,18 @@
   "readAfterSet": {
     "query": "query NaturalProductMetafieldsRead($id: ID!) {\n  product(id: $id) {\n    id\n    material: metafield(namespace: \"custom\", key: \"generic_material\") {\n      namespace\n      key\n      type\n      value\n    }\n    metafields(first: 10, namespace: \"custom\") {\n      nodes {\n        namespace\n        key\n        type\n        value\n      }\n    }\n  }\n}\n",
     "variables": {
-      "id": "gid://shopify/Product/10213083578674"
+      "id": "gid://shopify/Product/10243937567026"
     },
     "status": 200,
     "response": {
       "data": {
         "product": {
-          "id": "gid://shopify/Product/10213083578674",
+          "id": "gid://shopify/Product/10243937567026",
           "material": {
             "namespace": "custom",
             "key": "generic_material",
             "type": "single_line_text_field",
-            "value": "Wool 1781402293016"
+            "value": "Wool 1784472539544"
           },
           "metafields": {
             "nodes": [
@@ -96,7 +96,7 @@
                 "namespace": "custom",
                 "key": "generic_material",
                 "type": "single_line_text_field",
-                "value": "Wool 1781402293016"
+                "value": "Wool 1784472539544"
               }
             ]
           }
@@ -120,7 +120,7 @@
     "variables": {
       "metafields": [
         {
-          "ownerId": "gid://shopify/Product/10213083578674",
+          "ownerId": "gid://shopify/Product/10243937567026",
           "namespace": "custom",
           "key": "generic_material"
         }
@@ -132,7 +132,7 @@
         "metafieldsDelete": {
           "deletedMetafields": [
             {
-              "ownerId": "gid://shopify/Product/10213083578674",
+              "ownerId": "gid://shopify/Product/10243937567026",
               "namespace": "custom",
               "key": "generic_material"
             }
@@ -156,13 +156,13 @@
   "readAfterDelete": {
     "query": "query NaturalProductMetafieldsRead($id: ID!) {\n  product(id: $id) {\n    id\n    material: metafield(namespace: \"custom\", key: \"generic_material\") {\n      namespace\n      key\n      type\n      value\n    }\n    metafields(first: 10, namespace: \"custom\") {\n      nodes {\n        namespace\n        key\n        type\n        value\n      }\n    }\n  }\n}\n",
     "variables": {
-      "id": "gid://shopify/Product/10213083578674"
+      "id": "gid://shopify/Product/10243937567026"
     },
     "status": 200,
     "response": {
       "data": {
         "product": {
-          "id": "gid://shopify/Product/10213083578674",
+          "id": "gid://shopify/Product/10243937567026",
           "material": null,
           "metafields": {
             "nodes": []
@@ -183,5 +183,50 @@
     }
   },
   "cleanup": [],
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "method": "POST",
+      "path": "/admin/api/2025-01/graphql.json",
+      "apiSurface": "admin",
+      "query": "query OwnerMetafieldsHydrateNodes($ids: [ID!]!, $metafield0Namespace: String!, $metafield0Key: String!) { nodes(ids: $ids) { __typename id ... on HasMetafields { metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } } ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt  } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } } ... on Collection { id title handle } ... on Customer { id displayName email } ... on Order { id name } ... on Company { id name } ... on Page { id title } ... on Article { id title } } }",
+      "operationName": "OwnerMetafieldsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/10243937567026"],
+        "metafield0Key": "generic_material",
+        "metafield0Namespace": "custom"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10243937567026",
+                "metafield0": null,
+                "title": "Hermes Generic Metafields 1784472539544",
+                "handle": "hermes-generic-metafields-1784472539544",
+                "status": "ACTIVE",
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "createdAt": "2026-07-19T14:48:59Z",
+                "updatedAt": "2026-07-19T14:49:00Z"
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 8,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
