@@ -1,0 +1,38 @@
+mutation StorefrontCartStrictAddressAdd(
+  $cartId: ID!
+  $addresses: [CartSelectableAddressInput!]!
+) {
+  cartDeliveryAddressesAdd(cartId: $cartId, addresses: $addresses) {
+    cart {
+      delivery {
+        addresses {
+          address {
+            __typename
+            ... on CartDeliveryAddress {
+              firstName
+              lastName
+              company
+              address1
+              address2
+              city
+              provinceCode
+              countryCode
+              zip
+              phone
+              name
+              formatted
+              formattedArea
+              latitude
+              longitude
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -8,6 +8,11 @@ import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './confo
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { assertDiscountConformanceScopes, probeDiscountConformanceScopes } from './discount-conformance-lib.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+import {
+  captureDiscountItemRefsHydrate,
+  captureDiscountUniquenessCheck,
+  type RecordedUpstreamCall,
+} from './support/shopify/runtime-hydration-capture.js';
 
 type RawCase = {
   query: string;
@@ -378,7 +383,21 @@ function assertTopLevelInvalidVariable(label: string, payload: unknown, expected
   }
 }
 
-async function runCase(query: string, variables: Record<string, unknown>): Promise<RawCase> {
+const upstreamCalls: RecordedUpstreamCall[] = [];
+let prerequisiteIds: string[] = [];
+
+async function runCase(
+  query: string,
+  variables: Record<string, unknown>,
+  capturePrerequisites = true,
+): Promise<RawCase> {
+  if (capturePrerequisites) {
+    upstreamCalls.push(await captureDiscountItemRefsHydrate(runGraphqlRaw, prerequisiteIds));
+    const code = readString(variables, ['input', 'code']);
+    if (code !== undefined) {
+      upstreamCalls.push(await captureDiscountUniquenessCheck(runGraphqlRaw, code));
+    }
+  }
   const response = await runGraphqlRaw(query, variables);
   return {
     query,
@@ -439,6 +458,7 @@ try {
     run: () => runGraphqlRaw(productDeleteMutation, { input: { id: getProduct.id } }),
   });
   setupProducts.push(getProduct);
+  prerequisiteIds = [buyProduct.id, getProduct.id];
 
   const baseCodeInput = codeInput(stamp, 'SETUP', buyProduct.id, getProduct.id);
   const baseAutomaticInput = automaticInput(stamp, 'SETUP', buyProduct.id, getProduct.id);
@@ -520,7 +540,7 @@ try {
     variables: Record<string, unknown>,
     expectedIncludes: string[],
   ): Promise<void> {
-    validation[key] = await runCase(query, variables);
+    validation[key] = await runCase(query, variables, false);
     assertTopLevelInvalidVariable(key, validation[key].payload, expectedIncludes);
   }
 
@@ -808,7 +828,7 @@ const fixture = {
   },
   validation,
   cleanup: cleanupResponses,
-  upstreamCalls: [],
+  upstreamCalls,
 };
 
 await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');

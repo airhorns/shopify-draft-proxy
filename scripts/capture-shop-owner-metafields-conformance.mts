@@ -4,6 +4,7 @@ import 'dotenv/config';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { captureMetafieldsSetOwnerExistence, recordParityUpstreamCalls } from './conformance-capture-lib.js';
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
@@ -99,6 +100,7 @@ let fixture:
 try {
   const shop = await capture(shopDocument, {});
   const shopId = requireString(readPath(shop.response, ['data', 'shop', 'id'], 'shop id'), 'shop id');
+  const ownerExistence = await captureMetafieldsSetOwnerExistence(runGraphqlRaw, apiVersion, [shopId]);
   const namespace = 'sdp_shop_owner';
   const key = `rw_${runId}`;
   const setVariables = {
@@ -143,6 +145,7 @@ try {
     readAfterDelete,
     cleanup,
     upstreamCalls: [
+      ownerExistence,
       {
         operationName: 'OwnerMetafieldsHydrateNodes',
         variables: { ids: [shopId] },
@@ -157,6 +160,11 @@ try {
       },
     ],
   };
+  await mkdir(outputDir, { recursive: true });
+  await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
+  fixture['upstreamCalls'] = recordParityUpstreamCalls(['shop-owner-metafields-read-after-write'], apiVersion, [
+    outputPath,
+  ])[outputPath];
 } finally {
   if (!deleteCompleted && fixture === null) {
     try {

@@ -1,0 +1,34 @@
+{
+  "scenarioId": "functions-authoritative-lifecycle-preflight",
+  "operationNames": ["validationCreate", "cartTransformCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "live-capture",
+    "user-errors-parity",
+    "payload-shape",
+    "function-hydration",
+    "side-effect-boundary"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-authoritative-lifecycle-preflight.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/functions/functions-authoritative-lifecycle-preflight.graphql",
+    "variablesCapturePath": "$.preflight.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "authoritative-validation-and-cart-transform-preflight",
+        "capturePath": "$.preflight.response.payload.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 evidence with 25 active validations and one existing cart transform. Cold proxy replay consumes an exact 25-active threshold page, targeted Function metadata, and a first-cart-transform existence cassette before returning the captured 26th-validation cap, registered-Function precedence, and second-cart-transform cap payloads."
+}

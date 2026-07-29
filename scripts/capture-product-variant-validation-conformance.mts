@@ -2,21 +2,18 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write status output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+import { captureProductMutationPreflight } from './product-mutation-preflight-capture.js';
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
 const outputPath = path.join(outputDir, 'product-variants-bulk-validation-atomicity.json');
-const productsHydrateNodesObservationQuery = await readFile(
-  path.join('config', 'parity-requests', 'products', 'products-hydrate-nodes-observation.graphql'),
-  'utf8',
-);
 const { runGraphql, runGraphqlRaw } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
@@ -191,43 +188,13 @@ function stableJson(value) {
   return JSON.stringify(value);
 }
 
-function productHydrateIdsForVariables(variables) {
-  const productId = typeof variables?.productId === 'string' ? variables.productId : null;
-  if (!productId) return [];
-
-  const variantIds = [];
-  if (Array.isArray(variables?.variants)) {
-    for (const variant of variables.variants) {
-      if (typeof variant?.id === 'string') variantIds.push(variant.id);
-    }
-  }
-  if (Array.isArray(variables?.variantsIds)) {
-    for (const variantId of variables.variantsIds) {
-      if (typeof variantId === 'string') variantIds.push(variantId);
-    }
-  }
-
-  const uniqueSortedVariantIds = [...new Set(variantIds)].sort();
-  return [productId, ...uniqueSortedVariantIds];
-}
-
 async function readProductState(productId) {
   return await runGraphql(productStateQuery, { id: productId });
 }
 
 async function captureProductHydrateCall(variables) {
-  const ids = productHydrateIdsForVariables(variables);
-  if (ids.length === 0) return null;
-  const response = await runGraphqlRaw(productsHydrateNodesObservationQuery, { ids });
-  return {
-    operationName: 'ProductsHydrateNodes',
-    variables: { ids },
-    query: productsHydrateNodesObservationQuery,
-    response: {
-      status: response.status,
-      body: response.payload,
-    },
-  };
+  const productId = typeof variables?.productId === 'string' ? variables.productId : null;
+  return productId ? await captureProductMutationPreflight(runGraphqlRaw, productId) : [];
 }
 
 async function captureCase({ name, query, variables, productId }) {
@@ -492,8 +459,7 @@ try {
     if (entry.name === 'update-options-and-option-values-conflict') {
       continue;
     }
-    const upstreamCall = await captureProductHydrateCall(entry.variables);
-    if (upstreamCall) upstreamCalls.push(upstreamCall);
+    upstreamCalls.push(...(await captureProductHydrateCall(entry.variables)));
   }
 
   const capturedCases = [];

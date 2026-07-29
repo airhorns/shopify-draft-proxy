@@ -232,6 +232,148 @@ pub(super) fn create_legacy_variant(
     response.body["data"]["productVariantsBulkCreate"]["productVariants"][0].clone()
 }
 
+pub(super) fn create_product_metafield_owner(
+    proxy: &mut DraftProxy,
+    title: &str,
+) -> (String, String) {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateProductMetafieldOwner($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id variants(first: 1) { nodes { id } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": title, "status": "DRAFT" } }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    (
+        response.body["data"]["productCreate"]["product"]["id"]
+            .as_str()
+            .expect("created product id")
+            .to_string(),
+        response.body["data"]["productCreate"]["product"]["variants"]["nodes"][0]["id"]
+            .as_str()
+            .expect("created product variant id")
+            .to_string(),
+    )
+}
+
+pub(super) fn create_collection_metafield_owner(proxy: &mut DraftProxy, title: &str) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateCollectionMetafieldOwner($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "title": title } }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["collectionCreate"]["collection"]["id"]
+        .as_str()
+        .expect("created collection id")
+        .to_string()
+}
+
+pub(super) fn create_customer_metafield_owner(proxy: &mut DraftProxy, suffix: &str) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateCustomerMetafieldOwner($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "firstName": "Metafield",
+                "lastName": "Owner",
+                "email": format!("metafield-owner-{suffix}@example.com")
+            }
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .expect("created customer id")
+        .to_string()
+}
+
+pub(super) fn create_company_metafield_owner(proxy: &mut DraftProxy, name: &str) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateCompanyMetafieldOwner($company: CompanyInput!) {
+          companyCreate(input: { company: $company }) {
+            company { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "company": { "name": name } }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["companyCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["companyCreate"]["company"]["id"]
+        .as_str()
+        .expect("created company id")
+        .to_string()
+}
+
+pub(super) fn create_order_metafield_owner(proxy: &mut DraftProxy, suffix: &str) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateOrderMetafieldOwner($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": format!("metafield-owner-{suffix}@example.com"),
+                "currency": "USD",
+                "lineItems": [{
+                    "title": "Metafield owner line",
+                    "quantity": 1,
+                    "priceSet": {
+                        "shopMoney": { "amount": "10.00", "currencyCode": "USD" }
+                    }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["orderCreate"]["order"]["id"]
+        .as_str()
+        .expect("created order id")
+        .to_string()
+}
+
 pub(super) fn registry_entry(
     name: &str,
     operation_type: OperationType,

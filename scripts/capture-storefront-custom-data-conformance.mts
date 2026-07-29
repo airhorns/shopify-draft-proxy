@@ -5,6 +5,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
+import { captureMetafieldsSetOwnerExistence } from './conformance-capture-lib.js';
 import { createAdminGraphqlClient, runStorefrontGraphqlRequest } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import {
@@ -40,6 +41,16 @@ type StorefrontCapture = {
     status: number;
     body: unknown;
   };
+};
+
+type UpstreamCall = {
+  method: 'POST';
+  apiSurface: 'admin';
+  path: string;
+  operationName: string;
+  variables: Record<string, unknown>;
+  query: string;
+  response: { status: number; body: unknown };
 };
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
@@ -94,6 +105,16 @@ const documents = {
   shopMetafieldsSet: await readFile(documentPaths.shopMetafieldsSet, 'utf8'),
   storefrontRead: await readFile(documentPaths.storefrontRead, 'utf8'),
 };
+const hydrateByIdentifierDocument = await readFile(
+  'config/parity-requests/metafields/metafield-definition-hydrate-by-identifier.graphql',
+  'utf8',
+);
+const hydrateResourceScopeDocument = await readFile(
+  'config/parity-requests/metafields/metafield-definitions-hydrate-resource-scope.graphql',
+  'utf8',
+);
+const ownerMetafieldsHydrateQuery =
+  'query OwnerMetafieldsHydrateNodes($ids: [ID!]!, $metafield0Namespace: String!, $metafield0Key: String!, $metafield1Namespace: String!, $metafield1Key: String!) { nodes(ids: $ids) { __typename id ... on HasMetafields { metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } metafield1: metafield(namespace: $metafield1Namespace, key: $metafield1Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } } ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt  } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } } ... on Collection { id title handle } ... on Customer { id displayName email } ... on Order { id name } ... on Company { id name } ... on Page { id title } ... on Article { id title } } }';
 
 const suffix = new Date().toISOString().replace(/\D/gu, '').slice(0, 14);
 const targetType = `codex_sfc_target_${suffix}`;
@@ -107,6 +128,7 @@ const metafieldNamespace = `sfc_${suffix}`;
 
 const adminCaptures: Capture[] = [];
 const cleanupCaptures: Capture[] = [];
+const upstreamCalls: UpstreamCall[] = [];
 const createdMetaobjectIds: string[] = [];
 const createdMetaobjectDefinitionIds: string[] = [];
 const createdMetafieldDefinitionIds: string[] = [];
@@ -138,6 +160,46 @@ async function captureAdminCleanup(name: string, query: string, variables: Recor
     status: result.status,
     response: result.payload,
   });
+}
+
+async function recordAdminUpstreamCall(
+  operationName: string,
+  query: string,
+  variables: Record<string, unknown>,
+): Promise<UpstreamCall> {
+  const result = await runGraphqlRaw(query, variables);
+  assertNoTopLevelErrors(result.payload, operationName);
+  if (result.status < 200 || result.status >= 300) {
+    throw new Error(`${operationName} returned HTTP ${result.status}: ${JSON.stringify(result.payload)}`);
+  }
+  return {
+    method: 'POST',
+    apiSurface: 'admin',
+    path: `/admin/api/${apiVersion}/graphql.json`,
+    operationName,
+    variables,
+    query,
+    response: { status: result.status, body: result.payload },
+  };
+}
+
+async function recordResourceScope(): Promise<void> {
+  let after: string | null = null;
+  for (let page = 0; page < 3; page += 1) {
+    const call = await recordAdminUpstreamCall(
+      'MetafieldDefinitionsHydrateResourceScope',
+      hydrateResourceScopeDocument,
+      { ownerType: 'SHOP', query: '-namespace:app--*', first: 250, after },
+    );
+    upstreamCalls.push(call);
+    const pageInfo = readPath(call.response.body, ['data', 'metafieldDefinitions', 'pageInfo']);
+    if (readPath(pageInfo, ['hasNextPage']) !== true) return;
+    const endCursor = readPath(pageInfo, ['endCursor']);
+    if (typeof endCursor !== 'string') {
+      throw new Error(`resource-scope page ${page + 1} omitted endCursor`);
+    }
+    after = endCursor;
+  }
 }
 
 async function storefrontRequest(
@@ -274,6 +336,19 @@ try {
   adminShopCapture = await captureAdmin('admin-shop', adminShopQuery, {});
   assertNoTopLevelErrors(adminShopCapture.response, 'admin shop');
   const shopId = readRequiredString(adminShopCapture.response, ['data', 'shop', 'id'], 'admin shop id');
+
+  upstreamCalls.push(await captureMetafieldsSetOwnerExistence(runGraphqlRaw, apiVersion, [shopId]));
+  upstreamCalls.push(
+    await recordAdminUpstreamCall('MetafieldDefinitionHydrateByIdentifier', hydrateByIdentifierDocument, {
+      identifier: { ownerType: 'SHOP', namespace: metafieldNamespace, key: 'visible' },
+    }),
+  );
+  await recordResourceScope();
+  upstreamCalls.push(
+    await recordAdminUpstreamCall('MetafieldDefinitionHydrateByIdentifier', hydrateByIdentifierDocument, {
+      identifier: { ownerType: 'SHOP', namespace: metafieldNamespace, key: 'hidden' },
+    }),
+  );
 
   primarySetupCapture = await captureAdmin('admin-primary-setup', documents.primarySetup, {
     targetDefinition: {
@@ -476,6 +551,16 @@ try {
     readPath(sourceEntryCapture.response, ['data', 'sourceEntry', 'metaobject', 'id']),
   );
 
+  upstreamCalls.push(
+    await recordAdminUpstreamCall('OwnerMetafieldsHydrateNodes', ownerMetafieldsHydrateQuery, {
+      ids: [shopId],
+      metafield0Namespace: metafieldNamespace,
+      metafield0Key: 'visible',
+      metafield1Namespace: metafieldNamespace,
+      metafield1Key: 'hidden',
+    }),
+  );
+
   shopMetafieldsSetCapture = await captureAdmin('admin-shop-metafields-set', documents.shopMetafieldsSet, {
     metafields: [
       {
@@ -558,7 +643,7 @@ await writeFile(
       shopMetafieldsSet: shopMetafieldsSetCapture,
       storefrontRead: storefrontReadCapture,
       cleanup: cleanupCaptures,
-      upstreamCalls: [],
+      upstreamCalls,
     },
     null,
     2,

@@ -75,16 +75,19 @@ impl DraftProxy {
                         .contains(invocation.response_key)
                 })
         {
+            let hydration_response = hydration.response.clone();
             let mut outcome = resolver_outcome_from_upstream_response(
-                hydration.response.clone(),
+                hydration_response.clone(),
                 invocation.response_key,
             );
             if outcome.errors.is_empty() {
+                self.observe_nodes_response(&hydration_response);
                 self.observe_delivery_promise_node_root_value(
                     invocation.root_name,
                     &arguments,
                     &outcome.value,
                 );
+                self.observe_bulk_operation_node_root_value(invocation.root_name, &outcome.value);
             }
             outcome.value = self.node_value_with_upstream_fallback(
                 invocation.root_name,
@@ -121,6 +124,10 @@ impl DraftProxy {
                         &arguments,
                         &result.outcome.value,
                     );
+                    self.observe_bulk_operation_node_root_value(
+                        invocation.root_name,
+                        &result.outcome.value,
+                    );
                 }
                 if let Some(value) = result
                     .data
@@ -152,6 +159,18 @@ impl DraftProxy {
             )
             .unwrap_or(Value::Null),
         )
+    }
+
+    fn observe_bulk_operation_node_root_value(&mut self, root_name: &str, value: &Value) {
+        match root_name {
+            "node" => self.observe_bulk_operation_value(value),
+            "nodes" => {
+                for node in value.as_array().into_iter().flatten() {
+                    self.observe_bulk_operation_value(node);
+                }
+            }
+            _ => {}
+        }
     }
 
     fn local_node_root_value(
@@ -421,6 +440,12 @@ impl DraftProxy {
 
     fn observe_node_response_value(&mut self, node: &Value) {
         let id = node.get("id").and_then(Value::as_str).unwrap_or_default();
+        if shopify_gid_resource_type(id).is_some() {
+            self.store
+                .staged
+                .metafield_reference_ids
+                .insert(id.to_string());
+        }
         if is_shopify_gid_of_type(id, "Product") {
             self.store.stage_observed_product_json(node);
             if let Some(product_id) = node.get("id").and_then(Value::as_str) {
@@ -676,6 +701,11 @@ simple_loader!(
         "CompanyLocation",
     ]
 );
+simple_loader!(
+    load_bulk_operation,
+    bulk_operation_node_value_by_id,
+    ["BulkOperation"]
+);
 simple_loader!(load_customer, customer_node_value_by_id, ["Customer"]);
 simple_loader!(
     load_customer_address,
@@ -724,6 +754,11 @@ simple_loader!(
     ]
 );
 simple_loader!(load_gift_card, gift_card_node_value_by_id, ["GiftCard"]);
+simple_loader!(
+    load_payment_terms,
+    payment_terms_node_value_by_id,
+    ["PaymentSchedule", "PaymentTerms"]
+);
 simple_loader!(
     load_gift_card_transaction,
     gift_card_transaction_node_value_by_id,
@@ -953,12 +988,40 @@ pub(crate) fn load_segment(
     if proxy.store.staged.segments.is_tombstoned(id) {
         return NodeLoadState::KnownMissing;
     }
+    proxy.store.segment_by_id(id).cloned().map_or_else(
+        || {
+            if proxy.store.base.segment_catalog_complete
+                || proxy.store.base.segment_known_missing_ids.contains(id)
+            {
+                NodeLoadState::KnownMissing
+            } else {
+                NodeLoadState::NeedsHydration
+            }
+        },
+        |value| NodeLoadState::Found(EntityRef::new("Segment", id, value)),
+    )
+}
+
+pub(crate) fn load_saved_search(
+    proxy: &DraftProxy,
+    id: &str,
+    request: Option<&Request>,
+) -> NodeLoadState<EntityRef> {
+    if proxy.store.saved_searches.staged.is_tombstoned(id) {
+        return NodeLoadState::KnownMissing;
+    }
+    let api_client_id = request
+        .map(saved_search_request_api_client_id)
+        .unwrap_or_default();
     proxy
         .store
-        .segment_by_id(id)
-        .cloned()
-        .map_or(NodeLoadState::NeedsHydration, |value| {
-            NodeLoadState::Found(EntityRef::new("Segment", id, value))
+        .saved_search_by_id(id)
+        .map_or(NodeLoadState::NeedsHydration, |record| {
+            NodeLoadState::Found(EntityRef::new(
+                "SavedSearch",
+                id,
+                saved_search_full_value(&record, &api_client_id),
+            ))
         })
 }
 
@@ -969,13 +1032,23 @@ pub(crate) fn load_customer_segment_members_query(
 ) -> NodeLoadState<EntityRef> {
     proxy
         .store
-        .staged
-        .customer_segment_member_queries
-        .get(id)
+        .customer_segment_member_query_by_id(id)
         .cloned()
-        .map_or(NodeLoadState::NeedsHydration, |value| {
-            NodeLoadState::Found(EntityRef::new("CustomerSegmentMembersQuery", id, value))
-        })
+        .map_or_else(
+            || {
+                if proxy
+                    .store
+                    .base
+                    .customer_segment_member_query_known_missing_ids
+                    .contains(id)
+                {
+                    NodeLoadState::KnownMissing
+                } else {
+                    NodeLoadState::NeedsHydration
+                }
+            },
+            |value| NodeLoadState::Found(EntityRef::new("CustomerSegmentMembersQuery", id, value)),
+        )
 }
 
 pub(crate) fn load_abandonment(
@@ -1127,6 +1200,20 @@ pub(crate) fn load_fulfillment_constraint_rule(
         .staged
         .deleted_function_fulfillment_constraint_rule_ids
         .contains(id)
+        || proxy
+            .store
+            .base
+            .function_fulfillment_constraint_rule_known_missing_ids
+            .contains(id)
+        || (proxy
+            .store
+            .base
+            .function_fulfillment_constraint_rule_catalog_complete
+            && !proxy
+                .store
+                .base
+                .function_fulfillment_constraint_rules
+                .contains_key(id))
     {
         return NodeLoadState::KnownMissing;
     }

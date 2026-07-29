@@ -9,6 +9,11 @@ import { createAdminGraphqlClient } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { assertDiscountConformanceScopes, probeDiscountConformanceScopes } from './discount-conformance-lib.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+import {
+  captureDiscountItemRefsHydrate,
+  captureDiscountUniquenessCheck,
+  type RecordedUpstreamCall,
+} from './support/shopify/runtime-hydration-capture.js';
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
   defaultApiVersion: '2026-04',
@@ -143,6 +148,12 @@ function bxgyInput(title: string, code: string, buyProductId: string, getProduct
   };
 }
 
+function inputCode(input: Record<string, unknown>): string {
+  const code = input['code'];
+  if (typeof code !== 'string') throw new Error(`Discount input is missing its code: ${JSON.stringify(input)}`);
+  return code;
+}
+
 function assertNoUserErrors(label: string, userErrors: unknown): void {
   if (Array.isArray(userErrors) && userErrors.length === 0) {
     return;
@@ -197,6 +208,7 @@ assertDiscountConformanceScopes(scopeProbe);
 
 const runId = Date.now();
 const cleanup: Array<() => Promise<unknown>> = [];
+const upstreamCalls: RecordedUpstreamCall[] = [];
 let cleanupResults: unknown[] = [];
 
 try {
@@ -215,6 +227,7 @@ try {
   const createBasicVariables = {
     input: basicInput(`HAR-605 bulk rule ${runId}`, `HAR605BULK${runId}`, 0.1),
   };
+  upstreamCalls.push(await captureDiscountUniquenessCheck(runGraphqlRaw, inputCode(createBasicVariables.input)));
   const createBasic = await runGraphqlRaw(createBasicDocument, createBasicVariables);
   const basicDiscountId = readCreatedDiscountId(createBasic, 'discountCodeBasicCreate');
   cleanup.push(() => runGraphqlRaw(deleteDiscountDocument, { id: basicDiscountId }));
@@ -223,6 +236,9 @@ try {
     discountId: basicDiscountId,
     codes: [1, 2, 3, 4, 5].map((index) => ({ code: `HAR605BULK${runId}_${index}` })),
   };
+  for (const { code } of bulkAddVariables.codes) {
+    upstreamCalls.push(await captureDiscountUniquenessCheck(runGraphqlRaw, code));
+  }
   const bulkAdd = await runGraphqlRaw(bulkAddDocument, bulkAddVariables);
   const readAfterBulkAdd = await waitForCodeLookup(`HAR605BULK${runId}_5`);
 
@@ -235,6 +251,8 @@ try {
   const createBxgyVariables = {
     input: bxgyInput(`HAR-605 BXGY ${runId}`, `HAR605BXGY${runId}`, buyProductId, getProductId),
   };
+  upstreamCalls.push(await captureDiscountItemRefsHydrate(runGraphqlRaw, [buyProductId, getProductId]));
+  upstreamCalls.push(await captureDiscountUniquenessCheck(runGraphqlRaw, inputCode(createBxgyVariables.input)));
   const createBxgy = await runGraphqlRaw(createBxgyDocument, createBxgyVariables);
   const bxgyDiscountId = readCreatedDiscountId(createBxgy, 'discountCodeBxgyCreate');
   cleanup.push(() => runGraphqlRaw(deleteDiscountDocument, { id: bxgyDiscountId }));
@@ -282,7 +300,7 @@ try {
     bxgyToBasic,
     unknownUpdate,
     cleanup: cleanupResults,
-    upstreamCalls: [],
+    upstreamCalls,
   };
 
   await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');

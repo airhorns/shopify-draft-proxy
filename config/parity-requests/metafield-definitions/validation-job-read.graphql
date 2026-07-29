@@ -3,8 +3,6 @@ query MetafieldDefinitionValidationJobRead($id: ID!) {
     __typename
     id
     done
-    query {
-      __typename
-    }
+    query { __typename }
   }
 }

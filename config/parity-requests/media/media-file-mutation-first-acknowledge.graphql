@@ -1,0 +1,14 @@
+mutation MediaFileMutationFirstAcknowledge($fileIds: [ID!]!) {
+  fileAcknowledgeUpdateFailed(fileIds: $fileIds) {
+    files {
+      id
+      alt
+      fileStatus
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

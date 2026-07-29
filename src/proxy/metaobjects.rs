@@ -1,6 +1,19 @@
 use super::*;
 use std::sync::OnceLock;
 
+pub(in crate::proxy) enum PreparedLinkedStandardMetaobjectDefinition {
+    Existing(String),
+    Hydrated { id: String, definition: Value },
+    SnapshotTemplate(Value),
+}
+
+enum MetaobjectDefinitionByTypeFetch {
+    Found(Value),
+    NotFound,
+    NoAuthoritativeResult,
+    Failed,
+}
+
 pub(in crate::proxy) fn metaobject_field_resolver_registrations() -> Vec<FieldResolverRegistration>
 {
     [
@@ -283,29 +296,46 @@ fn metaobject_bulk_delete_selector_error(
         .and_then(|input| resolved_string_field(input, "type"))
         .is_some_and(|value| !value.is_empty());
 
-    if ids_present != type_present {
-        return None;
-    }
-
-    let mut locations = vec![json!({
-        "line": field.location.line,
-        "column": field.location.column
-    })];
-    if ids_present {
-        if let Some(location) = source_location_for_token_after(query, field.location, "ids") {
-            locations.push(json!({
-                "line": location.line,
-                "column": location.column
-            }));
+    if ids_present == type_present {
+        let mut locations = vec![json!({
+            "line": field.location.line,
+            "column": field.location.column
+        })];
+        if ids_present {
+            if let Some(location) = source_location_for_token_after(query, field.location, "ids") {
+                locations.push(json!({
+                    "line": location.line,
+                    "column": location.column
+                }));
+            }
         }
+
+        return Some(json!({
+            "message": "MetaobjectBulkDeleteWhereCondition requires exactly one of type, ids",
+            "locations": locations,
+            "extensions": {"code": "INVALID_FIELD_ARGUMENTS"},
+            "path": [field.response_key.clone()]
+        }));
     }
 
-    Some(json!({
-        "message": "MetaobjectBulkDeleteWhereCondition requires exactly one of type, ids",
-        "locations": locations,
-        "extensions": {"code": "INVALID_FIELD_ARGUMENTS"},
-        "path": [field.response_key.clone()]
-    }))
+    let ids_len = where_input
+        .as_ref()
+        .and_then(|input| input.get("ids"))
+        .or_else(|| field.arguments.get("ids"))
+        .and_then(resolved_value_list)
+        .map(|ids| ids.len())
+        .unwrap_or_default();
+    (ids_len > 250).then(|| {
+        max_input_size_exceeded_error(
+            [field.response_key.as_str(), "where", "ids"],
+            ids_len,
+            250,
+            Some(json!([{
+                "line": field.location.line,
+                "column": field.location.column
+            }])),
+        )
+    })
 }
 
 fn metaobject_create_duplicate_field_errors(input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
@@ -3169,6 +3199,7 @@ impl DraftProxy {
     pub(in crate::proxy) fn has_local_metaobject_state(&self) -> bool {
         !self.store.staged.metaobject_definitions.is_empty()
             || !self.store.staged.metaobjects.is_empty()
+            || !self.store.staged.deleted_metaobject_types.is_empty()
     }
 
     /// Decides whether a metaobject mutation request should be staged locally or
@@ -3304,8 +3335,13 @@ impl DraftProxy {
                 if self.store.staged.metaobjects.is_tombstoned(&id) {
                     return Some(Value::Null);
                 }
-                self.metaobject_by_id(&id)
-                    .map(|record| self.metaobject_canonical_value(&record))
+                if let Some(record) = self.metaobject_by_id(&id) {
+                    return Some(self.metaobject_canonical_value(&record));
+                }
+                upstream_data
+                    .get(&field.response_key)
+                    .filter(|record| self.metaobject_record_has_deleted_type(record))
+                    .map(|_| Value::Null)
             }
             "metaobjectByHandle" => {
                 let Some(ResolvedValue::Object(handle)) = field.arguments.get("handle") else {
@@ -3315,6 +3351,9 @@ impl DraftProxy {
                 let meta_handle = resolved_string_field(handle, "handle").unwrap_or_default();
                 if let Some(record) = self.metaobject_by_type_and_handle(&meta_type, &meta_handle) {
                     return Some(self.metaobject_canonical_value(&record));
+                }
+                if self.metaobject_type_is_deleted(&meta_type) {
+                    return Some(Value::Null);
                 }
                 if upstream_response_id(upstream_data, &field.response_key)
                     .is_some_and(|id| self.store.staged.metaobjects.is_tombstoned(id))
@@ -3349,6 +3388,10 @@ impl DraftProxy {
                     return None;
                 }
                 let local = self.metaobject_connection(field);
+                let meta_type = resolved_string_field(&field.arguments, "type").unwrap_or_default();
+                if self.metaobject_type_is_deleted(&meta_type) {
+                    return Some(local);
+                }
                 Some(self.merge_metaobject_connection_overlay(
                     upstream_data.get(&field.response_key),
                     local,
@@ -3637,6 +3680,20 @@ impl DraftProxy {
         self.store.staged.metaobjects.get(&key).cloned()
     }
 
+    fn metaobject_type_is_deleted(&self, meta_type: &str) -> bool {
+        self.store
+            .staged
+            .deleted_metaobject_types
+            .contains(meta_type)
+    }
+
+    fn metaobject_record_has_deleted_type(&self, record: &Value) -> bool {
+        record
+            .get("type")
+            .and_then(Value::as_str)
+            .is_some_and(|meta_type| self.metaobject_type_is_deleted(meta_type))
+    }
+
     /// Resolve a linked metaobject reference (the gid stored in a product option's
     /// `linkedMetafieldValue`) to its display name, projected against the current
     /// definition. Used to render product option values whose names mirror the linked
@@ -3661,7 +3718,7 @@ impl DraftProxy {
             }),
         );
         let record = response.body["data"]["metaobject"].clone();
-        if !record.is_object() {
+        if !record.is_object() || self.metaobject_record_has_deleted_type(&record) {
             return None;
         }
         self.store
@@ -3697,6 +3754,9 @@ impl DraftProxy {
             let Some(id) = record.get("id").and_then(Value::as_str) else {
                 continue;
             };
+            if self.metaobject_record_has_deleted_type(&record) {
+                continue;
+            }
             self.store.staged.metaobjects.insert(id.to_string(), record);
         }
     }
@@ -3710,6 +3770,7 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Snapshot
             || meta_type.is_empty()
             || meta_handle.is_empty()
+            || self.metaobject_type_is_deleted(meta_type)
         {
             return None;
         }
@@ -3756,7 +3817,10 @@ impl DraftProxy {
     }
 
     fn hydrate_metaobjects_by_type(&mut self, request: &Request, meta_type: &str) -> Vec<Value> {
-        if self.config.read_mode == ReadMode::Snapshot || meta_type.is_empty() {
+        if self.config.read_mode == ReadMode::Snapshot
+            || meta_type.is_empty()
+            || self.metaobject_type_is_deleted(meta_type)
+        {
             return Vec::new();
         }
         let query = "#graphql
@@ -4459,7 +4523,6 @@ impl DraftProxy {
                     values
                         .iter()
                         .filter_map(resolved_value_string)
-                        .take(250)
                         .collect::<Vec<_>>()
                 })
             });
@@ -4521,6 +4584,11 @@ impl DraftProxy {
                     )]
                 });
             }
+            let observed_count = self
+                .metaobject_definition_by_type(&meta_type)
+                .and_then(|definition| definition.get("metaobjectsCount").cloned())
+                .and_then(|count| count.as_i64())
+                .unwrap_or_default();
             let ids_to_delete = self
                 .store
                 .staged
@@ -4534,20 +4602,41 @@ impl DraftProxy {
                 })
                 .filter_map(|record| record.get("id").and_then(Value::as_str).map(str::to_string))
                 .collect::<Vec<_>>();
+            let deleted_count = i64::try_from(ids_to_delete.len()).unwrap_or(i64::MAX);
             for id in ids_to_delete {
                 self.store.staged.metaobjects.remove(&id);
                 self.store.staged.metaobjects.tombstone(id.clone());
                 touched_ids.push(id);
             }
-            self.increment_metaobject_definition_count(&meta_type, -(touched_ids.len() as i64));
+            self.store
+                .staged
+                .deleted_metaobject_types
+                .insert(meta_type.clone());
+            let settled_count =
+                if observed_count > 0 && deleted_count > 0 && observed_count < deleted_count {
+                    observed_count
+                } else {
+                    0
+                };
+            self.set_metaobject_definition_count(&meta_type, settled_count);
         }
 
         if touched_ids.is_empty() && user_errors.is_empty() {
             *log_successful_noop = true;
         }
         staged_ids.extend(touched_ids);
+        let job_id = self.next_proxy_synthetic_gid("Job");
+        self.store.staged.collection_jobs.insert(
+            job_id.clone(),
+            json!({
+                "__typename": "Job",
+                "id": job_id,
+                "done": true,
+                "query": {"__typename": "QueryRoot"}
+            }),
+        );
         json!({
-            "job": {"id": self.next_proxy_synthetic_gid("Job"), "done": false},
+            "job": {"id": job_id, "done": false},
             "userErrors": user_errors
         })
     }
@@ -5004,9 +5093,15 @@ impl DraftProxy {
 
     fn metaobject_definition_with_derived_fields(&self, definition: &Value) -> Value {
         let mut definition = definition.clone();
-        definition["metaobjectsCount"] = json!(self
-            .metaobject_definition_child_metaobjects(&definition)
-            .len());
+        let meta_type = definition
+            .get("type")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        if !self.metaobject_type_is_deleted(meta_type) {
+            definition["metaobjectsCount"] = json!(self
+                .metaobject_definition_child_metaobjects(&definition)
+                .len());
+        }
         definition
     }
 
@@ -5060,29 +5155,66 @@ impl DraftProxy {
         )
     }
 
-    fn hydrate_metaobject_definition_by_type(
+    fn fetch_metaobject_definition_by_type(
         &mut self,
         request: &Request,
         meta_type: &str,
-    ) -> Option<Value> {
-        if self.config.read_mode == ReadMode::Snapshot || meta_type.trim().is_empty() {
-            return None;
+    ) -> MetaobjectDefinitionByTypeFetch {
+        if meta_type.trim().is_empty() {
+            return MetaobjectDefinitionByTypeFetch::Failed;
         }
-        let query = "query MetaobjectDefinitionHydrateByType($type: String!) { metaobjectDefinitionByType(type: $type) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } capabilities { adminFilterable { enabled } } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } }";
+        let query = if admin_graphql_version(&request.path)
+            .is_some_and(|version| version_at_least(version, 2026, 4))
+        {
+            "query MetaobjectDefinitionHydrateByType($type: String!) { metaobjectDefinitionByType(type: $type) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } capabilities { adminFilterable { enabled } } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } }"
+        } else {
+            "query MetaobjectDefinitionHydrateByType($type: String!) { metaobjectDefinitionByType(type: $type) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } capabilities { adminFilterable { enabled } } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } } }"
+        };
         let body = json!({
             "query": query,
             "variables": {"type": meta_type}
         });
         let response = self.upstream_post(request, body);
         if response.status < 200 || response.status >= 300 {
-            return None;
+            return MetaobjectDefinitionByTypeFetch::Failed;
         }
-        let definition = response
+        if response
+            .body
+            .get("errors")
+            .and_then(Value::as_array)
+            .is_some_and(|errors| !errors.is_empty())
+        {
+            return MetaobjectDefinitionByTypeFetch::Failed;
+        }
+        let Some(definition) = response
             .body
             .get("data")
             .and_then(|data| data.get("metaobjectDefinitionByType"))
-            .filter(|definition| definition.is_object())?
-            .clone();
+        else {
+            return MetaobjectDefinitionByTypeFetch::NoAuthoritativeResult;
+        };
+        if definition.is_null() {
+            return MetaobjectDefinitionByTypeFetch::NotFound;
+        }
+        if !definition.is_object() {
+            return MetaobjectDefinitionByTypeFetch::Failed;
+        }
+        MetaobjectDefinitionByTypeFetch::Found(definition.clone())
+    }
+
+    fn hydrate_metaobject_definition_by_type(
+        &mut self,
+        request: &Request,
+        meta_type: &str,
+    ) -> Option<Value> {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return None;
+        }
+        let MetaobjectDefinitionByTypeFetch::Found(definition) =
+            self.fetch_metaobject_definition_by_type(request, meta_type)
+        else {
+            return None;
+        };
         let id = definition
             .get("id")
             .and_then(Value::as_str)
@@ -5101,6 +5233,80 @@ impl DraftProxy {
             .metaobject_definitions
             .insert(id, definition.clone());
         Some(definition)
+    }
+
+    pub(in crate::proxy) fn prepare_linked_standard_metaobject_definition(
+        &mut self,
+        request: &Request,
+        meta_type: &str,
+    ) -> Option<PreparedLinkedStandardMetaobjectDefinition> {
+        if let Some(id) = self
+            .metaobject_definition_by_type(meta_type)
+            .and_then(|definition| {
+                definition
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .filter(|id| !id.is_empty())
+                    .map(str::to_string)
+            })
+        {
+            return Some(PreparedLinkedStandardMetaobjectDefinition::Existing(id));
+        }
+
+        if self.config.read_mode == ReadMode::Snapshot {
+            return standard_metaobject_definition_template(meta_type)
+                .cloned()
+                .map(PreparedLinkedStandardMetaobjectDefinition::SnapshotTemplate);
+        }
+
+        let definition = match self.fetch_metaobject_definition_by_type(request, meta_type) {
+            MetaobjectDefinitionByTypeFetch::Found(definition) => definition,
+            // An explicit null is authoritative absence. A failed lookup or a
+            // response without the requested field is not, so a captured
+            // shop/version template may still back a resolvable local identity.
+            MetaobjectDefinitionByTypeFetch::NoAuthoritativeResult
+            | MetaobjectDefinitionByTypeFetch::Failed => {
+                return standard_metaobject_definition_template(meta_type)
+                    .cloned()
+                    .map(PreparedLinkedStandardMetaobjectDefinition::SnapshotTemplate);
+            }
+            MetaobjectDefinitionByTypeFetch::NotFound => return None,
+        };
+        let id = definition
+            .get("id")
+            .and_then(Value::as_str)
+            .filter(|id| !id.is_empty())?
+            .to_string();
+        Some(PreparedLinkedStandardMetaobjectDefinition::Hydrated { id, definition })
+    }
+
+    pub(in crate::proxy) fn stage_linked_standard_metaobject_definition(
+        &mut self,
+        prepared: PreparedLinkedStandardMetaobjectDefinition,
+    ) -> String {
+        let (id, definition) = match prepared {
+            PreparedLinkedStandardMetaobjectDefinition::Existing(id) => return id,
+            PreparedLinkedStandardMetaobjectDefinition::Hydrated { id, definition } => {
+                (id, definition)
+            }
+            PreparedLinkedStandardMetaobjectDefinition::SnapshotTemplate(template) => {
+                let id = self.next_proxy_synthetic_gid("MetaobjectDefinition");
+                let timestamp = self.next_mutation_timestamp();
+                let definition =
+                    standard_metaobject_definition_from_template(&id, &template, &timestamp);
+                (id, definition)
+            }
+        };
+        self.store
+            .staged
+            .metaobject_definitions
+            .tombstones
+            .remove(&id);
+        self.store
+            .staged
+            .metaobject_definitions
+            .insert(id.clone(), definition);
+        id
     }
 
     fn metaobject_definition_connection(&self, field: &MetaobjectRootInput) -> Value {
@@ -5166,6 +5372,26 @@ impl DraftProxy {
             .insert(id, definition);
     }
 
+    fn set_metaobject_definition_count(&mut self, meta_type: &str, count: i64) {
+        let Some((id, mut definition)) = self
+            .store
+            .staged
+            .metaobject_definitions
+            .iter()
+            .find(|(_, definition)| {
+                definition.get("type").and_then(Value::as_str) == Some(meta_type)
+            })
+            .map(|(id, definition)| (id.clone(), definition.clone()))
+        else {
+            return;
+        };
+        definition["metaobjectsCount"] = json!(count.max(0));
+        self.store
+            .staged
+            .metaobject_definitions
+            .insert(id, definition);
+    }
+
     fn available_generated_metaobject_handle(
         &self,
         meta_type: &str,
@@ -5209,7 +5435,7 @@ impl DraftProxy {
     ) -> MetaobjectHandleChoice {
         let base = slugify_handle(requested);
         let base = if base.is_empty() {
-            format!("{meta_type}-{}", self.next_synthetic_id)
+            format!("{meta_type}-{}", self.store.synthetic_id_sequence())
         } else {
             base
         };
@@ -5420,6 +5646,100 @@ mod tests {
     }
 
     #[test]
+    fn live_hybrid_metaobject_create_uses_2025_01_definition_fields() {
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let observed_calls = Arc::clone(&calls);
+        let mut proxy = DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+        })
+        .with_upstream_transport(move |request| {
+            let request_body: Value = serde_json::from_str(&request.body).unwrap();
+            let query = request_body["query"].as_str().unwrap_or_default();
+            observed_calls.lock().unwrap().push(query.to_string());
+            if query.contains("createdAt") || query.contains("updatedAt") {
+                return Response {
+                    status: 200,
+                    headers: BTreeMap::new(),
+                    body: json!({
+                        "errors": [{
+                            "message": "Field does not exist on type MetaobjectDefinition"
+                        }]
+                    }),
+                };
+            }
+            Response {
+                status: 200,
+                headers: BTreeMap::new(),
+                body: json!({
+                    "data": {
+                        "metaobjectDefinitionByType": {
+                            "id": "gid://shopify/MetaobjectDefinition/1",
+                            "type": "legacy_definition",
+                            "name": "Legacy definition",
+                            "description": null,
+                            "displayNameKey": "title",
+                            "access": { "admin": "MERCHANT_READ_WRITE", "storefront": "NONE" },
+                            "capabilities": {},
+                            "fieldDefinitions": [{
+                                "key": "title",
+                                "name": "Title",
+                                "description": null,
+                                "required": true,
+                                "type": { "name": "single_line_text_field", "category": "TEXT" },
+                                "capabilities": {},
+                                "validations": []
+                            }],
+                            "hasThumbnailField": false,
+                            "metaobjectsCount": 0,
+                            "standardTemplate": null
+                        }
+                    }
+                }),
+            }
+        });
+
+        let response = proxy.process_request(Request {
+            method: "POST".to_string(),
+            path: "/admin/api/2025-01/graphql.json".to_string(),
+            headers: BTreeMap::new(),
+            body: json!({
+                "query": r#"
+                    mutation CreateLegacyMetaobject($metaobject: MetaobjectCreateInput!) {
+                      metaobjectCreate(metaobject: $metaobject) {
+                        metaobject { id type handle displayName }
+                        userErrors { field message code }
+                      }
+                    }
+                "#,
+                "variables": {
+                    "metaobject": {
+                        "type": "legacy_definition",
+                        "handle": "legacy-entry",
+                        "fields": [{ "key": "title", "value": "Legacy entry" }]
+                    }
+                }
+            })
+            .to_string(),
+        });
+
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["metaobjectCreate"]["userErrors"],
+            json!([])
+        );
+        assert_eq!(
+            response.body["data"]["metaobjectCreate"]["metaobject"]["displayName"],
+            json!("Legacy entry")
+        );
+        assert_eq!(calls.lock().unwrap().len(), 1);
+    }
+
+    #[test]
     fn canonical_metaobject_id_resolves_staged_synthetic_lifecycle() {
         let mut proxy = test_proxy();
         let meta_type = "canonical_gid_article";
@@ -5458,6 +5778,23 @@ mod tests {
             json!("canonical-entry")
         );
 
+        let owner = proxy.process_request(graphql_request(
+            r#"
+            mutation CreateCanonicalMetaobjectReferenceOwner($product: ProductCreateInput!) {
+              productCreate(product: $product) {
+                product { id }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({"product": {"title": "Canonical metaobject reference owner"}}),
+        ));
+        assert_eq!(owner.body["data"]["productCreate"]["userErrors"], json!([]));
+        let owner_id = owner.body["data"]["productCreate"]["product"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+
         let metafields_set = proxy.process_request(graphql_request(
             r#"
             mutation SetCanonicalMetaobjectReference($metafields: [MetafieldsSetInput!]!) {
@@ -5468,7 +5805,7 @@ mod tests {
             }
             "#,
             json!({"metafields": [{
-                "ownerId": "gid://shopify/Product/10173064872245",
+                "ownerId": owner_id,
                 "namespace": "canonical_reference",
                 "key": "linked",
                 "type": "metaobject_reference",

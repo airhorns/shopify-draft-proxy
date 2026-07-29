@@ -1,0 +1,10 @@
+mutation MediaFileMutationFirstDelete($fileIds: [ID!]!) {
+  fileDelete(fileIds: $fileIds) {
+    deletedFileIds
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

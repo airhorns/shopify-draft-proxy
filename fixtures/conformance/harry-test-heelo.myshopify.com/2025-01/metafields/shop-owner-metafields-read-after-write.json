@@ -2,7 +2,7 @@
   "scenarioId": "shop-owner-metafields-read-after-write",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
-  "capturedAt": "2026-07-05T07:13:58.111Z",
+  "capturedAt": "2026-07-29T03:38:25.919Z",
   "shop": {
     "query": "#graphql\n  query ShopOwnerMetafieldsShopId {\n    shop {\n      id\n      name\n      myshopifyDomain\n    }\n  }\n",
     "variables": {},
@@ -35,9 +35,9 @@
         {
           "ownerId": "gid://shopify/Shop/92891250994",
           "namespace": "sdp_shop_owner",
-          "key": "rw_mr7ggfzq",
+          "key": "rw_ms5jbpd6",
           "type": "single_line_text_field",
-          "value": "value-mr7ggfzq"
+          "value": "value-ms5jbpd6"
         }
       ]
     },
@@ -48,9 +48,9 @@
           "metafields": [
             {
               "namespace": "sdp_shop_owner",
-              "key": "rw_mr7ggfzq",
+              "key": "rw_ms5jbpd6",
               "type": "single_line_text_field",
-              "value": "value-mr7ggfzq",
+              "value": "value-ms5jbpd6",
               "ownerType": "SHOP",
               "owner": {
                 "__typename": "Shop",
@@ -78,7 +78,7 @@
     "query": "query ShopOwnerMetafieldsRead($namespace: String!, $key: String!) {\n  shop {\n    id\n    single: metafield(namespace: $namespace, key: $key) {\n      namespace\n      key\n      type\n      value\n      ownerType\n      owner {\n        __typename\n        ... on Shop {\n          id\n        }\n      }\n    }\n    list: metafields(first: 10, namespace: $namespace) {\n      nodes {\n        namespace\n        key\n        type\n        value\n        ownerType\n      }\n    }\n  }\n}\n",
     "variables": {
       "namespace": "sdp_shop_owner",
-      "key": "rw_mr7ggfzq"
+      "key": "rw_ms5jbpd6"
     },
     "status": 200,
     "response": {
@@ -87,9 +87,9 @@
           "id": "gid://shopify/Shop/92891250994",
           "single": {
             "namespace": "sdp_shop_owner",
-            "key": "rw_mr7ggfzq",
+            "key": "rw_ms5jbpd6",
             "type": "single_line_text_field",
-            "value": "value-mr7ggfzq",
+            "value": "value-ms5jbpd6",
             "ownerType": "SHOP",
             "owner": {
               "__typename": "Shop",
@@ -100,9 +100,9 @@
             "nodes": [
               {
                 "namespace": "sdp_shop_owner",
-                "key": "rw_mr7ggfzq",
+                "key": "rw_ms5jbpd6",
                 "type": "single_line_text_field",
-                "value": "value-mr7ggfzq",
+                "value": "value-ms5jbpd6",
                 "ownerType": "SHOP"
               }
             ]
@@ -129,7 +129,7 @@
         {
           "ownerId": "gid://shopify/Shop/92891250994",
           "namespace": "sdp_shop_owner",
-          "key": "rw_mr7ggfzq"
+          "key": "rw_ms5jbpd6"
         }
       ]
     },
@@ -141,7 +141,7 @@
             {
               "ownerId": "gid://shopify/Shop/92891250994",
               "namespace": "sdp_shop_owner",
-              "key": "rw_mr7ggfzq"
+              "key": "rw_ms5jbpd6"
             }
           ],
           "userErrors": []
@@ -164,7 +164,7 @@
     "query": "query ShopOwnerMetafieldsRead($namespace: String!, $key: String!) {\n  shop {\n    id\n    single: metafield(namespace: $namespace, key: $key) {\n      namespace\n      key\n      type\n      value\n      ownerType\n      owner {\n        __typename\n        ... on Shop {\n          id\n        }\n      }\n    }\n    list: metafields(first: 10, namespace: $namespace) {\n      nodes {\n        namespace\n        key\n        type\n        value\n        ownerType\n      }\n    }\n  }\n}\n",
     "variables": {
       "namespace": "sdp_shop_owner",
-      "key": "rw_mr7ggfzq"
+      "key": "rw_ms5jbpd6"
     },
     "status": 200,
     "response": {
@@ -192,6 +192,41 @@
   },
   "cleanup": [],
   "upstreamCalls": [
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "OwnerMetafieldsExistenceHydrate",
+      "variables": {
+        "ids": ["gid://shopify/Shop/92891250994"]
+      },
+      "query": "query OwnerMetafieldsExistenceHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Shop",
+                "id": "gid://shopify/Shop/92891250994"
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
     {
       "operationName": "OwnerMetafieldsHydrateNodes",
       "variables": {
@@ -247,6 +282,43 @@
               "throttleStatus": {
                 "maximumAvailable": 2000,
                 "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2025-01/graphql.json",
+      "apiSurface": "admin",
+      "query": "query OwnerMetafieldsHydrateNodes($ids: [ID!]!, $metafield0Namespace: String!, $metafield0Key: String!) { nodes(ids: $ids) { __typename id ... on HasMetafields { metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } } ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt  } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } } ... on Collection { id title handle } ... on Customer { id displayName email } ... on Order { id name } ... on Company { id name } ... on Page { id title } ... on Article { id title } } }",
+      "operationName": "OwnerMetafieldsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Shop/92891250994"],
+        "metafield0Key": "rw_ms5jbpd6",
+        "metafield0Namespace": "sdp_shop_owner"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Shop",
+                "id": "gid://shopify/Shop/92891250994",
+                "metafield0": null
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 8,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
                 "restoreRate": 100
               }
             }

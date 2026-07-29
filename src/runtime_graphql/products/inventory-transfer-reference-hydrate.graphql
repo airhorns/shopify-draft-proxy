@@ -1,0 +1,64 @@
+#graphql
+query ProductsHydrateNodes($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    __typename
+    id
+    ... on InventoryItem {
+      tracked
+      requiresShipping
+      measurement {
+        weight {
+          unit
+          value
+        }
+      }
+      variant {
+        id
+        title
+        inventoryQuantity
+        selectedOptions {
+          name
+          value
+        }
+        product {
+          id
+          title
+          handle
+          status
+          totalInventory
+          tracksInventory
+        }
+      }
+      inventoryLevels(first: 50) {
+        nodes {
+          id
+          location {
+            id
+            name
+          }
+          quantities(
+            names: [
+              "available"
+              "on_hand"
+              "committed"
+              "incoming"
+              "reserved"
+              "damaged"
+              "quality_control"
+              "safety_stock"
+            ]
+          ) {
+            name
+            quantity
+            updatedAt
+          }
+        }
+      }
+    }
+    ... on Location {
+      id
+      name
+      isActive
+    }
+  }
+}

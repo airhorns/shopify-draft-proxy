@@ -4,6 +4,11 @@ import 'dotenv/config';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import {
+  captureMetafieldsSetOwnerExistence,
+  recordParityUpstreamCalls,
+  type RecordedUpstreamCall,
+} from './conformance-capture-lib.js';
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
@@ -113,7 +118,7 @@ let fixture: {
   set: Capture;
   readAfterSet: Capture;
   cleanup: Capture[];
-  upstreamCalls: [];
+  upstreamCalls: RecordedUpstreamCall[];
 } | null = null;
 const cleanup: Capture[] = [];
 
@@ -131,6 +136,7 @@ try {
     throw new Error(`productCreate setup did not return a product id: ${JSON.stringify(createPayload)}`);
   }
   productId = createdProductId;
+  const ownerExistence = await captureMetafieldsSetOwnerExistence(runGraphqlRaw, apiVersion, [productId]);
 
   const setVariables = {
     metafields: [
@@ -176,8 +182,13 @@ try {
     set,
     readAfterSet,
     cleanup,
-    upstreamCalls: [],
+    upstreamCalls: [ownerExistence],
   };
+  await mkdir(outputDir, { recursive: true });
+  await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
+  fixture.upstreamCalls = recordParityUpstreamCalls(['metafieldsSet-custom-namespace-typed-keys'], apiVersion, [
+    outputPath,
+  ])[outputPath];
 } finally {
   if (productId) {
     cleanup.push(await capture(productDeleteMutation, { input: { id: productId } }));

@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-05-05T17:33:17.418Z",
+  "capturedAt": "2026-07-28T00:47:56.323Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "accessScopes": {
@@ -108,8 +108,8 @@
   "variables": {
     "createBasic": {
       "input": {
-        "title": "HAR-605 bulk rule 1778002393771",
-        "code": "HAR605BULK1778002393771",
+        "title": "HAR-605 bulk rule 1785199672079",
+        "code": "HAR605BULK1785199672079",
         "startsAt": "2026-04-25T00:00:00Z",
         "context": {
           "all": "ALL"
@@ -125,30 +125,30 @@
       }
     },
     "bulkAdd": {
-      "discountId": "gid://shopify/DiscountCodeNode/1640428962098",
+      "discountId": "gid://shopify/DiscountCodeNode/1663213076786",
       "codes": [
         {
-          "code": "HAR605BULK1778002393771_1"
+          "code": "HAR605BULK1785199672079_1"
         },
         {
-          "code": "HAR605BULK1778002393771_2"
+          "code": "HAR605BULK1785199672079_2"
         },
         {
-          "code": "HAR605BULK1778002393771_3"
+          "code": "HAR605BULK1785199672079_3"
         },
         {
-          "code": "HAR605BULK1778002393771_4"
+          "code": "HAR605BULK1785199672079_4"
         },
         {
-          "code": "HAR605BULK1778002393771_5"
+          "code": "HAR605BULK1785199672079_5"
         }
       ]
     },
     "bulkCodeChange": {
-      "id": "gid://shopify/DiscountCodeNode/1640428962098",
+      "id": "gid://shopify/DiscountCodeNode/1663213076786",
       "input": {
-        "title": "HAR-605 bulk renamed 1778002393771",
-        "code": "HAR605BULKNEW1778002393771",
+        "title": "HAR-605 bulk renamed 1785199672079",
+        "code": "HAR605BULKNEW1785199672079",
         "startsAt": "2026-04-25T00:00:00Z",
         "context": {
           "all": "ALL"
@@ -165,8 +165,8 @@
     },
     "createBxgy": {
       "input": {
-        "title": "HAR-605 BXGY 1778002393771",
-        "code": "HAR605BXGY1778002393771",
+        "title": "HAR-605 BXGY 1785199672079",
+        "code": "HAR605BXGY1785199672079",
         "startsAt": "2026-04-25T00:00:00Z",
         "context": {
           "all": "ALL"
@@ -177,7 +177,7 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10177504608562"]
+              "productsToAdd": ["gid://shopify/Product/10251740610866"]
             }
           }
         },
@@ -192,17 +192,17 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10177504641330"]
+              "productsToAdd": ["gid://shopify/Product/10251740643634"]
             }
           }
         }
       }
     },
     "bxgyToBasic": {
-      "id": "gid://shopify/DiscountCodeNode/1640428994866",
+      "id": "gid://shopify/DiscountCodeNode/1663213109554",
       "input": {
-        "title": "HAR-605 coerced basic 1778002393771",
-        "code": "HAR605BXGY1778002393771",
+        "title": "HAR-605 coerced basic 1785199672079",
+        "code": "HAR605BXGY1785199672079",
         "startsAt": "2026-04-25T00:00:00Z",
         "context": {
           "all": "ALL"
@@ -220,8 +220,8 @@
     "unknownUpdate": {
       "id": "gid://shopify/DiscountCodeNode/0",
       "input": {
-        "title": "HAR-605 unknown 1778002393771",
-        "code": "HAR605UNKNOWN1778002393771",
+        "title": "HAR-605 unknown 1785199672079",
+        "code": "HAR605UNKNOWN1785199672079",
         "startsAt": "2026-04-25T00:00:00Z",
         "context": {
           "all": "ALL"
@@ -242,8 +242,8 @@
       "query": "mutation DiscountUpdateEdgeBasicCreate($input: DiscountCodeBasicInput!) {\n  discountCodeBasicCreate(basicCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "title": "HAR-605 bulk rule 1778002393771",
-          "code": "HAR605BULK1778002393771",
+          "title": "HAR-605 bulk rule 1785199672079",
+          "code": "HAR605BULK1785199672079",
           "startsAt": "2026-04-25T00:00:00Z",
           "context": {
             "all": "ALL"
@@ -262,22 +262,22 @@
     "bulkAdd": {
       "query": "mutation DiscountUpdateEdgeBulkAdd($discountId: ID!, $codes: [DiscountRedeemCodeInput!]!) {\n  discountRedeemCodeBulkAdd(discountId: $discountId, codes: $codes) {\n    bulkCreation {\n      codesCount\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
-        "discountId": "gid://shopify/DiscountCodeNode/1640428962098",
+        "discountId": "gid://shopify/DiscountCodeNode/1663213076786",
         "codes": [
           {
-            "code": "HAR605BULK1778002393771_1"
+            "code": "HAR605BULK1785199672079_1"
           },
           {
-            "code": "HAR605BULK1778002393771_2"
+            "code": "HAR605BULK1785199672079_2"
           },
           {
-            "code": "HAR605BULK1778002393771_3"
+            "code": "HAR605BULK1785199672079_3"
           },
           {
-            "code": "HAR605BULK1778002393771_4"
+            "code": "HAR605BULK1785199672079_4"
           },
           {
-            "code": "HAR605BULK1778002393771_5"
+            "code": "HAR605BULK1785199672079_5"
           }
         ]
       }
@@ -289,8 +289,8 @@
       "query": "mutation DiscountUpdateEdgeBxgyCreate($input: DiscountCodeBxgyInput!) {\n  discountCodeBxgyCreate(bxgyCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n      codeDiscount {\n        __typename\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "title": "HAR-605 BXGY 1778002393771",
-          "code": "HAR605BXGY1778002393771",
+          "title": "HAR-605 BXGY 1785199672079",
+          "code": "HAR605BXGY1785199672079",
           "startsAt": "2026-04-25T00:00:00Z",
           "context": {
             "all": "ALL"
@@ -301,7 +301,7 @@
             },
             "items": {
               "products": {
-                "productsToAdd": ["gid://shopify/Product/10177504608562"]
+                "productsToAdd": ["gid://shopify/Product/10251740610866"]
               }
             }
           },
@@ -316,7 +316,7 @@
             },
             "items": {
               "products": {
-                "productsToAdd": ["gid://shopify/Product/10177504641330"]
+                "productsToAdd": ["gid://shopify/Product/10251740643634"]
               }
             }
           }
@@ -328,8 +328,8 @@
       "variables": {
         "id": "gid://shopify/DiscountCodeNode/0",
         "input": {
-          "title": "HAR-605 unknown 1778002393771",
-          "code": "HAR605UNKNOWN1778002393771",
+          "title": "HAR-605 unknown 1785199672079",
+          "code": "HAR605UNKNOWN1785199672079",
           "startsAt": "2026-04-25T00:00:00Z",
           "context": {
             "all": "ALL"
@@ -355,7 +355,7 @@
       "data": {
         "discountCodeBasicCreate": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1640428962098"
+            "id": "gid://shopify/DiscountCodeNode/1663213076786"
           },
           "userErrors": []
         }
@@ -402,7 +402,7 @@
     "payload": {
       "data": {
         "codeDiscountNodeByCode": {
-          "id": "gid://shopify/DiscountCodeNode/1640428962098"
+          "id": "gid://shopify/DiscountCodeNode/1663213076786"
         }
       },
       "extensions": {
@@ -453,7 +453,7 @@
       "data": {
         "discountCodeBxgyCreate": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1640428994866",
+            "id": "gid://shopify/DiscountCodeNode/1663213109554",
             "codeDiscount": {
               "__typename": "DiscountCodeBxgy"
             }
@@ -467,7 +467,7 @@
           "actualQueryCost": 11,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1988,
+            "currentlyAvailable": 1964,
             "restoreRate": 100
           }
         }
@@ -480,7 +480,7 @@
       "data": {
         "discountCodeBasicUpdate": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1640428994866",
+            "id": "gid://shopify/DiscountCodeNode/1663213109554",
             "codeDiscount": {
               "__typename": "DiscountCodeBasic"
             }
@@ -494,7 +494,7 @@
           "actualQueryCost": 11,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1989,
+            "currentlyAvailable": 1972,
             "restoreRate": 100
           }
         }
@@ -523,7 +523,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1990,
+            "currentlyAvailable": 1979,
             "restoreRate": 100
           }
         }
@@ -536,7 +536,7 @@
       "payload": {
         "data": {
           "discountCodeDelete": {
-            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640428994866",
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1663213109554",
             "userErrors": []
           }
         },
@@ -546,7 +546,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1989,
+              "currentlyAvailable": 1977,
               "restoreRate": 100
             }
           }
@@ -558,7 +558,29 @@
       "payload": {
         "data": {
           "discountCodeDelete": {
-            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640428962098",
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1663213076786",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "status": 200,
+      "payload": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10251740643634",
             "userErrors": []
           }
         },
@@ -580,29 +602,7 @@
       "payload": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10177504641330",
-            "userErrors": []
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 10,
-            "actualQueryCost": 10,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
-              "restoreRate": 100
-            }
-          }
-        }
-      }
-    },
-    {
-      "status": 200,
-      "payload": {
-        "data": {
-          "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10177504608562",
+            "deletedProductId": "gid://shopify/Product/10251740610866",
             "userErrors": []
           }
         },
@@ -620,5 +620,525 @@
       }
     }
   ],
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "HAR605BULK1785199672079"
+      },
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "HAR605BULK1785199672079_1"
+      },
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "HAR605BULK1785199672079_2"
+      },
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "HAR605BULK1785199672079_3"
+      },
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "HAR605BULK1785199672079_4"
+      },
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "HAR605BULK1785199672079_5"
+      },
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/10251740610866", "gid://shopify/Product/10251740643634"]
+      },
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      combinedListingRole\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      options {\n        id\n        name\n        position\n        optionValues { id name hasVariants }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          jsonValue\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n      media(first: 250) {\n        nodes {\n          __typename\n          id\n          alt\n          mediaContentType\n          status\n          preview { image { url width height } }\n          ... on MediaImage {\n            image { id url altText width height }\n          }\n        }\n      }\n      collections(first: 250) {\n        nodes {\n          id\n          legacyResourceId\n          title\n          handle\n          updatedAt\n          description\n          descriptionHtml\n          sortOrder\n          templateSuffix\n          seo { title description }\n          productsCount { count }\n        }\n      }\n      variants(first: 250) {\n        nodes {\n          id\n          title\n          sku\n          barcode\n          price\n          compareAtPrice\n          taxable\n          inventoryPolicy\n          inventoryQuantity\n          selectedOptions { name value }\n          metafields(first: 250) {\n            nodes {\n              id\n              namespace\n              key\n              type\n              value\n              compareDigest\n              jsonValue\n              createdAt\n              updatedAt\n              ownerType\n            }\n          }\n          inventoryItem {\n            id\n            tracked\n            requiresShipping\n            measurement { weight { unit value } }\n            inventoryLevels(first: 50) {\n              nodes {\n                id\n                location { id name }\n                quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n                  name\n                  quantity\n                  updatedAt\n                }\n              }\n            }\n          }\n          sellingPlanGroups(first: 50) {\n            nodes { id name merchantCode }\n          }\n        }\n      }\n      sellingPlanGroups(first: 50) {\n        nodes { id name merchantCode }\n      }\n    }\n    ... on Collection {\n      legacyResourceId\n      title\n      handle\n      updatedAt\n      description\n      descriptionHtml\n      sortOrder\n      templateSuffix\n      seo { title description }\n      ruleSet {\n        appliedDisjunctively\n        rules { column relation condition }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          jsonValue\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n      productsCount { count }\n      products(first: 250) {\n        edges {\n          cursor\n          node { id title handle status vendor productType tags totalInventory tracksInventory }\n        }\n      }\n    }\n    ... on ProductVariant {\n      title\n      sku\n      barcode\n      price\n      compareAtPrice\n      taxable\n      inventoryPolicy\n      inventoryQuantity\n      selectedOptions { name value }\n      product { id title handle status totalInventory tracksInventory }\n      product {\n        variants(first: 250) {\n          nodes {\n            id\n            title\n            sku\n            barcode\n            price\n            compareAtPrice\n            taxable\n            inventoryPolicy\n            inventoryQuantity\n            selectedOptions { name value }\n            inventoryItem {\n              id\n              tracked\n              requiresShipping\n              measurement { weight { unit value } }\n            }\n          }\n        }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          jsonValue\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n      inventoryItem {\n        id\n        tracked\n        requiresShipping\n        measurement { weight { unit value } }\n      }\n      sellingPlanGroups(first: 50) {\n        nodes { id name merchantCode }\n      }\n    }\n    ... on InventoryItem {\n      tracked\n      requiresShipping\n      measurement { weight { unit value } }\n      variant {\n        id\n        title\n        inventoryQuantity\n        selectedOptions { name value }\n        product {\n          id\n          title\n          handle\n          status\n          totalInventory\n          tracksInventory\n        }\n      }\n      inventoryLevels(first: 50) {\n        nodes {\n          id\n          location { id name }\n          quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n            name\n            quantity\n            updatedAt\n          }\n        }\n      }\n    }\n    ... on InventoryLevel {\n      id\n      location { id name }\n      quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n        name\n        quantity\n        updatedAt\n      }\n      item {\n        id\n        tracked\n        requiresShipping\n        inventoryLevels(first: 50) {\n          nodes {\n            id\n            location { id name }\n            quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n              name\n              quantity\n              updatedAt\n            }\n          }\n        }\n        variant {\n          id\n          title\n          inventoryQuantity\n          selectedOptions { name value }\n          product {\n            id\n            title\n            handle\n            status\n            totalInventory\n            tracksInventory\n          }\n        }\n      }\n    }\n    ... on Location {\n      id\n      name\n      isActive\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10251740610866",
+                "legacyResourceId": "10251740610866",
+                "title": "HAR-605 buy product 1785199672079",
+                "handle": "har-605-buy-product-1785199672079",
+                "status": "ACTIVE",
+                "combinedListingRole": null,
+                "vendor": "harry-test-heelo",
+                "productType": "",
+                "tags": [],
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "createdAt": "2026-07-28T00:47:52Z",
+                "updatedAt": "2026-07-28T00:47:52Z",
+                "publishedAt": null,
+                "descriptionHtml": "",
+                "onlineStorePreviewUrl": "https://t7mgc3vr0gtlpg32-92891250994.shopifypreview.com/products_preview?preview_key=ec8718089578183c65655ce539ec3950&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0yOFQwMTo0Nzo1NC44MTRaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--36a6673923f260090ac847a150ba8cf889517557",
+                "templateSuffix": null,
+                "seo": {
+                  "title": null,
+                  "description": null
+                },
+                "options": [
+                  {
+                    "id": "gid://shopify/ProductOption/12813481705778",
+                    "name": "Title",
+                    "position": 1,
+                    "optionValues": [
+                      {
+                        "id": "gid://shopify/ProductOptionValue/8363882873138",
+                        "name": "Default Title",
+                        "hasVariants": true
+                      }
+                    ]
+                  }
+                ],
+                "metafields": {
+                  "nodes": []
+                },
+                "media": {
+                  "nodes": []
+                },
+                "collections": {
+                  "nodes": []
+                },
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51514429210930",
+                      "title": "Default Title",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "compareAtPrice": null,
+                      "taxable": true,
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Title",
+                          "value": "Default Title"
+                        }
+                      ],
+                      "metafields": {
+                        "nodes": []
+                      },
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53620166197554",
+                        "tracked": false,
+                        "requiresShipping": true,
+                        "measurement": {
+                          "weight": {
+                            "unit": "KILOGRAMS",
+                            "value": 0
+                          }
+                        },
+                        "inventoryLevels": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53620166197554",
+                              "location": {
+                                "id": "gid://shopify/Location/106318430514",
+                                "name": "Shop location"
+                              },
+                              "quantities": [
+                                {
+                                  "name": "available",
+                                  "quantity": 0,
+                                  "updatedAt": "2026-07-28T00:47:52Z"
+                                },
+                                {
+                                  "name": "on_hand",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "committed",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "incoming",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "reserved",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "damaged",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "quality_control",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "safety_stock",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      },
+                      "sellingPlanGroups": {
+                        "nodes": []
+                      }
+                    }
+                  ]
+                },
+                "sellingPlanGroups": {
+                  "nodes": []
+                }
+              },
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10251740643634",
+                "legacyResourceId": "10251740643634",
+                "title": "HAR-605 get product 1785199672079",
+                "handle": "har-605-get-product-1785199672079",
+                "status": "ACTIVE",
+                "combinedListingRole": null,
+                "vendor": "harry-test-heelo",
+                "productType": "",
+                "tags": [],
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "createdAt": "2026-07-28T00:47:52Z",
+                "updatedAt": "2026-07-28T00:47:53Z",
+                "publishedAt": null,
+                "descriptionHtml": "",
+                "onlineStorePreviewUrl": "https://t7mgc3vr0gtlpg32-92891250994.shopifypreview.com/products_preview?preview_key=5686f01a6f956298291c500f7b88ffb5&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0yOFQwMTo0Nzo1NC44MzJaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--3279ece8fee844e9f4ea9ba42bd71af6f41890ca",
+                "templateSuffix": null,
+                "seo": {
+                  "title": null,
+                  "description": null
+                },
+                "options": [
+                  {
+                    "id": "gid://shopify/ProductOption/12813481738546",
+                    "name": "Title",
+                    "position": 1,
+                    "optionValues": [
+                      {
+                        "id": "gid://shopify/ProductOptionValue/8363882905906",
+                        "name": "Default Title",
+                        "hasVariants": true
+                      }
+                    ]
+                  }
+                ],
+                "metafields": {
+                  "nodes": []
+                },
+                "media": {
+                  "nodes": []
+                },
+                "collections": {
+                  "nodes": []
+                },
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51514429243698",
+                      "title": "Default Title",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "compareAtPrice": null,
+                      "taxable": true,
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Title",
+                          "value": "Default Title"
+                        }
+                      ],
+                      "metafields": {
+                        "nodes": []
+                      },
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53620166230322",
+                        "tracked": false,
+                        "requiresShipping": true,
+                        "measurement": {
+                          "weight": {
+                            "unit": "KILOGRAMS",
+                            "value": 0
+                          }
+                        },
+                        "inventoryLevels": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53620166230322",
+                              "location": {
+                                "id": "gid://shopify/Location/106318430514",
+                                "name": "Shop location"
+                              },
+                              "quantities": [
+                                {
+                                  "name": "available",
+                                  "quantity": 0,
+                                  "updatedAt": "2026-07-28T00:47:52Z"
+                                },
+                                {
+                                  "name": "on_hand",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "committed",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "incoming",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "reserved",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "damaged",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "quality_control",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "safety_stock",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      },
+                      "sellingPlanGroups": {
+                        "nodes": []
+                      }
+                    }
+                  ]
+                },
+                "sellingPlanGroups": {
+                  "nodes": []
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 637,
+              "actualQueryCost": 57,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1943,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "HAR605BXGY1785199672079"
+      },
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1967,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "#graphql\n  query DiscountCodeHydrate($id: ID!) {\n    codeNode: codeDiscountNode(id: $id) {\n      id\n      metafields(first: 10) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          createdAt\n          updatedAt\n        }\n      }\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usageLimit\n          appliesOncePerCustomer\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          customerGets {\n            value {\n              __typename\n              ... on DiscountPercentage {\n                percentage\n              }\n              ... on DiscountAmount {\n                amount {\n                  amount\n                  currencyCode\n                }\n                appliesOnEachItem\n              }\n            }\n            items {\n              __typename\n              ... on AllDiscountItems {\n                allItems\n              }\n              ... on DiscountProducts {\n                products(first: 10) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 10) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 10) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n            appliesOnOneTimePurchase\n            appliesOnSubscription\n          }\n          minimumRequirement {\n            __typename\n            ... on DiscountMinimumSubtotal {\n              greaterThanOrEqualToSubtotal {\n                amount\n                currencyCode\n              }\n            }\n            ... on DiscountMinimumQuantity {\n              greaterThanOrEqualToQuantity\n            }\n          }\n          codes(first: 10) {\n            nodes {\n              id\n              code\n              asyncUsageCount\n            }\n          }\n        }\n        ... on DiscountCodeApp {\n          title\n          status\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usageLimit\n          appliesOncePerCustomer\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n        ... on DiscountCodeBxgy {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usageLimit\n          usesPerOrderLimit\n          appliesOncePerCustomer\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          customerBuys {\n            value {\n              __typename\n              ... on DiscountQuantity {\n                quantity\n              }\n            }\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 10) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 10) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 10) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n          }\n          customerGets {\n            value {\n              __typename\n              ... on DiscountOnQuantity {\n                quantity {\n                  quantity\n                }\n                effect {\n                  __typename\n                  ... on DiscountPercentage {\n                    percentage\n                  }\n                  ... on DiscountAmount {\n                    amount {\n                      amount\n                      currencyCode\n                    }\n                    appliesOnEachItem\n                  }\n                }\n              }\n            }\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 10) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 10) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 10) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n          }\n          codes(first: 10) {\n            nodes {\n              id\n              code\n              asyncUsageCount\n            }\n          }\n        }\n        ... on DiscountCodeFreeShipping {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usageLimit\n          appliesOncePerCustomer\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          destinationSelection {\n            __typename\n            ... on DiscountCountryAll {\n              allCountries\n            }\n            ... on DiscountCountries {\n              countries\n              includeRestOfWorld\n            }\n          }\n          maximumShippingPrice {\n            amount\n            currencyCode\n          }\n          minimumRequirement {\n            __typename\n            ... on DiscountMinimumSubtotal {\n              greaterThanOrEqualToSubtotal {\n                amount\n                currencyCode\n              }\n            }\n            ... on DiscountMinimumQuantity {\n              greaterThanOrEqualToQuantity\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n          codes(first: 10) {\n            nodes {\n              id\n              code\n              asyncUsageCount\n            }\n          }\n        }\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/0"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeNode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 49,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

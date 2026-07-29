@@ -1,56 +1,56 @@
 {
   "variables": {
-    "id": "gid://shopify/Product/10225391599922",
+    "id": "gid://shopify/Product/10252752617778",
     "namespace": "custom",
     "key": "material",
-    "after": "eyJsYXN0X2lkIjo0NDYyNzgzNzg0NTgxMCwibGFzdF92YWx1ZSI6IjQ0NjI3ODM3ODQ1ODEwIn0="
+    "after": "eyJsYXN0X2lkIjo0NTM1OTQ3Njk5ODQ1MCwibGFzdF92YWx1ZSI6IjQ1MzU5NDc2OTk4NDUwIn0="
   },
   "response": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/10225391599922",
-        "title": "Hermes Product Metafield Conformance 1782826835309",
+        "id": "gid://shopify/Product/10252752617778",
+        "title": "Hermes Product Metafield Conformance 1785296278833",
         "primarySpec": {
-          "id": "gid://shopify/Metafield/44627837845810",
+          "id": "gid://shopify/Metafield/45359476998450",
           "namespace": "custom",
           "key": "material",
           "type": "single_line_text_field",
           "value": "Canvas",
           "compareDigest": "5604f34413e7aa54d8576ec602e7824b1ddbba13c2ce6799e333fe4594278b64",
           "jsonValue": "Canvas",
-          "createdAt": "2026-06-30T13:40:36Z",
-          "updatedAt": "2026-06-30T13:40:36Z",
+          "createdAt": "2026-07-29T03:37:59Z",
+          "updatedAt": "2026-07-29T03:37:59Z",
           "ownerType": "PRODUCT",
           "definition": null
         },
         "metafields": {
           "nodes": [
             {
-              "id": "gid://shopify/Metafield/44627837845810",
+              "id": "gid://shopify/Metafield/45359476998450",
               "namespace": "custom",
               "key": "material",
               "type": "single_line_text_field",
               "value": "Canvas",
               "compareDigest": "5604f34413e7aa54d8576ec602e7824b1ddbba13c2ce6799e333fe4594278b64",
               "jsonValue": "Canvas",
-              "createdAt": "2026-06-30T13:40:36Z",
-              "updatedAt": "2026-06-30T13:40:36Z",
+              "createdAt": "2026-07-29T03:37:59Z",
+              "updatedAt": "2026-07-29T03:37:59Z",
               "ownerType": "PRODUCT"
             }
           ],
           "edges": [
             {
-              "cursor": "eyJsYXN0X2lkIjo0NDYyNzgzNzg0NTgxMCwibGFzdF92YWx1ZSI6IjQ0NjI3ODM3ODQ1ODEwIn0=",
+              "cursor": "eyJsYXN0X2lkIjo0NTM1OTQ3Njk5ODQ1MCwibGFzdF92YWx1ZSI6IjQ1MzU5NDc2OTk4NDUwIn0=",
               "node": {
-                "id": "gid://shopify/Metafield/44627837845810",
+                "id": "gid://shopify/Metafield/45359476998450",
                 "namespace": "custom",
                 "key": "material",
                 "type": "single_line_text_field",
                 "value": "Canvas",
                 "compareDigest": "5604f34413e7aa54d8576ec602e7824b1ddbba13c2ce6799e333fe4594278b64",
                 "jsonValue": "Canvas",
-                "createdAt": "2026-06-30T13:40:36Z",
-                "updatedAt": "2026-06-30T13:40:36Z",
+                "createdAt": "2026-07-29T03:37:59Z",
+                "updatedAt": "2026-07-29T03:37:59Z",
                 "ownerType": "PRODUCT"
               }
             }
@@ -58,38 +58,38 @@
           "pageInfo": {
             "hasNextPage": true,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjo0NDYyNzgzNzg0NTgxMCwibGFzdF92YWx1ZSI6IjQ0NjI3ODM3ODQ1ODEwIn0=",
-            "endCursor": "eyJsYXN0X2lkIjo0NDYyNzgzNzg0NTgxMCwibGFzdF92YWx1ZSI6IjQ0NjI3ODM3ODQ1ODEwIn0="
+            "startCursor": "eyJsYXN0X2lkIjo0NTM1OTQ3Njk5ODQ1MCwibGFzdF92YWx1ZSI6IjQ1MzU5NDc2OTk4NDUwIn0=",
+            "endCursor": "eyJsYXN0X2lkIjo0NTM1OTQ3Njk5ODQ1MCwibGFzdF92YWx1ZSI6IjQ1MzU5NDc2OTk4NDUwIn0="
           }
         },
         "nextMetafields": {
           "nodes": [
             {
-              "id": "gid://shopify/Metafield/44627837878578",
+              "id": "gid://shopify/Metafield/45359477031218",
               "namespace": "details",
               "key": "origin",
               "type": "single_line_text_field",
               "value": "VN",
               "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3",
               "jsonValue": "VN",
-              "createdAt": "2026-06-30T13:40:36Z",
-              "updatedAt": "2026-06-30T13:40:36Z",
+              "createdAt": "2026-07-29T03:37:59Z",
+              "updatedAt": "2026-07-29T03:37:59Z",
               "ownerType": "PRODUCT"
             }
           ],
           "edges": [
             {
-              "cursor": "eyJsYXN0X2lkIjo0NDYyNzgzNzg3ODU3OCwibGFzdF92YWx1ZSI6IjQ0NjI3ODM3ODc4NTc4In0=",
+              "cursor": "eyJsYXN0X2lkIjo0NTM1OTQ3NzAzMTIxOCwibGFzdF92YWx1ZSI6IjQ1MzU5NDc3MDMxMjE4In0=",
               "node": {
-                "id": "gid://shopify/Metafield/44627837878578",
+                "id": "gid://shopify/Metafield/45359477031218",
                 "namespace": "details",
                 "key": "origin",
                 "type": "single_line_text_field",
                 "value": "VN",
                 "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3",
                 "jsonValue": "VN",
-                "createdAt": "2026-06-30T13:40:36Z",
-                "updatedAt": "2026-06-30T13:40:36Z",
+                "createdAt": "2026-07-29T03:37:59Z",
+                "updatedAt": "2026-07-29T03:37:59Z",
                 "ownerType": "PRODUCT"
               }
             }
@@ -97,8 +97,8 @@
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": true,
-            "startCursor": "eyJsYXN0X2lkIjo0NDYyNzgzNzg3ODU3OCwibGFzdF92YWx1ZSI6IjQ0NjI3ODM3ODc4NTc4In0=",
-            "endCursor": "eyJsYXN0X2lkIjo0NDYyNzgzNzg3ODU3OCwibGFzdF92YWx1ZSI6IjQ0NjI3ODM3ODc4NTc4In0="
+            "startCursor": "eyJsYXN0X2lkIjo0NTM1OTQ3NzAzMTIxOCwibGFzdF92YWx1ZSI6IjQ1MzU5NDc3MDMxMjE4In0=",
+            "endCursor": "eyJsYXN0X2lkIjo0NTM1OTQ3NzAzMTIxOCwibGFzdF92YWx1ZSI6IjQ1MzU5NDc3MDMxMjE4In0="
           }
         }
       }

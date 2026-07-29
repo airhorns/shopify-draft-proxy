@@ -1,0 +1,75 @@
+{
+  "scenarioId": "segment-authoritative-prerequisites",
+  "operationNames": ["segmentCreate", "customerSegmentMembersQueryCreate", "customerSegmentMembersQuery"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["mutation-first-hydration", "read-after-write", "payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-authoritative-prerequisites.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/segments.rs"],
+  "proxyConfig": {
+    "readMode": "live-hybrid"
+  },
+  "proxyRequest": {
+    "apiVersion": "2025-01",
+    "documentPath": "config/parity-requests/segments/segment-authoritative-name-create.graphql",
+    "variablesCapturePath": "$.proxyVariables.nameCreate"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify evidence for bounded query-only Segment create prerequisites, cold segmentId job creation, confirmed invalid Segment IDs, and cold persisted member-job polling.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "cold-persisted-name-create",
+        "capturePath": "$.liveNameCreate.response.body.data.segmentCreate",
+        "proxyPath": "$.data.segmentCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.segment.id",
+            "matcher": "shopify-gid:Segment",
+            "reason": "The proxy allocates a local Segment ID after hydrating the persisted-name collision."
+          }
+        ]
+      },
+      {
+        "name": "cold-valid-segment-id-job-create",
+        "capturePath": "$.liveValidJobCreate.response.body.data.customerSegmentMembersQueryCreate",
+        "proxyPath": "$.data.customerSegmentMembersQueryCreate",
+        "proxyRequest": {
+          "apiVersion": "2025-01",
+          "documentPath": "config/parity-requests/segments/customer-segment-members-query-authoritative-segment-id.graphql",
+          "variablesCapturePath": "$.proxyVariables.validJobCreate"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.customerSegmentMembersQuery.id",
+            "matcher": "shopify-gid:CustomerSegmentMembersQuery",
+            "reason": "The proxy allocates a local member-query job ID after hydrating the persisted Segment."
+          }
+        ]
+      },
+      {
+        "name": "cold-invalid-segment-id-job-create",
+        "capturePath": "$.liveInvalidJobCreate.response.body.data.customerSegmentMembersQueryCreate",
+        "proxyPath": "$.data.customerSegmentMembersQueryCreate",
+        "proxyRequest": {
+          "apiVersion": "2025-01",
+          "documentPath": "config/parity-requests/segments/customer-segment-members-query-authoritative-segment-id.graphql",
+          "variablesCapturePath": "$.proxyVariables.invalidJobCreate"
+        }
+      },
+      {
+        "name": "cold-persisted-member-job-poll",
+        "capturePath": "$.liveJobPoll.response.body.data.customerSegmentMembersQuery",
+        "proxyPath": "$.data.customerSegmentMembersQuery",
+        "proxyRequest": {
+          "apiVersion": "2025-01",
+          "documentPath": "config/parity-requests/segments/customer-segment-members-query-authoritative-poll.graphql",
+          "variablesCapturePath": "$.proxyVariables.jobPoll"
+        }
+      }
+    ]
+  }
+}

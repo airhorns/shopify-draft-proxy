@@ -23,86 +23,7 @@
   "runtimeTestFiles": ["tests/integration/discount-bxgy-flow.test.ts"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/discounts/discount-bxgy-lifecycle-create.graphql",
-    "variables": {
-      "codeInput": {
-        "title": "HAR-195 code BXGY 1777150259502",
-        "code": "HAR195BXGY1777150259502",
-        "startsAt": "2026-04-25T00:00:00Z",
-        "combinesWith": {
-          "productDiscounts": true,
-          "orderDiscounts": false,
-          "shippingDiscounts": false
-        },
-        "context": {
-          "all": "ALL"
-        },
-        "customerBuys": {
-          "value": {
-            "quantity": "2"
-          },
-          "items": {
-            "products": {
-              "productsToAdd": ["gid://shopify/Product/10170555597106"],
-              "productVariantsToAdd": ["gid://shopify/ProductVariant/51098643235122"]
-            }
-          }
-        },
-        "customerGets": {
-          "value": {
-            "discountOnQuantity": {
-              "quantity": "1",
-              "effect": {
-                "percentage": 1
-              }
-            }
-          },
-          "items": {
-            "collections": {
-              "add": ["gid://shopify/Collection/512147128626"]
-            }
-          }
-        },
-        "usesPerOrderLimit": 1
-      },
-      "automaticInput": {
-        "title": "HAR-195 automatic BXGY 1777150259502",
-        "startsAt": "2026-04-25T00:00:00Z",
-        "combinesWith": {
-          "productDiscounts": true,
-          "orderDiscounts": false,
-          "shippingDiscounts": false
-        },
-        "context": {
-          "all": "ALL"
-        },
-        "customerBuys": {
-          "value": {
-            "quantity": "1"
-          },
-          "items": {
-            "collections": {
-              "add": ["gid://shopify/Collection/512147128626"]
-            }
-          }
-        },
-        "customerGets": {
-          "value": {
-            "discountOnQuantity": {
-              "quantity": "1",
-              "effect": {
-                "percentage": 0.5
-              }
-            }
-          },
-          "items": {
-            "products": {
-              "productsToAdd": ["gid://shopify/Product/10170555629874"]
-            }
-          }
-        },
-        "usesPerOrderLimit": "1"
-      }
-    }
+    "variablesCapturePath": "$.proxyRequests.primary"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
@@ -200,51 +121,7 @@
         "upstreamCapturePath": null,
         "proxyRequest": {
           "documentPath": "config/parity-requests/discounts/discount-bxgy-code-lifecycle-update.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.discountCodeBxgyCreate.codeDiscountNode.id"
-            },
-            "input": {
-              "title": "HAR-195 code BXGY updated 1777150259502",
-              "code": "HAR195BXGYUP1777150259502",
-              "startsAt": "2026-04-25T00:00:00Z",
-              "combinesWith": {
-                "productDiscounts": true,
-                "orderDiscounts": false,
-                "shippingDiscounts": false
-              },
-              "context": {
-                "all": "ALL"
-              },
-              "customerBuys": {
-                "value": {
-                  "quantity": "2"
-                },
-                "items": {
-                  "products": {
-                    "productsToAdd": ["gid://shopify/Product/10170555597106"],
-                    "productVariantsToAdd": ["gid://shopify/ProductVariant/51098643235122"]
-                  }
-                }
-              },
-              "customerGets": {
-                "value": {
-                  "discountOnQuantity": {
-                    "quantity": "2",
-                    "effect": {
-                      "percentage": 0.5
-                    }
-                  }
-                },
-                "items": {
-                  "collections": {
-                    "add": ["gid://shopify/Collection/512147128626"]
-                  }
-                }
-              },
-              "usesPerOrderLimit": 1
-            }
-          }
+          "variablesCapturePath": "$.proxyRequests.codeUpdate"
         }
       },
       {
@@ -254,49 +131,7 @@
         "upstreamCapturePath": null,
         "proxyRequest": {
           "documentPath": "config/parity-requests/discounts/discount-bxgy-automatic-lifecycle-update.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.discountAutomaticBxgyCreate.automaticDiscountNode.id"
-            },
-            "input": {
-              "title": "HAR-195 automatic BXGY updated 1777150259502",
-              "startsAt": "2026-04-25T00:00:00Z",
-              "combinesWith": {
-                "productDiscounts": true,
-                "orderDiscounts": false,
-                "shippingDiscounts": false
-              },
-              "context": {
-                "all": "ALL"
-              },
-              "customerBuys": {
-                "value": {
-                  "quantity": "3"
-                },
-                "items": {
-                  "collections": {
-                    "add": ["gid://shopify/Collection/512147128626"]
-                  }
-                }
-              },
-              "customerGets": {
-                "value": {
-                  "discountOnQuantity": {
-                    "quantity": "1",
-                    "effect": {
-                      "percentage": 0.5
-                    }
-                  }
-                },
-                "items": {
-                  "products": {
-                    "productsToAdd": ["gid://shopify/Product/10170555629874"]
-                  }
-                }
-              },
-              "usesPerOrderLimit": "1"
-            }
-          }
+          "variablesCapturePath": "$.proxyRequests.automaticUpdate"
         }
       },
       {
@@ -306,11 +141,7 @@
         "upstreamCapturePath": null,
         "proxyRequest": {
           "documentPath": "config/parity-requests/discounts/discount-bxgy-code-lifecycle-deactivate.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.discountCodeBxgyCreate.codeDiscountNode.id"
-            }
-          }
+          "variablesCapturePath": "$.proxyRequests.codeId"
         }
       },
       {
@@ -320,11 +151,7 @@
         "upstreamCapturePath": null,
         "proxyRequest": {
           "documentPath": "config/parity-requests/discounts/discount-bxgy-code-lifecycle-activate.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.discountCodeBxgyCreate.codeDiscountNode.id"
-            }
-          }
+          "variablesCapturePath": "$.proxyRequests.codeId"
         }
       },
       {
@@ -334,11 +161,7 @@
         "upstreamCapturePath": null,
         "proxyRequest": {
           "documentPath": "config/parity-requests/discounts/discount-bxgy-automatic-lifecycle-deactivate.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.discountAutomaticBxgyCreate.automaticDiscountNode.id"
-            }
-          }
+          "variablesCapturePath": "$.proxyRequests.automaticId"
         }
       },
       {
@@ -348,11 +171,7 @@
         "upstreamCapturePath": null,
         "proxyRequest": {
           "documentPath": "config/parity-requests/discounts/discount-bxgy-automatic-lifecycle-activate.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.discountAutomaticBxgyCreate.automaticDiscountNode.id"
-            }
-          }
+          "variablesCapturePath": "$.proxyRequests.automaticId"
         }
       },
       {
@@ -362,15 +181,7 @@
         "upstreamCapturePath": null,
         "proxyRequest": {
           "documentPath": "config/parity-requests/discounts/discount-bxgy-lifecycle-read.graphql",
-          "variables": {
-            "codeId": {
-              "fromPrimaryProxyPath": "$.data.discountCodeBxgyCreate.codeDiscountNode.id"
-            },
-            "automaticId": {
-              "fromPrimaryProxyPath": "$.data.discountAutomaticBxgyCreate.automaticDiscountNode.id"
-            },
-            "code": "HAR195BXGYUP1777150259502"
-          }
+          "variablesCapturePath": "$.proxyRequests.read"
         }
       },
       {
@@ -380,15 +191,7 @@
         "upstreamCapturePath": null,
         "proxyRequest": {
           "documentPath": "config/parity-requests/discounts/discount-bxgy-lifecycle-read.graphql",
-          "variables": {
-            "codeId": {
-              "fromPrimaryProxyPath": "$.data.discountCodeBxgyCreate.codeDiscountNode.id"
-            },
-            "automaticId": {
-              "fromPrimaryProxyPath": "$.data.discountAutomaticBxgyCreate.automaticDiscountNode.id"
-            },
-            "code": "HAR195BXGYUP1777150259502"
-          }
+          "variablesCapturePath": "$.proxyRequests.read"
         }
       },
       {
@@ -398,11 +201,7 @@
         "upstreamCapturePath": null,
         "proxyRequest": {
           "documentPath": "config/parity-requests/discounts/discount-bxgy-code-lifecycle-delete.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.discountCodeBxgyCreate.codeDiscountNode.id"
-            }
-          }
+          "variablesCapturePath": "$.proxyRequests.codeId"
         }
       },
       {
@@ -412,11 +211,7 @@
         "upstreamCapturePath": null,
         "proxyRequest": {
           "documentPath": "config/parity-requests/discounts/discount-bxgy-automatic-lifecycle-delete.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.discountAutomaticBxgyCreate.automaticDiscountNode.id"
-            }
-          }
+          "variablesCapturePath": "$.proxyRequests.automaticId"
         }
       }
     ]

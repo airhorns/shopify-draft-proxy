@@ -13,6 +13,10 @@ import {
   getStoredStorefrontAccessToken,
   getValidConformanceAccessToken,
 } from './shopify-conformance-auth.mjs';
+import {
+  captureDiscountUniquenessCheck,
+  type RecordedUpstreamCall,
+} from './support/shopify/runtime-hydration-capture.js';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -343,6 +347,7 @@ const deliveryProductVariables = {
 };
 const adminRecords: Record<string, GraphqlRecord> = {};
 const storefrontRecords: Record<string, GraphqlRecord> = {};
+const discountPrerequisiteCalls: RecordedUpstreamCall[] = [];
 const cleanup: GraphqlRecord[] = [];
 let productId: string | undefined;
 let deliveryProductId: string | undefined;
@@ -667,6 +672,14 @@ try {
     },
   ] as const;
   for (const discountInput of discountInputs) {
+    discountPrerequisiteCalls.push(
+      redactCartSecrets(
+        await captureDiscountUniquenessCheck(
+          (query, variables) => adminClient.runGraphqlRequest(query, variables),
+          discountInput.code,
+        ),
+      ) as RecordedUpstreamCall,
+    );
     const createdDiscount = await recordAdmin(
       discountInput.key,
       'StorefrontCartDiscountCreate',
@@ -1485,6 +1498,7 @@ const fixture = {
     adminRecords['adminStockLocationHydrate'],
     adminRecords['adminPublicationHydrate'],
     storefrontRecords['storefrontDeliveryContextHydrate'],
+    ...discountPrerequisiteCalls,
   ],
   notes: [
     'All Storefront documents and variables were sent exactly as recorded; live cart tokens and keys are replaced consistently in the checked-in artifact.',

@@ -8,6 +8,11 @@ import { createAdminGraphqlClient, type ConformanceGraphqlPayload } from './conf
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { assertDiscountConformanceScopes, probeDiscountConformanceScopes } from './discount-conformance-lib.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+import {
+  captureDiscountItemRefsHydrate,
+  captureDiscountUniquenessCheck,
+  type RecordedUpstreamCall,
+} from './support/shopify/runtime-hydration-capture.js';
 
 type ProductCreateData = {
   productCreate?: {
@@ -132,21 +137,6 @@ const discountDeleteMutation = `#graphql
   }
 `;
 
-const discountUniquenessQuery = `#graphql
-  query DiscountUniquenessCheck($code: String!) {
-    codeDiscountNodeByCode(code: $code) {
-      id
-    }
-  }
-`;
-
-async function readProductsHydrateNodesQuery(): Promise<string> {
-  // Shared verbatim with the Rust proxy's DISCOUNT_ITEM_REFS_HYDRATE_QUERY
-  // (src/proxy/discounts.rs include_str!) so the recorded ProductsHydrateNodes
-  // cassette matches the request the proxy forwards byte-for-byte.
-  return readFile('config/parity-requests/discounts/discount-item-refs-hydrate.graphql', 'utf8');
-}
-
 function assertNoUserErrors(label: string, userErrors: unknown): void {
   if (Array.isArray(userErrors) && userErrors.length > 0) {
     throw new Error(`${label} returned userErrors: ${JSON.stringify(userErrors)}`);
@@ -259,35 +249,18 @@ function inputCode(input: unknown): string {
   return code;
 }
 
-function shopifyGidTail(id: string): string {
-  return id.split('?')[0]?.split('/').at(-1) ?? id;
-}
-
-function compareShopifyResourceIds(left: string, right: string): number {
-  const leftTail = shopifyGidTail(left);
-  const rightTail = shopifyGidTail(right);
-  const leftNumeric = /^\d+$/.test(leftTail) ? BigInt(leftTail) : undefined;
-  const rightNumeric = /^\d+$/.test(rightTail) ? BigInt(rightTail) : undefined;
-  if (leftNumeric !== undefined && rightNumeric !== undefined && leftNumeric !== rightNumeric) {
-    return leftNumeric < rightNumeric ? -1 : 1;
-  }
-
-  return left.localeCompare(right);
-}
-
 await mkdir(outputDir, { recursive: true });
 
 const scopeProbe = await probeDiscountConformanceScopes(adminOptions);
 assertDiscountConformanceScopes(scopeProbe);
 
 const document = await readFile(requestPath, 'utf8');
-const productsHydrateNodesQuery = await readProductsHydrateNodesQuery();
 const stamp = Date.now();
 const cleanup: Array<() => Promise<unknown>> = [];
 const cleanupResponses: unknown[] = [];
 const setupProducts: ProductRecord[] = [];
 const setupCollections: CollectionRecord[] = [];
-const upstreamCalls: unknown[] = [];
+const upstreamCalls: RecordedUpstreamCall[] = [];
 let variables: Record<string, unknown> | undefined;
 let validationResponse: unknown;
 
@@ -381,9 +354,8 @@ try {
     }),
   };
 
-  const hydrationVariables = {
-    ids: [
-      'gid://shopify/Collection/0',
+  upstreamCalls.push(
+    await captureDiscountItemRefsHydrate(runGraphqlRaw, [
       collection.id,
       'gid://shopify/ProductVariant/999999999999',
       'gid://shopify/Collection/999999999999',
@@ -391,31 +363,11 @@ try {
       productOne.id,
       productTwo.id,
       productTwo.variantId,
-    ].sort(compareShopifyResourceIds),
-  };
-  const hydrateResponse = await runGraphqlRaw(productsHydrateNodesQuery, hydrationVariables);
-  upstreamCalls.push({
-    operationName: 'ProductsHydrateNodes',
-    variables: hydrationVariables,
-    query: productsHydrateNodesQuery,
-    response: {
-      status: hydrateResponse.status,
-      body: hydrateResponse.payload,
-    },
-  });
+    ]),
+  );
 
   for (const input of Object.values(variables)) {
-    const uniquenessVariables = { code: inputCode(input) };
-    const uniquenessResponse = await runGraphqlRaw(discountUniquenessQuery, uniquenessVariables);
-    upstreamCalls.push({
-      operationName: 'DiscountUniquenessCheck',
-      variables: uniquenessVariables,
-      query: discountUniquenessQuery,
-      response: {
-        status: uniquenessResponse.status,
-        body: uniquenessResponse.payload,
-      },
-    });
+    upstreamCalls.push(await captureDiscountUniquenessCheck(runGraphqlRaw, inputCode(input)));
   }
 
   validationResponse = (await runGraphqlRaw(document, variables)).payload;
