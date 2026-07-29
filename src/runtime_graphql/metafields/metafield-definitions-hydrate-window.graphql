@@ -1,0 +1,97 @@
+query MetafieldDefinitionsHydrateWindow(
+  $ownerType: MetafieldOwnerType!
+  $key: String
+  $namespace: String
+  $pinnedStatus: MetafieldDefinitionPinnedStatus!
+  $constraintSubtype: MetafieldDefinitionConstraintSubtypeIdentifier
+  $constraintStatus: MetafieldDefinitionConstraintStatus
+  $first: Int
+  $after: String
+  $last: Int
+  $before: String
+  $reverse: Boolean
+  $sortKey: MetafieldDefinitionSortKeys
+  $query: String
+) {
+  metafieldDefinitions(
+    ownerType: $ownerType
+    key: $key
+    namespace: $namespace
+    pinnedStatus: $pinnedStatus
+    constraintSubtype: $constraintSubtype
+    constraintStatus: $constraintStatus
+    first: $first
+    after: $after
+    last: $last
+    before: $before
+    reverse: $reverse
+    sortKey: $sortKey
+    query: $query
+  ) {
+    edges {
+      cursor
+      node {
+        id
+        name
+        namespace
+        key
+        ownerType
+        type {
+          name
+          category
+        }
+        description
+        validations {
+          name
+          value
+        }
+        access {
+          admin
+          storefront
+          customerAccount
+        }
+        capabilities {
+          adminFilterable {
+            enabled
+            eligible
+            status
+          }
+          smartCollectionCondition {
+            enabled
+            eligible
+          }
+          uniqueValues {
+            enabled
+            eligible
+          }
+        }
+        constraints {
+          key
+          values(first: 50) {
+            nodes {
+              value
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+              startCursor
+              endCursor
+            }
+          }
+        }
+        pinnedPosition
+        standardTemplate {
+          id
+        }
+        validationStatus
+        metafieldsCount
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}
