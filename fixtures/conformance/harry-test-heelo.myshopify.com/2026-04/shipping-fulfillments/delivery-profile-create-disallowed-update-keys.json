@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-06-30T14:12:29.664Z",
+  "capturedAt": "2026-07-28T05:13:21.995Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "evidence": {
@@ -82,7 +82,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1980,
+                "currentlyAvailable": 1988,
                 "restoreRate": 100
               }
             }
@@ -138,7 +138,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1980,
+                "currentlyAvailable": 1987,
                 "restoreRate": 100
               }
             }
@@ -150,7 +150,7 @@
       "query": "mutation DeliveryProfileCreateDisallowedUpdateKeys($profile: DeliveryProfileInput!) {\n    deliveryProfileCreate(profile: $profile) {\n      profile {\n        id\n        name\n        version\n        originLocationCount\n        zoneCountryCount\n        activeMethodDefinitionsCount\n        profileLocationGroups {\n          locationGroup {\n            id\n          }\n          locationGroupZones(first: 5) {\n            nodes {\n              zone {\n                id\n                name\n              }\n              methodDefinitions(first: 5) {\n                nodes {\n                  id\n                  name\n                  active\n                  rateProvider {\n                    ... on DeliveryRateDefinition {\n                      id\n                      price {\n                        amount\n                        currencyCode\n                      }\n                    }\n                  }\n                }\n              }\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
         "profile": {
-          "name": "Allowed method create 1782828749143",
+          "name": "Allowed method create 1785215601427",
           "locationGroupsToCreate": [
             {
               "locations": ["gid://shopify/Location/106318430514"],
@@ -187,8 +187,8 @@
           "data": {
             "deliveryProfileCreate": {
               "profile": {
-                "id": "gid://shopify/DeliveryProfile/132621041970",
-                "name": "Allowed method create 1782828749143",
+                "id": "gid://shopify/DeliveryProfile/133019042098",
+                "name": "Allowed method create 1785215601427",
                 "version": 1,
                 "originLocationCount": 1,
                 "zoneCountryCount": 1,
@@ -196,23 +196,23 @@
                 "profileLocationGroups": [
                   {
                     "locationGroup": {
-                      "id": "gid://shopify/DeliveryLocationGroup/134327763250"
+                      "id": "gid://shopify/DeliveryLocationGroup/134733922610"
                     },
                     "locationGroupZones": {
                       "nodes": [
                         {
                           "zone": {
-                            "id": "gid://shopify/DeliveryZone/585227010354",
+                            "id": "gid://shopify/DeliveryZone/586652647730",
                             "name": "Domestic"
                           },
                           "methodDefinitions": {
                             "nodes": [
                               {
-                                "id": "gid://shopify/DeliveryMethodDefinition/1106699845938",
+                                "id": "gid://shopify/DeliveryMethodDefinition/1118070047026",
                                 "name": "Standard",
                                 "active": true,
                                 "rateProvider": {
-                                  "id": "gid://shopify/DeliveryRateDefinition/1028425253170",
+                                  "id": "gid://shopify/DeliveryRateDefinition/1039586525490",
                                   "price": {
                                     "amount": "7.25",
                                     "currencyCode": "USD"
@@ -236,7 +236,7 @@
               "actualQueryCost": 18,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1972,
+                "currentlyAvailable": 1979,
                 "restoreRate": 100
               }
             }
@@ -249,7 +249,7 @@
     "removeCreatedProfile": {
       "query": "mutation DeliveryProfileCreateDisallowedUpdateKeysCleanup($id: ID!) {\n    deliveryProfileRemove(id: $id) {\n      job {\n        id\n        done\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
-        "id": "gid://shopify/DeliveryProfile/132621041970"
+        "id": "gid://shopify/DeliveryProfile/133019042098"
       },
       "result": {
         "status": 200,
@@ -257,7 +257,7 @@
           "data": {
             "deliveryProfileRemove": {
               "job": {
-                "id": "gid://shopify/Job/be0683e9-82d6-4f4a-987a-a30cbdf05f8f",
+                "id": "gid://shopify/Job/8f5632be-f545-4760-8ea4-e97cd0c155e7",
                 "done": false
               },
               "userErrors": []
@@ -285,31 +285,32 @@
   ],
   "upstreamCalls": [
     {
-      "operationName": "ShippingDeliveryProfileLocationsHydrate",
-      "variables": {},
-      "query": "query ShippingDeliveryProfileLocationsHydrate {\n    locationsAvailableForDeliveryProfilesConnection(first: 1) {\n      nodes {\n        id\n        name\n        isActive\n        isFulfillmentService\n      }\n    }\n  }",
+      "operationName": "ShippingDeliveryProfileLocationNodesHydrate",
+      "variables": {
+        "ids": ["gid://shopify/Location/106318430514"]
+      },
+      "query": "query ShippingDeliveryProfileLocationNodesHydrate($ids: [ID!]!) { nodes(ids: $ids) { __typename ... on Location { id name isActive isFulfillmentService } } }",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "locationsAvailableForDeliveryProfilesConnection": {
-              "nodes": [
-                {
-                  "id": "gid://shopify/Location/106318430514",
-                  "name": "Shop location",
-                  "isActive": true,
-                  "isFulfillmentService": false
-                }
-              ]
-            }
+            "nodes": [
+              {
+                "__typename": "Location",
+                "id": "gid://shopify/Location/106318430514",
+                "name": "Shop location",
+                "isActive": true,
+                "isFulfillmentService": false
+              }
+            ]
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 3,
-              "actualQueryCost": 3,
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1997,
+                "currentlyAvailable": 1999,
                 "restoreRate": 100
               }
             }

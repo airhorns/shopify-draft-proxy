@@ -85,6 +85,41 @@ fn ok_json(body: Value) -> Response {
     }
 }
 
+fn create_collection_handle(proxy: &mut DraftProxy, title: &str) -> String {
+    create_collection_handle_from_input(proxy, json!({ "title": title }))
+}
+
+fn create_collection_handle_from_input(proxy: &mut DraftProxy, input: Value) -> String {
+    let response = proxy.process_request(graphql_request(
+        r#"
+        mutation CollectionHandleCreate($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection {
+              id
+              title
+              handle
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        "#,
+        json!({ "input": input }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["collectionCreate"]["collection"]["handle"]
+        .as_str()
+        .expect("collectionCreate should return a handle")
+        .to_string()
+}
+
 fn dump(proxy: &mut DraftProxy) -> Value {
     let response = proxy.process_request(request(
         "POST",
@@ -1338,6 +1373,118 @@ fn top_level_collections_reflect_staged_collection_lifecycle() {
         delete_read.body["data"]["collectionsCount"],
         json!({ "count": 1, "precision": "EXACT" })
     );
+}
+
+#[test]
+fn collection_create_reserves_repeated_generated_handles() {
+    let mut proxy = snapshot_proxy();
+
+    assert_eq!(
+        [
+            create_collection_handle(&mut proxy, "Repeated Collection"),
+            create_collection_handle(&mut proxy, "Repeated Collection"),
+            create_collection_handle(&mut proxy, "Repeated Collection"),
+        ],
+        [
+            "repeated-collection",
+            "repeated-collection-1",
+            "repeated-collection-2",
+        ]
+    );
+
+    assert_eq!(
+        [
+            create_collection_handle(&mut proxy, "Repeated Collection 41"),
+            create_collection_handle(&mut proxy, "Repeated Collection 41"),
+            create_collection_handle(&mut proxy, "Repeated Collection 41"),
+        ],
+        [
+            "repeated-collection-41",
+            "repeated-collection-42",
+            "repeated-collection-43",
+        ]
+    );
+
+    assert_eq!(
+        [
+            create_collection_handle_from_input(
+                &mut proxy,
+                json!({ "title": "Explicit Collection", "handle": "explicit-collection-41" }),
+            ),
+            create_collection_handle_from_input(
+                &mut proxy,
+                json!({ "title": "Explicit Collection", "handle": "explicit-collection-41" }),
+            ),
+        ],
+        ["explicit-collection-41", "explicit-collection-1"],
+        "generated numeric-tail behavior must not broaden to explicit handles"
+    );
+}
+
+#[test]
+fn collection_create_reserves_handles_against_observed_and_staged_collections() {
+    let upstream_body = json!({
+        "data": {
+            "collection": {
+                "id": "gid://shopify/Collection/900",
+                "title": "Observed Collection 41",
+                "handle": "observed-collection-41"
+            }
+        }
+    });
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured_upstream_requests = Arc::clone(&upstream_requests);
+    let mut proxy = DraftProxy::new(Config {
+        read_mode: ReadMode::LiveHybrid,
+        unsupported_mutation_mode: Some(UnsupportedMutationMode::Passthrough),
+        bulk_operation_run_mutation_max_input_file_size_bytes: None,
+        port: 0,
+        shopify_admin_origin: "https://shopify.com".to_string(),
+        snapshot_path: None,
+    })
+    .with_upstream_transport({
+        let upstream_body = upstream_body.clone();
+        move |request| {
+            captured_upstream_requests.lock().unwrap().push(request);
+            ok_json(upstream_body.clone())
+        }
+    });
+
+    let observed = proxy.process_request(graphql_request(
+        r#"
+        query CollectionHandleObservedBase {
+          collection(id: "gid://shopify/Collection/900") {
+            id
+            title
+            handle
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(observed.status, 200);
+    assert_eq!(observed.body, upstream_body);
+
+    assert_eq!(
+        [
+            create_collection_handle(&mut proxy, "Observed Collection 41"),
+            create_collection_handle(&mut proxy, "Observed Collection 41"),
+        ],
+        ["observed-collection-42", "observed-collection-43"]
+    );
+    assert_eq!(upstream_requests.lock().unwrap().len(), 1);
+
+    let log = proxy.process_request(request("GET", "/__meta/log", ""));
+    let entries = log.body["entries"]
+        .as_array()
+        .expect("collection creates should be retained for commit replay");
+    assert_eq!(entries.len(), 2);
+    assert!(entries.iter().all(|entry| {
+        entry["rawBody"]
+            .as_str()
+            .is_some_and(|raw| raw.contains("CollectionHandleCreate"))
+            && entry["variables"]["input"]["title"] == json!("Observed Collection 41")
+    }));
 }
 
 #[test]

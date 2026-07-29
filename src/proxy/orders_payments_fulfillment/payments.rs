@@ -1,19 +1,109 @@
 use super::*;
 
-// Cold-order hydrate the proxy forwards on a `refundCreate` against an order it has
-// not yet staged. Extracted to a shared `.graphql` so the de-seeded refund capture
-// scripts can forward the byte-identical query (`readRequestRaw`) and record a
-// cassette that matches this `include_str!` const exactly.
+// Runtime-owned cold-order hydrate for `refundCreate`. Parity capture keeps a
+// separate byte-identical request for exact cassette replay.
 const REFUND_ORDER_HYDRATE_QUERY: &str =
-    include_str!("../../../config/parity-requests/orders/refund-order-hydrate.graphql");
-const PAYMENT_CUSTOMIZATION_HYDRATE_BY_ID_QUERY: &str = include_str!(
-    "../../../config/parity-requests/payments/payment-customization-hydrate-by-id.graphql"
+    include_str!("../../runtime_graphql/orders/refund-order-hydrate.graphql.raw");
+const PAYMENT_CUSTOMIZATION_HYDRATE_BY_ID_QUERY: &str =
+    include_str!("../../runtime_graphql/payments/payment-customization-hydrate-by-id.graphql");
+const PAYMENT_CUSTOMIZATION_HYDRATE_CATALOG_QUERY: &str =
+    include_str!("../../runtime_graphql/payments/payment-customization-hydrate-catalog.graphql");
+const ORDER_PAYMENT_TRANSACTION_HYDRATE_BY_ORDER_QUERY: &str = include_str!(
+    "../../runtime_graphql/payments/order-payment-transaction-hydrate-by-order.graphql"
 );
-const PAYMENT_CUSTOMIZATION_HYDRATE_CATALOG_QUERY: &str = include_str!(
-    "../../../config/parity-requests/payments/payment-customization-hydrate-catalog.graphql"
+const ORDER_PAYMENT_TRANSACTION_HYDRATE_BY_TRANSACTION_QUERY: &str = include_str!(
+    "../../runtime_graphql/payments/order-payment-transaction-hydrate-by-transaction.graphql"
 );
+// Runtime-owned manual-payment preflight documents. Parity capture keeps
+// separate byte-identical requests for exact cassette replay.
+const ORDER_CREATE_MANUAL_PAYMENT_CAPABILITY_QUERY: &str =
+    include_str!("../../runtime_graphql/payments/order-create-manual-payment-capability.graphql");
+const ORDER_CREATE_MANUAL_PAYMENT_CONTEXT_QUERY: &str =
+    include_str!("../../runtime_graphql/payments/order-create-manual-payment-context.graphql");
 const FINAL_CAPTURE_UNSUPPORTED_PAYMENT_PROVIDER_MESSAGE: &str =
     "Setting final capture is not supported for this transaction's payment gateway. Please remove the parameter or set it to null, then try again.";
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PaymentTransactionHydration {
+    Ready,
+    ConfirmedMissing,
+    Unresolved,
+}
+
+fn payment_money_set_is_complete(money_set: &Value) -> bool {
+    ["shopMoney", "presentmentMoney"].into_iter().all(|key| {
+        money_amount(money_set, key).is_some() && money_currency(money_set, key).is_some()
+    })
+}
+
+fn payment_transaction_context_is_complete(order: &Value) -> bool {
+    if !order["id"].is_string()
+        || !order["presentmentCurrencyCode"].is_string()
+        || !order["capturable"].is_boolean()
+        || !order["totalCapturable"].is_string()
+        || !order["paymentGatewayNames"].is_array()
+        || ![
+            "totalCapturableSet",
+            "totalOutstandingSet",
+            "totalReceivedSet",
+            "netPaymentSet",
+        ]
+        .into_iter()
+        .all(|key| payment_money_set_is_complete(&order[key]))
+    {
+        return false;
+    }
+    let Some(transactions) = order["transactions"].as_array() else {
+        return false;
+    };
+    transactions.iter().all(|transaction| {
+        transaction["id"].is_string()
+            && transaction["kind"].is_string()
+            && transaction["status"].is_string()
+            && transaction["gateway"].is_string()
+            && payment_money_set_is_complete(&transaction["amountSet"])
+            && transaction.get("parentTransaction").is_some_and(|parent| {
+                parent.is_null() || parent.get("id").is_some_and(Value::is_string)
+            })
+    })
+}
+
+pub(in crate::proxy) enum ReturnOrderHydration {
+    Resolved(Value),
+    ConfirmedMissing,
+    Unresolved(u16),
+}
+
+fn return_hydration_response_succeeded(response: &Response) -> bool {
+    response_is_success(response)
+        && response
+            .body
+            .get("errors")
+            .and_then(Value::as_array)
+            .is_none_or(Vec::is_empty)
+}
+
+fn return_hydration_failure_status(response: &Response) -> u16 {
+    if (200..300).contains(&response.status) {
+        502
+    } else {
+        response.status
+    }
+}
+
+fn return_order_has_fulfillment_line_item(order: &Value, id: &str) -> bool {
+    order["fulfillments"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .flat_map(|fulfillment| {
+            fulfillment["fulfillmentLineItems"]["nodes"]
+                .as_array()
+                .into_iter()
+                .flatten()
+        })
+        .any(|line| line["id"].as_str() == Some(id))
+}
 
 pub(in crate::proxy) fn order_currency(order: &Value, shop_currency_code: &str) -> String {
     [
@@ -467,34 +557,21 @@ fn capture_authorized_amount_error_text(amount: f64) -> String {
     format!("{:.2}", (amount * 100.0).round() / 100.0)
 }
 
-pub(in crate::proxy) fn next_refund_transaction_id(order: &Value, next: u64) -> (String, u64) {
-    let highest = order_transactions(order)
-        .iter()
-        .filter_map(|transaction| transaction["id"].as_str())
-        .map(resource_id_path_tail)
-        .filter_map(|tail| tail.parse::<u64>().ok())
-        .max()
-        .unwrap_or(0);
-    let number = next.max(highest + 1);
-    (shopify_gid("OrderTransaction", number), number + 1)
-}
-
 pub(in crate::proxy) fn build_refund_line_items(
     input: &BTreeMap<String, ResolvedValue>,
     order: &Value,
     shop_currency: &str,
     presentment_currency: &str,
-    next_refund_line_item_id: &mut u64,
+    refund_line_item_ids: Vec<String>,
 ) -> Vec<Value> {
     resolved_object_list_field(input, "refundLineItems")
-        .iter()
-        .map(|line_input| {
-            let id = shopify_gid("RefundLineItem", *next_refund_line_item_id);
-            *next_refund_line_item_id += 1;
-            let quantity = refund_line_item_quantity(line_input);
-            let restock_type = resolved_string_field(line_input, "restockType")
+        .into_iter()
+        .zip(refund_line_item_ids)
+        .map(|(line_input, id)| {
+            let quantity = refund_line_item_quantity(&line_input);
+            let restock_type = resolved_string_field(&line_input, "restockType")
                 .unwrap_or_else(|| "NO_RESTOCK".to_string());
-            let line_item_id = resolved_string_field(line_input, "lineItemId").unwrap_or_default();
+            let line_item_id = resolved_string_field(&line_input, "lineItemId").unwrap_or_default();
             let line = order_line_item_by_id(order, &line_item_id).unwrap_or(Value::Null);
             let subtotal = order_line_unit_amount(&line) * quantity as f64;
             json!({
@@ -846,6 +923,81 @@ const ORDER_CREATE_MANUAL_PAYMENT_REQUIRED_ACCESS: &str =
     "`write_orders` access scope. Also: The user must have mark_orders_as_paid permission. The API client must be installed on a Shopify Plus store to use the amount field.";
 const ORDER_CREATE_MANUAL_PAYMENT_ACCESS_DENIED_MESSAGE: &str =
     "Access denied for orderCreateManualPayment field. Required access: `write_orders` access scope. Also: The user must have mark_orders_as_paid permission. The API client must be installed on a Shopify Plus store to use the amount field.";
+const ORDER_CREATE_MANUAL_PAYMENT_CAPABILITY_UNAVAILABLE_MESSAGE: &str =
+    "Manual-payment capability could not be determined; no payment was staged.";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ManualPaymentCapability {
+    Eligible,
+    Ineligible,
+    Unresolved,
+}
+
+enum ManualPaymentOrderResolution {
+    Eligible(Value),
+    Ineligible,
+    Missing,
+    Unresolved,
+}
+
+fn manual_payment_capability(
+    shopify_plus: Option<bool>,
+    has_write_orders: Option<bool>,
+    amount_requires_plus: bool,
+) -> ManualPaymentCapability {
+    if has_write_orders == Some(false) || (amount_requires_plus && shopify_plus == Some(false)) {
+        return ManualPaymentCapability::Ineligible;
+    }
+    if has_write_orders == Some(true) && (!amount_requires_plus || shopify_plus == Some(true)) {
+        return ManualPaymentCapability::Eligible;
+    }
+    ManualPaymentCapability::Unresolved
+}
+
+fn manual_payment_request_write_orders_capability(request: &Request) -> Option<bool> {
+    request_header(request, ACCESS_SCOPES_HEADER).map(|scopes| {
+        scopes
+            .split(',')
+            .map(str::trim)
+            .any(|scope| scope == "write_orders")
+    })
+}
+
+fn manual_payment_response_write_orders_capability(response: &Response) -> Option<bool> {
+    response
+        .body
+        .pointer("/data/currentAppInstallation/accessScopes")
+        .and_then(Value::as_array)
+        .map(|scopes| {
+            scopes
+                .iter()
+                .any(|scope| scope.get("handle").and_then(Value::as_str) == Some("write_orders"))
+        })
+}
+
+fn manual_payment_amount_requires_plus(raw_arguments: &BTreeMap<String, RawArgumentValue>) -> bool {
+    !matches!(
+        raw_arguments.get("amount"),
+        None | Some(RawArgumentValue::Null)
+            | Some(RawArgumentValue::Variable { value: None, .. })
+            | Some(RawArgumentValue::Variable {
+                value: Some(ResolvedValue::Null),
+                ..
+            })
+    )
+}
+
+fn manual_payment_processed_at(value: &str) -> String {
+    time::OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339)
+        .ok()
+        .and_then(|timestamp| timestamp.replace_nanosecond(0).ok())
+        .and_then(|timestamp| {
+            timestamp
+                .format(&time::format_description::well_known::Rfc3339)
+                .ok()
+        })
+        .unwrap_or_else(|| value.to_string())
+}
 
 fn manual_payment_access_denied_outcome(
     root_location: SourceLocation,
@@ -857,6 +1009,20 @@ fn manual_payment_access_denied_outcome(
         vec![json!(response_key)],
         Some(ORDER_CREATE_MANUAL_PAYMENT_REQUIRED_ACCESS),
     );
+    ResolverOutcome::value(Value::Null)
+        .with_errors(root_field_errors_from_json(&[error], response_key))
+}
+
+fn manual_payment_capability_unavailable_outcome(
+    root_location: SourceLocation,
+    response_key: &str,
+) -> ResolverOutcome<Value> {
+    let error = json!({
+        "message": ORDER_CREATE_MANUAL_PAYMENT_CAPABILITY_UNAVAILABLE_MESSAGE,
+        "locations": [{ "line": root_location.line, "column": root_location.column }],
+        "extensions": { "code": "MANUAL_PAYMENT_CAPABILITY_UNAVAILABLE" },
+        "path": [response_key]
+    });
     ResolverOutcome::value(Value::Null)
         .with_errors(root_field_errors_from_json(&[error], response_key))
 }
@@ -1122,20 +1288,19 @@ impl DraftProxy {
         let presentment_currency = order_presentment_currency(&order, &shop_currency);
         let refund_amount = refund_input_total_amount(&input, &order);
         let shipping_refund_amount = refund_input_shipping_amount(&input, &order);
-        let refund_id = shopify_gid("Refund", self.store.staged.next_refund_id);
-        self.store.staged.next_refund_id += 1;
-        let mut next_line_item_id = self.store.staged.next_refund_line_item_id;
+        let refund_id = self.next_synthetic_gid("Refund");
+        let refund_line_item_ids = resolved_object_list_field(&input, "refundLineItems")
+            .iter()
+            .map(|_| self.next_synthetic_gid("RefundLineItem"))
+            .collect();
         let refund_line_items = build_refund_line_items(
             &input,
             &order,
             &shop_currency,
             &presentment_currency,
-            &mut next_line_item_id,
+            refund_line_item_ids,
         );
-        self.store.staged.next_refund_line_item_id = next_line_item_id;
-        let (transaction_id, next_transaction_id) =
-            next_refund_transaction_id(&order, self.store.staged.order_payment_next_transaction_id);
-        self.store.staged.order_payment_next_transaction_id = next_transaction_id;
+        let transaction_id = self.next_synthetic_gid("OrderTransaction");
         let refund_transactions = build_refund_transactions(
             &input,
             &order,
@@ -1200,20 +1365,48 @@ impl DraftProxy {
         }
     }
 
-    /// Hydrate the order a `returnCreate` / `returnRequest` runs against when it
-    /// was not created locally in this scenario. Forwards
-    /// `RETURN_ORDER_HYDRATE_QUERY` verbatim on a cold miss and observes the
-    /// order graph (fulfillment line items + any outstanding returns) into staged
-    /// state so the return engine validates against real store state rather than a
-    /// precondition seed. No-op when the order is already staged or reads are
-    /// snapshot-only.
-    pub(in crate::proxy) fn hydrate_order_for_return(&mut self, request: &Request, order_id: &str) {
-        if order_id.is_empty()
-            || self.staged_order_record_for_id(order_id).is_some()
-            || self.config.read_mode == ReadMode::Snapshot
-        {
-            return;
+    /// Resolve the bounded order evidence needed by `returnCreate` and
+    /// `returnRequest`. Successful query-only observations belong to base state,
+    /// never the staged write overlay. When a requested fulfillment line is not
+    /// in the bounded order slice, one batched Node query distinguishes a
+    /// globally confirmed miss from an existing line whose order relationship
+    /// remains unresolved.
+    pub(in crate::proxy) fn hydrate_order_for_return(
+        &mut self,
+        request: &Request,
+        order_id: &str,
+        requested_fulfillment_line_item_ids: &BTreeSet<String>,
+    ) -> ReturnOrderHydration {
+        if order_id.is_empty() {
+            return ReturnOrderHydration::ConfirmedMissing;
         }
+        if let Some(order) = self.staged_order_record_for_id(order_id) {
+            return ReturnOrderHydration::Resolved(order);
+        }
+        if self.config.read_mode == ReadMode::Snapshot {
+            return self
+                .store
+                .observed_order_by_id(order_id)
+                .cloned()
+                .map(ReturnOrderHydration::Resolved)
+                .unwrap_or(ReturnOrderHydration::ConfirmedMissing);
+        }
+        if self
+            .store
+            .base
+            .return_precondition_hydrated_order_ids
+            .contains(order_id)
+        {
+            if let Some(order) = self.store.observed_order_by_id(order_id).cloned() {
+                let all_requested_lines_observed = requested_fulfillment_line_item_ids
+                    .iter()
+                    .all(|id| return_order_has_fulfillment_line_item(&order, id));
+                if all_requested_lines_observed {
+                    return ReturnOrderHydration::Resolved(order);
+                }
+            }
+        }
+
         let response = self.upstream_post(
             request,
             json!({
@@ -1222,10 +1415,190 @@ impl DraftProxy {
                 "variables": { "id": order_id }
             }),
         );
-        let order = response.body["data"]["order"].clone();
-        if order.is_object() {
-            self.store.staged.orders.insert(order_id.to_string(), order);
+        if !return_hydration_response_succeeded(&response) {
+            return ReturnOrderHydration::Unresolved(return_hydration_failure_status(&response));
         }
+        let Some(order_value) = response.body.pointer("/data/order") else {
+            return ReturnOrderHydration::Unresolved(502);
+        };
+        if order_value.is_null() {
+            return ReturnOrderHydration::ConfirmedMissing;
+        }
+        if !order_value.is_object() {
+            return ReturnOrderHydration::Unresolved(502);
+        }
+        let mut order = order_value.clone();
+        normalize_hydrated_order(&mut order);
+
+        let missing_ids = requested_fulfillment_line_item_ids
+            .iter()
+            .filter(|id| !return_order_has_fulfillment_line_item(&order, id))
+            .cloned()
+            .collect::<Vec<_>>();
+        if !missing_ids.is_empty() {
+            let line_response = self.upstream_post(
+                request,
+                json!({
+                    "query": RETURN_FULFILLMENT_LINE_ITEMS_HYDRATE_QUERY,
+                    "operationName": "OrdersReturnFulfillmentLineItemsHydrate",
+                    "variables": { "ids": missing_ids.clone() }
+                }),
+            );
+            if !return_hydration_response_succeeded(&line_response) {
+                return ReturnOrderHydration::Unresolved(return_hydration_failure_status(
+                    &line_response,
+                ));
+            }
+            let Some(nodes) = line_response
+                .body
+                .pointer("/data/nodes")
+                .and_then(Value::as_array)
+            else {
+                return ReturnOrderHydration::Unresolved(502);
+            };
+            if nodes.len() != missing_ids.len() {
+                return ReturnOrderHydration::Unresolved(502);
+            }
+            for (node, expected_id) in nodes.iter().zip(&missing_ids) {
+                if node.is_null() {
+                    continue;
+                }
+                if node.get("__typename").and_then(Value::as_str) != Some("FulfillmentLineItem")
+                    || node.get("id").and_then(Value::as_str) != Some(expected_id)
+                {
+                    return ReturnOrderHydration::Unresolved(502);
+                }
+                // The requested line exists globally but the bounded order
+                // slice did not prove that it belongs to this order.
+                return ReturnOrderHydration::Unresolved(502);
+            }
+        }
+
+        self.store.observe_base_order(order.clone());
+        self.store
+            .base
+            .return_precondition_hydrated_order_ids
+            .insert(order_id.to_string());
+        ReturnOrderHydration::Resolved(order)
+    }
+
+    fn hydrate_order_for_payment_transaction(
+        &mut self,
+        request: &Request,
+        order_id: &str,
+    ) -> PaymentTransactionHydration {
+        if self.store.staged.orders.get(order_id).is_some() {
+            return PaymentTransactionHydration::Ready;
+        }
+        let observed_context_is_ready = self
+            .store
+            .observed_order_by_id(order_id)
+            .is_some_and(payment_transaction_context_is_complete);
+        if observed_context_is_ready {
+            return PaymentTransactionHydration::Ready;
+        }
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return PaymentTransactionHydration::Ready;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": ORDER_PAYMENT_TRANSACTION_HYDRATE_BY_ORDER_QUERY,
+                "operationName": "OrderPaymentTransactionHydrateByOrder",
+                "variables": { "id": order_id }
+            }),
+        );
+        if !response_is_success(&response)
+            || response.body["errors"]
+                .as_array()
+                .is_some_and(|errors| !errors.is_empty())
+        {
+            return PaymentTransactionHydration::Unresolved;
+        }
+        let Some(order) = response.body.pointer("/data/order") else {
+            return PaymentTransactionHydration::Unresolved;
+        };
+        let mut order = order.clone();
+        if order.is_null() {
+            return PaymentTransactionHydration::ConfirmedMissing;
+        }
+        if order.get("id").and_then(Value::as_str) != Some(order_id)
+            || !payment_transaction_context_is_complete(&order)
+        {
+            return PaymentTransactionHydration::Unresolved;
+        }
+        normalize_hydrated_order(&mut order);
+        self.store.observe_base_order(order);
+        PaymentTransactionHydration::Ready
+    }
+
+    fn hydrate_order_for_payment_transaction_id(
+        &mut self,
+        request: &Request,
+        transaction_id: &str,
+    ) -> PaymentTransactionHydration {
+        let staged_transaction_is_ready = self.store.staged.orders.values().any(|order| {
+            order_transactions(order)
+                .iter()
+                .any(|transaction| transaction["id"].as_str() == Some(transaction_id))
+        });
+        if staged_transaction_is_ready {
+            return PaymentTransactionHydration::Ready;
+        }
+        let already_observed = self.store.effective_orders().iter().any(|order| {
+            payment_transaction_context_is_complete(order)
+                && order_transactions(order)
+                    .iter()
+                    .any(|transaction| transaction["id"].as_str() == Some(transaction_id))
+        });
+        if already_observed {
+            return PaymentTransactionHydration::Ready;
+        }
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return PaymentTransactionHydration::Ready;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": ORDER_PAYMENT_TRANSACTION_HYDRATE_BY_TRANSACTION_QUERY,
+                "operationName": "OrderPaymentTransactionHydrateByTransaction",
+                "variables": { "id": transaction_id }
+            }),
+        );
+        if !response_is_success(&response)
+            || response.body["errors"]
+                .as_array()
+                .is_some_and(|errors| !errors.is_empty())
+        {
+            return PaymentTransactionHydration::Unresolved;
+        }
+        let Some(transaction) = response.body.pointer("/data/transaction") else {
+            return PaymentTransactionHydration::Unresolved;
+        };
+        if transaction.is_null() {
+            return PaymentTransactionHydration::ConfirmedMissing;
+        }
+        match transaction["__typename"].as_str() {
+            Some("OrderTransaction") => {}
+            Some(_) => return PaymentTransactionHydration::ConfirmedMissing,
+            None => return PaymentTransactionHydration::Unresolved,
+        }
+        if transaction["id"].as_str() != Some(transaction_id) {
+            return PaymentTransactionHydration::Unresolved;
+        }
+        let mut order = transaction["order"].clone();
+        let order_contains_transaction = order_transactions(&order)
+            .iter()
+            .any(|candidate| candidate["id"].as_str() == Some(transaction_id));
+        if order.get("id").and_then(Value::as_str).is_none()
+            || !order_contains_transaction
+            || !payment_transaction_context_is_complete(&order)
+        {
+            return PaymentTransactionHydration::Unresolved;
+        }
+        normalize_hydrated_order(&mut order);
+        self.store.observe_base_order(order);
+        PaymentTransactionHydration::Ready
     }
 
     pub(crate) fn payment_transaction_mutation_root(
@@ -1233,15 +1606,47 @@ impl DraftProxy {
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
         let arguments = resolved_arguments_from_json(&invocation.arguments);
-        let (value, staged_ids) = match invocation.root_name {
-            "orderCapture" => self.order_capture_payload(&arguments),
-            "transactionVoid" => self.transaction_void_payload(&arguments),
-            "orderCreateMandatePayment" => self.order_create_mandate_payment_payload(&arguments),
+        let hydration = match invocation.root_name {
+            "orderCapture" => {
+                let input = resolved_object_field(&arguments, "input").unwrap_or_default();
+                let order_id = resolved_string_field(&input, "id").unwrap_or_default();
+                self.hydrate_order_for_payment_transaction(invocation.request, &order_id)
+            }
+            "transactionVoid" => {
+                let transaction_id =
+                    resolved_string_field(&arguments, "parentTransactionId").unwrap_or_default();
+                self.hydrate_order_for_payment_transaction_id(invocation.request, &transaction_id)
+            }
+            "orderCreateMandatePayment" => PaymentTransactionHydration::Ready,
             root => {
                 return ResolverOutcome::error(format!(
                     "Unknown payment-transaction mutation root `{root}`"
                 ));
             }
+        };
+        if hydration == PaymentTransactionHydration::Unresolved {
+            return ResolverOutcome::error(
+                "Unable to hydrate payment transaction prerequisites from Shopify",
+            );
+        }
+        if hydration == PaymentTransactionHydration::ConfirmedMissing
+            && invocation.root_name == "orderCapture"
+        {
+            return ResolverOutcome::value(json!({
+                "transaction": Value::Null,
+                "order": Value::Null,
+                "userErrors": [user_error_omit_code(
+                    ["id"],
+                    "Order does not exist",
+                    None
+                )]
+            }));
+        }
+        let (value, staged_ids) = match invocation.root_name {
+            "orderCapture" => self.order_capture_payload(&arguments),
+            "transactionVoid" => self.transaction_void_payload(&arguments),
+            "orderCreateMandatePayment" => self.order_create_mandate_payment_payload(&arguments),
+            _ => unreachable!("payment transaction root validated before hydration"),
         };
         let mut outcome = ResolverOutcome::value(value);
         if !staged_ids.is_empty() {
@@ -1266,9 +1671,7 @@ impl DraftProxy {
                 None => {
                     let order = self
                         .store
-                        .staged
-                        .orders
-                        .get(&order_id)
+                        .observed_order_by_id(&order_id)
                         .cloned()
                         .unwrap_or(Value::Null);
                     (
@@ -1466,6 +1869,109 @@ impl DraftProxy {
         )
     }
 
+    fn resolve_manual_payment_order(
+        &mut self,
+        request: &Request,
+        order_id: &str,
+        amount_requires_plus: bool,
+    ) -> ManualPaymentOrderResolution {
+        let known_order = self.store.observed_order_by_id(order_id).cloned();
+        let known_shopify_plus = self
+            .store
+            .base
+            .shop
+            .pointer("/plan/shopifyPlus")
+            .and_then(Value::as_bool);
+        let known_write_orders = manual_payment_request_write_orders_capability(request);
+        let known_capability =
+            manual_payment_capability(known_shopify_plus, known_write_orders, amount_requires_plus);
+
+        if known_capability == ManualPaymentCapability::Ineligible {
+            return ManualPaymentOrderResolution::Ineligible;
+        }
+        if let Some(order) = known_order.clone() {
+            if known_capability == ManualPaymentCapability::Eligible {
+                return ManualPaymentOrderResolution::Eligible(order);
+            }
+        }
+        if self.config.read_mode == ReadMode::Snapshot {
+            return if known_capability == ManualPaymentCapability::Eligible {
+                ManualPaymentOrderResolution::Missing
+            } else {
+                ManualPaymentOrderResolution::Unresolved
+            };
+        }
+
+        let (operation_name, query, variables) = if known_order.is_some() {
+            (
+                "OrdersManualPaymentCapability",
+                ORDER_CREATE_MANUAL_PAYMENT_CAPABILITY_QUERY,
+                json!({}),
+            )
+        } else {
+            (
+                "OrdersManualPaymentContext",
+                ORDER_CREATE_MANUAL_PAYMENT_CONTEXT_QUERY,
+                json!({ "id": order_id }),
+            )
+        };
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": query,
+                "operationName": operation_name,
+                "variables": variables
+            }),
+        );
+        if !response_is_success(&response) {
+            return ManualPaymentOrderResolution::Unresolved;
+        }
+
+        if response.body["data"]["shop"].is_object() {
+            self.store.base.shop = shallow_merged_object(
+                self.store.base.shop.clone(),
+                response.body["data"]["shop"].clone(),
+            );
+        }
+        let shopify_plus = response
+            .body
+            .pointer("/data/shop/plan/shopifyPlus")
+            .and_then(Value::as_bool)
+            .or(known_shopify_plus);
+        let has_write_orders = known_write_orders
+            .or_else(|| manual_payment_response_write_orders_capability(&response));
+        let capability =
+            manual_payment_capability(shopify_plus, has_write_orders, amount_requires_plus);
+        if capability == ManualPaymentCapability::Ineligible {
+            return ManualPaymentOrderResolution::Ineligible;
+        }
+        let has_graphql_errors = response
+            .body
+            .get("errors")
+            .and_then(Value::as_array)
+            .is_some_and(|errors| !errors.is_empty());
+        if capability != ManualPaymentCapability::Eligible || has_graphql_errors {
+            return ManualPaymentOrderResolution::Unresolved;
+        }
+        if let Some(order) = known_order {
+            return ManualPaymentOrderResolution::Eligible(order);
+        }
+
+        let Some(order) = response.body["data"].get("order") else {
+            return ManualPaymentOrderResolution::Unresolved;
+        };
+        if order.is_null() {
+            return ManualPaymentOrderResolution::Missing;
+        }
+        if order.get("id").and_then(Value::as_str) != Some(order_id) {
+            return ManualPaymentOrderResolution::Unresolved;
+        }
+        let mut order = order.clone();
+        normalize_hydrated_order(&mut order);
+        self.store.observe_base_order(order.clone());
+        ManualPaymentOrderResolution::Eligible(order)
+    }
+
     pub(in crate::proxy) fn order_payment_transaction_local_outcome(
         &mut self,
         context: &OrderRootContext<'_>,
@@ -1537,11 +2043,35 @@ impl DraftProxy {
                         )],
                     )));
                 };
-                let Some(order_before) = self.store.staged.orders.get(&order_id).cloned() else {
-                    return Some(manual_payment_access_denied_outcome(
-                        root_location,
-                        response_key,
-                    ));
+                let amount_requires_plus =
+                    manual_payment_amount_requires_plus(context.raw_arguments);
+                let order_before = match self.resolve_manual_payment_order(
+                    request,
+                    &order_id,
+                    amount_requires_plus,
+                ) {
+                    ManualPaymentOrderResolution::Eligible(order) => order,
+                    ManualPaymentOrderResolution::Ineligible => {
+                        return Some(manual_payment_access_denied_outcome(
+                            root_location,
+                            response_key,
+                        ));
+                    }
+                    ManualPaymentOrderResolution::Missing => {
+                        return Some(ResolverOutcome::value(manual_payment_payload(
+                            Value::Null,
+                            vec![manual_payment_user_error(
+                                json!(["id"]),
+                                "Order does not exist",
+                            )],
+                        )));
+                    }
+                    ManualPaymentOrderResolution::Unresolved => {
+                        return Some(manual_payment_capability_unavailable_outcome(
+                            root_location,
+                            response_key,
+                        ));
+                    }
                 };
                 let (order, user_errors, staged_ids) =
                     self.stage_order_create_manual_payment(&order_id, &order_before, arguments);
@@ -1563,8 +2093,7 @@ impl DraftProxy {
         &mut self,
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let id = shopify_gid("Order", self.store.staged.next_order_id);
-        self.store.staged.next_order_id += 1;
+        let id = self.next_synthetic_gid("Order");
         let order_input = resolved_object_field(arguments, "order").unwrap_or_default();
         let transaction_inputs = resolved_object_list_field(&order_input, "transactions");
         let first_transaction = transaction_inputs.first().cloned().unwrap_or_default();
@@ -1859,6 +2388,7 @@ impl DraftProxy {
             .filter(|value| !value.trim().is_empty())
             .unwrap_or_else(|| "manual".to_string());
         let processed_at = resolved_string_field(arguments, "processedAt")
+            .map(|value| manual_payment_processed_at(&value))
             .unwrap_or_else(|| order_mutation_timestamp(self.mutation_log_ordinal() as u64));
         let mut transaction = payment_transaction_record_from_amount_set(
             &transaction_id,
@@ -1900,7 +2430,7 @@ impl DraftProxy {
             json!("PARTIALLY_PAID")
         };
         order["capturable"] = json!(false);
-        order["totalCapturable"] = json!("0.0");
+        order["totalCapturable"] = json!("0.00");
         order["totalCapturableSet"] =
             money_bag_from_amount(0.0, &shop_currency, &presentment_currency);
         order["totalOutstandingSet"] =
@@ -1940,31 +2470,24 @@ impl DraftProxy {
         let parent_id = resolved_string_field(input, "parentTransactionId");
         let final_capture_input = input.get("finalCapture");
         let final_capture = matches!(final_capture_input, Some(ResolvedValue::Bool(true)));
-        let order = self.store.staged.orders.get(order_id)?;
-        let transactions = order["transactions"]
-            .as_array()
-            .cloned()
-            .unwrap_or_default();
-        let parent_transaction = parent_id
-            .as_deref()
-            .and_then(|parent_id| {
-                transactions
-                    .iter()
-                    .find(|transaction| transaction["id"].as_str() == Some(parent_id))
-                    .cloned()
-            })
-            .or_else(|| {
-                transactions
-                    .iter()
-                    .find(|transaction| {
-                        transaction["kind"].as_str() == Some("AUTHORIZATION")
-                            && transaction["status"].as_str() == Some("SUCCESS")
-                    })
-                    .cloned()
-            });
+        let order = self.store.observed_order_by_id(order_id)?.clone();
+        let transactions = order_transactions(&order);
+        let parent_transaction = match parent_id.as_deref() {
+            Some(parent_id) => transactions
+                .iter()
+                .find(|transaction| transaction["id"].as_str() == Some(parent_id))
+                .cloned(),
+            None => transactions
+                .iter()
+                .find(|transaction| {
+                    transaction["kind"].as_str() == Some("AUTHORIZATION")
+                        && transaction["status"].as_str() == Some("SUCCESS")
+                })
+                .cloned(),
+        };
         let Some(parent_transaction) = parent_transaction else {
             return payment_capture_error(
-                order,
+                &order,
                 Value::Null,
                 "Unable to find parent transaction",
                 None,
@@ -1994,7 +2517,7 @@ impl DraftProxy {
             && currency.as_deref() != Some(expected_currency.as_str())
         {
             return payment_capture_error(
-                order,
+                &order,
                 json!(["currency"]),
                 format!("Currency Currency must match parent transaction {expected_currency}"),
                 None,
@@ -2002,7 +2525,7 @@ impl DraftProxy {
         }
         if requested_amount_value <= 0.0 {
             return payment_capture_error(
-                order,
+                &order,
                 Value::Null,
                 "Amount must be greater than zero for capture transactions",
                 None,
@@ -2012,9 +2535,9 @@ impl DraftProxy {
             || parent_transaction["status"].as_str() != Some("SUCCESS")
         {
             return payment_capture_error(
-                order,
-                json!(["parentTransactionId"]),
-                "Parent transaction must be a successful authorization",
+                &order,
+                Value::Null,
+                "Parent transaction should be a successful authorization",
                 None,
             );
         }
@@ -2022,7 +2545,7 @@ impl DraftProxy {
             && !payment_transaction_supports_final_capture(&parent_transaction)
         {
             return payment_capture_error(
-                order,
+                &order,
                 Value::Null,
                 FINAL_CAPTURE_UNSUPPORTED_PAYMENT_PROVIDER_MESSAGE,
                 None,
@@ -2042,12 +2565,20 @@ impl DraftProxy {
             .sum();
         let parent_amount = money_set_presentment_or_shop_amount_value(&parent_amount_set);
         let capturable_amount = (parent_amount - already_captured).max(0.0);
+        if capturable_amount <= 0.000_001 {
+            return payment_capture_error(
+                &order,
+                Value::Null,
+                "Can only capture successful authorizations",
+                None,
+            );
+        }
         if requested_amount_value > capturable_amount + 0.000_001 {
             let message = format!(
                 "Cannot capture more than the authorized {} for this payment.",
                 capture_authorized_amount_error_text(capturable_amount)
             );
-            return payment_capture_error(order, Value::Null, message, Some("OVER_CAPTURE"));
+            return payment_capture_error(&order, Value::Null, message, Some("OVER_CAPTURE"));
         }
         let remaining_amount = if final_capture {
             0.0
@@ -2071,9 +2602,11 @@ impl DraftProxy {
             payment_transaction_public_parent(&parent_transaction),
             &shop_currency_code,
         );
-        let order = self.store.staged.orders.get_mut(order_id)?;
+        let mut order = order;
         if let Some(transactions) = order["transactions"].as_array_mut() {
             transactions.push(transaction.clone());
+        } else {
+            order["transactions"] = json!([transaction.clone()]);
         }
         let (capturable_set, outstanding_set, received_set) = payment_money_set_for_order_totals(
             &parent_amount_set,
@@ -2092,9 +2625,13 @@ impl DraftProxy {
         order["totalOutstandingSet"] = outstanding_set;
         order["totalReceivedSet"] = received_set.clone();
         order["netPaymentSet"] = received_set;
+        self.store
+            .staged
+            .orders
+            .insert(order_id.to_string(), order.clone());
         Some((
             transaction.clone(),
-            order.clone(),
+            order,
             Vec::new(),
             vec![order_id.to_string(), transaction_id],
         ))
@@ -2104,23 +2641,14 @@ impl DraftProxy {
         &mut self,
         parent_id: &str,
     ) -> (Value, Vec<Value>, Vec<String>) {
-        let located = self
-            .store
-            .staged
-            .orders
-            .iter()
-            .find_map(|(order_id, order)| {
-                order["transactions"]
-                    .as_array()
-                    .and_then(|transactions| {
-                        transactions
-                            .iter()
-                            .find(|transaction| transaction["id"].as_str() == Some(parent_id))
-                            .cloned()
-                    })
-                    .map(|transaction| (order_id.clone(), order.clone(), transaction))
-            });
-        let Some((order_id, order, parent_transaction)) = located else {
+        let located = self.store.effective_orders().into_iter().find_map(|order| {
+            let order_id = order["id"].as_str()?.to_string();
+            let transaction = order_transactions(&order)
+                .into_iter()
+                .find(|transaction| transaction["id"].as_str() == Some(parent_id))?;
+            Some((order_id, order, transaction))
+        });
+        let Some((order_id, mut order, parent_transaction)) = located else {
             return (
                 Value::Null,
                 vec![user_error_omit_code(
@@ -2144,10 +2672,7 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
-        let transactions = order["transactions"]
-            .as_array()
-            .cloned()
-            .unwrap_or_default();
+        let transactions = order_transactions(&order);
         let has_successful_capture = transactions.iter().any(|transaction| {
             transaction["kind"].as_str() == Some("CAPTURE")
                 && transaction["status"].as_str() == Some("SUCCESS")
@@ -2172,41 +2697,31 @@ impl DraftProxy {
         let transaction_id = self.next_order_transaction_id();
         let amount_set = parent_transaction["amountSet"].clone();
         let shop_currency_code = self.store.shop_currency_code();
+        let void_amount_set = zero_order_money_set_like(&amount_set, &order, &shop_currency_code);
         let transaction = payment_transaction_record_from_amount_set(
             &transaction_id,
             "VOID",
             "SUCCESS",
             parent_transaction["gateway"].as_str().unwrap_or("manual"),
-            amount_set.clone(),
+            void_amount_set,
             payment_transaction_public_parent(&parent_transaction),
             &shop_currency_code,
         );
-        if let Some(order) = self.store.staged.orders.get_mut(&order_id) {
-            let shop_currency = money_currency(&amount_set, "shopMoney")
-                .unwrap_or_else(|| shop_currency_code.clone());
-            order["displayFinancialStatus"] = json!("VOIDED");
-            order["capturable"] = json!(false);
-            order["totalCapturable"] = json!("0.0");
-            if amount_set.get("presentmentMoney").is_some() {
-                let presentment_currency = money_currency(&amount_set, "presentmentMoney")
-                    .unwrap_or_else(|| shop_currency.clone());
-                order["totalCapturableSet"] =
-                    money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency);
-                order["totalOutstandingSet"] = amount_set.clone();
-                order["totalReceivedSet"] =
-                    money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency);
-                order["netPaymentSet"] =
-                    money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency);
-            } else {
-                order["totalCapturableSet"] = money_set("0.0", &shop_currency);
-                order["totalOutstandingSet"] = amount_set;
-                order["totalReceivedSet"] = money_set("0.0", &shop_currency);
-                order["netPaymentSet"] = money_set("0.0", &shop_currency);
-            }
-            if let Some(transactions) = order["transactions"].as_array_mut() {
-                transactions.push(transaction.clone());
-            }
+        order["displayFinancialStatus"] = json!("VOIDED");
+        order["capturable"] = json!(false);
+        order["totalCapturable"] = json!("0.0");
+        order["totalCapturableSet"] =
+            zero_order_money_set_like(&amount_set, &order, &shop_currency_code);
+        order["totalOutstandingSet"] = amount_set;
+        order["totalReceivedSet"] =
+            zero_order_money_set_like(&order["totalReceivedSet"], &order, &shop_currency_code);
+        order["netPaymentSet"] = order["totalReceivedSet"].clone();
+        if let Some(transactions) = order["transactions"].as_array_mut() {
+            transactions.push(transaction.clone());
+        } else {
+            order["transactions"] = json!([transaction.clone()]);
         }
+        self.store.staged.orders.insert(order_id.clone(), order);
         (transaction, Vec::new(), vec![order_id, transaction_id])
     }
 
@@ -2464,8 +2979,7 @@ impl DraftProxy {
             return payment_customization_error_payload(metafield_errors);
         }
 
-        let id = shopify_gid("PaymentCustomization", self.next_synthetic_id);
-        self.next_synthetic_id += 1;
+        let id = self.next_synthetic_gid("PaymentCustomization");
         let timestamp = self.next_mutation_timestamp();
         let record = payment_customization_record(
             &id,
@@ -2473,6 +2987,7 @@ impl DraftProxy {
             api_client_id,
             resolved_function.as_ref(),
             &timestamp,
+            &mut || self.next_synthetic_gid("Metafield"),
         );
         self.stage_payment_customization_record(record.clone());
         payment_customization_record_payload(&record)
@@ -2558,8 +3073,13 @@ impl DraftProxy {
         }
         if input.contains_key("metafields") {
             let timestamp = self.next_mutation_timestamp();
-            let metafields =
-                payment_customization_metafields(&input, api_client_id, &timestamp, Some(&updated));
+            let metafields = payment_customization_metafields(
+                &input,
+                api_client_id,
+                &timestamp,
+                Some(&updated),
+                &mut || self.next_synthetic_gid("Metafield"),
+            );
             payment_customization_set_metafields(&mut updated, metafields);
         }
         self.stage_payment_customization_record(updated.clone());

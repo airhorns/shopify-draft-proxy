@@ -8,7 +8,7 @@
     "productVariantDetachMedia"
   ],
   "scenarioStatus": "captured",
-  "assertionKinds": ["user-errors-parity", "mutation-no-write-parity"],
+  "assertionKinds": ["user-errors-parity", "mutation-no-write-parity", "downstream-read-parity"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-variant-media-validation.json"
   ],
@@ -500,7 +500,23 @@
         "name": "append-base-ready-media",
         "capturePath": "$.operations.appendBaseReadyMedia.response.data.productVariantAppendMedia",
         "proxyPath": "$.data.productVariantAppendMedia",
-        "selectedPaths": ["$.userErrors"],
+        "expectedDifferences": [
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Live Shopify and the local draft proxy allocate different disposable product ids."
+          },
+          {
+            "path": "$.productVariants[0].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Live Shopify and the local draft proxy allocate different default variant ids."
+          },
+          {
+            "path": "$.productVariants[0].media.nodes[0].id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "Live Shopify and the local draft proxy allocate different media ids."
+          }
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/product-variant-media-validation-append.graphql",
           "apiVersion": "2026-04",
@@ -521,6 +537,32 @@
                 ]
               }
             ]
+          }
+        }
+      },
+      {
+        "name": "read-after-append",
+        "capturePath": "$.operations.readAfterAppend.response.data.productVariant",
+        "proxyPath": "$.data.productVariant",
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Live Shopify and the local draft proxy allocate different default variant ids."
+          },
+          {
+            "path": "$.media.nodes[0].id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "Live Shopify and the local draft proxy allocate different media ids."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variant-media-validation-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "variantId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id"
+            }
           }
         }
       },
@@ -551,8 +593,63 @@
             ]
           }
         }
+      },
+      {
+        "name": "detach-base-ready-media",
+        "capturePath": "$.operations.detachBaseReadyMedia.response.data.productVariantDetachMedia",
+        "proxyPath": "$.data.productVariantDetachMedia",
+        "expectedDifferences": [
+          {
+            "path": "$.productVariants[0].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Live Shopify and the local draft proxy allocate different default variant ids."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variant-media-validation-detach.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "variantMedia": [
+              {
+                "variantId": {
+                  "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id"
+                },
+                "mediaIds": [
+                  {
+                    "fromProxyResponse": "create-base-ready-media",
+                    "path": "$.data.productCreateMedia.media[0].id"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "read-after-detach",
+        "capturePath": "$.operations.readAfterDetach.response.data.productVariant",
+        "proxyPath": "$.data.productVariant",
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Live Shopify and the local draft proxy allocate different default variant ids."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variant-media-validation-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "variantId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id"
+            }
+          }
+        }
       }
     ]
   },
-  "notes": "Captured validation branches for productVariantAppendMedia and productVariantDetachMedia. The replay earns product, variant, and media state through local productCreate/productCreateMedia/productUpdateMedia requests, including a declared EXTERNAL_VIDEO productCreateMedia branch that strictly compares captured mediaContentType and typed node __typename, then compares the captured userErrors for pair count, media count per pair, empty mediaIds lists, duplicate variants, invalid media type, cross-product variants, cross-product media, non-ready media, unattached detach targets, and appending to a variant that already has media. Live 2026-04 capture records field paths such as [\"variantMedia\"] and [\"variantMedia\",\"0\",\"mediaIds\"] for the guards."
+  "notes": "Captured lifecycle and validation branches for productVariantAppendMedia and productVariantDetachMedia. The replay earns product, variant, and media state through local productCreate/productCreateMedia/productUpdateMedia requests, including a declared EXTERNAL_VIDEO productCreateMedia branch that strictly compares captured mediaContentType and typed node __typename. It strictly compares the successful append payload and readback, the successful detach payload and readback, and captured userErrors for pair count, media count per pair, empty mediaIds lists, duplicate variants, invalid media type, cross-product variants, cross-product media, non-ready media, unattached detach targets, and appending to a variant that already has media. Live 2026-04 capture records field paths such as [\"variantMedia\"] and [\"variantMedia\",\"0\",\"mediaIds\"] for the guards."
 }

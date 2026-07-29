@@ -1,0 +1,30 @@
+query OrdersOrderEditHydrate($id: ID!) {
+  order(id: $id) {
+    id
+    name
+    merchantEditable
+    cancelledAt
+    cancelReason
+    displayFinancialStatus
+    lineItems(first: 50) {
+      nodes {
+        id
+        title
+        quantity
+        currentQuantity
+        sku
+        variant {
+          id
+          title
+          sku
+        }
+        originalUnitPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+  }
+}

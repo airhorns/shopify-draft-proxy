@@ -6,6 +6,9 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-lifecycle-validation.json"
   ],
+  "proxyConfig": {
+    "readMode": "snapshot"
+  },
   "proxyRequest": {
     "documentPath": "config/parity-requests/segments/segment-update-unknown-id-validation.graphql",
     "variablesCapturePath": "$.cases[2].variables"

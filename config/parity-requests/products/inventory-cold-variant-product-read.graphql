@@ -1,0 +1,15 @@
+query InventoryColdVariantProductRead($id: ID!) {
+  product(id: $id) {
+    id
+    totalInventory
+    variants(first: 5) {
+      nodes {
+        id
+        inventoryQuantity
+        inventoryItem {
+          id
+        }
+      }
+    }
+  }
+}

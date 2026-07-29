@@ -137,10 +137,7 @@ impl DraftProxy {
         if !errors.is_empty() {
             return payload_error("webPresence", errors);
         }
-        let id = shopify_gid(
-            "MarketWebPresence",
-            next_web_presence_numeric_id(&self.store.staged.web_presences),
-        );
+        let id = self.next_proxy_synthetic_gid("MarketWebPresence");
         draft.id = id.clone();
         let shop_domain = web_presence_shop_domain(&self.store);
         if linked_domain.is_none() && shop_domain.is_none() {

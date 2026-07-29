@@ -9,7 +9,7 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-relationship-roots.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-relationship-roots-mutation-preflight.json"
   ],
   "runtimeTestFiles": [
     "tests/integration/collection-draft-flow.test.ts",
@@ -98,5 +98,5 @@
       }
     ]
   },
-  "notes": "Product relationship roots replayable parity scenario captured against a disposable Shopify dev-store setup. The parity runner seeds the captured products, collection, and product media, then executes collection, option, and variant-media relationship roots through the local proxy and compares mutation payloads plus downstream read-after-write effects with strict JSON targets. Selling-plan product/variant association roots from the same capture are enforced by the dedicated selling-plan-product-variant-associations scenario."
+  "notes": "Product relationship roots replayable parity scenario captured against a disposable Shopify dev-store setup. The parity runner hydrates the captured products, collection, options, variants, and media through the same production upstream reads used by live-hybrid mutation handling, then compares mutation payloads plus downstream read-after-write effects with strict JSON targets. Selling-plan product/variant association roots remain enforced by the dedicated scenario backed by the legacy capture."
 }
