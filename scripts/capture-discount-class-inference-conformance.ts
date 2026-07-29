@@ -8,6 +8,12 @@ import { createAdminGraphqlClient } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { assertDiscountConformanceScopes, probeDiscountConformanceScopes } from './discount-conformance-lib.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+import {
+  captureDiscountItemRefsHydrate,
+  captureDiscountUniquenessCheck,
+  captureRuntimeHydrationCall,
+  type RecordedUpstreamCall,
+} from './support/shopify/runtime-hydration-capture.js';
 
 type GraphqlPayload = {
   data?: Record<string, unknown>;
@@ -39,6 +45,7 @@ const runId = Date.now();
 const titlePrefix = `HAR597CLASS${runId}`;
 const startsAt = new Date(Date.now() - 60_000).toISOString();
 const productQuery = `discount_class:product ${titlePrefix}`;
+const upstreamCalls: RecordedUpstreamCall[] = [];
 
 const userErrorsSelection = `#graphql
   userErrors {
@@ -402,6 +409,13 @@ try {
     },
   } satisfies Record<string, unknown>;
 
+  upstreamCalls.push(await captureDiscountItemRefsHydrate(runGraphqlRaw, [productId, bxgyBuyProductId, collectionId]));
+  for (const input of Object.values(createVariables)) {
+    const code = (input as { code?: unknown }).code;
+    if (typeof code !== 'string') throw new Error('Discount class inference input is missing its code.');
+    upstreamCalls.push(await captureDiscountUniquenessCheck(runGraphqlRaw, code));
+  }
+
   createResponse = await runGraphql(createMutation, createVariables);
   assertGraphqlSuccess(createResponse, 'discount class create');
   for (const alias of ['basicAll', 'basicProduct', 'basicCollection', 'bxgy', 'freeShipping']) {
@@ -412,6 +426,14 @@ try {
 
   const readProductClassVariables = { productQuery };
   readProductClassResponse = await readProductClassUntilIndexed(readProductClassVariables);
+  upstreamCalls.push(
+    await captureRuntimeHydrationCall({
+      operationName: 'DiscountClassInferenceRead',
+      query: readProductClassQuery,
+      variables: readProductClassVariables,
+      runGraphqlRequest: runGraphqlRaw,
+    }),
+  );
 
   cleanupResponse = await Promise.allSettled([...cleanup].reverse().map((run) => run()));
 
@@ -457,7 +479,7 @@ try {
       payload: readProductClassResponse,
     },
     cleanup: cleanupResponse,
-    upstreamCalls: [],
+    upstreamCalls,
   };
 
   await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`);
