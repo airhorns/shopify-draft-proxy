@@ -266,6 +266,29 @@ accepted payment terms, and later rapid attempts hit Shopify's order-create rate
 guard. The checked-in paid-update anchor is
 `config/parity-specs/payments/payment-terms-update-order-eligibility.json`.
 
+## Current: paymentTermsDelete has resolver-error precedence and needs schedule tombstones
+
+A cold-start 2026-04 capture against disposable DraftOrder-owned payment terms
+showed that `paymentTermsDelete` can resolve a persisted shop-owned target from
+only its full `PaymentTerms` GID. The proxy prerequisite is an exact query-only
+`node(id:)` read carrying the request's API version and auth context; the delete
+mutation itself remains local until explicit commit replay.
+
+The captured validation precedence is type-sensitive. A Shopify GID for a
+different resource returns a top-level `RESOURCE_NOT_FOUND` error with
+`Invalid id: <gid>` and a null mutation payload, without hydrating. An unknown
+but well-typed `PaymentTerms` GID hydrates to null and returns the payload-level
+`PAYMENT_TERMS_DELETE_UNSUCCESSFUL` / `Could not find payment terms.` userError.
+Neither failure changes staged state or appends a commit entry.
+
+Successful deletion must preserve more than owner detachment. Shopify returns
+the deleted terms GID, the owner's `paymentTerms` becomes null, and generic
+`node(id:)` reads for both the deleted `PaymentTerms` and its hydrated
+`PaymentSchedule` return null. Practical rule: retain explicit terms and
+schedule tombstones so base/hydrated records cannot reappear through node reads
+or meta dump/restore. The checked-in anchor is
+`config/parity-specs/payments/payment-terms-cold-delete.json`.
+
 ## Current: Draft-order percentage discounts accept negative values
 
 Admin GraphQL 2025-01 and 2026-04 probes against
@@ -4234,7 +4257,7 @@ Practical rule:
   deterministic public or approved disposable-store setup can leave a real
   incomplete relocation job observable through `locationActivate`
 
-## 91. Public 2026-04 Files API does not expose `MediaImage.references`
+## 91. File deletion cannot depend on `MediaImage.references`
 
 Admin GraphQL 2026-04 live capture against
 `harry-test-heelo.myshopify.com` recorded the runtime
@@ -4245,14 +4268,29 @@ Older checked-in 2025-01 cascade evidence has a successful
 `MediaImage.references(first:)` response for product/media/variant relationship
 hydration, so do not assume this field is stable across public API versions.
 
+A fresh 2025-01 mutation-first lifecycle capture started with an unobserved
+`MediaImage` attached to a product. A public `nodes(ids:)` File lookup hydrated
+the real target for both `fileAcknowledgeUpdateFailed` and `fileDelete`, and the
+immediate post-delete `product.media` read omitted the deleted file. The capture
+therefore supports target hydration and the downstream lifecycle result, but it
+does not make a bounded reverse-reference page authoritative for every owner.
+
 Practical rule:
 
 - media parity cassettes must store the exact hydrate query and exact Shopify
   response, including public schema errors when that is what the runtime query
   receives
-- future file-delete cascade improvements should prefer a public,
-  version-stable product/media hydration path over relying on
-  `MediaImage.references` in API versions where the field is not exposed
+- hydrate mutation-first file targets through public `nodes(ids:)` File fields
+  before returning not-found validation
+- treat the local file tombstone as the authoritative relationship exclusion:
+  clear known product/variant associations immediately, and filter the same ID
+  from owners observed after the delete
+- when a cold product must be materialized after a delete, exhaust its public
+  product-media, variants, and per-variant media connections before staging it;
+  never promote the first bounded page into a domain-complete owner graph
+- a cold top-level `productVariant(id:)` read after delete must likewise exhaust
+  that variant's media connection before filtering the tombstone; otherwise a
+  deleted file beyond the first page can reappear while unrelated media vanish
 
 ## 92. Public 2026-04 Files API selection boundaries for local replacement parity
 

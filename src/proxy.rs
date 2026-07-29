@@ -751,6 +751,8 @@ struct StagedState {
     mandate_payment_keys: BTreeSet<String>,
     payment_terms: BTreeMap<String, Value>,
     payment_terms_owner_index: BTreeMap<String, String>,
+    deleted_payment_terms_ids: BTreeSet<String>,
+    deleted_payment_schedule_ids: BTreeSet<String>,
     payment_reminder_schedule_ids: BTreeSet<String>,
     payment_customizations: BTreeMap<String, Value>,
     deleted_payment_customization_ids: BTreeSet<String>,
@@ -2098,7 +2100,12 @@ impl Store {
     }
 
     fn stage_observed_product_json(&mut self, value: &Value) {
-        if let Some(product) = product_state_from_json(value) {
+        let mut value = value.clone();
+        media_products_saved_searches::remove_media_ids_from_observed_product(
+            &mut value,
+            &self.staged.media_files.tombstones,
+        );
+        if let Some(product) = product_state_from_json(&value) {
             self.stage_observed_product(product);
         }
     }
@@ -2402,16 +2409,22 @@ impl Store {
         })
     }
 
-    fn stage_product_variant(&mut self, variant: ProductVariantRecord) {
+    fn stage_product_variant(&mut self, mut variant: ProductVariantRecord) {
+        variant
+            .media_ids
+            .retain(|id| !self.staged.media_files.is_tombstoned(id));
         self.product_variants
             .staged
             .stage(variant.id.clone(), variant);
     }
 
-    fn observe_base_product_variant(&mut self, variant: ProductVariantRecord) {
+    fn observe_base_product_variant(&mut self, mut variant: ProductVariantRecord) {
         if self.product_variants.staged.is_tombstoned(&variant.id) {
             return;
         }
+        variant
+            .media_ids
+            .retain(|id| !self.staged.media_files.is_tombstoned(id));
         self.product_variants
             .base
             .insert(variant.id.clone(), variant);
