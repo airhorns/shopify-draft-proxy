@@ -37,6 +37,7 @@ const FUNCTION_HYDRATE_BY_ID_QUERY: &str = "query FunctionHydrateById($id: Strin
 const FUNCTION_HYDRATE_BY_HANDLE_QUERY: &str = "query FunctionHydrateByHandle($handle: String!) {\n  shopifyFunctions(first: 1, handle: $handle) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n";
 const FUNCTION_VALIDATION_HYDRATE_BY_ID_QUERY: &str = "query FunctionValidationHydrateById($id: ID!) {\n  validation(id: $id) {\n    id\n    title\n    enabled\n    blockOnFailure\n    shopifyFunction {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n    metafields(first: 100) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        updatedAt\n      }\n    }\n  }\n}\n";
 const FUNCTION_CART_TRANSFORM_HYDRATE_BY_ID_QUERY: &str = "query FunctionCartTransformHydrateById($id: ID!) {\n  node(id: $id) {\n    ... on CartTransform {\n      id\n      functionId\n      blockOnFailure\n      metafields(first: 100) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n}\n";
+const FUNCTION_FULFILLMENT_CONSTRAINT_RULES_HYDRATE_QUERY: &str = "query FunctionFulfillmentConstraintRulesHydrate {\n  fulfillmentConstraintRules {\n    id\n    deliveryMethodTypes\n    function {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n    metafields(first: 100) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        compareDigest\n        ownerType\n        createdAt\n        updatedAt\n      }\n    }\n  }\n}\n";
 
 impl DraftProxy {
     pub(crate) fn functions_query_root(
@@ -266,6 +267,7 @@ impl DraftProxy {
     }
 
     fn fulfillment_constraint_rules_read_value(&self) -> Value {
+        let mut seen = BTreeSet::new();
         Value::Array(
             self.store
                 .base
@@ -278,6 +280,9 @@ impl DraftProxy {
                         .iter(),
                 )
                 .filter_map(|id| {
+                    if !seen.insert(id.clone()) {
+                        return None;
+                    }
                     if self
                         .store
                         .staged
@@ -401,6 +406,27 @@ impl DraftProxy {
                     .function_cart_transform
                     .as_ref()
                     .filter(|record| record.get("id").and_then(Value::as_str) == Some(id))
+            })
+    }
+
+    fn function_fulfillment_constraint_rule_by_id(&self, id: &str) -> Option<&Value> {
+        if self
+            .store
+            .staged
+            .deleted_function_fulfillment_constraint_rule_ids
+            .contains(id)
+        {
+            return None;
+        }
+        self.store
+            .staged
+            .function_fulfillment_constraint_rules
+            .get(id)
+            .or_else(|| {
+                self.store
+                    .base
+                    .function_fulfillment_constraint_rules
+                    .get(id)
             })
     }
 
@@ -966,6 +992,46 @@ impl DraftProxy {
         Some(validation)
     }
 
+    fn hydrate_function_fulfillment_constraint_rule_by_id(
+        &mut self,
+        request: &Request,
+        id: &str,
+    ) -> Option<Value> {
+        if self
+            .store
+            .staged
+            .deleted_function_fulfillment_constraint_rule_ids
+            .contains(id)
+        {
+            return None;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": FUNCTION_FULFILLMENT_CONSTRAINT_RULES_HYDRATE_QUERY,
+                "operationName": "FunctionFulfillmentConstraintRulesHydrate",
+                "variables": {}
+            }),
+        );
+        if !(200..300).contains(&response.status) || response.body.get("errors").is_some() {
+            return None;
+        }
+        let rules = response.body["data"]["fulfillmentConstraintRules"].clone();
+        if !rules.is_array() {
+            return None;
+        }
+        self.observe_function_root_value(
+            request,
+            "fulfillmentConstraintRules",
+            &BTreeMap::new(),
+            &rules,
+        );
+        self.store
+            .base
+            .function_fulfillment_constraint_rules
+            .get(id)
+            .cloned()
+    }
     fn hydrate_function_cart_transform_by_id(
         &mut self,
         request: &Request,
@@ -2162,6 +2228,7 @@ fn canonical_function_api_type(api_type: &str) -> String {
         | "cart.transform.run" => "CART_TRANSFORM".to_string(),
         "FULFILLMENT_CONSTRAINT_RULE"
         | "fulfillment_constraint_rule"
+        | "fulfillment_constraints"
         | "purchase.fulfillment-constraint-rule.run"
         | "cart.fulfillment-constraints.generate.run" => "FULFILLMENT_CONSTRAINT_RULE".to_string(),
         "DISCOUNT" | "discount" | "product_discounts" | "order_discounts"
@@ -2212,6 +2279,55 @@ fn function_belongs_to_request(function: &Value, request: &Request) -> bool {
             api_key == Some(caller_api_client_id) || app_id == Some(caller_api_client_id)
         }
     }
+}
+
+fn fulfillment_constraint_rule_update_needs_hydration(rule: &Value) -> bool {
+    let Some(function) = rule
+        .get("function")
+        .or_else(|| rule.get("shopifyFunction"))
+        .filter(|function| function.is_object())
+    else {
+        return true;
+    };
+    if ["id", "title", "handle", "apiType"]
+        .iter()
+        .any(|key| function.get(*key).and_then(Value::as_str).is_none())
+        || function.get("appKey").and_then(Value::as_str).is_none()
+    {
+        return true;
+    }
+    let Some(app) = function.get("app").filter(|app| app.is_object()) else {
+        return true;
+    };
+    if ["__typename", "id", "title", "handle", "apiKey"]
+        .iter()
+        .any(|key| app.get(*key).is_none())
+    {
+        return true;
+    }
+    let Some(metafields) = rule
+        .get("metafields")
+        .and_then(|metafields| metafields.get("nodes"))
+        .and_then(Value::as_array)
+    else {
+        return true;
+    };
+    let expected_metafield_fields = [
+        "id",
+        "namespace",
+        "key",
+        "type",
+        "value",
+        "compareDigest",
+        "ownerType",
+        "createdAt",
+        "updatedAt",
+    ];
+    metafields.iter().any(|metafield| {
+        expected_metafield_fields
+            .iter()
+            .any(|key| metafield.get(*key).is_none())
+    })
 }
 
 fn normalized_function_validation(mut validation: Value) -> Option<Value> {
@@ -3354,13 +3470,24 @@ impl DraftProxy {
         {
             return LocalMutationResult::no_stage(payload);
         }
-        let Some(mut rule) = self
-            .store
-            .staged
-            .function_fulfillment_constraint_rules
-            .get(&id)
-            .cloned()
-        else {
+        let mut rule = self
+            .function_fulfillment_constraint_rule_by_id(&id)
+            .cloned();
+        if self.config.read_mode != ReadMode::Snapshot
+            && rule
+                .as_ref()
+                .is_none_or(fulfillment_constraint_rule_update_needs_hydration)
+        {
+            if let Some(mut hydrated) =
+                self.hydrate_function_fulfillment_constraint_rule_by_id(request, &id)
+            {
+                if let Some(observed) = rule.as_ref() {
+                    merge_json_values(&mut hydrated, observed);
+                }
+                rule = Some(hydrated);
+            }
+        }
+        let Some(mut rule) = rule else {
             return LocalMutationResult::no_stage(payload_user_error(
                 FULFILLMENT_CONSTRAINT_RULE_FUNCTION_PAYLOAD.payload_key,
                 user_error(
@@ -3370,6 +3497,20 @@ impl DraftProxy {
                 ),
             ));
         };
+        if rule
+            .get("function")
+            .or_else(|| rule.get("shopifyFunction"))
+            .is_some_and(|function| !function_belongs_to_request(function, request))
+        {
+            return LocalMutationResult::no_stage(payload_user_error(
+                FULFILLMENT_CONSTRAINT_RULE_FUNCTION_PAYLOAD.payload_key,
+                user_error(
+                    ["id"],
+                    &format!("Could not find FulfillmentConstraintRule with id: {id}"),
+                    Some("NOT_FOUND"),
+                ),
+            ));
+        }
         if function_id.is_some() || function_handle.is_some() {
             let function = match function_resolution_payload(
                 self,

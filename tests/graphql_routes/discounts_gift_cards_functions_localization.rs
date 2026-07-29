@@ -732,7 +732,7 @@ fn test_function_metadata() -> Vec<Value> {
             "gid://shopify/ShopifyFunction/fulfillment-constraint-local",
             "Fulfillment Constraint Local",
             "fulfillment-constraint-local",
-            "FULFILLMENT_CONSTRAINT_RULE",
+            "fulfillment_constraints",
             "fulfillment-app-key",
             "fulfillment-app",
         ),
@@ -898,6 +898,7 @@ fn function_fulfillment_constraint_rule_proxy_with_hits(
                 "key": "config",
                 "type": "json",
                 "value": "{\"mode\":\"upstream\"}",
+                "compareDigest": "digest:upstream",
                 "ownerType": "FULFILLMENT_CONSTRAINT_RULE",
                 "createdAt": "2026-01-01T00:00:00Z",
                 "updatedAt": "2026-01-01T00:00:00Z"
@@ -9420,7 +9421,7 @@ fn functions_fulfillment_constraint_rules_stage_locally_and_read_after_write() {
         json!({
             "id": "gid://shopify/ShopifyFunction/fulfillment-constraint-local",
             "handle": "fulfillment-constraint-local",
-            "apiType": "FULFILLMENT_CONSTRAINT_RULE"
+            "apiType": "fulfillment_constraints"
         })
     );
     assert_eq!(
@@ -9463,7 +9464,7 @@ fn functions_fulfillment_constraint_rules_stage_locally_and_read_after_write() {
             "deliveryMethodTypes": ["SHIPPING", "LOCAL"],
             "function": {
                 "handle": "fulfillment-constraint-local",
-                "apiType": "FULFILLMENT_CONSTRAINT_RULE"
+                "apiType": "fulfillment_constraints"
             },
             "metafield": {
                 "namespace": "custom",
@@ -9618,7 +9619,7 @@ fn functions_fulfillment_constraint_rules_stage_locally_and_read_after_write() {
         rules[1]["function"],
         json!({
             "handle": "fulfillment-constraint-local",
-            "apiType": "FULFILLMENT_CONSTRAINT_RULE",
+            "apiType": "fulfillment_constraints",
             "app": { "apiKey": "fulfillment-app-key" }
         })
     );
@@ -9632,6 +9633,86 @@ fn functions_fulfillment_constraint_rules_stage_locally_and_read_after_write() {
                 .unwrap_or_default()
                 .contains("fulfillmentConstraintRules")),
         "post-stage read should hydrate upstream fulfillment constraint rules"
+    );
+    let update_base = upstream_proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateHydratedFulfillmentConstraintRule {
+          fulfillmentConstraintRuleUpdate(
+            id: "gid://shopify/FulfillmentConstraintRule/upstream-rule"
+            deliveryMethodTypes: [PICK_UP]
+          ) {
+            fulfillmentConstraintRule {
+              id
+              deliveryMethodTypes
+              function { id handle apiType app { apiKey } }
+              metafield(namespace: "custom", key: "config") {
+                id
+                namespace
+                key
+                type
+                value
+                ownerType
+              }
+            }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        update_base.body["data"]["fulfillmentConstraintRuleUpdate"],
+        json!({
+            "fulfillmentConstraintRule": {
+                "id": "gid://shopify/FulfillmentConstraintRule/upstream-rule",
+                "deliveryMethodTypes": ["PICK_UP"],
+                "function": {
+                    "id": "gid://shopify/ShopifyFunction/upstream-fulfillment-constraint",
+                    "handle": "upstream-fulfillment-constraint",
+                    "apiType": "FULFILLMENT_CONSTRAINT_RULE",
+                    "app": { "apiKey": "upstream-fulfillment-key" }
+                },
+                "metafield": {
+                    "id": "gid://shopify/Metafield/upstream-fulfillment-config",
+                    "namespace": "custom",
+                    "key": "config",
+                    "type": "json",
+                    "value": "{\"mode\":\"upstream\"}",
+                    "ownerType": "FULFILLMENT_CONSTRAINT_RULE"
+                }
+            },
+            "userErrors": []
+        })
+    );
+    let updated_read = upstream_proxy.process_request(json_graphql_request(
+        r#"
+        query ReadHydratedFulfillmentConstraintRuleAfterUpdate {
+          fulfillmentConstraintRules {
+            id
+            deliveryMethodTypes
+            function { handle }
+            metafield(namespace: "custom", key: "config") { value }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        updated_read.body["data"]["fulfillmentConstraintRules"]
+            .as_array()
+            .expect("updated fulfillment constraint rules should be a list")
+            .len(),
+        2,
+        "a staged overlay of a base rule must not duplicate the rule"
+    );
+    assert_eq!(
+        updated_read.body["data"]["fulfillmentConstraintRules"][0],
+        json!({
+            "id": "gid://shopify/FulfillmentConstraintRule/upstream-rule",
+            "deliveryMethodTypes": ["PICK_UP"],
+            "function": { "handle": "upstream-fulfillment-constraint" },
+            "metafield": { "value": "{\"mode\":\"upstream\"}" }
+        })
     );
     let delete_base = upstream_proxy.process_request(json_graphql_request(
         r#"
@@ -9731,6 +9812,189 @@ fn functions_fulfillment_constraint_rules_stage_locally_and_read_after_write() {
                 .unwrap_or_default()
                 .contains("fulfillmentConstraintRules")),
         "combined read opened by validation overlay should hydrate fulfillmentConstraintRules"
+    );
+}
+
+#[test]
+fn functions_fulfillment_constraint_rule_update_cold_hydrates_effective_state() {
+    let hydrate_requests = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy =
+        function_fulfillment_constraint_rule_proxy_with_hits(Arc::clone(&hydrate_requests));
+
+    let mut update_request = json_graphql_request(
+        r#"
+        mutation UpdateColdFulfillmentConstraintRule {
+          fulfillmentConstraintRuleUpdate(
+            id: "gid://shopify/FulfillmentConstraintRule/upstream-rule"
+            deliveryMethodTypes: [LOCAL, PICK_UP]
+          ) {
+            fulfillmentConstraintRule {
+              id
+              deliveryMethodTypes
+              function { id handle apiType appKey app { id apiKey } }
+              metafields(first: 10) {
+                nodes { id namespace key type value ownerType createdAt updatedAt }
+              }
+            }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    update_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "upstream-fulfillment-key".to_string(),
+    );
+    let update = proxy.process_request(update_request);
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["fulfillmentConstraintRuleUpdate"],
+        json!({
+            "fulfillmentConstraintRule": {
+                "id": "gid://shopify/FulfillmentConstraintRule/upstream-rule",
+                "deliveryMethodTypes": ["LOCAL", "PICK_UP"],
+                "function": {
+                    "id": "gid://shopify/ShopifyFunction/upstream-fulfillment-constraint",
+                    "handle": "upstream-fulfillment-constraint",
+                    "apiType": "FULFILLMENT_CONSTRAINT_RULE",
+                    "appKey": "upstream-fulfillment-key",
+                    "app": {
+                        "id": "gid://shopify/App/upstream-fulfillment-app",
+                        "apiKey": "upstream-fulfillment-key"
+                    }
+                },
+                "metafields": {
+                    "nodes": [{
+                        "id": "gid://shopify/Metafield/upstream-fulfillment-config",
+                        "namespace": "custom",
+                        "key": "config",
+                        "type": "json",
+                        "value": "{\"mode\":\"upstream\"}",
+                        "ownerType": "FULFILLMENT_CONSTRAINT_RULE",
+                        "createdAt": "2026-01-01T00:00:00Z",
+                        "updatedAt": "2026-01-01T00:00:00Z"
+                    }]
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let recorded_hydrate_requests = hydrate_requests.lock().unwrap();
+    assert_eq!(recorded_hydrate_requests.len(), 1);
+    assert_eq!(
+        recorded_hydrate_requests[0]["operationName"],
+        json!("FunctionFulfillmentConstraintRulesHydrate")
+    );
+    assert!(
+        recorded_hydrate_requests[0]["query"]
+            .as_str()
+            .unwrap_or_default()
+            .trim_start()
+            .starts_with("query "),
+        "the mutation prerequisite must be a read-only upstream request"
+    );
+    drop(recorded_hydrate_requests);
+
+    let mut foreign_update_request = json_graphql_request(
+        r#"
+        mutation RejectForeignFulfillmentConstraintRuleUpdate {
+          fulfillmentConstraintRuleUpdate(
+            id: "gid://shopify/FulfillmentConstraintRule/upstream-rule"
+            deliveryMethodTypes: [SHIPPING]
+          ) {
+            fulfillmentConstraintRule { id }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    foreign_update_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "foreign-app-key".to_string(),
+    );
+    let foreign_update = proxy.process_request(foreign_update_request);
+    assert_eq!(
+        foreign_update.body["data"]["fulfillmentConstraintRuleUpdate"],
+        json!({
+            "fulfillmentConstraintRule": null,
+            "userErrors": [{
+                "code": "NOT_FOUND",
+                "field": ["id"],
+                "message": "Could not find FulfillmentConstraintRule with id: gid://shopify/FulfillmentConstraintRule/upstream-rule"
+            }]
+        })
+    );
+    assert_eq!(
+        hydrate_requests.lock().unwrap().len(),
+        1,
+        "a foreign caller should be rejected from captured owner metadata without another hydrate"
+    );
+
+    let unknown = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateMissingFulfillmentConstraintRule {
+          fulfillmentConstraintRuleUpdate(
+            id: "gid://shopify/FulfillmentConstraintRule/definitely-missing"
+            deliveryMethodTypes: [SHIPPING]
+          ) {
+            fulfillmentConstraintRule { id }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        unknown.body["data"]["fulfillmentConstraintRuleUpdate"],
+        json!({
+            "fulfillmentConstraintRule": null,
+            "userErrors": [{
+                "code": "NOT_FOUND",
+                "field": ["id"],
+                "message": "Could not find FulfillmentConstraintRule with id: gid://shopify/FulfillmentConstraintRule/definitely-missing"
+            }]
+        })
+    );
+    assert_eq!(
+        hydrate_requests.lock().unwrap().len(),
+        2,
+        "an unresolved ID should receive its own read-only list hydrate"
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadColdFulfillmentConstraintRuleAfterUpdate {
+          fulfillmentConstraintRules {
+            id
+            deliveryMethodTypes
+            function { handle }
+            metafield(namespace: "custom", key: "config") { value }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["fulfillmentConstraintRules"],
+        json!([{
+            "id": "gid://shopify/FulfillmentConstraintRule/upstream-rule",
+            "deliveryMethodTypes": ["LOCAL", "PICK_UP"],
+            "function": { "handle": "upstream-fulfillment-constraint" },
+            "metafield": { "value": "{\"mode\":\"upstream\"}" }
+        }])
+    );
+    assert_eq!(
+        hydrate_requests.lock().unwrap().len(),
+        3,
+        "the downstream caller read should be forwarded once before applying the staged overlay"
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        1,
+        "only the successful hydrated update should enter commit replay"
     );
 }
 
@@ -9890,7 +10154,7 @@ fn functions_fulfillment_constraint_rule_reads_reject_fabricated_output_fields()
         "function": {
             "id": "gid://shopify/ShopifyFunction/fulfillment-constraint-local",
             "handle": "fulfillment-constraint-local",
-            "apiType": "FULFILLMENT_CONSTRAINT_RULE"
+            "apiType": "fulfillment_constraints"
         }
     });
     assert_eq!(valid.body["data"]["direct"][0], expected_rule);
