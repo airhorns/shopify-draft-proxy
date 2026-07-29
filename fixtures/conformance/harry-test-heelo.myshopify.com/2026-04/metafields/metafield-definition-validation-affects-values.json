@@ -201,11 +201,7 @@
           "metafields": [],
           "userErrors": [
             {
-              "field": [
-                "metafields",
-                "0",
-                "value"
-              ],
+              "field": ["metafields", "0", "value"],
               "message": "Value has a maximum length of 5.",
               "code": "INVALID_VALUE",
               "elementIndex": null
@@ -386,9 +382,7 @@
       "path": "/admin/api/2026-04/graphql.json",
       "operationName": "OwnerMetafieldsExistenceHydrate",
       "variables": {
-        "ids": [
-          "gid://shopify/Product/10252771918130"
-        ]
+        "ids": ["gid://shopify/Product/10252771918130"]
       },
       "query": "query OwnerMetafieldsExistenceHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n  }\n}\n",
       "response": {
@@ -3456,9 +3450,7 @@
       "path": "/admin/api/2026-04/graphql.json",
       "operationName": "OwnerMetafieldsHydrateNodes",
       "variables": {
-        "ids": [
-          "gid://shopify/Product/10252771918130"
-        ],
+        "ids": ["gid://shopify/Product/10252771918130"],
         "metafield0Namespace": "validation_affects_ms5m5dls",
         "metafield0Key": "headline"
       },

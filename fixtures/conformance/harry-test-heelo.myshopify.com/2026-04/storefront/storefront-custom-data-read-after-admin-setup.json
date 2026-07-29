@@ -604,9 +604,7 @@
                 "key": "related",
                 "type": "list.metaobject_reference",
                 "value": "[\"gid://shopify/Metaobject/209225679154\"]",
-                "jsonValue": [
-                  "gid://shopify/Metaobject/209225679154"
-                ]
+                "jsonValue": ["gid://shopify/Metaobject/209225679154"]
               }
             ]
           },
@@ -1125,9 +1123,7 @@
       "path": "/admin/api/2026-04/graphql.json",
       "operationName": "OwnerMetafieldsExistenceHydrate",
       "variables": {
-        "ids": [
-          "gid://shopify/Shop/92891250994"
-        ]
+        "ids": ["gid://shopify/Shop/92891250994"]
       },
       "query": "query OwnerMetafieldsExistenceHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n  }\n}\n",
       "response": {
@@ -1315,9 +1311,7 @@
       "path": "/admin/api/2026-04/graphql.json",
       "operationName": "OwnerMetafieldsHydrateNodes",
       "variables": {
-        "ids": [
-          "gid://shopify/Shop/92891250994"
-        ],
+        "ids": ["gid://shopify/Shop/92891250994"],
         "metafield0Namespace": "sfc_20260729045747",
         "metafield0Key": "visible",
         "metafield1Namespace": "sfc_20260729045747",

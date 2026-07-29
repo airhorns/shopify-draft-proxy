@@ -541,9 +541,7 @@
             "updatedDefinition": null,
             "userErrors": [
               {
-                "field": [
-                  "definition"
-                ],
+                "field": ["definition"],
                 "message": "Definition not found.",
                 "code": "NOT_FOUND"
               }
@@ -630,9 +628,7 @@
             "updatedDefinition": null,
             "userErrors": [
               {
-                "field": [
-                  "definition"
-                ],
+                "field": ["definition"],
                 "message": "Definition not found.",
                 "code": "NOT_FOUND"
               }
@@ -719,9 +715,7 @@
             "updatedDefinition": null,
             "userErrors": [
               {
-                "field": [
-                  "definition"
-                ],
+                "field": ["definition"],
                 "message": "Definition not found.",
                 "code": "NOT_FOUND"
               }
@@ -845,409 +839,301 @@
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/1",
               "namespace": "descriptors",
               "key": "subtitle",
-              "ownerTypes": [
-                "PRODUCT",
-                "PRODUCTVARIANT"
-              ]
+              "ownerTypes": ["PRODUCT", "PRODUCTVARIANT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/2",
               "namespace": "descriptors",
               "key": "care_guide",
-              "ownerTypes": [
-                "PRODUCT",
-                "PRODUCTVARIANT"
-              ]
+              "ownerTypes": ["PRODUCT", "PRODUCTVARIANT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/3",
               "namespace": "facts",
               "key": "isbn",
-              "ownerTypes": [
-                "PRODUCT",
-                "PRODUCTVARIANT"
-              ]
+              "ownerTypes": ["PRODUCT", "PRODUCTVARIANT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/4",
               "namespace": "facts",
               "key": "upc",
-              "ownerTypes": [
-                "PRODUCT",
-                "PRODUCTVARIANT"
-              ]
+              "ownerTypes": ["PRODUCT", "PRODUCTVARIANT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/5",
               "namespace": "facts",
               "key": "ean",
-              "ownerTypes": [
-                "PRODUCT",
-                "PRODUCTVARIANT"
-              ]
+              "ownerTypes": ["PRODUCT", "PRODUCTVARIANT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/14",
               "namespace": "shopify--discovery--product_recommendation",
               "key": "related_products",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/15",
               "namespace": "shopify--discovery--product_recommendation",
               "key": "related_products_display",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/16",
               "namespace": "shopify--discovery--product_search_boost",
               "key": "queries",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/17",
               "namespace": "shopify--discovery--product_recommendation",
               "key": "complementary_products",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/19",
               "namespace": "facts",
               "key": "birth_date",
-              "ownerTypes": [
-                "CUSTOMER"
-              ]
+              "ownerTypes": ["CUSTOMER"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/20",
               "namespace": "import_information",
               "key": "trade_item_description",
-              "ownerTypes": [
-                "PRODUCT",
-                "PRODUCTVARIANT"
-              ]
+              "ownerTypes": ["PRODUCT", "PRODUCTVARIANT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/21",
               "namespace": "import_information",
               "key": "product_transport_declaration",
-              "ownerTypes": [
-                "PRODUCT",
-                "PRODUCTVARIANT"
-              ]
+              "ownerTypes": ["PRODUCT", "PRODUCTVARIANT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/22",
               "namespace": "shopify--facts",
               "key": "mpn",
-              "ownerTypes": [
-                "PRODUCT",
-                "PRODUCTVARIANT"
-              ]
+              "ownerTypes": ["PRODUCT", "PRODUCTVARIANT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/27",
               "namespace": "shopify",
               "key": "external_url",
-              "ownerTypes": [
-                "PRODUCTVARIANT"
-              ]
+              "ownerTypes": ["PRODUCTVARIANT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/28",
               "namespace": "shopify",
               "key": "disclosure",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/29",
               "namespace": "shopify",
               "key": "unavailable_reason",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10001",
               "namespace": "shopify",
               "key": "color-pattern",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10004",
               "namespace": "shopify",
               "key": "material",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10005",
               "namespace": "shopify",
               "key": "activity",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10015",
               "namespace": "shopify",
               "key": "sleeve-length-type",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10017",
               "namespace": "shopify",
               "key": "cup-size",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10030",
               "namespace": "shopify",
               "key": "age-group",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10032",
               "namespace": "shopify",
               "key": "neckline",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10035",
               "namespace": "shopify",
               "key": "fit",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10037",
               "namespace": "shopify",
               "key": "waist-rise",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10041",
               "namespace": "shopify",
               "key": "best-uses",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10050",
               "namespace": "shopify",
               "key": "accessory-size",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10060",
               "namespace": "shopify",
               "key": "jewelry-type",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10073",
               "namespace": "shopify",
               "key": "shape",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10077",
               "namespace": "shopify",
               "key": "lens-polarization",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10080",
               "namespace": "shopify",
               "key": "closure-type",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10087",
               "namespace": "shopify",
               "key": "shoe-size",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10098",
               "namespace": "shopify",
               "key": "chain-link-type",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10105",
               "namespace": "shopify",
               "key": "ring-size",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10108",
               "namespace": "shopify",
               "key": "clasp-type",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10114",
               "namespace": "shopify",
               "key": "band-color",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10115",
               "namespace": "shopify",
               "key": "band-material",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10116",
               "namespace": "shopify",
               "key": "case-color",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10118",
               "namespace": "shopify",
               "key": "dial-color",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10128",
               "namespace": "shopify",
               "key": "heel-height-type",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10131",
               "namespace": "shopify",
               "key": "temple-color",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10134",
               "namespace": "shopify",
               "key": "theme",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10837",
               "namespace": "shopify",
               "key": "target-gender",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10843",
               "namespace": "shopify",
               "key": "usage-type",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10844",
               "namespace": "shopify",
               "key": "attachment-options",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10845",
               "namespace": "shopify",
               "key": "device-interface",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10846",
               "namespace": "shopify",
               "key": "shoe-fit",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10847",
               "namespace": "shopify",
               "key": "toe-style",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10894",
               "namespace": "shopify",
               "key": "absorbency-level",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             },
             {
               "id": "gid://shopify/StandardMetafieldDefinitionTemplate/11178",
               "namespace": "shopify",
               "key": "pants-length-type",
-              "ownerTypes": [
-                "PRODUCT"
-              ]
+              "ownerTypes": ["PRODUCT"]
             }
           ]
         },
@@ -1262,9 +1148,7 @@
                 "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10001",
                 "namespace": "shopify",
                 "key": "color-pattern",
-                "ownerTypes": [
-                  "PRODUCT"
-                ]
+                "ownerTypes": ["PRODUCT"]
               }
             },
             {
@@ -1276,9 +1160,7 @@
                 "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10004",
                 "namespace": "shopify",
                 "key": "material",
-                "ownerTypes": [
-                  "PRODUCT"
-                ]
+                "ownerTypes": ["PRODUCT"]
               }
             }
           ]
@@ -4525,9 +4407,7 @@
       "path": "/admin/api/2026-04/graphql.json",
       "operationName": "OwnerMetafieldsExistenceHydrate",
       "variables": {
-        "ids": [
-          "gid://shopify/Product/10252771721522"
-        ]
+        "ids": ["gid://shopify/Product/10252771721522"]
       },
       "query": "query OwnerMetafieldsExistenceHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n  }\n}\n",
       "response": {
@@ -4561,9 +4441,7 @@
       "path": "/admin/api/2026-04/graphql.json",
       "operationName": "OwnerMetafieldsHydrateNodes",
       "variables": {
-        "ids": [
-          "gid://shopify/Product/10252771721522"
-        ],
+        "ids": ["gid://shopify/Product/10252771721522"],
         "metafield0Namespace": "metafield_precondition_ms5m4ftz_delete_without_flag",
         "metafield0Key": "tier"
       },
@@ -4641,9 +4519,7 @@
       "path": "/admin/api/2026-04/graphql.json",
       "operationName": "OwnerMetafieldsExistenceHydrate",
       "variables": {
-        "ids": [
-          "gid://shopify/Product/10252771852594"
-        ]
+        "ids": ["gid://shopify/Product/10252771852594"]
       },
       "query": "query OwnerMetafieldsExistenceHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n  }\n}\n",
       "response": {
@@ -4677,9 +4553,7 @@
       "path": "/admin/api/2026-04/graphql.json",
       "operationName": "OwnerMetafieldsHydrateNodes",
       "variables": {
-        "ids": [
-          "gid://shopify/Product/10252771852594"
-        ],
+        "ids": ["gid://shopify/Product/10252771852594"],
         "metafield0Namespace": "metafield_precondition_ms5m4ftz_delete_false_flag",
         "metafield0Key": "tier"
       },
@@ -4757,9 +4631,7 @@
       "path": "/admin/api/2026-04/graphql.json",
       "operationName": "OwnerMetafieldsExistenceHydrate",
       "variables": {
-        "ids": [
-          "gid://shopify/Product/10252771885362"
-        ]
+        "ids": ["gid://shopify/Product/10252771885362"]
       },
       "query": "query OwnerMetafieldsExistenceHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n  }\n}\n",
       "response": {
@@ -4793,9 +4665,7 @@
       "path": "/admin/api/2026-04/graphql.json",
       "operationName": "OwnerMetafieldsHydrateNodes",
       "variables": {
-        "ids": [
-          "gid://shopify/Product/10252771885362"
-        ],
+        "ids": ["gid://shopify/Product/10252771885362"],
         "metafield0Namespace": "metafield_precondition_ms5m4ftz_delete_with_flag",
         "metafield0Key": "tier"
       },

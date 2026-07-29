@@ -629,81 +629,49 @@
             "metafields": [],
             "userErrors": [
               {
-                "field": [
-                  "metafields",
-                  "0",
-                  "value"
-                ],
+                "field": ["metafields", "0", "value"],
                 "message": "Value has a minimum of 2.",
                 "code": "INVALID_VALUE",
                 "elementIndex": null
               },
               {
-                "field": [
-                  "metafields",
-                  "1",
-                  "value"
-                ],
+                "field": ["metafields", "1", "value"],
                 "message": "Value has a maximum of 5.",
                 "code": "INVALID_VALUE",
                 "elementIndex": null
               },
               {
-                "field": [
-                  "metafields",
-                  "2",
-                  "value"
-                ],
+                "field": ["metafields", "2", "value"],
                 "message": "Value is not the correct format.",
                 "code": "INVALID_VALUE",
                 "elementIndex": null
               },
               {
-                "field": [
-                  "metafields",
-                  "3",
-                  "value"
-                ],
+                "field": ["metafields", "3", "value"],
                 "message": "Value does not exist in provided choices: [\"red\", \"blue\"].",
                 "code": "INVALID_VALUE",
                 "elementIndex": null
               },
               {
-                "field": [
-                  "metafields",
-                  "4",
-                  "value"
-                ],
+                "field": ["metafields", "4", "value"],
                 "message": "Value min and max on the rating value must be the same as the min and max on the definition.",
                 "code": "INVALID_VALUE",
                 "elementIndex": null
               },
               {
-                "field": [
-                  "metafields",
-                  "5",
-                  "value"
-                ],
+                "field": ["metafields", "5", "value"],
                 "message": "Value has a maximum of 2026-12-31.",
                 "code": "INVALID_VALUE",
                 "elementIndex": null
               },
               {
-                "field": [
-                  "metafields",
-                  "6",
-                  "value"
-                ],
+                "field": ["metafields", "6", "value"],
                 "message": "Value has a maximum of 2026-12-31 23:59:59 +0000.",
                 "code": "INVALID_VALUE",
                 "elementIndex": null
               },
               {
-                "field": [
-                  "metafields",
-                  "7",
-                  "value"
-                ],
+                "field": ["metafields", "7", "value"],
                 "message": "Value must belong to the specified metaobject definition gid://shopify/MetaobjectDefinition/20183449906.",
                 "code": "INVALID_VALUE",
                 "elementIndex": null
@@ -1525,9 +1493,7 @@
       "path": "/admin/api/2025-01/graphql.json",
       "operationName": "OwnerMetafieldsExistenceHydrate",
       "variables": {
-        "ids": [
-          "gid://shopify/Product/10252771361074"
-        ]
+        "ids": ["gid://shopify/Product/10252771361074"]
       },
       "query": "query OwnerMetafieldsExistenceHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n  }\n}\n",
       "response": {
@@ -1558,9 +1524,7 @@
     {
       "operationName": "OwnerMetafieldsHydrateNodes",
       "variables": {
-        "ids": [
-          "gid://shopify/Product/10252771361074"
-        ]
+        "ids": ["gid://shopify/Product/10252771361074"]
       },
       "query": "query OwnerMetafieldsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { __typename id ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Collection { id title handle metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Customer { id displayName email metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Order { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Company { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } } }",
       "response": {
@@ -5002,9 +4966,7 @@
       "query": "query OwnerMetafieldsHydrateNodes($ids: [ID!]!, $metafield0Namespace: String!, $metafield0Key: String!, $metafield1Namespace: String!, $metafield1Key: String!, $metafield2Namespace: String!, $metafield2Key: String!, $metafield3Namespace: String!, $metafield3Key: String!, $metafield4Namespace: String!, $metafield4Key: String!, $metafield5Namespace: String!, $metafield5Key: String!, $metafield6Namespace: String!, $metafield6Key: String!, $metafield7Namespace: String!, $metafield7Key: String!) { nodes(ids: $ids) { __typename id ... on HasMetafields { metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } metafield1: metafield(namespace: $metafield1Namespace, key: $metafield1Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } metafield2: metafield(namespace: $metafield2Namespace, key: $metafield2Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } metafield3: metafield(namespace: $metafield3Namespace, key: $metafield3Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } metafield4: metafield(namespace: $metafield4Namespace, key: $metafield4Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } metafield5: metafield(namespace: $metafield5Namespace, key: $metafield5Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } metafield6: metafield(namespace: $metafield6Namespace, key: $metafield6Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } metafield7: metafield(namespace: $metafield7Namespace, key: $metafield7Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } } ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt  } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } } ... on Collection { id title handle } ... on Customer { id displayName email } ... on Order { id name } ... on Company { id name } ... on Page { id title } ... on Article { id title } } }",
       "operationName": "OwnerMetafieldsHydrateNodes",
       "variables": {
-        "ids": [
-          "gid://shopify/Product/10252771361074"
-        ],
+        "ids": ["gid://shopify/Product/10252771361074"],
         "metafield0Key": "quantity_min",
         "metafield0Namespace": "validation_values_ms5m2wuu",
         "metafield1Key": "quantity_max",
@@ -5069,9 +5031,7 @@
       "query": "query OwnerMetafieldsHydrateNodes($ids: [ID!]!, $metafield0Namespace: String!, $metafield0Key: String!) { nodes(ids: $ids) { __typename id ... on HasMetafields { metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } } ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt  } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } } ... on Collection { id title handle } ... on Customer { id displayName email } ... on Order { id name } ... on Company { id name } ... on Page { id title } ... on Article { id title } } }",
       "operationName": "OwnerMetafieldsHydrateNodes",
       "variables": {
-        "ids": [
-          "gid://shopify/Product/10252771361074"
-        ],
+        "ids": ["gid://shopify/Product/10252771361074"],
         "metafield0Key": "starts_at",
         "metafield0Namespace": "validation_values_ms5m2wuu"
       },

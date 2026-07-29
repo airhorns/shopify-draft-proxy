@@ -426,9 +426,7 @@
       "path": "/admin/api/2026-04/graphql.json",
       "operationName": "OwnerMetafieldsExistenceHydrate",
       "variables": {
-        "ids": [
-          "gid://shopify/Product/10252771459378"
-        ]
+        "ids": ["gid://shopify/Product/10252771459378"]
       },
       "query": "query OwnerMetafieldsExistenceHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n  }\n}\n",
       "response": {
@@ -3496,9 +3494,7 @@
       "path": "/admin/api/2026-04/graphql.json",
       "operationName": "OwnerMetafieldsHydrateNodes",
       "variables": {
-        "ids": [
-          "gid://shopify/Product/10252771459378"
-        ],
+        "ids": ["gid://shopify/Product/10252771459378"],
         "metafield0Namespace": "definition_lifecycle_ms5m38a2",
         "metafield0Key": "definition_lifecycle",
         "metafield1Namespace": "definition_loose_ms5m38a2",
