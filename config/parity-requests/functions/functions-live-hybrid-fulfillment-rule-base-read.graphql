@@ -1,0 +1,11 @@
+query FunctionsLiveHybridFulfillmentRuleBaseRead {
+  fulfillmentConstraintRules {
+    id
+    deliveryMethodTypes
+    function {
+      id
+      handle
+      apiType
+    }
+  }
+}

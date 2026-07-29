@@ -1,0 +1,10 @@
+mutation FunctionsLiveHybridCartOverlayDelete($id: ID!) {
+  cartTransformDelete(id: $id) {
+    deletedId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
