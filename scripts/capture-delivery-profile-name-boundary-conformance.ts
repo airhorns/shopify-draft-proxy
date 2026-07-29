@@ -75,18 +75,25 @@ const deliveryProfileRemoveMutation = `#graphql
   }
 `;
 
-const locationsHydrateQuery = `#graphql
-  query ShippingDeliveryProfileLocationsHydrate {
-    locationsAvailableForDeliveryProfilesConnection(first: 2) {
+const locationsCatalogPageQuery = `#graphql
+  query CaptureDeliveryProfileNameBoundaryLocations($after: String) {
+    locationsAvailableForDeliveryProfilesConnection(first: 250, after: $after) {
       nodes {
         id
         name
         isActive
         isFulfillmentService
       }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
     }
   }
 `;
+
+const locationNodesHydrateQuery =
+  'query ShippingDeliveryProfileLocationNodesHydrate($ids: [ID!]!) { nodes(ids: $ids) { __typename ... on Location { id name isActive isFulfillmentService } } }';
 
 const codeSelectionProbeMutation = `#graphql
   mutation DeliveryProfileNameBoundaryCodeProbe($profile: DeliveryProfileInput!) {
@@ -193,23 +200,62 @@ function assertTooLongName(captureResult: GraphqlCapture, root: string, label: s
   return message;
 }
 
-function firstUsableLocationId(hydrate: ConformanceGraphqlResult): string {
-  assertHttpOk('locations hydrate', hydrate);
-  const nodes = readPath(hydrate.payload, ['data', 'locationsAvailableForDeliveryProfilesConnection', 'nodes']);
-  if (!Array.isArray(nodes)) {
-    throw new Error(`locations hydrate expected nodes array, got ${JSON.stringify(hydrate.payload)}`);
+async function captureCompleteLocationCatalog(): Promise<GraphqlCapture[]> {
+  const pages: GraphqlCapture[] = [];
+  const seenCursors = new Set<string>();
+  let after: string | null = null;
+
+  for (let page = 0; page < 10_000; page += 1) {
+    const capturePage = await capture(locationsCatalogPageQuery, { after });
+    assertHttpOk('locations catalog page', capturePage.result);
+    pages.push(capturePage);
+    const pageInfo = readObject(
+      readPath(capturePage.result.payload, ['data', 'locationsAvailableForDeliveryProfilesConnection', 'pageInfo']),
+    );
+    if (pageInfo?.['hasNextPage'] === false) return pages;
+    const endCursor = pageInfo?.['endCursor'];
+    if (pageInfo?.['hasNextPage'] !== true || typeof endCursor !== 'string' || endCursor.length === 0) {
+      throw new Error(`locations catalog did not prove completeness: ${JSON.stringify(capturePage.result.payload)}`);
+    }
+    if (seenCursors.has(endCursor)) {
+      throw new Error(`locations catalog repeated cursor ${JSON.stringify(endCursor)}`);
+    }
+    seenCursors.add(endCursor);
+    after = endCursor;
   }
-  for (const node of nodes) {
-    const location = readObject(node);
-    if (
-      typeof location?.['id'] === 'string' &&
-      location['isActive'] === true &&
-      location['isFulfillmentService'] === false
-    ) {
-      return location['id'];
+
+  throw new Error('locations catalog exceeded the 10,000-page capture bound');
+}
+
+function firstUsableLocationId(pages: GraphqlCapture[]): string {
+  for (const page of pages) {
+    const nodes = readPath(page.result.payload, ['data', 'locationsAvailableForDeliveryProfilesConnection', 'nodes']);
+    if (!Array.isArray(nodes)) {
+      throw new Error(`locations catalog expected nodes array, got ${JSON.stringify(page.result.payload)}`);
+    }
+    for (const node of nodes) {
+      const location = readObject(node);
+      if (
+        typeof location?.['id'] === 'string' &&
+        location['isActive'] === true &&
+        location['isFulfillmentService'] === false
+      ) {
+        return location['id'];
+      }
     }
   }
-  throw new Error(`locations hydrate did not include an active merchant location: ${JSON.stringify(hydrate.payload)}`);
+  throw new Error(
+    `locations catalog did not include an active merchant location: ${JSON.stringify(pages.at(-1)?.result.payload)}`,
+  );
+}
+
+function assertLocationNodeCapture(captureResult: GraphqlCapture, id: string): void {
+  assertHttpOk('location nodes hydrate', captureResult.result);
+  const nodes = readPath(captureResult.result.payload, ['data', 'nodes']);
+  const node = Array.isArray(nodes) ? readObject(nodes[0]) : null;
+  if (node?.['id'] !== id || node['__typename'] !== 'Location') {
+    throw new Error(`location nodes hydrate expected ${id}, got ${JSON.stringify(captureResult.result.payload)}`);
+  }
 }
 
 function profileInput(name: string, locationId: string): JsonRecord {
@@ -238,8 +284,10 @@ const createAcceptedName = fixedLengthName('Boundary create ', 128);
 const updateAcceptedName = fixedLengthName('Boundary update ', 128);
 const rejectedName = fixedLengthName('Boundary reject ', 129);
 
-const locationsHydrate = await runGraphqlRequest(locationsHydrateQuery, {});
-const locationId = firstUsableLocationId(locationsHydrate);
+const locationCatalogPages = await captureCompleteLocationCatalog();
+const locationId = firstUsableLocationId(locationCatalogPages);
+const locationNodeHydrate = await capture(locationNodesHydrateQuery, { ids: [locationId] });
+assertLocationNodeCapture(locationNodeHydrate, locationId);
 
 const createAccepted = await capture(deliveryProfileCreateMutation, {
   profile: profileInput(createAcceptedName, locationId),
@@ -324,12 +372,12 @@ try {
         ],
         upstreamCalls: [
           {
-            operationName: 'ShippingDeliveryProfileLocationsHydrate',
-            variables: {},
-            query: trimGraphql(locationsHydrateQuery),
+            operationName: 'ShippingDeliveryProfileLocationNodesHydrate',
+            variables: locationNodeHydrate.variables,
+            query: locationNodeHydrate.query,
             response: {
-              status: locationsHydrate.status,
-              body: locationsHydrate.payload,
+              status: locationNodeHydrate.result.status,
+              body: locationNodeHydrate.result.payload,
             },
           },
         ],

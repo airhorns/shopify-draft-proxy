@@ -124,6 +124,11 @@
         },
         "expectedDifferences": [
           {
+            "path": "$.deliveryProfiles.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "The proxy derives the observed default profile cursor from its Shopify GID while Shopify returns an opaque base64 cursor."
+          },
+          {
             "path": "$.deliveryProfiles.edges[1].cursor",
             "matcher": "non-empty-string",
             "reason": "The proxy uses a stable synthetic ID cursor for the locally staged delivery profile while Shopify returns the live cursor."
@@ -132,6 +137,11 @@
             "path": "$.deliveryProfiles.edges[1].node.id",
             "matcher": "shopify-gid:DeliveryProfile",
             "reason": "The proxy uses a stable synthetic delivery profile ID for the locally staged profile while Shopify returns the live ID."
+          },
+          {
+            "path": "$.deliveryProfiles.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "The proxy derives the observed default profile start cursor from its Shopify GID while Shopify returns an opaque base64 cursor."
           },
           {
             "path": "$.deliveryProfiles.pageInfo.endCursor",

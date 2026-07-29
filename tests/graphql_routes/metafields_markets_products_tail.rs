@@ -252,6 +252,7 @@ fn fixed_price_validation_read(proxy: &mut DraftProxy, price_list_id: &str) -> V
 #[test]
 fn price_lists_read_connection_windows_staged_records() {
     let mut proxy = snapshot_proxy();
+    let mut price_list_ids = Vec::new();
     let create_query = r#"
         mutation PriceListsConnectionSeed($input: PriceListCreateInput!) {
           priceListCreate(input: $input) {
@@ -281,6 +282,12 @@ fn price_lists_read_connection_windows_staged_records() {
             response.body["data"]["priceListCreate"]["userErrors"],
             json!([])
         );
+        price_list_ids.push(
+            response.body["data"]["priceListCreate"]["priceList"]["id"]
+                .as_str()
+                .expect("created price-list ID")
+                .to_string(),
+        );
     }
 
     let first_page = proxy.process_request(json_graphql_request(
@@ -300,18 +307,18 @@ fn price_lists_read_connection_windows_staged_records() {
         first_page.body["data"]["priceLists"],
         json!({
             "nodes": [
-                { "id": "gid://shopify/PriceList/1", "name": "Denmark", "currency": "DKK" },
-                { "id": "gid://shopify/PriceList/2", "name": "United States", "currency": "USD" }
+                { "id": price_list_ids[0], "name": "Denmark", "currency": "DKK" },
+                { "id": price_list_ids[1], "name": "United States", "currency": "USD" }
             ],
             "edges": [
-                { "cursor": "gid://shopify/PriceList/1", "node": { "id": "gid://shopify/PriceList/1" } },
-                { "cursor": "gid://shopify/PriceList/2", "node": { "id": "gid://shopify/PriceList/2" } }
+                { "cursor": price_list_ids[0], "node": { "id": price_list_ids[0] } },
+                { "cursor": price_list_ids[1], "node": { "id": price_list_ids[1] } }
             ],
             "pageInfo": {
                 "hasNextPage": true,
                 "hasPreviousPage": false,
-                "startCursor": "gid://shopify/PriceList/1",
-                "endCursor": "gid://shopify/PriceList/2"
+                "startCursor": price_list_ids[0],
+                "endCursor": price_list_ids[1]
             }
         })
     );
@@ -326,23 +333,23 @@ fn price_lists_read_connection_windows_staged_records() {
           }
         }
         "#,
-        json!({"after": "gid://shopify/PriceList/2"}),
+        json!({"after": price_list_ids[1]}),
     ));
     assert_eq!(second_page.status, 200);
     assert_eq!(
         second_page.body["data"]["priceLists"],
         json!({
             "nodes": [
-                { "id": "gid://shopify/PriceList/3", "name": "Canada", "currency": "CAD" }
+                { "id": price_list_ids[2], "name": "Canada", "currency": "CAD" }
             ],
             "edges": [
-                { "cursor": "gid://shopify/PriceList/3", "node": { "id": "gid://shopify/PriceList/3" } }
+                { "cursor": price_list_ids[2], "node": { "id": price_list_ids[2] } }
             ],
             "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": true,
-                "startCursor": "gid://shopify/PriceList/3",
-                "endCursor": "gid://shopify/PriceList/3"
+                "startCursor": price_list_ids[2],
+                "endCursor": price_list_ids[2]
             }
         })
     );
@@ -1496,7 +1503,13 @@ fn metafields_delete_live_hybrid_staged_value_does_not_passthrough() {
                 .as_array()
                 .into_iter()
                 .flatten()
-                .map(|id| json!({ "__typename": "Product", "id": id }))
+                .map(|id| {
+                    json!({
+                        "__typename": "Product",
+                        "id": id,
+                        "metafield0": Value::Null
+                    })
+                })
                 .collect::<Vec<_>>();
             Response {
                 status: 200,
@@ -1560,6 +1573,151 @@ fn metafields_delete_live_hybrid_staged_value_does_not_passthrough() {
 }
 
 #[test]
+fn generic_product_domain_metafields_set_accepts_idempotent_malformed_digest_atomically() {
+    let mut proxy = configured_proxy(
+        ReadMode::Snapshot,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
+    );
+    let owner_id = "gid://shopify/Product/987654398";
+
+    let initial = proxy.process_request(json_graphql_request(
+        r#"
+        mutation IdempotentMalformedDigestSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key type value compareDigest }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [{"ownerId": owner_id, "namespace": "custom", "key": "material", "type": "single_line_text_field", "value": "Wool"}]}),
+    ));
+    assert_eq!(
+        initial.body["data"]["metafieldsSet"]["userErrors"],
+        json!([])
+    );
+    let digest = initial.body["data"]["metafieldsSet"]["metafields"][0]["compareDigest"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+
+    let rejected_batch = proxy.process_request(json_graphql_request(
+        r#"
+        mutation IdempotentMalformedDigestSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key type value compareDigest }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [
+            {"ownerId": owner_id, "namespace": "custom", "key": "material", "type": "single_line_text_field", "value": "Wool", "compareDigest": "not-a-hex-digest"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "flag", "type": "boolean", "value": "yes"}
+        ]}),
+    ));
+    assert_eq!(
+        rejected_batch.body["data"]["metafieldsSet"]["metafields"],
+        json!([])
+    );
+    assert_eq!(
+        rejected_batch.body["data"]["metafieldsSet"]["userErrors"],
+        json!([{
+            "field": ["metafields", "1", "value"],
+            "message": "Value must be true or false.",
+            "code": "INVALID_VALUE",
+            "elementIndex": null
+        }])
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+
+    let after_rejected_batch = proxy.process_request(json_graphql_request(
+        r#"
+        query IdempotentMalformedDigestRead($id: ID!) {
+          product(id: $id) {
+            material: metafield(namespace: "custom", key: "material") { value compareDigest }
+            flag: metafield(namespace: "custom", key: "flag") { value }
+          }
+        }
+        "#,
+        json!({"id": owner_id}),
+    ));
+    assert_eq!(
+        after_rejected_batch.body["data"]["product"]["material"],
+        json!({"value": "Wool", "compareDigest": digest})
+    );
+    assert_eq!(
+        after_rejected_batch.body["data"]["product"]["flag"],
+        Value::Null
+    );
+
+    let accepted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation IdempotentMalformedDigestSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key type value compareDigest }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [{"ownerId": owner_id, "namespace": "custom", "key": "material", "type": "single_line_text_field", "value": "Wool", "compareDigest": "not-a-hex-digest"}]}),
+    ));
+    assert_eq!(
+        accepted.body["data"]["metafieldsSet"],
+        json!({
+            "metafields": [{
+                "namespace": "custom",
+                "key": "material",
+                "type": "single_line_text_field",
+                "value": "Wool",
+                "compareDigest": digest
+            }],
+            "userErrors": []
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 2);
+
+    let rejected_change = proxy.process_request(json_graphql_request(
+        r#"
+        mutation IdempotentMalformedDigestSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key type value compareDigest }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [{"ownerId": owner_id, "namespace": "custom", "key": "material", "type": "single_line_text_field", "value": "Silk", "compareDigest": "not-a-hex-digest"}]}),
+    ));
+    assert_eq!(
+        rejected_change.body["data"]["metafieldsSet"],
+        json!({
+            "metafields": [],
+            "userErrors": [{
+                "field": ["metafields", "0"],
+                "message": "The resource has been updated since it was loaded. Try again with an updated `compareDigest` value.",
+                "code": "STALE_OBJECT",
+                "elementIndex": null
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 2);
+
+    let after_rejected_change = proxy.process_request(json_graphql_request(
+        r#"
+        query IdempotentMalformedDigestRead($id: ID!) {
+          product(id: $id) {
+            material: metafield(namespace: "custom", key: "material") { value compareDigest }
+          }
+        }
+        "#,
+        json!({"id": owner_id}),
+    ));
+    assert_eq!(
+        after_rejected_change.body["data"]["product"]["material"],
+        json!({"value": "Wool", "compareDigest": digest})
+    );
+}
+
+#[test]
 fn generic_product_domain_metafields_set_validates_cas_and_atomicity() {
     let mut proxy = configured_proxy(
         ReadMode::Snapshot,
@@ -1597,7 +1755,7 @@ fn generic_product_domain_metafields_set_validates_cas_and_atomicity() {
         }
         "#,
         json!({"metafields": [
-            {"ownerId": owner_id, "namespace": "custom", "key": "material", "type": "single_line_text_field", "value": "Silk", "compareDigest": "stale"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "material", "type": "single_line_text_field", "value": "Silk", "compareDigest": "0000000000000000000000000000000000000000000000000000000000000000"},
             {"ownerId": owner_id, "namespace": "custom", "key": "flag", "type": "boolean", "value": "yes"}
         ]}),
     ));
@@ -1693,7 +1851,7 @@ fn generic_product_domain_metafields_set_rejects_compare_digest_without_current_
           }
         }
         "#,
-        json!({"metafields": [{"ownerId": owner_id, "namespace": "custom", "key": "missing", "type": "single_line_text_field", "value": "New", "compareDigest": "no-current-row"}]}),
+        json!({"metafields": [{"ownerId": owner_id, "namespace": "custom", "key": "missing", "type": "single_line_text_field", "value": "New", "compareDigest": "0000000000000000000000000000000000000000000000000000000000000000"}]}),
     ));
     assert_eq!(
         invalid_compare_digest.body["data"]["metafieldsSet"]["metafields"],
@@ -1707,6 +1865,7 @@ fn generic_product_domain_metafields_set_rejects_compare_digest_without_current_
         invalid_compare_digest.body["data"]["metafieldsSet"]["userErrors"][0]["field"],
         json!(["metafields", "0"])
     );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -5174,6 +5333,10 @@ fn market_create_region_nodes_include_country_identity_fields_in_payload_and_rea
     ));
     assert_eq!(create.status, 200);
     assert_eq!(create.body["data"]["marketCreate"]["userErrors"], json!([]));
+    let market_id = create.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .expect("created market ID")
+        .to_string();
     let expected_nodes = json!([{
         "__typename": "MarketRegionCountry",
         "id": "gid://shopify/Market/Region/1",
@@ -5213,7 +5376,7 @@ fn market_create_region_nodes_include_country_identity_fields_in_payload_and_rea
           }
         }
         "#,
-        json!({"id": "gid://shopify/Market/1"}),
+        json!({"id": market_id}),
     ));
     assert_eq!(read.status, 200);
     assert_eq!(
@@ -5306,10 +5469,14 @@ fn market_create_validation_and_staging_helpers_match_current_behavior() {
         create_query,
         json!({"input": {"name": "Enabled Only", "enabled": true, "regions": [{"countryCode": "US"}]}}),
     ));
+    let enabled_only_id = enabled_only.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .expect("enabled-only market ID")
+        .to_string();
     assert_eq!(
         enabled_only.body["data"]["marketCreate"]["market"],
         json!({
-            "id": "gid://shopify/Market/1",
+            "id": enabled_only_id,
             "name": "Enabled Only",
             "handle": "enabled-only",
             "status": "ACTIVE",
@@ -5344,9 +5511,13 @@ fn market_create_validation_and_staging_helpers_match_current_behavior() {
         price_create.body["data"]["marketCreate"]["market"]["priceInclusions"],
         json!({"inclusiveDutiesPricingStrategy": "INCLUDE_DUTIES_IN_PRICE", "inclusiveTaxPricingStrategy": "ADD_TAXES_AT_CHECKOUT"})
     );
+    let price_market_id = price_create.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .expect("pricing market ID")
+        .to_string();
     let price_read = price_proxy.process_request(json_graphql_request(
         read_query,
-        json!({"id": "gid://shopify/Market/1"}),
+        json!({"id": price_market_id}),
     ));
     assert_eq!(
         price_read.body["data"]["market"]["priceInclusions"],
@@ -5379,9 +5550,13 @@ fn market_create_validation_and_staging_helpers_match_current_behavior() {
         currency_create.body["data"]["marketCreate"]["market"]["currencySettings"],
         json!({"baseCurrency": {"currencyCode": "USD", "currencyName": "US Dollar"}, "localCurrencies": true, "roundingEnabled": true})
     );
+    let currency_market_id = currency_create.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .expect("currency market ID")
+        .to_string();
     let currency_read = currency_proxy.process_request(json_graphql_request(
         read_query,
-        json!({"id": "gid://shopify/Market/1"}),
+        json!({"id": currency_market_id}),
     ));
     assert_eq!(
         currency_read.body["data"]["market"]["currencySettings"],
@@ -5395,9 +5570,13 @@ fn market_create_validation_and_staging_helpers_match_current_behavior() {
         eur_create.body["data"]["marketCreate"]["market"]["currencySettings"],
         json!({"baseCurrency": {"currencyCode": "EUR", "currencyName": "Euro"}, "localCurrencies": false, "roundingEnabled": false})
     );
+    let eur_market_id = eur_create.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .expect("euro market ID")
+        .to_string();
     let eur_read = currency_proxy.process_request(json_graphql_request(
         read_query,
-        json!({"id": "gid://shopify/Market/2"}),
+        json!({"id": eur_market_id}),
     ));
     assert_eq!(
         eur_read.body["data"]["market"]["currencySettings"],
@@ -5476,9 +5655,13 @@ fn market_create_validation_and_staging_helpers_match_current_behavior() {
         create_query,
         json!({"input": {"name": "Canada Local", "regions": [{"countryCode": "CA"}]}}),
     ));
-    assert_eq!(
-        first_ca.body["data"]["marketCreate"]["market"]["id"],
-        json!("gid://shopify/Market/1")
+    let first_ca_id = first_ca.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .expect("Canada market ID");
+    assert!(
+        first_ca_id.starts_with("gid://shopify/Market/")
+            && first_ca_id.ends_with("?shopify-draft-proxy=synthetic"),
+        "expected a synthetic Market GID, got {first_ca_id:?}"
     );
     let duplicate_ca = region_proxy.process_request(json_graphql_request(
         create_query,
@@ -6847,23 +7030,27 @@ fn market_create_rejects_shopify_unsupported_country_regions_without_staging() {
     assert_no_staged_markets(&conditions_proxy);
 
     let mut supported_proxy = snapshot_proxy();
-    for (name, country_code, expected_id) in [
-        ("United States Supported", "US", "gid://shopify/Market/1"),
-        ("Brazil Supported", "BR", "gid://shopify/Market/2"),
+    let mut supported_ids = Vec::new();
+    for (name, country_code) in [
+        ("United States Supported", "US"),
+        ("Brazil Supported", "BR"),
     ] {
         let response = supported_proxy.process_request(json_graphql_request(
             create_query,
             json!({"input": {"name": name, "regions": [{"countryCode": country_code}]}}),
         ));
         assert_eq!(
-            response.body["data"]["marketCreate"]["market"]["id"],
-            json!(expected_id)
-        );
-        assert_eq!(
             response.body["data"]["marketCreate"]["userErrors"],
             json!([])
         );
+        let id = response.body["data"]["marketCreate"]["market"]["id"]
+            .as_str()
+            .expect("supported market ID")
+            .to_string();
+        assert!(id.ends_with("?shopify-draft-proxy=synthetic"), "{id}");
+        supported_ids.push(id);
     }
+    assert_ne!(supported_ids[0], supported_ids[1]);
     let supported_read =
         supported_proxy.process_request(json_graphql_request(read_query, json!({})));
     assert_eq!(
@@ -7501,14 +7688,18 @@ fn catalog_create_and_context_update_current_runtime_helpers_stage_and_validate(
         "#,
         json!({"input": {"name": "Europe", "regions": [{"countryCode": "DK"}]}}),
     ));
-    assert_eq!(
-        market_create.body["data"]["marketCreate"]["market"]["id"],
-        json!("gid://shopify/Market/1")
+    let market_id = market_create.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .expect("created market ID")
+        .to_string();
+    assert!(
+        market_id.ends_with("?shopify-draft-proxy=synthetic"),
+        "{market_id}"
     );
 
     let unknown_price_list = proxy.process_request(json_graphql_request(
         create_query,
-        json!({"input": {"title": "EU Catalog", "status": "ACTIVE", "context": {"marketIds": ["gid://shopify/Market/1"]}, "priceListId": "gid://shopify/PriceList/9999999999"}}),
+        json!({"input": {"title": "EU Catalog", "status": "ACTIVE", "context": {"marketIds": [market_id]}, "priceListId": "gid://shopify/PriceList/9999999999"}}),
     ));
     assert_eq!(
         unknown_price_list.body["data"]["catalogCreate"],
@@ -7516,7 +7707,7 @@ fn catalog_create_and_context_update_current_runtime_helpers_stage_and_validate(
     );
     let unknown_publication = proxy.process_request(json_graphql_request(
         create_query,
-        json!({"input": {"title": "EU Catalog", "status": "ACTIVE", "context": {"marketIds": ["gid://shopify/Market/1"]}, "publicationId": "gid://shopify/Publication/9999999999"}}),
+        json!({"input": {"title": "EU Catalog", "status": "ACTIVE", "context": {"marketIds": [market_id]}, "publicationId": "gid://shopify/Publication/9999999999"}}),
     ));
     assert_eq!(
         unknown_publication.body["data"]["catalogCreate"],
@@ -7525,12 +7716,16 @@ fn catalog_create_and_context_update_current_runtime_helpers_stage_and_validate(
 
     let catalog_create = proxy.process_request(json_graphql_request(
         create_query,
-        json!({"input": {"title": "EU Catalog", "status": "ACTIVE", "context": {"marketIds": ["gid://shopify/Market/1"]}}}),
+        json!({"input": {"title": "EU Catalog", "status": "ACTIVE", "context": {"marketIds": [market_id]}}}),
     ));
+    let catalog_id = catalog_create.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .expect("created catalog ID")
+        .to_string();
     assert_eq!(
         catalog_create.body["data"]["catalogCreate"],
         json!({
-            "catalog": {"id": "gid://shopify/MarketCatalog/3", "title": "EU Catalog", "status": "ACTIVE", "markets": {"nodes": [{"id": "gid://shopify/Market/1"}]}},
+            "catalog": {"id": catalog_id, "title": "EU Catalog", "status": "ACTIVE", "markets": {"nodes": [{"id": market_id}]}},
             "userErrors": []
         })
     );
@@ -7550,15 +7745,15 @@ fn catalog_create_and_context_update_current_runtime_helpers_stage_and_validate(
           }
         }
         "#,
-        json!({"id": "gid://shopify/MarketCatalog/3"}),
+        json!({"id": catalog_id}),
     ));
     assert_eq!(
         read.body["data"]["catalog"],
-        json!({"id": "gid://shopify/MarketCatalog/3", "title": "EU Catalog", "status": "ACTIVE", "markets": {"nodes": [{"id": "gid://shopify/Market/1"}]}})
+        json!({"id": catalog_id, "title": "EU Catalog", "status": "ACTIVE", "markets": {"nodes": [{"id": market_id}]}})
     );
     assert_eq!(
         read.body["data"]["catalogs"]["nodes"],
-        json!([{"id": "gid://shopify/MarketCatalog/3", "title": "EU Catalog", "status": "ACTIVE", "markets": {"nodes": [{"id": "gid://shopify/Market/1"}]}}])
+        json!([{"id": catalog_id, "title": "EU Catalog", "status": "ACTIVE", "markets": {"nodes": [{"id": market_id}]}}])
     );
 
     let unknown_delete = proxy.process_request(json_graphql_request(
@@ -7593,7 +7788,7 @@ fn catalog_create_and_context_update_current_runtime_helpers_stage_and_validate(
           catalogContextUpdate(catalogId: $catalogId) { catalog { id } userErrors { __typename field message code } }
         }
         "#,
-        json!({"catalogId": "gid://shopify/MarketCatalog/3"}),
+        json!({"catalogId": catalog_id}),
     ));
     assert_eq!(
         missing_contexts.body["data"]["catalogContextUpdate"],
@@ -7606,7 +7801,7 @@ fn catalog_create_and_context_update_current_runtime_helpers_stage_and_validate(
           catalogContextUpdate(catalogId: $catalogId, contextsToAdd: $add, contextsToRemove: $remove) { catalog { id } userErrors { __typename field message code } }
         }
         "#,
-        json!({"catalogId": "gid://shopify/MarketCatalog/3", "add": {"marketIds": ["gid://shopify/Market/404"]}, "remove": {"marketIds": ["gid://shopify/Market/405"]}}),
+        json!({"catalogId": catalog_id, "add": {"marketIds": ["gid://shopify/Market/404"]}, "remove": {"marketIds": ["gid://shopify/Market/405"]}}),
     ));
     assert_eq!(
         missing_market_contexts.body["data"]["catalogContextUpdate"],
@@ -7640,11 +7835,11 @@ fn catalog_create_and_context_update_current_runtime_helpers_stage_and_validate(
           }
         }
         "#,
-        json!({"catalogId": "gid://shopify/MarketCatalog/3", "add": {"marketIds": [second_market_id]}, "remove": {"marketIds": ["gid://shopify/Market/1"]}}),
+        json!({"catalogId": catalog_id, "add": {"marketIds": [second_market_id]}, "remove": {"marketIds": [market_id]}}),
     ));
     assert_eq!(
         context_update.body["data"]["catalogContextUpdate"],
-        json!({"catalog": {"id": "gid://shopify/MarketCatalog/3", "markets": {"nodes": [{"id": second_market_id}]}}, "userErrors": []})
+        json!({"catalog": {"id": catalog_id, "markets": {"nodes": [{"id": second_market_id}]}}, "userErrors": []})
     );
 }
 
@@ -8147,13 +8342,17 @@ fn market_catalog_relation_tail_helpers_cover_current_behavior() {
     );
 
     let mut detach_proxy = snapshot_proxy();
-    let _market = detach_proxy.process_request(json_graphql_request(
+    let market = detach_proxy.process_request(json_graphql_request(
         market_create_query,
         json!({"input": {"name": "Attached Market"}}),
     ));
+    let market_id = market.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .expect("attached market ID")
+        .to_string();
     let catalog = detach_proxy.process_request(json_graphql_request(
         catalog_create_query,
-        json!({"input": {"title": "Attached Catalog", "status": "ACTIVE", "context": {"marketIds": ["gid://shopify/Market/1"]}}}),
+        json!({"input": {"title": "Attached Catalog", "status": "ACTIVE", "context": {"marketIds": [market_id]}}}),
     ));
     let catalog_id = catalog.body["data"]["catalogCreate"]["catalog"]["id"]
         .as_str()
@@ -8190,10 +8389,10 @@ fn market_catalog_relation_tail_helpers_cover_current_behavior() {
         market_create_query,
         json!({"input": {"name": "Europe", "regions": [{"countryCode": "DK"}]}}),
     ));
-    assert_eq!(
-        market.body["data"]["marketCreate"]["market"]["id"],
-        json!("gid://shopify/Market/1")
-    );
+    let relation_market_id = market.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .expect("relation market ID")
+        .to_string();
     let relation_price_list = relation_proxy.process_request(json_graphql_request(
         price_list_create_query,
         json!({"input": {"name": "Relation Guard Prices", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}}}),
@@ -8214,7 +8413,7 @@ fn market_catalog_relation_tail_helpers_cover_current_behavior() {
         .to_string();
     let first_catalog = relation_proxy.process_request(json_graphql_request(
         catalog_create_query,
-        json!({"input": {"title": "First Catalog", "status": "ACTIVE", "context": {"marketIds": ["gid://shopify/Market/1"]}, "priceListId": relation_price_list_id, "publicationId": relation_publication_id}}),
+        json!({"input": {"title": "First Catalog", "status": "ACTIVE", "context": {"marketIds": [relation_market_id]}, "priceListId": relation_price_list_id, "publicationId": relation_publication_id}}),
     ));
     assert_eq!(
         first_catalog.body["data"]["catalogCreate"]["userErrors"],
@@ -8222,7 +8421,7 @@ fn market_catalog_relation_tail_helpers_cover_current_behavior() {
     );
     let second_catalog = relation_proxy.process_request(json_graphql_request(
         catalog_create_query,
-        json!({"input": {"title": "Second Catalog", "status": "ACTIVE", "context": {"marketIds": ["gid://shopify/Market/1"]}}}),
+        json!({"input": {"title": "Second Catalog", "status": "ACTIVE", "context": {"marketIds": [relation_market_id]}}}),
     ));
     let second_catalog_id = second_catalog.body["data"]["catalogCreate"]["catalog"]["id"]
         .as_str()
@@ -8231,11 +8430,11 @@ fn market_catalog_relation_tail_helpers_cover_current_behavior() {
 
     for (input, expected_error) in [
         (
-            json!({"title": "Price List Taken", "status": "ACTIVE", "context": {"marketIds": ["gid://shopify/Market/1"]}, "priceListId": relation_price_list_id}),
+            json!({"title": "Price List Taken", "status": "ACTIVE", "context": {"marketIds": [relation_market_id]}, "priceListId": relation_price_list_id}),
             json!({"__typename": "CatalogUserError", "field": ["input", "priceListId"], "message": "Price list has already been taken", "code": "TAKEN"}),
         ),
         (
-            json!({"title": "Publication Taken", "status": "ACTIVE", "context": {"marketIds": ["gid://shopify/Market/1"]}, "publicationId": relation_publication_id}),
+            json!({"title": "Publication Taken", "status": "ACTIVE", "context": {"marketIds": [relation_market_id]}, "publicationId": relation_publication_id}),
             json!({"__typename": "CatalogUserError", "field": ["input", "publicationId"], "message": "Publication is already attached to another catalog", "code": "TAKEN"}),
         ),
     ] {
@@ -8283,17 +8482,25 @@ fn market_catalog_relation_tail_helpers_cover_current_behavior() {
         "relation-web-presence.myshopify.com",
         "relation-web-presence.example",
     );
-    let _primary = update_proxy.process_request(json_graphql_request(
+    let primary = update_proxy.process_request(json_graphql_request(
         market_create_query,
         json!({"input": {"name": "Primary"}}),
     ));
-    let _secondary = update_proxy.process_request(json_graphql_request(
+    let primary_market_id = primary.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .expect("primary market ID")
+        .to_string();
+    let secondary = update_proxy.process_request(json_graphql_request(
         market_create_query,
         json!({"input": {"name": "Secondary"}}),
     ));
+    let secondary_market_id = secondary.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .expect("secondary market ID")
+        .to_string();
     let linked_catalog = update_proxy.process_request(json_graphql_request(
         catalog_create_query,
-        json!({"input": {"title": "Linked Catalog", "status": "ACTIVE", "context": {"marketIds": ["gid://shopify/Market/2"]}}}),
+        json!({"input": {"title": "Linked Catalog", "status": "ACTIVE", "context": {"marketIds": [secondary_market_id]}}}),
     ));
     let linked_catalog_id = linked_catalog.body["data"]["catalogCreate"]["catalog"]["id"]
         .as_str()
@@ -8301,7 +8508,7 @@ fn market_catalog_relation_tail_helpers_cover_current_behavior() {
         .to_string();
     let unknown_catalog_link = update_proxy.process_request(json_graphql_request(
         market_update_query,
-        json!({"id": "gid://shopify/Market/1", "input": {"catalogsToAdd": ["gid://shopify/MarketCatalog/9999999999"]}}),
+        json!({"id": primary_market_id, "input": {"catalogsToAdd": ["gid://shopify/MarketCatalog/9999999999"]}}),
     ));
     assert_eq!(
         unknown_catalog_link.body["data"]["marketUpdate"],
@@ -8309,7 +8516,7 @@ fn market_catalog_relation_tail_helpers_cover_current_behavior() {
     );
     let add_catalog = update_proxy.process_request(json_graphql_request(
         market_update_query,
-        json!({"id": "gid://shopify/Market/1", "input": {"catalogsToAdd": [linked_catalog_id]}}),
+        json!({"id": primary_market_id, "input": {"catalogsToAdd": [linked_catalog_id]}}),
     ));
     assert_eq!(
         add_catalog.body["data"]["marketUpdate"]["userErrors"],
@@ -8318,7 +8525,7 @@ fn market_catalog_relation_tail_helpers_cover_current_behavior() {
     assert_eq!(
         add_catalog.body["data"]["marketUpdate"]["market"]["catalogs"]["nodes"][0]["markets"]
             ["nodes"],
-        json!([{"id": "gid://shopify/Market/1"}, {"id": "gid://shopify/Market/2"}])
+        json!([{"id": primary_market_id}, {"id": secondary_market_id}])
     );
     let catalog_read = update_proxy.process_request(json_graphql_request(
         catalog_read_query,
@@ -8326,11 +8533,11 @@ fn market_catalog_relation_tail_helpers_cover_current_behavior() {
     ));
     assert_eq!(
         catalog_read.body["data"]["catalog"]["markets"]["nodes"],
-        json!([{"id": "gid://shopify/Market/1"}, {"id": "gid://shopify/Market/2"}])
+        json!([{"id": primary_market_id}, {"id": secondary_market_id}])
     );
     let remove_catalog = update_proxy.process_request(json_graphql_request(
         market_update_query,
-        json!({"id": "gid://shopify/Market/1", "input": {"catalogsToDelete": [linked_catalog_id]}}),
+        json!({"id": primary_market_id, "input": {"catalogsToDelete": [linked_catalog_id]}}),
     ));
     assert_eq!(
         remove_catalog.body["data"]["marketUpdate"]["market"]["catalogs"]["nodes"],
@@ -8347,7 +8554,7 @@ fn market_catalog_relation_tail_helpers_cover_current_behavior() {
         .to_string();
     let unknown_web_presence_link = update_proxy.process_request(json_graphql_request(
         market_update_query,
-        json!({"id": "gid://shopify/Market/1", "input": {"webPresencesToAdd": ["gid://shopify/MarketWebPresence/9999999999"]}}),
+        json!({"id": primary_market_id, "input": {"webPresencesToAdd": ["gid://shopify/MarketWebPresence/9999999999"]}}),
     ));
     assert_eq!(
         unknown_web_presence_link.body["data"]["marketUpdate"],
@@ -8355,22 +8562,22 @@ fn market_catalog_relation_tail_helpers_cover_current_behavior() {
     );
     let add_web_presence = update_proxy.process_request(json_graphql_request(
         market_update_query,
-        json!({"id": "gid://shopify/Market/1", "input": {"webPresencesToAdd": [web_presence_id]}}),
+        json!({"id": primary_market_id, "input": {"webPresencesToAdd": [web_presence_id]}}),
     ));
     assert_eq!(
         add_web_presence.body["data"]["marketUpdate"]["market"]["webPresences"]["nodes"][0]
             ["markets"]["nodes"],
-        json!([{"id": "gid://shopify/Market/1"}])
+        json!([{"id": primary_market_id}])
     );
     let web_presence_read =
         update_proxy.process_request(json_graphql_request(web_presence_read_query, json!({})));
     assert_eq!(
         web_presence_read.body["data"]["webPresences"]["nodes"][0]["markets"]["nodes"],
-        json!([{"id": "gid://shopify/Market/1"}])
+        json!([{"id": primary_market_id}])
     );
     let remove_web_presence = update_proxy.process_request(json_graphql_request(
         market_update_query,
-        json!({"id": "gid://shopify/Market/1", "input": {"webPresencesToDelete": [web_presence_id]}}),
+        json!({"id": primary_market_id, "input": {"webPresencesToDelete": [web_presence_id]}}),
     ));
     assert_eq!(
         remove_web_presence.body["data"]["marketUpdate"]["market"]["webPresences"]["nodes"],
@@ -9406,16 +9613,16 @@ fn market_delete_stages_locally_cascades_relations_and_retains_raw_mutation() {
 
     let delete = proxy.process_request(json_graphql_request(
         market_delete_query,
-        json!({"id": "gid://shopify/Market/1"}),
+        json!({"id": market_id}),
     ));
     assert_eq!(
         delete.body["data"]["marketDelete"],
-        json!({"deletedId": "gid://shopify/Market/1", "userErrors": []})
+        json!({"deletedId": market_id, "userErrors": []})
     );
 
     let read = proxy.process_request(json_graphql_request(
         market_read_query,
-        json!({"marketId": "gid://shopify/Market/1"}),
+        json!({"marketId": market_id}),
     ));
     assert_eq!(read.body["data"]["market"], Value::Null);
     let catalog_read = proxy.process_request(json_graphql_request(
@@ -9454,10 +9661,7 @@ fn market_delete_stages_locally_cascades_relations_and_retains_raw_mutation() {
         delete_entry["interpreted"]["primaryRootField"],
         json!("marketDelete")
     );
-    assert_eq!(
-        delete_entry["stagedResourceIds"],
-        json!(["gid://shopify/Market/1"])
-    );
+    assert_eq!(delete_entry["stagedResourceIds"], json!([market_id]));
     assert!(delete_entry["rawBody"]
         .as_str()
         .unwrap()
@@ -9827,19 +10031,24 @@ fn price_list_create_update_delete_current_runtime_helpers_stage_and_validate() 
         json!({"input": {"name": "Denmark", "currency": "DKK", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}}}),
     ));
     assert_eq!(dkk.status, 200);
+    let dkk_id = dkk.body["data"]["priceListCreate"]["priceList"]["id"]
+        .as_str()
+        .expect("DKK price-list ID")
+        .to_string();
     assert_eq!(
         dkk.body["data"]["priceListCreate"],
-        json!({"priceList": {"id": "gid://shopify/PriceList/1", "name": "Denmark", "currency": "DKK", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}, "catalog": null}, "userErrors": []})
+        json!({"priceList": {"id": dkk_id, "name": "Denmark", "currency": "DKK", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}, "catalog": null}, "userErrors": []})
     );
 
     let zero_adjustment = proxy.process_request(json_graphql_request(
         create_query,
         json!({"input": {"name": "Zero", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 0}}}}),
     ));
-    assert_eq!(
-        zero_adjustment.body["data"]["priceListCreate"]["priceList"]["id"],
-        json!("gid://shopify/PriceList/2")
-    );
+    let zero_adjustment_id = zero_adjustment.body["data"]["priceListCreate"]["priceList"]["id"]
+        .as_str()
+        .expect("zero-adjustment price-list ID")
+        .to_string();
+    assert_ne!(dkk_id, zero_adjustment_id);
 
     let duplicate = proxy.process_request(json_graphql_request(
         create_query,
@@ -9852,15 +10061,15 @@ fn price_list_create_update_delete_current_runtime_helpers_stage_and_validate() 
 
     let unique_update = proxy.process_request(json_graphql_request(
         update_query,
-        json!({"id": "gid://shopify/PriceList/2", "input": {"name": "Unique A"}}),
+        json!({"id": zero_adjustment_id, "input": {"name": "Unique A"}}),
     ));
     assert_eq!(
         unique_update.body["data"]["priceListUpdate"],
-        json!({"priceList": {"id": "gid://shopify/PriceList/2", "name": "Unique A", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 0}}, "catalog": null}, "userErrors": []})
+        json!({"priceList": {"id": zero_adjustment_id, "name": "Unique A", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 0}}, "catalog": null}, "userErrors": []})
     );
     let duplicate_update = proxy.process_request(json_graphql_request(
         update_query,
-        json!({"id": "gid://shopify/PriceList/2", "input": {"name": "Denmark"}}),
+        json!({"id": zero_adjustment_id, "input": {"name": "Denmark"}}),
     ));
     assert_eq!(
         duplicate_update.body["data"]["priceListUpdate"],
@@ -9868,11 +10077,11 @@ fn price_list_create_update_delete_current_runtime_helpers_stage_and_validate() 
     );
     let invalid_parent_update = proxy.process_request(json_graphql_request(
         update_query,
-        json!({"id": "gid://shopify/PriceList/2", "input": {"parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 250}}}}),
+        json!({"id": zero_adjustment_id, "input": {"parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 250}}}}),
     ));
     assert_eq!(
         invalid_parent_update.body["data"]["priceListUpdate"],
-        json!({"priceList": {"id": "gid://shopify/PriceList/2", "name": "Unique A", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 0}}, "catalog": null}, "userErrors": [{"__typename": "PriceListUserError", "field": ["input", "parent", "adjustment", "value"], "message": "The adjustment value must be a positive value and not be greater than 100% for PERCENTAGE_DECREASE and not be greater than 1000% for PERCENTAGE_INCREASE.", "code": "INVALID_ADJUSTMENT_VALUE"}]})
+        json!({"priceList": {"id": zero_adjustment_id, "name": "Unique A", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 0}}, "catalog": null}, "userErrors": [{"__typename": "PriceListUserError", "field": ["input", "parent", "adjustment", "value"], "message": "The adjustment value must be a positive value and not be greater than 100% for PERCENTAGE_DECREASE and not be greater than 1000% for PERCENTAGE_INCREASE.", "code": "INVALID_ADJUSTMENT_VALUE"}]})
     );
     let read_after_failed_update = proxy.process_request(json_graphql_request(
         r#"
@@ -9880,11 +10089,11 @@ fn price_list_create_update_delete_current_runtime_helpers_stage_and_validate() 
           priceList(id: $id) { id name currency parent { adjustment { type value } } catalog { id } }
         }
         "#,
-        json!({"id": "gid://shopify/PriceList/2"}),
+        json!({"id": zero_adjustment_id}),
     ));
     assert_eq!(
         read_after_failed_update.body["data"]["priceList"],
-        json!({"id": "gid://shopify/PriceList/2", "name": "Unique A", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 0}}, "catalog": null})
+        json!({"id": zero_adjustment_id, "name": "Unique A", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 0}}, "catalog": null})
     );
 
     let typed_errors = proxy.process_request(json_graphql_request(
@@ -9931,7 +10140,7 @@ fn price_list_create_update_delete_current_runtime_helpers_stage_and_validate() 
     );
 
     let mut attached_proxy = snapshot_proxy();
-    attached_proxy.process_request(json_graphql_request(
+    let attached_market = attached_proxy.process_request(json_graphql_request(
         r#"
         mutation RustMarketCreateLocalRuntimeCreate($input: MarketCreateInput!) {
           marketCreate(input: $input) { market { id } userErrors { field message code } }
@@ -9939,29 +10148,41 @@ fn price_list_create_update_delete_current_runtime_helpers_stage_and_validate() 
         "#,
         json!({"input": {"name": "Europe", "regions": [{"countryCode": "DK"}]}}),
     ));
-    attached_proxy.process_request(json_graphql_request(
+    let attached_market_id = attached_market.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .expect("attached market ID")
+        .to_string();
+    let attached_catalog = attached_proxy.process_request(json_graphql_request(
         r#"
         mutation RustCatalogLocalRuntimeCreate($input: CatalogCreateInput!) {
           catalogCreate(input: $input) { catalog { id } userErrors { field message code } }
         }
         "#,
-        json!({"input": {"title": "EU Catalog", "status": "ACTIVE", "context": {"marketIds": ["gid://shopify/Market/1"]}}}),
+        json!({"input": {"title": "EU Catalog", "status": "ACTIVE", "context": {"marketIds": [attached_market_id]}}}),
     ));
+    let attached_catalog_id = attached_catalog.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .expect("attached catalog ID")
+        .to_string();
     let attached = attached_proxy.process_request(json_graphql_request(
         create_query,
-        json!({"input": {"name": "EU Prices", "currency": "DKK", "catalogId": "gid://shopify/MarketCatalog/3", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}}}),
+        json!({"input": {"name": "EU Prices", "currency": "DKK", "catalogId": attached_catalog_id, "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}}}),
     ));
+    let attached_price_list_id = attached.body["data"]["priceListCreate"]["priceList"]["id"]
+        .as_str()
+        .expect("attached price-list ID")
+        .to_string();
     assert_eq!(
         attached.body["data"]["priceListCreate"]["priceList"]["catalog"],
-        json!({"id": "gid://shopify/MarketCatalog/3"})
+        json!({"id": attached_catalog_id})
     );
     let currency_mismatch_update = attached_proxy.process_request(json_graphql_request(
         update_query,
-        json!({"id": "gid://shopify/PriceList/5", "input": {"currency": "USD"}}),
+        json!({"id": attached_price_list_id, "input": {"currency": "USD"}}),
     ));
     assert_eq!(
         currency_mismatch_update.body["data"]["priceListUpdate"],
-        json!({"priceList": {"id": "gid://shopify/PriceList/5", "name": "EU Prices", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}, "catalog": {"id": "gid://shopify/MarketCatalog/3"}}, "userErrors": []})
+        json!({"priceList": {"id": attached_price_list_id, "name": "EU Prices", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}, "catalog": {"id": attached_catalog_id}}, "userErrors": []})
     );
     let detached = attached_proxy.process_request(json_graphql_request(
         r#"
@@ -9969,11 +10190,11 @@ fn price_list_create_update_delete_current_runtime_helpers_stage_and_validate() 
           priceListUpdate(id: $id, input: $input) { priceList { id catalog { id } } userErrors { __typename field message code } }
         }
         "#,
-        json!({"id": "gid://shopify/PriceList/5", "input": {"catalogId": null}}),
+        json!({"id": attached_price_list_id, "input": {"catalogId": null}}),
     ));
     assert_eq!(
         detached.body["data"]["priceListUpdate"],
-        json!({"priceList": {"id": "gid://shopify/PriceList/5", "catalog": null}, "userErrors": []})
+        json!({"priceList": {"id": attached_price_list_id, "catalog": null}, "userErrors": []})
     );
     let readback = attached_proxy.process_request(json_graphql_request(
         r#"
@@ -9983,19 +10204,19 @@ fn price_list_create_update_delete_current_runtime_helpers_stage_and_validate() 
           priceLists(first: 10) { nodes { id name currency } }
         }
         "#,
-        json!({"catalogId": "gid://shopify/MarketCatalog/3", "priceListId": "gid://shopify/PriceList/5"}),
+        json!({"catalogId": attached_catalog_id, "priceListId": attached_price_list_id}),
     ));
     assert_eq!(
         readback.body["data"]["catalog"],
-        json!({"id": "gid://shopify/MarketCatalog/3", "priceList": null})
+        json!({"id": attached_catalog_id, "priceList": null})
     );
     assert_eq!(
         readback.body["data"]["priceList"],
-        json!({"id": "gid://shopify/PriceList/5", "catalog": null})
+        json!({"id": attached_price_list_id, "catalog": null})
     );
     assert_eq!(
         readback.body["data"]["priceLists"]["nodes"][0],
-        json!({"id": "gid://shopify/PriceList/5", "name": "EU Prices", "currency": "USD"})
+        json!({"id": attached_price_list_id, "name": "EU Prices", "currency": "USD"})
     );
 }
 
@@ -10292,6 +10513,7 @@ fn catalogs_connection_filters_sorts_paginates_and_counts_staged_catalogs() {
           }
         }
     "#;
+    let mut market_ids = Vec::new();
     for (name, country_code) in [("Alpha Region", "CA"), ("Beta Region", "FR")] {
         let response = proxy.process_request(json_graphql_request(
             market_create_query,
@@ -10300,6 +10522,12 @@ fn catalogs_connection_filters_sorts_paginates_and_counts_staged_catalogs() {
         assert_eq!(
             response.body["data"]["marketCreate"]["userErrors"],
             json!([])
+        );
+        market_ids.push(
+            response.body["data"]["marketCreate"]["market"]["id"]
+                .as_str()
+                .expect("catalog-connection market ID")
+                .to_string(),
         );
     }
 
@@ -10317,7 +10545,7 @@ fn catalogs_connection_filters_sorts_paginates_and_counts_staged_catalogs() {
             "input": {
                 "title": "Alpha Market",
                 "status": "ACTIVE",
-                "context": { "marketIds": ["gid://shopify/Market/1"] }
+                "context": { "marketIds": [market_ids[0]] }
             }
         }),
     ));
@@ -10333,7 +10561,7 @@ fn catalogs_connection_filters_sorts_paginates_and_counts_staged_catalogs() {
             "input": {
                 "title": "Beta Market",
                 "status": "DRAFT",
-                "context": { "marketIds": ["gid://shopify/Market/2"] }
+                "context": { "marketIds": [market_ids[1]] }
             }
         }),
     ));
@@ -10376,7 +10604,7 @@ fn catalogs_connection_filters_sorts_paginates_and_counts_staged_catalogs() {
             "__typename": "MarketCatalog",
             "markets": {
                 "nodes": [{
-                    "id": "gid://shopify/Market/2",
+                    "id": market_ids[1],
                     "name": "Beta Region"
                 }]
             }
@@ -10451,7 +10679,7 @@ fn catalogs_connection_filters_sorts_paginates_and_counts_staged_catalogs() {
             "__typename": "MarketCatalog",
             "markets": {
                 "nodes": [{
-                    "id": "gid://shopify/Market/1",
+                    "id": market_ids[0],
                     "name": "Alpha Region"
                 }]
             }
@@ -10557,7 +10785,7 @@ fn price_list_catalog_id_validation_rejects_missing_and_taken_catalogs() {
     assert_eq!(log_snapshot(&wrong_type_proxy)["entries"], json!([]));
 
     let mut proxy = snapshot_proxy();
-    proxy.process_request(json_graphql_request(
+    let market = proxy.process_request(json_graphql_request(
         r#"
         mutation RustMarketCreateLocalRuntimeSeed($input: MarketCreateInput!) {
           marketCreate(input: $input) { market { id } userErrors { field message code } }
@@ -10565,13 +10793,17 @@ fn price_list_catalog_id_validation_rejects_missing_and_taken_catalogs() {
         "#,
         json!({"input": {"name": "Europe", "regions": [{"countryCode": "DK"}]}}),
     ));
+    let market_id = market.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .expect("price-list validation market ID")
+        .to_string();
     let first_catalog = proxy.process_request(json_graphql_request(
         r#"
         mutation RustCatalogLocalRuntimeSeed($input: CatalogCreateInput!) {
           catalogCreate(input: $input) { catalog { id } userErrors { field message code } }
         }
         "#,
-        json!({"input": {"title": "EU Catalog", "status": "ACTIVE", "context": {"marketIds": ["gid://shopify/Market/1"]}}}),
+        json!({"input": {"title": "EU Catalog", "status": "ACTIVE", "context": {"marketIds": [market_id]}}}),
     ));
     let first_catalog_id = first_catalog.body["data"]["catalogCreate"]["catalog"]["id"]
         .as_str()
@@ -10583,7 +10815,7 @@ fn price_list_catalog_id_validation_rejects_missing_and_taken_catalogs() {
           catalogCreate(input: $input) { catalog { id } userErrors { field message code } }
         }
         "#,
-        json!({"input": {"title": "Second EU Catalog", "status": "ACTIVE", "context": {"marketIds": ["gid://shopify/Market/1"]}}}),
+        json!({"input": {"title": "Second EU Catalog", "status": "ACTIVE", "context": {"marketIds": [market_id]}}}),
     ));
     let second_catalog_id = second_catalog.body["data"]["catalogCreate"]["catalog"]["id"]
         .as_str()
@@ -10698,6 +10930,8 @@ fn market_localizations_register_remove_current_runtime_helpers_stage_and_valida
     // so the engine *computes* every downstream validation/staging result rather
     // than recognizing a magic synthetic id (which the de-cheating refactor
     // deliberately removed).
+    let replayed = Arc::new(Mutex::new(Vec::<String>::new()));
+    let replayed_for_transport = Arc::clone(&replayed);
     let resource_id = "gid://shopify/Metafield/localizable";
     let mut proxy =
         configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
@@ -10729,6 +10963,14 @@ fn market_localizations_register_remove_current_runtime_helpers_stage_and_valida
                         }
                     }
                 }),
+            }
+        })
+        .with_commit_transport(move |request| {
+            replayed_for_transport.lock().unwrap().push(request.body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": {} }),
             }
         });
     let register_query = r#"
@@ -10786,6 +11028,7 @@ fn market_localizations_register_remove_current_runtime_helpers_stage_and_valida
         json!({"resourceId": resource_id, "marketId": "gid://shopify/Market/ca"}),
     ));
     assert_eq!(preflight.status, 200);
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 
     let too_many = (1..=101)
         .map(|index| {
@@ -10895,6 +11138,11 @@ fn market_localizations_register_remove_current_runtime_helpers_stage_and_valida
         money_remove_after_rejection.body["data"]["marketLocalizationsRemove"],
         json!({"marketLocalizations": null, "userErrors": []})
     );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"],
+        json!([]),
+        "failed and no-stage market-localization mutations must not enter commit replay"
+    );
 
     let register = proxy.process_request(json_graphql_request(
         register_query,
@@ -10909,6 +11157,11 @@ fn market_localizations_register_remove_current_runtime_helpers_stage_and_valida
             ],
             "userErrors": []
         })
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        1,
+        "successful market-localization registration must log once"
     );
 
     let read_after_register = proxy.process_request(json_graphql_request(
@@ -10944,6 +11197,11 @@ fn market_localizations_register_remove_current_runtime_helpers_stage_and_valida
             json!({"marketLocalizations": null, "userErrors": []})
         );
     }
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        1,
+        "captured successful market-localization no-ops must not enter commit replay"
+    );
 
     let remove_title = proxy.process_request(json_graphql_request(
         remove_query,
@@ -10989,6 +11247,18 @@ fn market_localizations_register_remove_current_runtime_helpers_stage_and_valida
         read_after_remove.body["data"]["marketLocalizableResource"]["marketLocalizations"],
         json!([])
     );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        3,
+        "only register and two effective removes should enter commit replay"
+    );
+    let commit = proxy.process_request(request_with_body("POST", "/__meta/commit", ""));
+    assert_eq!(commit.body["committed"], json!(3));
+    let replayed = replayed.lock().unwrap();
+    assert_eq!(replayed.len(), 3);
+    assert!(replayed[0].contains("RustMarketLocalizationsLocalRuntimeRegister"));
+    assert!(replayed[1].contains("RustMarketLocalizationsLocalRuntimeRemove"));
+    assert!(replayed[2].contains("RustMarketLocalizationsLocalRuntimeRemove"));
 }
 
 #[test]
@@ -14715,4 +14985,215 @@ fn product_media_validation_downstream_read_returns_no_data_without_staged_produ
 
     assert_eq!(response.status, 200);
     assert_eq!(response.body["data"]["product"], Value::Null);
+}
+
+#[test]
+fn markets_family_synthetic_ids_avoid_canonical_aliases_and_remain_monotonic_after_restore() {
+    let mut proxy = snapshot_proxy();
+    restore_shop_domain_context(
+        &mut proxy,
+        "allocator-test.myshopify.com",
+        "allocator-test.example",
+    );
+    restore_state_with(&mut proxy, |state| {
+        let records = |resource_type: &str, ids: std::ops::RangeInclusive<u64>| {
+            Value::Object(
+                ids.map(|numeric_id| {
+                    let id = format!("gid://shopify/{resource_type}/{numeric_id}");
+                    (
+                        id.clone(),
+                        json!({
+                            "__typename": resource_type,
+                            "id": id,
+                            "name": format!("Seed {resource_type} {numeric_id}"),
+                            "title": format!("Seed {resource_type} {numeric_id}"),
+                            "handle": format!("seed-{resource_type}-{numeric_id}").to_ascii_lowercase(),
+                            "status": "ACTIVE",
+                            "enabled": true,
+                            "type": "REGION",
+                            "currency": "USD",
+                            "marketIds": [],
+                            "markets": { "nodes": [] },
+                            "subfolderSuffix": format!("seed-{numeric_id}"),
+                            "defaultLocale": { "locale": "en" },
+                            "alternateLocales": [],
+                            "rootUrls": []
+                        }),
+                    )
+                })
+                .collect(),
+            )
+        };
+        state["stagedState"]["markets"] = records("Market", 1..=2);
+        state["stagedState"]["deletedMarketIds"] = json!(["gid://shopify/Market/3"]);
+        state["stagedState"]["catalogs"] = records("MarketCatalog", 5..=6);
+        state["stagedState"]["priceLists"] = records("PriceList", 8..=9);
+        state["stagedState"]["webPresences"] = records("MarketWebPresence", 11..=12);
+    });
+
+    let market = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateCollisionSafeMarket($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market { id name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"name": "Japan Allocated", "regions": [{"countryCode": "JP"}]}}),
+    ));
+    assert_eq!(market.body["data"]["marketCreate"]["userErrors"], json!([]));
+    let market_id = market.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let catalog = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateCollisionSafeCatalog($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog {
+              id
+              ... on MarketCatalog { markets(first: 5) { nodes { id } } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Japan Allocated Catalog",
+                "status": "ACTIVE",
+                "context": {"marketIds": [market_id.clone()]}
+            }
+        }),
+    ));
+    assert_eq!(
+        catalog.body["data"]["catalogCreate"]["userErrors"],
+        json!([])
+    );
+    let catalog_id = catalog.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        catalog.body["data"]["catalogCreate"]["catalog"]["markets"]["nodes"][0]["id"],
+        json!(market_id)
+    );
+
+    let price_list = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateCollisionSafePriceList($input: PriceListCreateInput!) {
+          priceListCreate(input: $input) {
+            priceList { id catalog { id } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Japan Allocated Prices",
+                "currency": "USD",
+                "catalogId": catalog_id.clone(),
+                "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}
+            }
+        }),
+    ));
+    assert_eq!(
+        price_list.body["data"]["priceListCreate"]["userErrors"],
+        json!([])
+    );
+    let price_list_id = price_list.body["data"]["priceListCreate"]["priceList"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        price_list.body["data"]["priceListCreate"]["priceList"]["catalog"]["id"],
+        json!(catalog_id)
+    );
+
+    let web_presence = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateCollisionSafeWebPresence($input: WebPresenceCreateInput!) {
+          webPresenceCreate(input: $input) {
+            webPresence { id subfolderSuffix }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"defaultLocale": "en", "subfolderSuffix": "jp"}}),
+    ));
+    assert_eq!(
+        web_presence.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([])
+    );
+    let web_presence_id = web_presence.body["data"]["webPresenceCreate"]["webPresence"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let numeric_tail = |id: &str| {
+        id.rsplit('/')
+            .next()
+            .unwrap()
+            .split('?')
+            .next()
+            .unwrap()
+            .parse::<u64>()
+            .unwrap()
+    };
+    for (id, expected_tail) in [
+        (&market_id, 4),
+        (&catalog_id, 7),
+        (&price_list_id, 10),
+        (&web_presence_id, 13),
+    ] {
+        assert!(id.contains("shopify-draft-proxy=synthetic"), "{id}");
+        assert_eq!(numeric_tail(id), expected_tail, "{id}");
+    }
+
+    let deleted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteAllocatedMarket($id: ID!) {
+          marketDelete(id: $id) { deletedId userErrors { field message code } }
+        }
+        "#,
+        json!({"id": market_id.clone()}),
+    ));
+    assert_eq!(
+        deleted.body["data"]["marketDelete"],
+        json!({"deletedId": market_id, "userErrors": []})
+    );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    assert_eq!(dump.body["nextSyntheticId"], json!(14));
+    let mut restored = snapshot_proxy();
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let restored_market = restored.process_request(json_graphql_request(
+        r#"
+        mutation CreateMarketAfterRestore($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"name": "Korea Allocated", "regions": [{"countryCode": "KR"}]}}),
+    ));
+    assert_eq!(
+        restored_market.body["data"]["marketCreate"]["userErrors"],
+        json!([])
+    );
+    let restored_market_id = restored_market.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .unwrap();
+    assert!(restored_market_id.contains("shopify-draft-proxy=synthetic"));
+    assert_eq!(numeric_tail(restored_market_id), 14);
 }

@@ -166,6 +166,40 @@ fn upstream_definition(id: &str, namespace: &str, key: &str, name: &str) -> Valu
     })
 }
 
+fn upstream_standard_metaobject_definition(id: &str, meta_type: &str, name: &str) -> Value {
+    json!({
+        "id": id,
+        "type": meta_type,
+        "name": name,
+        "description": format!("Captured {name} definition"),
+        "displayNameKey": "label",
+        "access": {
+            "admin": "PUBLIC_READ_WRITE",
+            "storefront": "PUBLIC_READ"
+        },
+        "capabilities": {
+            "publishable": { "enabled": false },
+            "translatable": { "enabled": true },
+            "renderable": { "enabled": false },
+            "onlineStore": { "enabled": false }
+        },
+        "fieldDefinitions": [{
+            "key": "label",
+            "name": "Label",
+            "description": null,
+            "required": true,
+            "type": { "name": "single_line_text_field", "category": "TEXT" },
+            "capabilities": { "adminFilterable": { "enabled": false } },
+            "validations": [{ "name": "max", "value": "255" }]
+        }],
+        "hasThumbnailField": false,
+        "metaobjectsCount": 0,
+        "standardTemplate": { "type": meta_type, "name": name },
+        "createdAt": "2026-07-20T00:00:00Z",
+        "updatedAt": "2026-07-20T00:00:00Z"
+    })
+}
+
 fn upstream_definition_with_options(
     id: &str,
     namespace: &str,
@@ -2956,6 +2990,255 @@ fn metafield_definition_lifecycle_mutations_validate_and_stage_real_inputs() {
 }
 
 #[test]
+fn metafield_definition_delete_rejects_automated_collection_dependencies_atomically() {
+    let mut proxy = snapshot_proxy();
+    let namespace = "automated_collection_dependency";
+    let key = "shade";
+
+    let product_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AutomatedCollectionDependencyProductCreate($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id title }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "Automated collection dependency product" } }),
+    ));
+    assert_eq!(
+        product_create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let product_id = product_create.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .expect("productCreate should stage a product id")
+        .to_string();
+
+    let definition_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AutomatedCollectionDependencyDefinitionCreate($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition {
+              id
+              namespace
+              key
+              capabilities { smartCollectionCondition { enabled eligible } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "name": "Automated collection dependency",
+                "namespace": namespace,
+                "key": key,
+                "ownerType": "PRODUCT",
+                "type": "single_line_text_field",
+                "capabilities": { "smartCollectionCondition": { "enabled": true } }
+            }
+        }),
+    ));
+    assert_eq!(
+        definition_create.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    let definition_id = definition_create.body["data"]["metafieldDefinitionCreate"]
+        ["createdDefinition"]["id"]
+        .as_str()
+        .expect("metafieldDefinitionCreate should stage a definition id")
+        .to_string();
+
+    let metafields_set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AutomatedCollectionDependencyMetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { id namespace key type value }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "metafields": [{
+                "ownerId": product_id,
+                "namespace": namespace,
+                "key": key,
+                "type": "single_line_text_field",
+                "value": "blue"
+            }]
+        }),
+    ));
+    assert_eq!(
+        metafields_set.body["data"]["metafieldsSet"]["userErrors"],
+        json!([])
+    );
+
+    let collection_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AutomatedCollectionDependencyCollectionCreate($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection {
+              id
+              title
+              ruleSet { rules { column relation condition } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Automated collection dependency",
+                "ruleSet": {
+                    "appliedDisjunctively": false,
+                    "rules": [{
+                        "column": "PRODUCT_METAFIELD_DEFINITION",
+                        "relation": "EQUALS",
+                        "condition": "blue",
+                        "conditionObjectId": definition_id
+                    }]
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        collection_create.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    let collection_id = collection_create.body["data"]["collectionCreate"]["collection"]["id"]
+        .as_str()
+        .expect("collectionCreate should stage a collection id")
+        .to_string();
+
+    let read_state = |proxy: &mut DraftProxy| {
+        proxy.process_request(json_graphql_request(
+            r#"
+            query AutomatedCollectionDependencyRead(
+              $definitionId: ID!
+              $productId: ID!
+              $collectionId: ID!
+              $namespace: String!
+              $key: String!
+            ) {
+              metafieldDefinition(id: $definitionId) {
+                id
+                namespace
+                key
+                capabilities { smartCollectionCondition { enabled eligible } }
+              }
+              product(id: $productId) {
+                id
+                metafield(namespace: $namespace, key: $key) {
+                  id
+                  namespace
+                  key
+                  type
+                  value
+                }
+              }
+              collection(id: $collectionId) {
+                id
+                title
+                ruleSet {
+                  appliedDisjunctively
+                  rules {
+                    column
+                    relation
+                    condition
+                    conditionObject {
+                      __typename
+                      ... on CollectionRuleMetafieldCondition {
+                        metafieldDefinition { id namespace key }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            "#,
+            json!({
+                "definitionId": definition_id,
+                "productId": product_id,
+                "collectionId": collection_id,
+                "namespace": namespace,
+                "key": key
+            }),
+        ))
+    };
+
+    let read_before = read_state(&mut proxy);
+    assert_eq!(read_before.status, 200);
+    assert_eq!(read_before.body.get("errors"), None);
+    assert_eq!(
+        read_before.body["data"]["collection"]["ruleSet"]["rules"][0]["conditionObject"]
+            ["metafieldDefinition"]["id"],
+        json!(definition_id)
+    );
+    let log_before = log_snapshot(&proxy);
+    assert_eq!(log_before["entries"].as_array().map(Vec::len), Some(4));
+
+    let expected_delete = json!({
+        "deletedDefinitionId": null,
+        "deletedDefinition": null,
+        "userErrors": [{
+            "__typename": "MetafieldDefinitionDeleteUserError",
+            "field": null,
+            "message": "Cannot proceed with this action. This definition is used in one or more automated collections.",
+            "code": "METAFIELD_DEFINITION_IN_USE"
+        }]
+    });
+    let delete_without_flag = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AutomatedCollectionDependencyDeleteWithoutFlag($id: ID!) {
+          metafieldDefinitionDelete(id: $id) {
+            deletedDefinitionId
+            deletedDefinition { ownerType namespace key }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({ "id": definition_id }),
+    ));
+    assert_eq!(
+        delete_without_flag.body["data"]["metafieldDefinitionDelete"],
+        expected_delete
+    );
+    assert_eq!(log_snapshot(&proxy), log_before);
+    assert_eq!(read_state(&mut proxy).body, read_before.body);
+
+    for delete_all in [false, true] {
+        let delete = proxy.process_request(json_graphql_request(
+            r#"
+            mutation AutomatedCollectionDependencyDeleteWithFlag(
+              $id: ID!
+              $deleteAllAssociatedMetafields: Boolean!
+            ) {
+              metafieldDefinitionDelete(
+                id: $id
+                deleteAllAssociatedMetafields: $deleteAllAssociatedMetafields
+              ) {
+                deletedDefinitionId
+                deletedDefinition { ownerType namespace key }
+                userErrors { __typename field message code }
+              }
+            }
+            "#,
+            json!({
+                "id": definition_id,
+                "deleteAllAssociatedMetafields": delete_all
+            }),
+        ));
+        assert_eq!(
+            delete.body["data"]["metafieldDefinitionDelete"],
+            expected_delete
+        );
+        assert_eq!(log_snapshot(&proxy), log_before);
+        assert_eq!(read_state(&mut proxy).body, read_before.body);
+    }
+}
+
+#[test]
 fn metafield_definition_delete_enforces_type_guards_without_associated_values() {
     let mut proxy = snapshot_proxy();
 
@@ -4382,6 +4665,11 @@ fn standard_metafield_definition_enable_supports_shopify_material_template() {
         enabled.body["data"]["standardMetafieldDefinitionEnable"]["createdDefinition"]["namespace"],
         json!("shopify")
     );
+    let linked_definition_id = enabled.body["data"]["standardMetafieldDefinitionEnable"]
+        ["createdDefinition"]["validations"][0]["value"]
+        .as_str()
+        .unwrap()
+        .to_string();
     assert_eq!(
         enabled.body["data"]["standardMetafieldDefinitionEnable"]["createdDefinition"],
         json!({
@@ -4392,7 +4680,7 @@ fn standard_metafield_definition_enable_supports_shopify_material_template() {
             "type": { "name": "list.metaobject_reference", "category": "REFERENCE" },
             "validations": [{
                 "name": "metaobject_definition_id",
-                "value": "gid://shopify/MetaobjectDefinition/standard-material?shopify-draft-proxy=synthetic"
+                "value": linked_definition_id
             }],
             "constraints": {
                 "key": "category",
@@ -4408,6 +4696,628 @@ fn standard_metafield_definition_enable_supports_shopify_material_template() {
             }
         })
     );
+}
+
+#[test]
+fn linked_standard_metafield_definitions_resolve_through_definition_and_node_reads() {
+    for (key, meta_type, expected_name) in [
+        ("material", "shopify--material", "Material"),
+        ("color-pattern", "shopify--color-pattern", "Color"),
+    ] {
+        let mut proxy = snapshot_proxy();
+        let enabled = proxy.process_request(json_graphql_request(
+            r#"
+            mutation EnableLinkedStandardMetafield($key: String!) {
+              standardMetafieldDefinitionEnable(ownerType: PRODUCT, namespace: "shopify", key: $key) {
+                createdDefinition { validations { name value } }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({"key": key}),
+        ));
+        assert_eq!(
+            enabled.body["data"]["standardMetafieldDefinitionEnable"]["userErrors"],
+            json!([])
+        );
+        let linked_definition_id = enabled.body["data"]["standardMetafieldDefinitionEnable"]
+            ["createdDefinition"]["validations"][0]["value"]
+            .as_str()
+            .expect("linked standard validation should return a definition id")
+            .to_string();
+        assert!(!linked_definition_id.contains("/standard-"));
+
+        let read = proxy.process_request(json_graphql_request(
+            r#"
+            query ReadLinkedStandardDefinition($id: ID!, $type: String!) {
+              direct: metaobjectDefinition(id: $id) { id type name displayNameKey }
+              byType: metaobjectDefinitionByType(type: $type) { id type name displayNameKey }
+              relay: node(id: $id) {
+                __typename
+                ... on MetaobjectDefinition { id type name displayNameKey }
+              }
+            }
+            "#,
+            json!({"id": linked_definition_id, "type": meta_type}),
+        ));
+        let expected = json!({
+            "id": linked_definition_id,
+            "type": meta_type,
+            "name": expected_name,
+            "displayNameKey": "label"
+        });
+        assert_eq!(read.body["data"]["direct"], expected);
+        assert_eq!(read.body["data"]["byType"], expected);
+        assert_eq!(
+            read.body["data"]["relay"],
+            json!({
+                "__typename": "MetaobjectDefinition",
+                "id": linked_definition_id,
+                "type": meta_type,
+                "name": expected_name,
+                "displayNameKey": "label"
+            })
+        );
+    }
+}
+
+#[test]
+fn material_standard_metafield_linked_values_and_product_options_share_definition() {
+    let mut proxy = snapshot_proxy();
+    let enabled = proxy.process_request(json_graphql_request(
+        r#"
+        mutation EnableMaterialStandardMetafield {
+          standardMetafieldDefinitionEnable(ownerType: PRODUCT, namespace: "shopify", key: "material") {
+            createdDefinition { validations { name value } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let linked_definition_id = enabled.body["data"]["standardMetafieldDefinitionEnable"]
+        ["createdDefinition"]["validations"][0]["value"]
+        .as_str()
+        .expect("material validation should return a definition id")
+        .to_string();
+
+    let material = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMaterialValue($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id type displayName definition { id type } }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"metaobject": {
+            "type": "shopify--material",
+            "handle": "cotton",
+            "fields": [
+                {"key": "label", "value": "Cotton"},
+                {"key": "taxonomy_reference", "value": "gid://shopify/TaxonomyValue/1"}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        material.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        material.body["data"]["metaobjectCreate"]["metaobject"]["definition"]["id"],
+        json!(linked_definition_id)
+    );
+    let material_id = material.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+        .as_str()
+        .expect("material creation should return an id")
+        .to_string();
+
+    let product = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMaterialProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"product": {"title": "Material-linked product"}}),
+    ));
+    let product_id = product.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .expect("product creation should return an id")
+        .to_string();
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SetMaterialMetafield($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key type value }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [{
+            "ownerId": product_id,
+            "namespace": "shopify",
+            "key": "material",
+            "type": "list.metaobject_reference",
+            "value": serde_json::to_string(&vec![material_id.clone()]).unwrap()
+        }]}),
+    ));
+    assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+
+    let options = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMaterialOption($productId: ID!, $options: [OptionCreateInput!]!) {
+          productOptionsCreate(productId: $productId, options: $options) {
+            product {
+              options {
+                name
+                linkedMetafield { namespace key }
+                optionValues { name linkedMetafieldValue }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "options": [{
+                "name": "Material",
+                "linkedMetafield": {
+                    "namespace": "shopify",
+                    "key": "material",
+                    "values": [material_id]
+                }
+            }]
+        }),
+    ));
+    assert_eq!(
+        options.body["data"]["productOptionsCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        options.body["data"]["productOptionsCreate"]["product"]["options"][0],
+        json!({
+            "name": "Material",
+            "linkedMetafield": {"namespace": "shopify", "key": "material"},
+            "optionValues": [{"name": "Cotton", "linkedMetafieldValue": material_id}]
+        })
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RepointLinkedMaterialDisplayName($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+          metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+            metaobjectDefinition { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({
+            "id": linked_definition_id,
+            "definition": {"displayNameKey": "taxonomy_reference"}
+        }),
+    ));
+    assert_eq!(
+        update.body["data"]["metaobjectDefinitionUpdate"]["userErrors"],
+        json!([{
+            "field": ["definition", "displayNameKey"],
+            "message": "Cannot change display name field when metaobject is used in product options",
+            "code": "IMMUTABLE",
+            "elementKey": null,
+            "elementIndex": null
+        }])
+    );
+}
+
+#[test]
+fn live_hybrid_linked_standard_definition_uses_authoritative_query_without_forwarding_write() {
+    let authoritative_id = "gid://shopify/MetaobjectDefinition/900004";
+    let upstream_requests = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_requests = Arc::clone(&upstream_requests);
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                query.trim_start().starts_with("query"),
+                "supported standard enable write escaped upstream: {}",
+                request.body
+            );
+            upstream_requests.lock().unwrap().push(body.clone());
+            let data = if query.contains("metaobjectDefinitionByType") {
+                json!({
+                    "metaobjectDefinitionByType": upstream_standard_metaobject_definition(
+                        authoritative_id,
+                        "shopify--material",
+                        "Material",
+                    )
+                })
+            } else {
+                json!({
+                    "metafieldDefinitions": {
+                        "nodes": [],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": null,
+                            "endCursor": null
+                        }
+                    }
+                })
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({"data": data}),
+            }
+        }
+    });
+
+    let enabled = proxy.process_request(json_graphql_request(
+        r#"
+        mutation EnableAuthoritativeMaterialDefinition {
+          standardMetafieldDefinitionEnable(ownerType: PRODUCT, namespace: "shopify", key: "material") {
+            createdDefinition { validations { name value } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        enabled.body["data"]["standardMetafieldDefinitionEnable"]["createdDefinition"]
+            ["validations"][0]["value"],
+        json!(authoritative_id)
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadAuthoritativeMaterialDefinition($id: ID!) {
+          metaobjectDefinition(id: $id) { id type name }
+          node(id: $id) { __typename ... on MetaobjectDefinition { id type name } }
+        }
+        "#,
+        json!({"id": authoritative_id}),
+    ));
+    assert_eq!(
+        read.body["data"],
+        json!({
+            "metaobjectDefinition": {
+                "id": authoritative_id,
+                "type": "shopify--material",
+                "name": "Material"
+            },
+            "node": {
+                "__typename": "MetaobjectDefinition",
+                "id": authoritative_id,
+                "type": "shopify--material",
+                "name": "Material"
+            }
+        })
+    );
+    assert!(upstream_requests
+        .lock()
+        .unwrap()
+        .iter()
+        .all(|body| body["query"]
+            .as_str()
+            .is_some_and(|query| query.trim_start().starts_with("query"))));
+}
+
+#[test]
+fn linked_standard_metafield_without_authoritative_definition_returns_no_placeholder() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation EnableUnavailableLinkedStandardMetafield {
+          standardMetafieldDefinitionEnable(ownerType: PRODUCT, namespace: "shopify", key: "activity") {
+            createdDefinition { id validations { name value } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        response.body["data"]["standardMetafieldDefinitionEnable"],
+        json!({
+            "createdDefinition": null,
+            "userErrors": [{
+                "field": null,
+                "message": "A standard definition wasn't found for the specified owner type, namespace, and key.",
+                "code": "TEMPLATE_NOT_FOUND"
+            }]
+        })
+    );
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]
+            .get("metaobjectDefinitions")
+            .cloned()
+            .unwrap_or_else(|| json!({})),
+        json!({})
+    );
+}
+
+#[test]
+fn rejected_linked_standard_metafield_enable_does_not_stage_its_definition() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RejectPinnedMaterialStandardMetafield {
+          standardMetafieldDefinitionEnable(
+            ownerType: PRODUCT
+            namespace: "shopify"
+            key: "material"
+            pin: true
+          ) {
+            createdDefinition { id validations { name value } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        response.body["data"]["standardMetafieldDefinitionEnable"],
+        json!({
+            "createdDefinition": null,
+            "userErrors": [{
+                "field": null,
+                "message": "Constrained metafield definitions do not support pinning.",
+                "code": "UNSUPPORTED_PINNING"
+            }]
+        })
+    );
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]
+            .get("metaobjectDefinitions")
+            .cloned()
+            .unwrap_or_else(|| json!({})),
+        json!({})
+    );
+}
+
+#[test]
+fn live_hybrid_linked_standard_metafield_does_not_fallback_after_authoritative_miss() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_requests = Arc::clone(&upstream_requests);
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            assert!(body["query"]
+                .as_str()
+                .is_some_and(|query| query.trim_start().starts_with("query")));
+            upstream_requests.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({"data": {"metaobjectDefinitionByType": null}}),
+            }
+        }
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation EnableMaterialWithoutAuthoritativeDefinition {
+          standardMetafieldDefinitionEnable(ownerType: PRODUCT, namespace: "shopify", key: "material") {
+            createdDefinition { id validations { name value } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        response.body["data"]["standardMetafieldDefinitionEnable"],
+        json!({
+            "createdDefinition": null,
+            "userErrors": [{
+                "field": null,
+                "message": "A standard definition wasn't found for the specified owner type, namespace, and key.",
+                "code": "TEMPLATE_NOT_FOUND"
+            }]
+        })
+    );
+    assert_eq!(
+        upstream_requests
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|body| body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("metaobjectDefinitionByType")))
+            .count(),
+        1
+    );
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]
+            .get("metaobjectDefinitions")
+            .cloned()
+            .unwrap_or_else(|| json!({})),
+        json!({})
+    );
+}
+
+#[test]
+fn live_hybrid_linked_standard_metafield_uses_captured_template_without_authoritative_result() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_requests = Arc::clone(&upstream_requests);
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            let is_definition_by_type = body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("metaobjectDefinitionByType"));
+            upstream_requests.lock().unwrap().push(body);
+            if is_definition_by_type {
+                Response {
+                    status: 500,
+                    headers: Default::default(),
+                    body: json!({"errors": [{"message": "No matching authoritative lookup"}]}),
+                }
+            } else {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({"data": {}}),
+                }
+            }
+        }
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation EnableColorPatternWithoutAuthoritativeResult {
+          standardMetafieldDefinitionEnable(ownerType: PRODUCT, namespace: "shopify", key: "color-pattern") {
+            createdDefinition { validations { name value } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        response.body["data"]["standardMetafieldDefinitionEnable"]["userErrors"],
+        json!([])
+    );
+    let definition_id = response.body["data"]["standardMetafieldDefinitionEnable"]
+        ["createdDefinition"]["validations"][0]["value"]
+        .as_str()
+        .expect("captured template fallback should stage a resolvable definition")
+        .to_string();
+    assert!(!definition_id.contains("/standard-"));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadCapturedColorPatternDefinition($id: ID!) {
+          direct: metaobjectDefinition(id: $id) { id type name }
+          relay: node(id: $id) { __typename ... on MetaobjectDefinition { id type name } }
+        }
+        "#,
+        json!({"id": definition_id}),
+    ));
+    assert_eq!(
+        read.body["data"],
+        json!({
+            "direct": {"id": definition_id, "type": "shopify--color-pattern", "name": "Color"},
+            "relay": {
+                "__typename": "MetaobjectDefinition",
+                "id": definition_id,
+                "type": "shopify--color-pattern",
+                "name": "Color"
+            }
+        })
+    );
+    assert_eq!(
+        upstream_requests
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|body| body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("metaobjectDefinitionByType")))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn live_hybrid_linked_standard_metafield_validations_precede_definition_lookup() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_requests = Arc::clone(&upstream_requests);
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            upstream_requests.lock().unwrap().push(body.clone());
+            assert!(
+                !body["query"]
+                    .as_str()
+                    .is_some_and(|query| query.contains("metaobjectDefinitionByType")),
+                "linked definition lookup must not run before enable validation: {}",
+                request.body
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({"data": {"metafieldDefinitions": {
+                    "nodes": [],
+                    "pageInfo": {"hasNextPage": false, "endCursor": null}
+                }}}),
+            }
+        }
+    });
+
+    let invalid_capability = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RejectMaterialUniqueValues {
+          standardMetafieldDefinitionEnable(
+            ownerType: PRODUCT
+            namespace: "shopify"
+            key: "material"
+            capabilities: { uniqueValues: { enabled: true } }
+          ) {
+            createdDefinition { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        invalid_capability.body["data"]["standardMetafieldDefinitionEnable"]["userErrors"],
+        json!([{
+            "field": null,
+            "message": "The capability unique_values is not valid for this definition.",
+            "code": "INVALID_CAPABILITY"
+        }])
+    );
+
+    let invalid_pin = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RejectPinnedMaterial {
+          standardMetafieldDefinitionEnable(
+            ownerType: PRODUCT
+            namespace: "shopify"
+            key: "material"
+            pin: true
+          ) {
+            createdDefinition { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        invalid_pin.body["data"]["standardMetafieldDefinitionEnable"]["userErrors"],
+        json!([{
+            "field": null,
+            "message": "Constrained metafield definitions do not support pinning.",
+            "code": "UNSUPPORTED_PINNING"
+        }])
+    );
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]
+            .get("metaobjectDefinitions")
+            .cloned()
+            .unwrap_or_else(|| json!({})),
+        json!({})
+    );
+    assert!(upstream_requests
+        .lock()
+        .unwrap()
+        .iter()
+        .all(|body| body["query"]
+            .as_str()
+            .is_some_and(|query| !query.contains("metaobjectDefinitionByType"))));
 }
 
 #[test]
@@ -4457,13 +5367,43 @@ fn standard_metafield_definition_enable_accepts_catalog_template_id_for_fabric()
         enabled.body["data"]["standardMetafieldDefinitionEnable"]["createdDefinition"]["type"],
         json!({ "name": "list.metaobject_reference", "category": "REFERENCE" })
     );
+    let fabric_linked_id = enabled.body["data"]["standardMetafieldDefinitionEnable"]
+        ["createdDefinition"]["validations"][0]["value"]
+        .as_str()
+        .unwrap()
+        .to_string();
     assert_eq!(
         enabled.body["data"]["standardMetafieldDefinitionEnable"]["createdDefinition"]
             ["validations"],
         json!([{
             "name": "metaobject_definition_id",
-            "value": "gid://shopify/MetaobjectDefinition/standard-fabric?shopify-draft-proxy=synthetic"
+            "value": fabric_linked_id
         }])
+    );
+    let linked = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadFabricLinkedDefinition($id: ID!) {
+          metaobjectDefinition(id: $id) { id type name }
+          node(id: $id) { __typename ... on MetaobjectDefinition { id type name } }
+        }
+        "#,
+        json!({"id": fabric_linked_id}),
+    ));
+    assert_eq!(
+        linked.body["data"],
+        json!({
+            "metaobjectDefinition": {
+                "id": fabric_linked_id,
+                "type": "shopify--fabric",
+                "name": "Fabric"
+            },
+            "node": {
+                "__typename": "MetaobjectDefinition",
+                "id": fabric_linked_id,
+                "type": "shopify--fabric",
+                "name": "Fabric"
+            }
+        })
     );
     assert_eq!(
         enabled.body["data"]["standardMetafieldDefinitionEnable"]["createdDefinition"]

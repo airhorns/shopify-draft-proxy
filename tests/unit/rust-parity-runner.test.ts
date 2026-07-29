@@ -4,6 +4,7 @@ import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 
 import {
+  createParityGidAliasBindings,
   defaultApiVersionForCapture,
   diffValues,
   parseJsonlRecordsForParity,
@@ -44,6 +45,82 @@ describe('scenarioClockFromCapture', () => {
         second: { runId: '1783175824303' },
       }),
     ).toBeUndefined();
+  });
+});
+
+describe('parity runner exact Shopify GID aliases', () => {
+  const addressRule = {
+    path: '$',
+    matcher: 'exact-string:gid://shopify/CompanyAddress/4?shopify-draft-proxy=synthetic',
+    reason: 'The update must preserve the address allocated earlier in this scenario.',
+  };
+
+  it('binds an exact local alias to one actual GID across comparison targets', () => {
+    const bindings = createParityGidAliasBindings();
+
+    expect(
+      diffValues(
+        'gid://shopify/CompanyAddress/9352282418',
+        'gid://shopify/CompanyAddress/5?shopify-draft-proxy=synthetic',
+        [addressRule],
+        '$',
+        bindings,
+      ),
+    ).toEqual([]);
+    expect(
+      diffValues(
+        'gid://shopify/CompanyAddress/9352282418',
+        'gid://shopify/CompanyAddress/5?shopify-draft-proxy=synthetic',
+        [addressRule],
+        '$',
+        bindings,
+      ),
+    ).toEqual([]);
+    expect(
+      diffValues(
+        'gid://shopify/CompanyAddress/9352282418',
+        'gid://shopify/CompanyAddress/6?shopify-draft-proxy=synthetic',
+        [addressRule],
+        '$',
+        bindings,
+      ),
+    ).toEqual([expect.stringContaining('CompanyAddress/6?shopify-draft-proxy=synthetic')]);
+  });
+
+  it('keeps exact local aliases type-safe and one-to-one', () => {
+    const bindings = createParityGidAliasBindings();
+    const secondAddressRule = {
+      ...addressRule,
+      matcher: 'exact-string:gid://shopify/CompanyAddress/6?shopify-draft-proxy=synthetic',
+    };
+
+    expect(
+      diffValues(
+        'captured',
+        'gid://shopify/CompanyAddress/5?shopify-draft-proxy=synthetic',
+        [addressRule],
+        '$',
+        bindings,
+      ),
+    ).toEqual([]);
+    expect(
+      diffValues(
+        'captured',
+        'gid://shopify/CompanyAddress/5?shopify-draft-proxy=synthetic',
+        [secondAddressRule],
+        '$',
+        bindings,
+      ),
+    ).not.toEqual([]);
+    expect(
+      diffValues(
+        'captured',
+        'gid://shopify/CompanyLocation/5?shopify-draft-proxy=synthetic',
+        [addressRule],
+        '$',
+        bindings,
+      ),
+    ).not.toEqual([]);
   });
 });
 
@@ -142,6 +219,44 @@ describe('parity runner JSONL targets', () => {
     );
 
     expect(diffs).toEqual([]);
+  });
+});
+
+describe('parity runner explicit null boundaries', () => {
+  const nullDifference = {
+    path: '$.product.onlineStorePreviewUrl',
+    matcher: 'null',
+    reason: 'A local-only product has no authoritative Shopify preview URL.',
+  };
+
+  it('accepts null while rejecting a plausible-looking fabricated URL', () => {
+    const capture = { product: { onlineStorePreviewUrl: 'https://example.shopifypreview.com/products_preview' } };
+
+    expect(diffValues(capture, { product: { onlineStorePreviewUrl: null } }, [nullDifference])).toEqual([]);
+    expect(
+      diffValues(capture, { product: { onlineStorePreviewUrl: 'https://shopify-draft-proxy.preview/products/1' } }, [
+        nullDifference,
+      ]),
+    ).toEqual([expect.stringContaining('$.product.onlineStorePreviewUrl')]);
+  });
+
+  it('is a validated parity-spec matcher', () => {
+    expect(
+      paritySpecSchema.parse({
+        scenarioId: 'preview-null-boundary',
+        operationNames: ['productSet'],
+        scenarioStatus: 'captured',
+        assertionKinds: ['nullability-parity'],
+        liveCaptureFiles: ['fixtures/conformance/example/2025-01/products/preview.json'],
+        proxyRequest: { documentPath: 'config/parity-requests/products/preview.graphql' },
+        comparisonMode: 'captured-vs-proxy-request',
+        comparison: {
+          mode: 'strict-json',
+          expectedDifferences: [nullDifference],
+          targets: [{ name: 'preview', capturePath: '$.response', proxyPath: '$' }],
+        },
+      }).comparison?.expectedDifferences,
+    ).toEqual([nullDifference]);
   });
 });
 

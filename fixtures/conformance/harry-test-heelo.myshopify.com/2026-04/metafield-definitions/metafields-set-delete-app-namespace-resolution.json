@@ -1,17 +1,18 @@
 {
-  "capturedAt": "2026-05-08T11:53:14.099Z",
+  "capturedAt": "2026-07-19T14:44:35.810Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "summary": "metafieldsSet and metafieldsDelete app namespace resolution for value mutations, including omitted namespace defaulting and cross-app access denial.",
   "seed": {
-    "runId": "mowuw5ai",
+    "runId": "mrrwpv13",
     "requestingApiClientId": "347082227713",
-    "appNamespaceInput": "$app:value_namespace_mowuw5ai",
-    "appNamespaceResolved": "app--347082227713--value_namespace_mowuw5ai",
+    "appNamespaceInput": "$app:value_namespace_mrrwpv13",
+    "appNamespaceResolved": "app--347082227713--value_namespace_mrrwpv13",
     "defaultNamespaceResolved": "app--347082227713",
-    "crossAppNamespace": "app--999999999999--value_namespace_mowuw5ai",
+    "crossAppNamespace": "app--999999999999--value_namespace_mrrwpv13",
     "key": "tier",
-    "defaultKey": "default_mowuw5ai"
+    "defaultKey": "default_mrrwpv13",
+    "productId": "gid://shopify/Product/10243936846130"
   },
   "productCreate": {
     "name": "product-create-setup",
@@ -19,7 +20,7 @@
       "query": "#graphql\n  mutation CreateProduct($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product { id title }\n      userErrors { field message }\n    }\n  }\n",
       "variables": {
         "product": {
-          "title": "Metafields app namespace mowuw5ai",
+          "title": "Metafields app namespace mrrwpv13",
           "status": "DRAFT"
         }
       }
@@ -29,8 +30,8 @@
       "data": {
         "productCreate": {
           "product": {
-            "id": "gid://shopify/Product/10180596236594",
-            "title": "Metafields app namespace mowuw5ai"
+            "id": "gid://shopify/Product/10243936846130",
+            "title": "Metafields app namespace mrrwpv13"
           },
           "userErrors": []
         }
@@ -55,8 +56,8 @@
       "variables": {
         "metafields": [
           {
-            "ownerId": "gid://shopify/Product/10180596236594",
-            "namespace": "$app:value_namespace_mowuw5ai",
+            "ownerId": "gid://shopify/Product/10243936846130",
+            "namespace": "$app:value_namespace_mrrwpv13",
             "key": "tier",
             "type": "single_line_text_field",
             "value": "gold"
@@ -70,8 +71,8 @@
         "metafieldsSet": {
           "metafields": [
             {
-              "id": "gid://shopify/Metafield/43139977478450",
-              "namespace": "app--347082227713--value_namespace_mowuw5ai",
+              "id": "gid://shopify/Metafield/45214283170098",
+              "namespace": "app--347082227713--value_namespace_mrrwpv13",
               "key": "tier",
               "type": "single_line_text_field",
               "value": "gold"
@@ -98,21 +99,21 @@
     "request": {
       "query": "query MetafieldsAppNamespaceProductRead(\n  $productId: ID!\n  $canonicalNamespace: String!\n  $defaultNamespace: String!\n  $key: String!\n  $defaultKey: String!\n) {\n  product(id: $productId) {\n    id\n    canonical: metafield(namespace: $canonicalNamespace, key: $key) {\n      id\n      namespace\n      key\n      type\n      value\n    }\n    defaulted: metafield(namespace: $defaultNamespace, key: $defaultKey) {\n      id\n      namespace\n      key\n      type\n      value\n    }\n  }\n}\n",
       "variables": {
-        "productId": "gid://shopify/Product/10180596236594",
-        "canonicalNamespace": "app--347082227713--value_namespace_mowuw5ai",
+        "productId": "gid://shopify/Product/10243936846130",
+        "canonicalNamespace": "app--347082227713--value_namespace_mrrwpv13",
         "defaultNamespace": "app--347082227713",
         "key": "tier",
-        "defaultKey": "default_mowuw5ai"
+        "defaultKey": "default_mrrwpv13"
       }
     },
     "status": 200,
     "response": {
       "data": {
         "product": {
-          "id": "gid://shopify/Product/10180596236594",
+          "id": "gid://shopify/Product/10243936846130",
           "canonical": {
-            "id": "gid://shopify/Metafield/43139977478450",
-            "namespace": "app--347082227713--value_namespace_mowuw5ai",
+            "id": "gid://shopify/Metafield/45214283170098",
+            "namespace": "app--347082227713--value_namespace_mrrwpv13",
             "key": "tier",
             "type": "single_line_text_field",
             "value": "gold"
@@ -140,8 +141,8 @@
       "variables": {
         "metafields": [
           {
-            "ownerId": "gid://shopify/Product/10180596236594",
-            "key": "default_mowuw5ai",
+            "ownerId": "gid://shopify/Product/10243936846130",
+            "key": "default_mrrwpv13",
             "type": "single_line_text_field",
             "value": "silver"
           }
@@ -154,9 +155,9 @@
         "metafieldsSet": {
           "metafields": [
             {
-              "id": "gid://shopify/Metafield/43139977511218",
+              "id": "gid://shopify/Metafield/45214283202866",
               "namespace": "app--347082227713",
-              "key": "default_mowuw5ai",
+              "key": "default_mrrwpv13",
               "type": "single_line_text_field",
               "value": "silver"
             }
@@ -182,29 +183,29 @@
     "request": {
       "query": "query MetafieldsAppNamespaceProductRead(\n  $productId: ID!\n  $canonicalNamespace: String!\n  $defaultNamespace: String!\n  $key: String!\n  $defaultKey: String!\n) {\n  product(id: $productId) {\n    id\n    canonical: metafield(namespace: $canonicalNamespace, key: $key) {\n      id\n      namespace\n      key\n      type\n      value\n    }\n    defaulted: metafield(namespace: $defaultNamespace, key: $defaultKey) {\n      id\n      namespace\n      key\n      type\n      value\n    }\n  }\n}\n",
       "variables": {
-        "productId": "gid://shopify/Product/10180596236594",
-        "canonicalNamespace": "app--347082227713--value_namespace_mowuw5ai",
+        "productId": "gid://shopify/Product/10243936846130",
+        "canonicalNamespace": "app--347082227713--value_namespace_mrrwpv13",
         "defaultNamespace": "app--347082227713",
         "key": "tier",
-        "defaultKey": "default_mowuw5ai"
+        "defaultKey": "default_mrrwpv13"
       }
     },
     "status": 200,
     "response": {
       "data": {
         "product": {
-          "id": "gid://shopify/Product/10180596236594",
+          "id": "gid://shopify/Product/10243936846130",
           "canonical": {
-            "id": "gid://shopify/Metafield/43139977478450",
-            "namespace": "app--347082227713--value_namespace_mowuw5ai",
+            "id": "gid://shopify/Metafield/45214283170098",
+            "namespace": "app--347082227713--value_namespace_mrrwpv13",
             "key": "tier",
             "type": "single_line_text_field",
             "value": "gold"
           },
           "defaulted": {
-            "id": "gid://shopify/Metafield/43139977511218",
+            "id": "gid://shopify/Metafield/45214283202866",
             "namespace": "app--347082227713",
-            "key": "default_mowuw5ai",
+            "key": "default_mrrwpv13",
             "type": "single_line_text_field",
             "value": "silver"
           }
@@ -230,8 +231,8 @@
       "variables": {
         "metafields": [
           {
-            "ownerId": "gid://shopify/Product/10180596236594",
-            "namespace": "$app:value_namespace_mowuw5ai",
+            "ownerId": "gid://shopify/Product/10243936846130",
+            "namespace": "$app:value_namespace_mrrwpv13",
             "key": "tier"
           }
         ]
@@ -243,8 +244,8 @@
         "metafieldsDelete": {
           "deletedMetafields": [
             {
-              "ownerId": "gid://shopify/Product/10180596236594",
-              "namespace": "app--347082227713--value_namespace_mowuw5ai",
+              "ownerId": "gid://shopify/Product/10243936846130",
+              "namespace": "app--347082227713--value_namespace_mrrwpv13",
               "key": "tier"
             }
           ],
@@ -269,23 +270,23 @@
     "request": {
       "query": "query MetafieldsAppNamespaceProductRead(\n  $productId: ID!\n  $canonicalNamespace: String!\n  $defaultNamespace: String!\n  $key: String!\n  $defaultKey: String!\n) {\n  product(id: $productId) {\n    id\n    canonical: metafield(namespace: $canonicalNamespace, key: $key) {\n      id\n      namespace\n      key\n      type\n      value\n    }\n    defaulted: metafield(namespace: $defaultNamespace, key: $defaultKey) {\n      id\n      namespace\n      key\n      type\n      value\n    }\n  }\n}\n",
       "variables": {
-        "productId": "gid://shopify/Product/10180596236594",
-        "canonicalNamespace": "app--347082227713--value_namespace_mowuw5ai",
+        "productId": "gid://shopify/Product/10243936846130",
+        "canonicalNamespace": "app--347082227713--value_namespace_mrrwpv13",
         "defaultNamespace": "app--347082227713",
         "key": "tier",
-        "defaultKey": "default_mowuw5ai"
+        "defaultKey": "default_mrrwpv13"
       }
     },
     "status": 200,
     "response": {
       "data": {
         "product": {
-          "id": "gid://shopify/Product/10180596236594",
+          "id": "gid://shopify/Product/10243936846130",
           "canonical": null,
           "defaulted": {
-            "id": "gid://shopify/Metafield/43139977511218",
+            "id": "gid://shopify/Metafield/45214283202866",
             "namespace": "app--347082227713",
-            "key": "default_mowuw5ai",
+            "key": "default_mrrwpv13",
             "type": "single_line_text_field",
             "value": "silver"
           }
@@ -311,8 +312,8 @@
       "variables": {
         "metafields": [
           {
-            "ownerId": "gid://shopify/Product/10180596236594",
-            "namespace": "app--999999999999--value_namespace_mowuw5ai",
+            "ownerId": "gid://shopify/Product/10243936846130",
+            "namespace": "app--999999999999--value_namespace_mrrwpv13",
             "key": "tier",
             "type": "single_line_text_field",
             "value": "blocked"
@@ -355,8 +356,8 @@
       "variables": {
         "metafields": [
           {
-            "ownerId": "gid://shopify/Product/10180596236594",
-            "namespace": "app--999999999999--value_namespace_mowuw5ai",
+            "ownerId": "gid://shopify/Product/10243936846130",
+            "namespace": "app--999999999999--value_namespace_mrrwpv13",
             "key": "tier"
           }
         ]
@@ -388,59 +389,45 @@
       }
     }
   },
-  "cleanup": [
-    {
-      "name": "cleanup-product-delete",
-      "request": {
-        "query": "#graphql\n  mutation DeleteProduct($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors { field message }\n    }\n  }\n",
-        "variables": {
-          "input": {
-            "id": "gid://shopify/Product/10180596236594"
-          }
-        }
-      },
-      "status": 200,
-      "response": {
-        "data": {
-          "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10180596236594",
-            "userErrors": []
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 10,
-            "actualQueryCost": 10,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1989,
-              "restoreRate": 100
-            }
-          }
-        }
-      }
-    }
-  ],
+  "cleanup": [],
   "upstreamCalls": [
     {
-      "operationName": "ProductsHydrateNodes",
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "query OwnerMetafieldsHydrateNodes($ids: [ID!]!, $metafield0Namespace: String!, $metafield0Key: String!) { nodes(ids: $ids) { __typename id ... on HasMetafields { metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } } ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt  } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } } ... on Collection { id title handle } ... on Customer { id displayName email } ... on Order { id name } ... on Company { id name } ... on Page { id title } ... on Article { id title } } }",
+      "operationName": "OwnerMetafieldsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10180596236594"]
+        "ids": ["gid://shopify/Product/10243936846130"],
+        "metafield0Key": "tier",
+        "metafield0Namespace": "app--347082227713--value_namespace_mrrwpv13"
       },
-      "query": "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      combinedListingRole\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      options {\n        id\n        name\n        position\n        optionValues { id name hasVariants }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          jsonValue\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n      media(first: 250) {\n        nodes {\n          __typename\n          id\n          alt\n          mediaContentType\n          status\n          preview { image { url width height } }\n          ... on MediaImage {\n            image { id url altText width height }\n          }\n        }\n      }\n      collections(first: 250) {\n        nodes {\n          id\n          legacyResourceId\n          title\n          handle\n          updatedAt\n          description\n          descriptionHtml\n          sortOrder\n          templateSuffix\n          seo { title description }\n          productsCount { count }\n        }\n      }\n      variants(first: 250) {\n        nodes {\n          id\n          title\n          sku\n          barcode\n          price\n          compareAtPrice\n          taxable\n          inventoryPolicy\n          inventoryQuantity\n          selectedOptions { name value }\n          metafields(first: 250) {\n            nodes {\n              id\n              namespace\n              key\n              type\n              value\n              compareDigest\n              jsonValue\n              createdAt\n              updatedAt\n              ownerType\n            }\n          }\n          inventoryItem {\n            id\n            tracked\n            requiresShipping\n            measurement { weight { unit value } }\n            inventoryLevels(first: 50) {\n              nodes {\n                id\n                location { id name }\n                quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n                  name\n                  quantity\n                  updatedAt\n                }\n              }\n            }\n          }\n          sellingPlanGroups(first: 50) {\n            nodes { id name merchantCode }\n          }\n        }\n      }\n      sellingPlanGroups(first: 50) {\n        nodes { id name merchantCode }\n      }\n    }\n    ... on Collection {\n      legacyResourceId\n      title\n      handle\n      updatedAt\n      description\n      descriptionHtml\n      sortOrder\n      templateSuffix\n      seo { title description }\n      ruleSet {\n        appliedDisjunctively\n        rules { column relation condition }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          jsonValue\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n      productsCount { count }\n      products(first: 250) {\n        edges {\n          cursor\n          node { id title handle status vendor productType tags totalInventory tracksInventory }\n        }\n      }\n    }\n    ... on ProductVariant {\n      title\n      sku\n      barcode\n      price\n      compareAtPrice\n      taxable\n      inventoryPolicy\n      inventoryQuantity\n      selectedOptions { name value }\n      product { id title handle status totalInventory tracksInventory }\n      product {\n        variants(first: 250) {\n          nodes {\n            id\n            title\n            sku\n            barcode\n            price\n            compareAtPrice\n            taxable\n            inventoryPolicy\n            inventoryQuantity\n            selectedOptions { name value }\n            inventoryItem {\n              id\n              tracked\n              requiresShipping\n              measurement { weight { unit value } }\n            }\n          }\n        }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          jsonValue\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n      inventoryItem {\n        id\n        tracked\n        requiresShipping\n        measurement { weight { unit value } }\n      }\n      sellingPlanGroups(first: 50) {\n        nodes { id name merchantCode }\n      }\n    }\n    ... on InventoryItem {\n      tracked\n      requiresShipping\n      measurement { weight { unit value } }\n      variant {\n        id\n        title\n        inventoryQuantity\n        selectedOptions { name value }\n        product {\n          id\n          title\n          handle\n          status\n          totalInventory\n          tracksInventory\n        }\n      }\n      inventoryLevels(first: 50) {\n        nodes {\n          id\n          location { id name }\n          quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n            name\n            quantity\n            updatedAt\n          }\n        }\n      }\n    }\n    ... on InventoryLevel {\n      id\n      location { id name }\n      quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n        name\n        quantity\n        updatedAt\n      }\n      item {\n        id\n        tracked\n        requiresShipping\n        inventoryLevels(first: 50) {\n          nodes {\n            id\n            location { id name }\n            quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n              name\n              quantity\n              updatedAt\n            }\n          }\n        }\n        variant {\n          id\n          title\n          inventoryQuantity\n          selectedOptions { name value }\n          product {\n            id\n            title\n            handle\n            status\n            totalInventory\n            tracksInventory\n          }\n        }\n      }\n    }\n    ... on Location {\n      id\n      name\n      isActive\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "nodes": [null]
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10243936846130",
+                "metafield0": null,
+                "title": "Metafields app namespace mrrwpv13",
+                "handle": "metafields-app-namespace-mrrwpv13",
+                "status": "DRAFT",
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "createdAt": "2026-07-19T14:44:34Z",
+                "updatedAt": "2026-07-19T14:44:37Z"
+              }
+            ]
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 637,
-              "actualQueryCost": 1,
+              "requestedQueryCost": 8,
+              "actualQueryCost": 3,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1999,
+                "currentlyAvailable": 1997,
                 "restoreRate": 100
               }
             }
@@ -449,24 +436,54 @@
       }
     },
     {
-      "operationName": "ProductsHydrateNodes",
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "query OwnerMetafieldsHydrateNodes($ids: [ID!]!, $metafield0Namespace: String!, $metafield0Key: String!) { nodes(ids: $ids) { __typename id ... on HasMetafields { metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } } ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt  } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } } ... on Collection { id title handle } ... on Customer { id displayName email } ... on Order { id name } ... on Company { id name } ... on Page { id title } ... on Article { id title } } }",
+      "operationName": "OwnerMetafieldsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10180596236594"]
+        "ids": ["gid://shopify/Product/10243936846130"],
+        "metafield0Key": "default_mrrwpv13",
+        "metafield0Namespace": "app--347082227713"
       },
-      "query": "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      combinedListingRole\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      options {\n        id\n        name\n        position\n        optionValues { id name hasVariants }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          jsonValue\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n      media(first: 250) {\n        nodes {\n          __typename\n          id\n          alt\n          mediaContentType\n          status\n          preview { image { url width height } }\n          ... on MediaImage {\n            image { id url altText width height }\n          }\n        }\n      }\n      collections(first: 250) {\n        nodes {\n          id\n          legacyResourceId\n          title\n          handle\n          updatedAt\n          description\n          descriptionHtml\n          sortOrder\n          templateSuffix\n          seo { title description }\n          productsCount { count }\n        }\n      }\n      variants(first: 250) {\n        nodes {\n          id\n          title\n          sku\n          barcode\n          price\n          compareAtPrice\n          taxable\n          inventoryPolicy\n          inventoryQuantity\n          selectedOptions { name value }\n          metafields(first: 250) {\n            nodes {\n              id\n              namespace\n              key\n              type\n              value\n              compareDigest\n              jsonValue\n              createdAt\n              updatedAt\n              ownerType\n            }\n          }\n          inventoryItem {\n            id\n            tracked\n            requiresShipping\n            measurement { weight { unit value } }\n            inventoryLevels(first: 50) {\n              nodes {\n                id\n                location { id name }\n                quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n                  name\n                  quantity\n                  updatedAt\n                }\n              }\n            }\n          }\n          sellingPlanGroups(first: 50) {\n            nodes { id name merchantCode }\n          }\n        }\n      }\n      sellingPlanGroups(first: 50) {\n        nodes { id name merchantCode }\n      }\n    }\n    ... on Collection {\n      legacyResourceId\n      title\n      handle\n      updatedAt\n      description\n      descriptionHtml\n      sortOrder\n      templateSuffix\n      seo { title description }\n      ruleSet {\n        appliedDisjunctively\n        rules { column relation condition }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          jsonValue\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n      productsCount { count }\n      products(first: 250) {\n        edges {\n          cursor\n          node { id title handle status vendor productType tags totalInventory tracksInventory }\n        }\n      }\n    }\n    ... on ProductVariant {\n      title\n      sku\n      barcode\n      price\n      compareAtPrice\n      taxable\n      inventoryPolicy\n      inventoryQuantity\n      selectedOptions { name value }\n      product { id title handle status totalInventory tracksInventory }\n      product {\n        variants(first: 250) {\n          nodes {\n            id\n            title\n            sku\n            barcode\n            price\n            compareAtPrice\n            taxable\n            inventoryPolicy\n            inventoryQuantity\n            selectedOptions { name value }\n            inventoryItem {\n              id\n              tracked\n              requiresShipping\n              measurement { weight { unit value } }\n            }\n          }\n        }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          jsonValue\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n      inventoryItem {\n        id\n        tracked\n        requiresShipping\n        measurement { weight { unit value } }\n      }\n      sellingPlanGroups(first: 50) {\n        nodes { id name merchantCode }\n      }\n    }\n    ... on InventoryItem {\n      tracked\n      requiresShipping\n      measurement { weight { unit value } }\n      variant {\n        id\n        title\n        inventoryQuantity\n        selectedOptions { name value }\n        product {\n          id\n          title\n          handle\n          status\n          totalInventory\n          tracksInventory\n        }\n      }\n      inventoryLevels(first: 50) {\n        nodes {\n          id\n          location { id name }\n          quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n            name\n            quantity\n            updatedAt\n          }\n        }\n      }\n    }\n    ... on InventoryLevel {\n      id\n      location { id name }\n      quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n        name\n        quantity\n        updatedAt\n      }\n      item {\n        id\n        tracked\n        requiresShipping\n        inventoryLevels(first: 50) {\n          nodes {\n            id\n            location { id name }\n            quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n              name\n              quantity\n              updatedAt\n            }\n          }\n        }\n        variant {\n          id\n          title\n          inventoryQuantity\n          selectedOptions { name value }\n          product {\n            id\n            title\n            handle\n            status\n            totalInventory\n            tracksInventory\n          }\n        }\n      }\n    }\n    ... on Location {\n      id\n      name\n      isActive\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "nodes": [null]
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10243936846130",
+                "metafield0": {
+                  "id": "gid://shopify/Metafield/45214283202866",
+                  "namespace": "app--347082227713",
+                  "key": "default_mrrwpv13",
+                  "type": "single_line_text_field",
+                  "value": "silver",
+                  "jsonValue": "silver",
+                  "compareDigest": "f5316c961e22d8827364a7fb0896f85d6476508ad92d28b71c558fe83dcc08d3",
+                  "createdAt": "2026-07-19T14:44:35Z",
+                  "updatedAt": "2026-07-19T14:44:35Z",
+                  "ownerType": "PRODUCT",
+                  "definition": null
+                },
+                "title": "Metafields app namespace mrrwpv13",
+                "handle": "metafields-app-namespace-mrrwpv13",
+                "status": "DRAFT",
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "createdAt": "2026-07-19T14:44:34Z",
+                "updatedAt": "2026-07-19T14:44:38Z"
+              }
+            ]
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 637,
-              "actualQueryCost": 1,
+              "requestedQueryCost": 8,
+              "actualQueryCost": 4,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1999,
+                "currentlyAvailable": 1996,
                 "restoreRate": 100
               }
             }
@@ -475,76 +492,42 @@
       }
     },
     {
-      "operationName": "ProductsHydrateNodes",
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "query OwnerMetafieldsHydrateNodes($ids: [ID!]!, $metafield0Namespace: String!, $metafield0Key: String!) { nodes(ids: $ids) { __typename id ... on HasMetafields { metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } } ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt  } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } } ... on Collection { id title handle } ... on Customer { id displayName email } ... on Order { id name } ... on Company { id name } ... on Page { id title } ... on Article { id title } } }",
+      "operationName": "OwnerMetafieldsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10180596236594"]
+        "ids": ["gid://shopify/Product/10243936846130"],
+        "metafield0Key": "tier",
+        "metafield0Namespace": "app--999999999999--value_namespace_mrrwpv13"
       },
-      "query": "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      combinedListingRole\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      options {\n        id\n        name\n        position\n        optionValues { id name hasVariants }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          jsonValue\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n      media(first: 250) {\n        nodes {\n          __typename\n          id\n          alt\n          mediaContentType\n          status\n          preview { image { url width height } }\n          ... on MediaImage {\n            image { id url altText width height }\n          }\n        }\n      }\n      collections(first: 250) {\n        nodes {\n          id\n          legacyResourceId\n          title\n          handle\n          updatedAt\n          description\n          descriptionHtml\n          sortOrder\n          templateSuffix\n          seo { title description }\n          productsCount { count }\n        }\n      }\n      variants(first: 250) {\n        nodes {\n          id\n          title\n          sku\n          barcode\n          price\n          compareAtPrice\n          taxable\n          inventoryPolicy\n          inventoryQuantity\n          selectedOptions { name value }\n          metafields(first: 250) {\n            nodes {\n              id\n              namespace\n              key\n              type\n              value\n              compareDigest\n              jsonValue\n              createdAt\n              updatedAt\n              ownerType\n            }\n          }\n          inventoryItem {\n            id\n            tracked\n            requiresShipping\n            measurement { weight { unit value } }\n            inventoryLevels(first: 50) {\n              nodes {\n                id\n                location { id name }\n                quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n                  name\n                  quantity\n                  updatedAt\n                }\n              }\n            }\n          }\n          sellingPlanGroups(first: 50) {\n            nodes { id name merchantCode }\n          }\n        }\n      }\n      sellingPlanGroups(first: 50) {\n        nodes { id name merchantCode }\n      }\n    }\n    ... on Collection {\n      legacyResourceId\n      title\n      handle\n      updatedAt\n      description\n      descriptionHtml\n      sortOrder\n      templateSuffix\n      seo { title description }\n      ruleSet {\n        appliedDisjunctively\n        rules { column relation condition }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          jsonValue\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n      productsCount { count }\n      products(first: 250) {\n        edges {\n          cursor\n          node { id title handle status vendor productType tags totalInventory tracksInventory }\n        }\n      }\n    }\n    ... on ProductVariant {\n      title\n      sku\n      barcode\n      price\n      compareAtPrice\n      taxable\n      inventoryPolicy\n      inventoryQuantity\n      selectedOptions { name value }\n      product { id title handle status totalInventory tracksInventory }\n      product {\n        variants(first: 250) {\n          nodes {\n            id\n            title\n            sku\n            barcode\n            price\n            compareAtPrice\n            taxable\n            inventoryPolicy\n            inventoryQuantity\n            selectedOptions { name value }\n            inventoryItem {\n              id\n              tracked\n              requiresShipping\n              measurement { weight { unit value } }\n            }\n          }\n        }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          jsonValue\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n      inventoryItem {\n        id\n        tracked\n        requiresShipping\n        measurement { weight { unit value } }\n      }\n      sellingPlanGroups(first: 50) {\n        nodes { id name merchantCode }\n      }\n    }\n    ... on InventoryItem {\n      tracked\n      requiresShipping\n      measurement { weight { unit value } }\n      variant {\n        id\n        title\n        inventoryQuantity\n        selectedOptions { name value }\n        product {\n          id\n          title\n          handle\n          status\n          totalInventory\n          tracksInventory\n        }\n      }\n      inventoryLevels(first: 50) {\n        nodes {\n          id\n          location { id name }\n          quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n            name\n            quantity\n            updatedAt\n          }\n        }\n      }\n    }\n    ... on InventoryLevel {\n      id\n      location { id name }\n      quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n        name\n        quantity\n        updatedAt\n      }\n      item {\n        id\n        tracked\n        requiresShipping\n        inventoryLevels(first: 50) {\n          nodes {\n            id\n            location { id name }\n            quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n              name\n              quantity\n              updatedAt\n            }\n          }\n        }\n        variant {\n          id\n          title\n          inventoryQuantity\n          selectedOptions { name value }\n          product {\n            id\n            title\n            handle\n            status\n            totalInventory\n            tracksInventory\n          }\n        }\n      }\n    }\n    ... on Location {\n      id\n      name\n      isActive\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "nodes": [null]
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 637,
-              "actualQueryCost": 1,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1999,
-                "restoreRate": 100
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10243936846130",
+                "metafield0": null,
+                "title": "Metafields app namespace mrrwpv13",
+                "handle": "metafields-app-namespace-mrrwpv13",
+                "status": "DRAFT",
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "createdAt": "2026-07-19T14:44:34Z",
+                "updatedAt": "2026-07-19T14:44:38Z"
               }
-            }
-          }
-        }
-      }
-    },
-    {
-      "operationName": "ProductsHydrateNodes",
-      "variables": {
-        "ids": ["gid://shopify/Product/10180596236594"]
-      },
-      "query": "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      combinedListingRole\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      options {\n        id\n        name\n        position\n        optionValues { id name hasVariants }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          jsonValue\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n      media(first: 250) {\n        nodes {\n          __typename\n          id\n          alt\n          mediaContentType\n          status\n          preview { image { url width height } }\n          ... on MediaImage {\n            image { id url altText width height }\n          }\n        }\n      }\n      collections(first: 250) {\n        nodes {\n          id\n          legacyResourceId\n          title\n          handle\n          updatedAt\n          description\n          descriptionHtml\n          sortOrder\n          templateSuffix\n          seo { title description }\n          productsCount { count }\n        }\n      }\n      variants(first: 250) {\n        nodes {\n          id\n          title\n          sku\n          barcode\n          price\n          compareAtPrice\n          taxable\n          inventoryPolicy\n          inventoryQuantity\n          selectedOptions { name value }\n          metafields(first: 250) {\n            nodes {\n              id\n              namespace\n              key\n              type\n              value\n              compareDigest\n              jsonValue\n              createdAt\n              updatedAt\n              ownerType\n            }\n          }\n          inventoryItem {\n            id\n            tracked\n            requiresShipping\n            measurement { weight { unit value } }\n            inventoryLevels(first: 50) {\n              nodes {\n                id\n                location { id name }\n                quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n                  name\n                  quantity\n                  updatedAt\n                }\n              }\n            }\n          }\n          sellingPlanGroups(first: 50) {\n            nodes { id name merchantCode }\n          }\n        }\n      }\n      sellingPlanGroups(first: 50) {\n        nodes { id name merchantCode }\n      }\n    }\n    ... on Collection {\n      legacyResourceId\n      title\n      handle\n      updatedAt\n      description\n      descriptionHtml\n      sortOrder\n      templateSuffix\n      seo { title description }\n      ruleSet {\n        appliedDisjunctively\n        rules { column relation condition }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          jsonValue\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n      productsCount { count }\n      products(first: 250) {\n        edges {\n          cursor\n          node { id title handle status vendor productType tags totalInventory tracksInventory }\n        }\n      }\n    }\n    ... on ProductVariant {\n      title\n      sku\n      barcode\n      price\n      compareAtPrice\n      taxable\n      inventoryPolicy\n      inventoryQuantity\n      selectedOptions { name value }\n      product { id title handle status totalInventory tracksInventory }\n      product {\n        variants(first: 250) {\n          nodes {\n            id\n            title\n            sku\n            barcode\n            price\n            compareAtPrice\n            taxable\n            inventoryPolicy\n            inventoryQuantity\n            selectedOptions { name value }\n            inventoryItem {\n              id\n              tracked\n              requiresShipping\n              measurement { weight { unit value } }\n            }\n          }\n        }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          jsonValue\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n      inventoryItem {\n        id\n        tracked\n        requiresShipping\n        measurement { weight { unit value } }\n      }\n      sellingPlanGroups(first: 50) {\n        nodes { id name merchantCode }\n      }\n    }\n    ... on InventoryItem {\n      tracked\n      requiresShipping\n      measurement { weight { unit value } }\n      variant {\n        id\n        title\n        inventoryQuantity\n        selectedOptions { name value }\n        product {\n          id\n          title\n          handle\n          status\n          totalInventory\n          tracksInventory\n        }\n      }\n      inventoryLevels(first: 50) {\n        nodes {\n          id\n          location { id name }\n          quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n            name\n            quantity\n            updatedAt\n          }\n        }\n      }\n    }\n    ... on InventoryLevel {\n      id\n      location { id name }\n      quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n        name\n        quantity\n        updatedAt\n      }\n      item {\n        id\n        tracked\n        requiresShipping\n        inventoryLevels(first: 50) {\n          nodes {\n            id\n            location { id name }\n            quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n              name\n              quantity\n              updatedAt\n            }\n          }\n        }\n        variant {\n          id\n          title\n          inventoryQuantity\n          selectedOptions { name value }\n          product {\n            id\n            title\n            handle\n            status\n            totalInventory\n            tracksInventory\n          }\n        }\n      }\n    }\n    ... on Location {\n      id\n      name\n      isActive\n    }\n  }\n}\n",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "nodes": [null]
+            ]
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 637,
-              "actualQueryCost": 1,
+              "requestedQueryCost": 8,
+              "actualQueryCost": 3,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1999,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "operationName": "ProductsHydrateNodes",
-      "variables": {
-        "ids": ["gid://shopify/Product/10180596236594"]
-      },
-      "query": "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      combinedListingRole\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      options {\n        id\n        name\n        position\n        optionValues { id name hasVariants }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          jsonValue\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n      media(first: 250) {\n        nodes {\n          __typename\n          id\n          alt\n          mediaContentType\n          status\n          preview { image { url width height } }\n          ... on MediaImage {\n            image { id url altText width height }\n          }\n        }\n      }\n      collections(first: 250) {\n        nodes {\n          id\n          legacyResourceId\n          title\n          handle\n          updatedAt\n          description\n          descriptionHtml\n          sortOrder\n          templateSuffix\n          seo { title description }\n          productsCount { count }\n        }\n      }\n      variants(first: 250) {\n        nodes {\n          id\n          title\n          sku\n          barcode\n          price\n          compareAtPrice\n          taxable\n          inventoryPolicy\n          inventoryQuantity\n          selectedOptions { name value }\n          metafields(first: 250) {\n            nodes {\n              id\n              namespace\n              key\n              type\n              value\n              compareDigest\n              jsonValue\n              createdAt\n              updatedAt\n              ownerType\n            }\n          }\n          inventoryItem {\n            id\n            tracked\n            requiresShipping\n            measurement { weight { unit value } }\n            inventoryLevels(first: 50) {\n              nodes {\n                id\n                location { id name }\n                quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n                  name\n                  quantity\n                  updatedAt\n                }\n              }\n            }\n          }\n          sellingPlanGroups(first: 50) {\n            nodes { id name merchantCode }\n          }\n        }\n      }\n      sellingPlanGroups(first: 50) {\n        nodes { id name merchantCode }\n      }\n    }\n    ... on Collection {\n      legacyResourceId\n      title\n      handle\n      updatedAt\n      description\n      descriptionHtml\n      sortOrder\n      templateSuffix\n      seo { title description }\n      ruleSet {\n        appliedDisjunctively\n        rules { column relation condition }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          jsonValue\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n      productsCount { count }\n      products(first: 250) {\n        edges {\n          cursor\n          node { id title handle status vendor productType tags totalInventory tracksInventory }\n        }\n      }\n    }\n    ... on ProductVariant {\n      title\n      sku\n      barcode\n      price\n      compareAtPrice\n      taxable\n      inventoryPolicy\n      inventoryQuantity\n      selectedOptions { name value }\n      product { id title handle status totalInventory tracksInventory }\n      product {\n        variants(first: 250) {\n          nodes {\n            id\n            title\n            sku\n            barcode\n            price\n            compareAtPrice\n            taxable\n            inventoryPolicy\n            inventoryQuantity\n            selectedOptions { name value }\n            inventoryItem {\n              id\n              tracked\n              requiresShipping\n              measurement { weight { unit value } }\n            }\n          }\n        }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          jsonValue\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n      inventoryItem {\n        id\n        tracked\n        requiresShipping\n        measurement { weight { unit value } }\n      }\n      sellingPlanGroups(first: 50) {\n        nodes { id name merchantCode }\n      }\n    }\n    ... on InventoryItem {\n      tracked\n      requiresShipping\n      measurement { weight { unit value } }\n      variant {\n        id\n        title\n        inventoryQuantity\n        selectedOptions { name value }\n        product {\n          id\n          title\n          handle\n          status\n          totalInventory\n          tracksInventory\n        }\n      }\n      inventoryLevels(first: 50) {\n        nodes {\n          id\n          location { id name }\n          quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n            name\n            quantity\n            updatedAt\n          }\n        }\n      }\n    }\n    ... on InventoryLevel {\n      id\n      location { id name }\n      quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n        name\n        quantity\n        updatedAt\n      }\n      item {\n        id\n        tracked\n        requiresShipping\n        inventoryLevels(first: 50) {\n          nodes {\n            id\n            location { id name }\n            quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n              name\n              quantity\n              updatedAt\n            }\n          }\n        }\n        variant {\n          id\n          title\n          inventoryQuantity\n          selectedOptions { name value }\n          product {\n            id\n            title\n            handle\n            status\n            totalInventory\n            tracksInventory\n          }\n        }\n      }\n    }\n    ... on Location {\n      id\n      name\n      isActive\n    }\n  }\n}\n",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "nodes": [null]
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 637,
-              "actualQueryCost": 1,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1999,
+                "currentlyAvailable": 1997,
                 "restoreRate": 100
               }
             }

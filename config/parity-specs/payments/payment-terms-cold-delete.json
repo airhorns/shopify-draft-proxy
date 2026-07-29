@@ -1,0 +1,109 @@
+{
+  "scenarioId": "payment-terms-cold-delete",
+  "operationNames": ["paymentTermsDelete", "draftOrder", "node"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "runtime-hydration",
+    "runtime-staging",
+    "downstream-read-parity",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-terms-cold-delete.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-delete.graphql",
+    "variables": {
+      "input": {
+        "paymentTermsId": {
+          "fromCapturePath": "$.target.paymentTermsId"
+        }
+      }
+    },
+    "apiVersion": "2026-04"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "cold-delete-persisted-target",
+        "capturePath": "$.cases.delete.response.data.paymentTermsDelete",
+        "proxyPath": "$.data.paymentTermsDelete"
+      },
+      {
+        "name": "draft-owner-detached-after-cold-delete",
+        "capturePath": "$.cases.ownerReadAfterDelete.response.data.draftOrder",
+        "proxyPath": "$.data.draftOrder",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-owner-cascade-draft-read.graphql",
+          "variables": {
+            "id": {
+              "fromCapturePath": "$.target.draftOrderId"
+            }
+          }
+        }
+      },
+      {
+        "name": "deleted-terms-and-schedule-nodes-unreachable",
+        "capturePath": "$.cases.nodesReadAfterDelete.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-cold-delete-nodes-read.graphql",
+          "variables": {
+            "paymentTermsId": {
+              "fromCapturePath": "$.target.paymentTermsId"
+            },
+            "paymentScheduleId": {
+              "fromCapturePath": "$.target.paymentScheduleId"
+            }
+          }
+        }
+      },
+      {
+        "name": "wrong-type-delete-resolver-error",
+        "capturePath": "$.cases.wrongType.response.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-delete.graphql",
+          "variables": {
+            "input": {
+              "paymentTermsId": {
+                "fromCapturePath": "$.target.draftOrderId"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "wrong-type-delete-null-data",
+        "capturePath": "$.cases.wrongType.response.data.paymentTermsDelete",
+        "proxyPath": "$.data.paymentTermsDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-delete.graphql",
+          "variables": {
+            "input": {
+              "paymentTermsId": {
+                "fromCapturePath": "$.target.draftOrderId"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "unknown-delete-user-error",
+        "capturePath": "$.cases.unknown.delete.response.data.paymentTermsDelete",
+        "proxyPath": "$.data.paymentTermsDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-delete.graphql",
+          "variablesCapturePath": "$.cases.unknown.delete.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 evidence for mutation-first paymentTermsDelete against a persisted DraftOrder-owned target. A fresh proxy receives only the real PaymentTerms ID, replays the exact PaymentTermsDeleteHydrate query cassette, stages deletion locally, detaches the owner, tombstones the terms and schedule nodes, and preserves Shopify's wrong-type resolver-error versus unknown well-typed userError precedence."
+}

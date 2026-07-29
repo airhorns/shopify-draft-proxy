@@ -48,6 +48,12 @@ const voidRequestPath = path.join(
   'payments',
   'transaction-void-codes-transaction-void.graphql',
 );
+const transactionHydrateRequestPath = path.join(
+  'config',
+  'parity-requests',
+  'payments',
+  'order-payment-transaction-hydrate-by-transaction.graphql',
+);
 
 function asRecord(value: unknown): JsonRecord | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as JsonRecord) : null;
@@ -114,6 +120,45 @@ async function runCapture(query: string, variables: JsonRecord, context: string)
   return { query, variables, response: response.payload };
 }
 
+async function runUpstreamCapture(query: string, variables: JsonRecord, context: string): Promise<JsonRecord> {
+  const response = await runGraphqlRequest<JsonRecord>(query, variables);
+  assertNoTopLevelErrors(response, context);
+  return {
+    operationName: 'OrderPaymentTransactionHydrateByTransaction',
+    query,
+    variables,
+    response: {
+      status: response.status,
+      body: response.payload,
+    },
+  };
+}
+
+function isTemporaryUnavailableCapture(step: CaptureStep): boolean {
+  const orderCapture = readRecord(step.response.data, 'orderCapture');
+  return readArray(orderCapture, 'userErrors').some((error) => {
+    const userError = asRecord(error);
+    const field = userError?.['field'];
+    return (
+      Array.isArray(field) &&
+      field.length === 1 &&
+      field[0] === 'id' &&
+      userError?.['message'] === 'Order is temporarily unavailable to be modified.'
+    );
+  });
+}
+
+async function runOrderCapture(query: string, variables: JsonRecord, context: string): Promise<CaptureStep> {
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    const step = await runCapture(query, variables, context);
+    if (!isTemporaryUnavailableCapture(step) || attempt === 5) {
+      return step;
+    }
+    await new Promise((resolve) => setTimeout(resolve, attempt * 2_000));
+  }
+  throw new Error(`${context} retry loop exhausted unexpectedly`);
+}
+
 function orderVariables(stamp: number, label: string, kind: 'AUTHORIZATION' | 'CAPTURE'): JsonRecord {
   return {
     order: {
@@ -157,6 +202,7 @@ async function main(): Promise<void> {
   const createDocument = await readRequest(createRequestPath);
   const captureDocument = await readRequest(captureRequestPath);
   const voidDocument = await readRequest(voidRequestPath);
+  const transactionHydrateDocument = await readFile(transactionHydrateRequestPath, 'utf8');
   const cancelDocument = `
     mutation TransactionVoidCodesOrderCleanup(
       $orderId: ID!
@@ -207,6 +253,11 @@ async function main(): Promise<void> {
       { id: 'gid://shopify/OrderTransaction/999999999999999999' },
       'transactionVoid missing transaction',
     );
+    const voidMissingHydrate = await runUpstreamCapture(
+      transactionHydrateDocument,
+      { id: 'gid://shopify/OrderTransaction/999999999999999999' },
+      'transactionVoid missing transaction hydrate',
+    );
 
     const createAuthorizationOrder = await runCapture(
       createDocument,
@@ -222,7 +273,7 @@ async function main(): Promise<void> {
     const authorizationTransactionId = requireFirstTransactionId(createAuthorizationOrder, 'authorization orderCreate');
     orderIds.push(authorizationOrderId);
 
-    const captureAuthorization = await runCapture(
+    const captureAuthorization = await runOrderCapture(
       captureDocument,
       {
         input: {
@@ -270,7 +321,7 @@ async function main(): Promise<void> {
         captureAuthorization,
         voidCapturedAuthorization,
       },
-      upstreamCalls: [],
+      upstreamCalls: [voidMissingHydrate],
       cleanup,
     });
 

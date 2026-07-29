@@ -2,25 +2,25 @@
   "scenario": "inventory-transfer-zero-origin-read",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
-  "capturedAt": "2026-07-03T23:18:58.590Z",
+  "capturedAt": "2026-07-19T18:29:06.876Z",
   "setup": {
-    "productId": "gid://shopify/Product/10231222141234",
-    "variantId": "gid://shopify/ProductVariant/51422307680562",
-    "inventoryItemId": "gid://shopify/InventoryItem/53527368859954",
+    "productId": "gid://shopify/Product/10243973054770",
+    "variantId": "gid://shopify/ProductVariant/51488571294002",
+    "inventoryItemId": "gid://shopify/InventoryItem/53594169901362",
     "originLocation": {
-      "id": "gid://shopify/Location/113783537970",
-      "name": "Inventory transfer conformance origin 1783120727262-zero-origin"
+      "id": "gid://shopify/Location/114041815346",
+      "name": "Inventory transfer conformance origin 1784485736568-zero-origin"
     },
     "destinationLocation": {
-      "id": "gid://shopify/Location/113783570738",
-      "name": "Inventory transfer conformance destination 1783120727262-zero-origin"
+      "id": "gid://shopify/Location/114041848114",
+      "name": "Inventory transfer conformance destination 1784485736568-zero-origin"
     },
     "originLocationCreate": {
       "data": {
         "locationAdd": {
           "location": {
-            "id": "gid://shopify/Location/113783537970",
-            "name": "Inventory transfer conformance origin 1783120727262-zero-origin",
+            "id": "gid://shopify/Location/114041815346",
+            "name": "Inventory transfer conformance origin 1784485736568-zero-origin",
             "isActive": true
           },
           "userErrors": []
@@ -42,8 +42,8 @@
       "data": {
         "locationAdd": {
           "location": {
-            "id": "gid://shopify/Location/113783570738",
-            "name": "Inventory transfer conformance destination 1783120727262-zero-origin",
+            "id": "gid://shopify/Location/114041848114",
+            "name": "Inventory transfer conformance destination 1784485736568-zero-origin",
             "isActive": true
           },
           "userErrors": []
@@ -65,16 +65,16 @@
       "data": {
         "productCreate": {
           "product": {
-            "id": "gid://shopify/Product/10231222141234",
-            "title": "Inventory transfer conformance 1783120727262-zero-origin",
-            "handle": "inventory-transfer-conformance-1783120727262-zero-origin",
+            "id": "gid://shopify/Product/10243973054770",
+            "title": "Inventory transfer conformance 1784485736568-zero-origin",
+            "handle": "inventory-transfer-conformance-1784485736568-zero-origin",
             "status": "ACTIVE",
             "totalInventory": 0,
             "tracksInventory": false,
             "variants": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ProductVariant/51422307680562",
+                  "id": "gid://shopify/ProductVariant/51488571294002",
                   "title": "Default Title",
                   "inventoryQuantity": 0,
                   "selectedOptions": [
@@ -84,7 +84,7 @@
                     }
                   ],
                   "inventoryItem": {
-                    "id": "gid://shopify/InventoryItem/53527368859954",
+                    "id": "gid://shopify/InventoryItem/53594169901362",
                     "tracked": false,
                     "requiresShipping": true
                   }
@@ -111,16 +111,16 @@
       "data": {
         "productVariantsBulkUpdate": {
           "product": {
-            "id": "gid://shopify/Product/10231222141234",
+            "id": "gid://shopify/Product/10243973054770",
             "totalInventory": 0,
             "tracksInventory": true
           },
           "productVariants": [
             {
-              "id": "gid://shopify/ProductVariant/51422307680562",
+              "id": "gid://shopify/ProductVariant/51488571294002",
               "inventoryQuantity": 0,
               "inventoryItem": {
-                "id": "gid://shopify/InventoryItem/53527368859954",
+                "id": "gid://shopify/InventoryItem/53594169901362",
                 "tracked": true,
                 "requiresShipping": true
               }
@@ -145,13 +145,13 @@
       "data": {
         "inventoryActivate": {
           "inventoryLevel": {
-            "id": "gid://shopify/InventoryLevel/152000266546?inventory_item_id=53527368859954",
+            "id": "gid://shopify/InventoryLevel/152415764786?inventory_item_id=53594169901362",
             "location": {
-              "id": "gid://shopify/Location/113783537970",
-              "name": "Inventory transfer conformance origin 1783120727262-zero-origin"
+              "id": "gid://shopify/Location/114041815346",
+              "name": "Inventory transfer conformance origin 1784485736568-zero-origin"
             },
             "item": {
-              "id": "gid://shopify/InventoryItem/53527368859954"
+              "id": "gid://shopify/InventoryItem/53594169901362"
             }
           },
           "userErrors": []
@@ -173,13 +173,13 @@
       "data": {
         "inventoryActivate": {
           "inventoryLevel": {
-            "id": "gid://shopify/InventoryLevel/152000299314?inventory_item_id=53527368859954",
+            "id": "gid://shopify/InventoryLevel/152415797554?inventory_item_id=53594169901362",
             "location": {
-              "id": "gid://shopify/Location/113783570738",
-              "name": "Inventory transfer conformance destination 1783120727262-zero-origin"
+              "id": "gid://shopify/Location/114041848114",
+              "name": "Inventory transfer conformance destination 1784485736568-zero-origin"
             },
             "item": {
-              "id": "gid://shopify/InventoryItem/53527368859954"
+              "id": "gid://shopify/InventoryItem/53594169901362"
             }
           },
           "userErrors": []
@@ -219,11 +219,11 @@
     "hydratedItem": {
       "data": {
         "inventoryItem": {
-          "id": "gid://shopify/InventoryItem/53527368859954",
+          "id": "gid://shopify/InventoryItem/53594169901362",
           "tracked": true,
           "requiresShipping": true,
           "variant": {
-            "id": "gid://shopify/ProductVariant/51422307680562",
+            "id": "gid://shopify/ProductVariant/51488571294002",
             "title": "Default Title",
             "inventoryQuantity": 0,
             "selectedOptions": [
@@ -233,9 +233,9 @@
               }
             ],
             "product": {
-              "id": "gid://shopify/Product/10231222141234",
-              "title": "Inventory transfer conformance 1783120727262-zero-origin",
-              "handle": "inventory-transfer-conformance-1783120727262-zero-origin",
+              "id": "gid://shopify/Product/10243973054770",
+              "title": "Inventory transfer conformance 1784485736568-zero-origin",
+              "handle": "inventory-transfer-conformance-1784485736568-zero-origin",
               "status": "ACTIVE",
               "totalInventory": 0,
               "tracksInventory": true
@@ -244,7 +244,7 @@
           "inventoryLevels": {
             "nodes": [
               {
-                "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53527368859954",
+                "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53594169901362",
                 "location": {
                   "id": "gid://shopify/Location/106318430514",
                   "name": "Shop location"
@@ -253,7 +253,7 @@
                   {
                     "name": "available",
                     "quantity": 0,
-                    "updatedAt": "2026-07-03T23:18:56Z"
+                    "updatedAt": "2026-07-19T18:29:05Z"
                   },
                   {
                     "name": "reserved",
@@ -268,16 +268,16 @@
                 ]
               },
               {
-                "id": "gid://shopify/InventoryLevel/152000266546?inventory_item_id=53527368859954",
+                "id": "gid://shopify/InventoryLevel/152415764786?inventory_item_id=53594169901362",
                 "location": {
-                  "id": "gid://shopify/Location/113783537970",
-                  "name": "Inventory transfer conformance origin 1783120727262-zero-origin"
+                  "id": "gid://shopify/Location/114041815346",
+                  "name": "Inventory transfer conformance origin 1784485736568-zero-origin"
                 },
                 "quantities": [
                   {
                     "name": "available",
                     "quantity": 0,
-                    "updatedAt": "2026-07-03T23:18:57Z"
+                    "updatedAt": "2026-07-19T18:29:05Z"
                   },
                   {
                     "name": "reserved",
@@ -292,16 +292,16 @@
                 ]
               },
               {
-                "id": "gid://shopify/InventoryLevel/152000299314?inventory_item_id=53527368859954",
+                "id": "gid://shopify/InventoryLevel/152415797554?inventory_item_id=53594169901362",
                 "location": {
-                  "id": "gid://shopify/Location/113783570738",
-                  "name": "Inventory transfer conformance destination 1783120727262-zero-origin"
+                  "id": "gid://shopify/Location/114041848114",
+                  "name": "Inventory transfer conformance destination 1784485736568-zero-origin"
                 },
                 "quantities": [
                   {
                     "name": "available",
                     "quantity": 0,
-                    "updatedAt": "2026-07-03T23:18:57Z"
+                    "updatedAt": "2026-07-19T18:29:05Z"
                   },
                   {
                     "name": "reserved",
@@ -336,14 +336,14 @@
     "createDraft": {
       "variables": {
         "input": {
-          "originLocationId": "gid://shopify/Location/113783537970",
-          "destinationLocationId": "gid://shopify/Location/113783570738",
-          "referenceName": "inventory-transfer-conformance-1783120737971",
+          "originLocationId": "gid://shopify/Location/114041815346",
+          "destinationLocationId": "gid://shopify/Location/114041848114",
+          "referenceName": "inventory-transfer-conformance-1784485746311",
           "note": "inventory transfer conformance",
           "tags": ["inventory-transfer-conformance"],
           "lineItems": [
             {
-              "inventoryItemId": "gid://shopify/InventoryItem/53527368859954",
+              "inventoryItemId": "gid://shopify/InventoryItem/53594169901362",
               "quantity": 2
             }
           ]
@@ -352,12 +352,12 @@
     },
     "afterDraftInventoryRead": {
       "variables": {
-        "id": "gid://shopify/InventoryItem/53527368859954"
+        "id": "gid://shopify/InventoryItem/53594169901362"
       }
     },
     "deleteDraft": {
       "variables": {
-        "id": "gid://shopify/InventoryTransfer/5850792242"
+        "id": "gid://shopify/InventoryTransfer/5904695602"
       }
     }
   },
@@ -365,8 +365,8 @@
     "data": {
       "inventoryTransferCreate": {
         "inventoryTransfer": {
-          "id": "gid://shopify/InventoryTransfer/5850792242",
-          "name": "#T0035",
+          "id": "gid://shopify/InventoryTransfer/5904695602",
+          "name": "#T0086",
           "status": "DRAFT",
           "totalQuantity": 2,
           "lineItems": {
@@ -426,8 +426,8 @@
             },
             {
               "location": {
-                "id": "gid://shopify/Location/113783537970",
-                "name": "Inventory transfer conformance origin 1783120727262-zero-origin"
+                "id": "gid://shopify/Location/114041815346",
+                "name": "Inventory transfer conformance origin 1784485736568-zero-origin"
               },
               "quantities": [
                 {
@@ -446,8 +446,8 @@
             },
             {
               "location": {
-                "id": "gid://shopify/Location/113783570738",
-                "name": "Inventory transfer conformance destination 1783120727262-zero-origin"
+                "id": "gid://shopify/Location/114041848114",
+                "name": "Inventory transfer conformance destination 1784485736568-zero-origin"
               },
               "quantities": [
                 {
@@ -484,7 +484,7 @@
     "draftTransferDelete": {
       "data": {
         "inventoryTransferDelete": {
-          "deletedId": "gid://shopify/InventoryTransfer/5850792242",
+          "deletedId": "gid://shopify/InventoryTransfer/5904695602",
           "userErrors": []
         }
       },
@@ -504,7 +504,7 @@
     "productDelete": {
       "data": {
         "productDelete": {
-          "deletedProductId": "gid://shopify/Product/10231222141234",
+          "deletedProductId": "gid://shopify/Product/10243973054770",
           "userErrors": []
         }
       },
@@ -657,12 +657,12 @@
       "operationName": "ProductsHydrateNodes",
       "variables": {
         "ids": [
-          "gid://shopify/Location/113783537970",
-          "gid://shopify/Location/113783570738",
-          "gid://shopify/InventoryItem/53527368859954"
+          "gid://shopify/Location/114041815346",
+          "gid://shopify/Location/114041848114",
+          "gid://shopify/InventoryItem/53594169901362"
         ]
       },
-      "query": "#graphql\n  query ProductsHydrateNodes($ids: [ID!]!) {\n    nodes(ids: $ids) {\n      __typename\n      id\n      ... on InventoryItem {\n        tracked\n        requiresShipping\n        measurement { weight { unit value } }\n        variant {\n          id\n          title\n          inventoryQuantity\n          selectedOptions { name value }\n          product {\n            id\n            title\n            handle\n            status\n            totalInventory\n            tracksInventory\n          }\n        }\n        inventoryLevels(first: 50) {\n          nodes {\n            id\n            location { id name }\n            quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n              name\n              quantity\n              updatedAt\n            }\n          }\n        }\n      }\n      ... on Location {\n        id\n        name\n        isActive\n      }\n    }\n  }\n",
+      "query": "#graphql\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on InventoryItem {\n      tracked\n      requiresShipping\n      measurement {\n        weight {\n          unit\n          value\n        }\n      }\n      variant {\n        id\n        title\n        inventoryQuantity\n        selectedOptions {\n          name\n          value\n        }\n        product {\n          id\n          title\n          handle\n          status\n          totalInventory\n          tracksInventory\n        }\n      }\n      inventoryLevels(first: 50) {\n        nodes {\n          id\n          location {\n            id\n            name\n          }\n          quantities(\n            names: [\n              \"available\"\n              \"on_hand\"\n              \"committed\"\n              \"incoming\"\n              \"reserved\"\n              \"damaged\"\n              \"quality_control\"\n              \"safety_stock\"\n            ]\n          ) {\n            name\n            quantity\n            updatedAt\n          }\n        }\n      }\n    }\n    ... on Location {\n      id\n      name\n      isActive\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -670,19 +670,19 @@
             "nodes": [
               {
                 "__typename": "Location",
-                "id": "gid://shopify/Location/113783537970",
-                "name": "Inventory transfer conformance origin 1783120727262-zero-origin",
+                "id": "gid://shopify/Location/114041815346",
+                "name": "Inventory transfer conformance origin 1784485736568-zero-origin",
                 "isActive": true
               },
               {
                 "__typename": "Location",
-                "id": "gid://shopify/Location/113783570738",
-                "name": "Inventory transfer conformance destination 1783120727262-zero-origin",
+                "id": "gid://shopify/Location/114041848114",
+                "name": "Inventory transfer conformance destination 1784485736568-zero-origin",
                 "isActive": true
               },
               {
                 "__typename": "InventoryItem",
-                "id": "gid://shopify/InventoryItem/53527368859954",
+                "id": "gid://shopify/InventoryItem/53594169901362",
                 "tracked": true,
                 "requiresShipping": true,
                 "measurement": {
@@ -692,7 +692,7 @@
                   }
                 },
                 "variant": {
-                  "id": "gid://shopify/ProductVariant/51422307680562",
+                  "id": "gid://shopify/ProductVariant/51488571294002",
                   "title": "Default Title",
                   "inventoryQuantity": 0,
                   "selectedOptions": [
@@ -702,9 +702,9 @@
                     }
                   ],
                   "product": {
-                    "id": "gid://shopify/Product/10231222141234",
-                    "title": "Inventory transfer conformance 1783120727262-zero-origin",
-                    "handle": "inventory-transfer-conformance-1783120727262-zero-origin",
+                    "id": "gid://shopify/Product/10243973054770",
+                    "title": "Inventory transfer conformance 1784485736568-zero-origin",
+                    "handle": "inventory-transfer-conformance-1784485736568-zero-origin",
                     "status": "ACTIVE",
                     "totalInventory": 0,
                     "tracksInventory": true
@@ -713,7 +713,7 @@
                 "inventoryLevels": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53527368859954",
+                      "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53594169901362",
                       "location": {
                         "id": "gid://shopify/Location/106318430514",
                         "name": "Shop location"
@@ -722,7 +722,7 @@
                         {
                           "name": "available",
                           "quantity": 0,
-                          "updatedAt": "2026-07-03T23:18:56Z"
+                          "updatedAt": "2026-07-19T18:29:05Z"
                         },
                         {
                           "name": "on_hand",
@@ -762,16 +762,16 @@
                       ]
                     },
                     {
-                      "id": "gid://shopify/InventoryLevel/152000266546?inventory_item_id=53527368859954",
+                      "id": "gid://shopify/InventoryLevel/152415764786?inventory_item_id=53594169901362",
                       "location": {
-                        "id": "gid://shopify/Location/113783537970",
-                        "name": "Inventory transfer conformance origin 1783120727262-zero-origin"
+                        "id": "gid://shopify/Location/114041815346",
+                        "name": "Inventory transfer conformance origin 1784485736568-zero-origin"
                       },
                       "quantities": [
                         {
                           "name": "available",
                           "quantity": 0,
-                          "updatedAt": "2026-07-03T23:18:57Z"
+                          "updatedAt": "2026-07-19T18:29:05Z"
                         },
                         {
                           "name": "on_hand",
@@ -811,16 +811,16 @@
                       ]
                     },
                     {
-                      "id": "gid://shopify/InventoryLevel/152000299314?inventory_item_id=53527368859954",
+                      "id": "gid://shopify/InventoryLevel/152415797554?inventory_item_id=53594169901362",
                       "location": {
-                        "id": "gid://shopify/Location/113783570738",
-                        "name": "Inventory transfer conformance destination 1783120727262-zero-origin"
+                        "id": "gid://shopify/Location/114041848114",
+                        "name": "Inventory transfer conformance destination 1784485736568-zero-origin"
                       },
                       "quantities": [
                         {
                           "name": "available",
                           "quantity": 0,
-                          "updatedAt": "2026-07-03T23:18:57Z"
+                          "updatedAt": "2026-07-19T18:29:05Z"
                         },
                         {
                           "name": "on_hand",

@@ -1,0 +1,74 @@
+query OrderPaymentTransactionHydrateByOrder($id: ID!) {
+  order(id: $id) {
+    id
+    presentmentCurrencyCode
+    displayFinancialStatus
+    capturable
+    totalCapturable
+    totalCapturableSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+      presentmentMoney {
+        amount
+        currencyCode
+      }
+    }
+    totalOutstandingSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+      presentmentMoney {
+        amount
+        currencyCode
+      }
+    }
+    totalReceivedSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+      presentmentMoney {
+        amount
+        currencyCode
+      }
+    }
+    netPaymentSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+      presentmentMoney {
+        amount
+        currencyCode
+      }
+    }
+    paymentGatewayNames
+    transactions {
+      id
+      kind
+      status
+      gateway
+      manualPaymentGateway
+      manuallyCapturable
+      multiCapturable
+      amountSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+        presentmentMoney {
+          amount
+          currencyCode
+        }
+      }
+      parentTransaction {
+        id
+        kind
+        status
+      }
+    }
+  }
+}
