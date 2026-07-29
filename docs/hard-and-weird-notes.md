@@ -5032,3 +5032,26 @@ Practical rule:
   does not prove a previous page
 - recognize the plural `fulfillment_constraints` API type when resolving a
   Function for fulfillment-constraint rule lifecycle operations
+
+## 119. Discount prerequisite transport history is not validation authority
+
+Captured discount scenarios establish the ordinary known branches: an exact
+`codeDiscountNodeByCode` result distinguishes a taken code from a null lookup;
+each `nodes(ids:)` response slot distinguishes a present entitlement resource
+from an exact null; and an explicit `shop.features.sellsSubscriptions` boolean
+settles the capability gate. They do not establish what Shopify would answer if
+the proxy's prerequisite transport fails or returns incomplete data.
+
+Practical rule:
+
+- treat non-200 responses, GraphQL errors, missing/malformed fields, and partial
+  batched node lists as unresolved proxy transport state, not known absence
+- validate item references by exact key and expected resource type; a product,
+  variant, or collection observed elsewhere does not make that family a
+  complete catalog
+- cache only explicit subscription booleans and retry unresolved probes
+- do not observe any rows from a malformed or partial prerequisite batch, since
+  doing so would let a failed attempt alter later validation authority
+- return the proxy's conservative base `INTERNAL_ERROR` without staging or
+  logging the mutation; this transport-failure outcome is runtime safety
+  behavior and must not be presented as captured Shopify parity
