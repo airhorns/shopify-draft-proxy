@@ -12,6 +12,7 @@ import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify
 import {
   captureDiscountUniquenessCheck,
   captureDraftProxyShopPricingHydrate,
+  captureDraftProxyShopSubscriptionCapability,
 } from './support/shopify/runtime-hydration-capture.js';
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
@@ -46,9 +47,7 @@ const codeOmittedFieldsUpdateDocument = await readFile(
   'config/parity-requests/discounts/discount-free-shipping-code-omitted-fields-update.graphql',
   'utf8',
 );
-const shopSubscriptionCapabilityDocument =
-  'query DraftProxyShopSubscriptionCapability {\n  shop {\n    features {\n      sellsSubscriptions\n    }\n  }\n}\n';
-const shopSubscriptionCapability = await runGraphqlRaw(shopSubscriptionCapabilityDocument, {});
+const shopSubscriptionCapability = await captureDraftProxyShopSubscriptionCapability(runGraphqlRaw);
 
 const codeSelection = `#graphql
   codeDiscountNode {
@@ -660,15 +659,7 @@ const output = {
     initialCodeUniqueness,
     omittedFieldsCodeUniqueness,
     updatedCodeUniqueness,
-    {
-      operationName: 'DraftProxyShopSubscriptionCapability',
-      variables: {},
-      query: shopSubscriptionCapabilityDocument,
-      response: {
-        status: shopSubscriptionCapability.status,
-        body: shopSubscriptionCapability.payload,
-      },
-    },
+    shopSubscriptionCapability,
     {
       operationName: 'DiscountCodeHydrate',
       variables: { id: codeOmittedFieldsDiscountId },

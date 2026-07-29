@@ -107,22 +107,22 @@
   "setup": {
     "products": [
       {
-        "id": "gid://shopify/Product/10179023995186",
-        "title": "discount refs product one 1778109432052",
-        "variantId": "gid://shopify/ProductVariant/51133416702258",
+        "id": "gid://shopify/Product/10251740217650",
+        "title": "discount refs product one 1785199607559",
+        "variantId": "gid://shopify/ProductVariant/51514428686642",
         "variantTitle": "Default Title"
       },
       {
-        "id": "gid://shopify/Product/10179024027954",
-        "title": "discount refs product two 1778109432052",
-        "variantId": "gid://shopify/ProductVariant/51133416735026",
+        "id": "gid://shopify/Product/10251740250418",
+        "title": "discount refs product two 1785199607559",
+        "variantId": "gid://shopify/ProductVariant/51514428719410",
         "variantTitle": "Default Title"
       }
     ],
     "collections": [
       {
-        "id": "gid://shopify/Collection/512477167922",
-        "title": "discount refs collection 1778109432052"
+        "id": "gid://shopify/Collection/514840297778",
+        "title": "discount refs collection 1785199607559"
       }
     ]
   },
@@ -130,8 +130,8 @@
     "query": "mutation DiscountItemsRefsValidation(\n  $unknownProduct: DiscountCodeBasicInput!\n  $unknownVariant: DiscountCodeBasicInput!\n  $unknownCollection: DiscountCodeBasicInput!\n  $bxgyUnknownBuy: DiscountCodeBxgyInput!\n  $collectionSentinel: DiscountCodeBasicInput!\n  $successProduct: DiscountCodeBasicInput!\n  $successVariant: DiscountCodeBasicInput!\n  $successCollection: DiscountCodeBasicInput!\n) {\n  unknownProduct: discountCodeBasicCreate(basicCodeDiscount: $unknownProduct) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  unknownVariant: discountCodeBasicCreate(basicCodeDiscount: $unknownVariant) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  unknownCollection: discountCodeBasicCreate(basicCodeDiscount: $unknownCollection) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  bxgyUnknownBuy: discountCodeBxgyCreate(bxgyCodeDiscount: $bxgyUnknownBuy) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  collectionSentinel: discountCodeBasicCreate(basicCodeDiscount: $collectionSentinel) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  successProduct: discountCodeBasicCreate(basicCodeDiscount: $successProduct) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  successVariant: discountCodeBasicCreate(basicCodeDiscount: $successVariant) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  successCollection: discountCodeBasicCreate(basicCodeDiscount: $successCollection) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
     "variables": {
       "unknownProduct": {
-        "title": "discount refs BADPROD 1778109432052",
-        "code": "REFSBADPROD1778109432052",
+        "title": "discount refs BADPROD 1785199607559",
+        "code": "REFSBADPROD1785199607559",
         "startsAt": "2026-04-25T00:00:00Z",
         "customerSelection": {
           "all": true
@@ -148,8 +148,8 @@
         }
       },
       "unknownVariant": {
-        "title": "discount refs BADVAR 1778109432052",
-        "code": "REFSBADVAR1778109432052",
+        "title": "discount refs BADVAR 1785199607559",
+        "code": "REFSBADVAR1785199607559",
         "startsAt": "2026-04-25T00:00:00Z",
         "customerSelection": {
           "all": true
@@ -166,8 +166,8 @@
         }
       },
       "unknownCollection": {
-        "title": "discount refs BADCOLL 1778109432052",
-        "code": "REFSBADCOLL1778109432052",
+        "title": "discount refs BADCOLL 1785199607559",
+        "code": "REFSBADCOLL1785199607559",
         "startsAt": "2026-04-25T00:00:00Z",
         "customerSelection": {
           "all": true
@@ -184,8 +184,8 @@
         }
       },
       "bxgyUnknownBuy": {
-        "title": "discount refs bxgy BADBUY 1778109432052",
-        "code": "REFSBXGYBADBUY1778109432052",
+        "title": "discount refs bxgy BADBUY 1785199607559",
+        "code": "REFSBXGYBADBUY1785199607559",
         "startsAt": "2026-04-25T00:00:00Z",
         "customerSelection": {
           "all": true
@@ -211,14 +211,14 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10179024027954"]
+              "productsToAdd": ["gid://shopify/Product/10251740250418"]
             }
           }
         }
       },
       "collectionSentinel": {
-        "title": "discount refs COLLZERO 1778109432052",
-        "code": "REFSCOLLZERO1778109432052",
+        "title": "discount refs COLLZERO 1785199607559",
+        "code": "REFSCOLLZERO1785199607559",
         "startsAt": "2026-04-25T00:00:00Z",
         "customerSelection": {
           "all": true
@@ -235,8 +235,8 @@
         }
       },
       "successProduct": {
-        "title": "discount refs OKPROD 1778109432052",
-        "code": "REFSOKPROD1778109432052",
+        "title": "discount refs OKPROD 1785199607559",
+        "code": "REFSOKPROD1785199607559",
         "startsAt": "2026-04-25T00:00:00Z",
         "customerSelection": {
           "all": true
@@ -247,14 +247,14 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10179023995186"]
+              "productsToAdd": ["gid://shopify/Product/10251740217650"]
             }
           }
         }
       },
       "successVariant": {
-        "title": "discount refs OKVAR 1778109432052",
-        "code": "REFSOKVAR1778109432052",
+        "title": "discount refs OKVAR 1785199607559",
+        "code": "REFSOKVAR1785199607559",
         "startsAt": "2026-04-25T00:00:00Z",
         "customerSelection": {
           "all": true
@@ -265,14 +265,14 @@
           },
           "items": {
             "products": {
-              "productVariantsToAdd": ["gid://shopify/ProductVariant/51133416735026"]
+              "productVariantsToAdd": ["gid://shopify/ProductVariant/51514428719410"]
             }
           }
         }
       },
       "successCollection": {
-        "title": "discount refs OKCOLL 1778109432052",
-        "code": "REFSOKCOLL1778109432052",
+        "title": "discount refs OKCOLL 1785199607559",
+        "code": "REFSOKCOLL1785199607559",
         "startsAt": "2026-04-25T00:00:00Z",
         "customerSelection": {
           "all": true
@@ -283,7 +283,7 @@
           },
           "items": {
             "collections": {
-              "add": ["gid://shopify/Collection/512477167922"]
+              "add": ["gid://shopify/Collection/514840297778"]
             }
           }
         }
@@ -348,19 +348,19 @@
         },
         "successProduct": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1640638775602"
+            "id": "gid://shopify/DiscountCodeNode/1663212880178"
           },
           "userErrors": []
         },
         "successVariant": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1640638808370"
+            "id": "gid://shopify/DiscountCodeNode/1663212912946"
           },
           "userErrors": []
         },
         "successCollection": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1640638841138"
+            "id": "gid://shopify/DiscountCodeNode/1663212945714"
           },
           "userErrors": []
         }
@@ -382,7 +382,7 @@
     {
       "data": {
         "discountCodeDelete": {
-          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640638841138",
+          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1663212945714",
           "userErrors": []
         }
       },
@@ -392,7 +392,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1961,
+            "currentlyAvailable": 1963,
             "restoreRate": 100
           }
         }
@@ -401,7 +401,7 @@
     {
       "data": {
         "discountCodeDelete": {
-          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640638808370",
+          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1663212912946",
           "userErrors": []
         }
       },
@@ -411,7 +411,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1971,
+            "currentlyAvailable": 1973,
             "restoreRate": 100
           }
         }
@@ -420,7 +420,7 @@
     {
       "data": {
         "discountCodeDelete": {
-          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640638775602",
+          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1663212880178",
           "userErrors": []
         }
       },
@@ -439,7 +439,7 @@
     {
       "data": {
         "collectionDelete": {
-          "deletedCollectionId": "gid://shopify/Collection/512477167922",
+          "deletedCollectionId": "gid://shopify/Collection/514840297778",
           "userErrors": []
         }
       },
@@ -458,7 +458,7 @@
     {
       "data": {
         "productDelete": {
-          "deletedProductId": "gid://shopify/Product/10179024027954",
+          "deletedProductId": "gid://shopify/Product/10251740250418",
           "userErrors": []
         }
       },
@@ -477,7 +477,7 @@
     {
       "data": {
         "productDelete": {
-          "deletedProductId": "gid://shopify/Product/10179023995186",
+          "deletedProductId": "gid://shopify/Product/10251740217650",
           "userErrors": []
         }
       },
@@ -499,14 +499,13 @@
       "operationName": "ProductsHydrateNodes",
       "variables": {
         "ids": [
-          "gid://shopify/Collection/0",
-          "gid://shopify/Collection/512477167922",
+          "gid://shopify/Collection/514840297778",
           "gid://shopify/Collection/999999999999",
           "gid://shopify/Product/999999999999",
           "gid://shopify/ProductVariant/999999999999",
-          "gid://shopify/Product/10179023995186",
-          "gid://shopify/Product/10179024027954",
-          "gid://shopify/ProductVariant/51133416735026"
+          "gid://shopify/Product/10251740217650",
+          "gid://shopify/Product/10251740250418",
+          "gid://shopify/ProductVariant/51514428719410"
         ]
       },
       "query": "query ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      combinedListingRole\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      options {\n        id\n        name\n        position\n        optionValues { id name hasVariants }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          jsonValue\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n      media(first: 250) {\n        nodes {\n          __typename\n          id\n          alt\n          mediaContentType\n          status\n          preview { image { url width height } }\n          ... on MediaImage {\n            image { id url altText width height }\n          }\n        }\n      }\n      collections(first: 250) {\n        nodes {\n          id\n          legacyResourceId\n          title\n          handle\n          updatedAt\n          description\n          descriptionHtml\n          sortOrder\n          templateSuffix\n          seo { title description }\n          productsCount { count }\n        }\n      }\n      variants(first: 250) {\n        nodes {\n          id\n          title\n          sku\n          barcode\n          price\n          compareAtPrice\n          taxable\n          inventoryPolicy\n          inventoryQuantity\n          selectedOptions { name value }\n          metafields(first: 250) {\n            nodes {\n              id\n              namespace\n              key\n              type\n              value\n              compareDigest\n              jsonValue\n              createdAt\n              updatedAt\n              ownerType\n            }\n          }\n          inventoryItem {\n            id\n            tracked\n            requiresShipping\n            measurement { weight { unit value } }\n            inventoryLevels(first: 50) {\n              nodes {\n                id\n                location { id name }\n                quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n                  name\n                  quantity\n                  updatedAt\n                }\n              }\n            }\n          }\n          sellingPlanGroups(first: 50) {\n            nodes { id name merchantCode }\n          }\n        }\n      }\n      sellingPlanGroups(first: 50) {\n        nodes { id name merchantCode }\n      }\n    }\n    ... on Collection {\n      legacyResourceId\n      title\n      handle\n      updatedAt\n      description\n      descriptionHtml\n      sortOrder\n      templateSuffix\n      seo { title description }\n      ruleSet {\n        appliedDisjunctively\n        rules { column relation condition }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          jsonValue\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n      productsCount { count }\n      products(first: 250) {\n        edges {\n          cursor\n          node { id title handle status vendor productType tags totalInventory tracksInventory }\n        }\n      }\n    }\n    ... on ProductVariant {\n      title\n      sku\n      barcode\n      price\n      compareAtPrice\n      taxable\n      inventoryPolicy\n      inventoryQuantity\n      selectedOptions { name value }\n      product { id title handle status totalInventory tracksInventory }\n      product {\n        variants(first: 250) {\n          nodes {\n            id\n            title\n            sku\n            barcode\n            price\n            compareAtPrice\n            taxable\n            inventoryPolicy\n            inventoryQuantity\n            selectedOptions { name value }\n            inventoryItem {\n              id\n              tracked\n              requiresShipping\n              measurement { weight { unit value } }\n            }\n          }\n        }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          jsonValue\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n      inventoryItem {\n        id\n        tracked\n        requiresShipping\n        measurement { weight { unit value } }\n      }\n      sellingPlanGroups(first: 50) {\n        nodes { id name merchantCode }\n      }\n    }\n    ... on InventoryItem {\n      tracked\n      requiresShipping\n      measurement { weight { unit value } }\n      variant {\n        id\n        title\n        inventoryQuantity\n        selectedOptions { name value }\n        product {\n          id\n          title\n          handle\n          status\n          totalInventory\n          tracksInventory\n        }\n      }\n      inventoryLevels(first: 50) {\n        nodes {\n          id\n          location { id name }\n          quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n            name\n            quantity\n            updatedAt\n          }\n        }\n      }\n    }\n    ... on InventoryLevel {\n      id\n      location { id name }\n      quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n        name\n        quantity\n        updatedAt\n      }\n      item {\n        id\n        tracked\n        requiresShipping\n        inventoryLevels(first: 50) {\n          nodes {\n            id\n            location { id name }\n            quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n              name\n              quantity\n              updatedAt\n            }\n          }\n        }\n        variant {\n          id\n          title\n          inventoryQuantity\n          selectedOptions { name value }\n          product {\n            id\n            title\n            handle\n            status\n            totalInventory\n            tracksInventory\n          }\n        }\n      }\n    }\n    ... on Location {\n      id\n      name\n      isActive\n    }\n  }\n}",
@@ -515,14 +514,13 @@
         "body": {
           "data": {
             "nodes": [
-              null,
               {
                 "__typename": "Collection",
-                "id": "gid://shopify/Collection/512477167922",
-                "legacyResourceId": "512477167922",
-                "title": "discount refs collection 1778109432052",
-                "handle": "discount-refs-collection-1778109432052",
-                "updatedAt": "2026-05-06T23:17:13Z",
+                "id": "gid://shopify/Collection/514840297778",
+                "legacyResourceId": "514840297778",
+                "title": "discount refs collection 1785199607559",
+                "handle": "discount-refs-collection-1785199607559",
+                "updatedAt": "2026-07-28T00:46:48Z",
                 "description": "",
                 "descriptionHtml": "",
                 "sortOrder": "BEST_SELLING",
@@ -547,22 +545,22 @@
               null,
               {
                 "__typename": "Product",
-                "id": "gid://shopify/Product/10179023995186",
-                "legacyResourceId": "10179023995186",
-                "title": "discount refs product one 1778109432052",
-                "handle": "discount-refs-product-one-1778109432052",
+                "id": "gid://shopify/Product/10251740217650",
+                "legacyResourceId": "10251740217650",
+                "title": "discount refs product one 1785199607559",
+                "handle": "discount-refs-product-one-1785199607559",
                 "status": "ACTIVE",
                 "combinedListingRole": null,
                 "vendor": "HERMES",
                 "productType": "CONFORMANCE",
-                "tags": ["1778109432052", "conformance", "discount-items-refs-validation"],
+                "tags": ["1785199607559", "conformance", "discount-items-refs-validation"],
                 "totalInventory": 0,
                 "tracksInventory": false,
-                "createdAt": "2026-05-06T23:17:12Z",
-                "updatedAt": "2026-05-06T23:17:12Z",
+                "createdAt": "2026-07-28T00:46:47Z",
+                "updatedAt": "2026-07-28T00:46:48Z",
                 "publishedAt": null,
                 "descriptionHtml": "",
-                "onlineStorePreviewUrl": "https://330fqsdqqvpcam4w-92891250994.shopifypreview.com/products_preview?preview_key=156196ec8148ec80818c3837c15dc2e6&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNS0wN1QwMDoxNzoxMy41ODBaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--7b1c5b9ba6fd54945eecf18134f9b5a1c6b29598",
+                "onlineStorePreviewUrl": "https://t7mgc3vr0gtlpg32-92891250994.shopifypreview.com/products_preview?preview_key=b189d5ad1e611916454e0d168c7342c6&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0yOFQwMTo0Njo0OC44NDRaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--2b6329390467833d90b34e358c819b22682f88d1",
                 "templateSuffix": null,
                 "seo": {
                   "title": null,
@@ -570,12 +568,12 @@
                 },
                 "options": [
                   {
-                    "id": "gid://shopify/ProductOption/12727182655794",
+                    "id": "gid://shopify/ProductOption/12813481279794",
                     "name": "Title",
                     "position": 1,
                     "optionValues": [
                       {
-                        "id": "gid://shopify/ProductOptionValue/8017395056946",
+                        "id": "gid://shopify/ProductOptionValue/8363882348850",
                         "name": "Default Title",
                         "hasVariants": true
                       }
@@ -594,7 +592,7 @@
                 "variants": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/ProductVariant/51133416702258",
+                      "id": "gid://shopify/ProductVariant/51514428686642",
                       "title": "Default Title",
                       "sku": null,
                       "barcode": null,
@@ -613,7 +611,7 @@
                         "nodes": []
                       },
                       "inventoryItem": {
-                        "id": "gid://shopify/InventoryItem/53236584186162",
+                        "id": "gid://shopify/InventoryItem/53620165673266",
                         "tracked": false,
                         "requiresShipping": true,
                         "measurement": {
@@ -625,7 +623,7 @@
                         "inventoryLevels": {
                           "nodes": [
                             {
-                              "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53236584186162",
+                              "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53620165673266",
                               "location": {
                                 "id": "gid://shopify/Location/106318430514",
                                 "name": "Shop location"
@@ -634,7 +632,7 @@
                                 {
                                   "name": "available",
                                   "quantity": 0,
-                                  "updatedAt": "2026-05-06T23:17:12Z"
+                                  "updatedAt": "2026-07-28T00:46:47Z"
                                 },
                                 {
                                   "name": "on_hand",
@@ -688,22 +686,22 @@
               },
               {
                 "__typename": "Product",
-                "id": "gid://shopify/Product/10179024027954",
-                "legacyResourceId": "10179024027954",
-                "title": "discount refs product two 1778109432052",
-                "handle": "discount-refs-product-two-1778109432052",
+                "id": "gid://shopify/Product/10251740250418",
+                "legacyResourceId": "10251740250418",
+                "title": "discount refs product two 1785199607559",
+                "handle": "discount-refs-product-two-1785199607559",
                 "status": "ACTIVE",
                 "combinedListingRole": null,
                 "vendor": "HERMES",
                 "productType": "CONFORMANCE",
-                "tags": ["1778109432052", "conformance", "discount-items-refs-validation"],
+                "tags": ["1785199607559", "conformance", "discount-items-refs-validation"],
                 "totalInventory": 0,
                 "tracksInventory": false,
-                "createdAt": "2026-05-06T23:17:12Z",
-                "updatedAt": "2026-05-06T23:17:13Z",
+                "createdAt": "2026-07-28T00:46:48Z",
+                "updatedAt": "2026-07-28T00:46:48Z",
                 "publishedAt": null,
                 "descriptionHtml": "",
-                "onlineStorePreviewUrl": "https://330fqsdqqvpcam4w-92891250994.shopifypreview.com/products_preview?preview_key=b4eac78b5ddb851a4afd7e9af1b22200&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNS0wN1QwMDoxNzoxMy42MDNaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--b0c5525f82812a003219eb080bc93a96b4167e12",
+                "onlineStorePreviewUrl": "https://t7mgc3vr0gtlpg32-92891250994.shopifypreview.com/products_preview?preview_key=ebeeca765584a7c9b09e5571a4c40830&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0yOFQwMTo0Njo0OC44NjNaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--1673350697863cc1a7e74b8c889931e176d83e78",
                 "templateSuffix": null,
                 "seo": {
                   "title": null,
@@ -711,12 +709,12 @@
                 },
                 "options": [
                   {
-                    "id": "gid://shopify/ProductOption/12727182688562",
+                    "id": "gid://shopify/ProductOption/12813481312562",
                     "name": "Title",
                     "position": 1,
                     "optionValues": [
                       {
-                        "id": "gid://shopify/ProductOptionValue/8017395089714",
+                        "id": "gid://shopify/ProductOptionValue/8363882381618",
                         "name": "Default Title",
                         "hasVariants": true
                       }
@@ -735,7 +733,7 @@
                 "variants": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/ProductVariant/51133416735026",
+                      "id": "gid://shopify/ProductVariant/51514428719410",
                       "title": "Default Title",
                       "sku": null,
                       "barcode": null,
@@ -754,7 +752,7 @@
                         "nodes": []
                       },
                       "inventoryItem": {
-                        "id": "gid://shopify/InventoryItem/53236584218930",
+                        "id": "gid://shopify/InventoryItem/53620165706034",
                         "tracked": false,
                         "requiresShipping": true,
                         "measurement": {
@@ -766,7 +764,7 @@
                         "inventoryLevels": {
                           "nodes": [
                             {
-                              "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53236584218930",
+                              "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53620165706034",
                               "location": {
                                 "id": "gid://shopify/Location/106318430514",
                                 "name": "Shop location"
@@ -775,7 +773,7 @@
                                 {
                                   "name": "available",
                                   "quantity": 0,
-                                  "updatedAt": "2026-05-06T23:17:12Z"
+                                  "updatedAt": "2026-07-28T00:46:48Z"
                                 },
                                 {
                                   "name": "on_hand",
@@ -829,7 +827,7 @@
               },
               {
                 "__typename": "ProductVariant",
-                "id": "gid://shopify/ProductVariant/51133416735026",
+                "id": "gid://shopify/ProductVariant/51514428719410",
                 "title": "Default Title",
                 "sku": null,
                 "barcode": null,
@@ -845,16 +843,16 @@
                   }
                 ],
                 "product": {
-                  "id": "gid://shopify/Product/10179024027954",
-                  "title": "discount refs product two 1778109432052",
-                  "handle": "discount-refs-product-two-1778109432052",
+                  "id": "gid://shopify/Product/10251740250418",
+                  "title": "discount refs product two 1785199607559",
+                  "handle": "discount-refs-product-two-1785199607559",
                   "status": "ACTIVE",
                   "totalInventory": 0,
                   "tracksInventory": false,
                   "variants": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/ProductVariant/51133416735026",
+                        "id": "gid://shopify/ProductVariant/51514428719410",
                         "title": "Default Title",
                         "sku": null,
                         "barcode": null,
@@ -870,7 +868,7 @@
                           }
                         ],
                         "inventoryItem": {
-                          "id": "gid://shopify/InventoryItem/53236584218930",
+                          "id": "gid://shopify/InventoryItem/53620165706034",
                           "tracked": false,
                           "requiresShipping": true,
                           "measurement": {
@@ -888,7 +886,7 @@
                   "nodes": []
                 },
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53236584218930",
+                  "id": "gid://shopify/InventoryItem/53620165706034",
                   "tracked": false,
                   "requiresShipping": true,
                   "measurement": {
@@ -921,9 +919,9 @@
     {
       "operationName": "DiscountUniquenessCheck",
       "variables": {
-        "code": "REFSBADPROD1778109432052"
+        "code": "REFSBADPROD1785199607559"
       },
-      "query": "#graphql\n  query DiscountUniquenessCheck($code: String!) {\n    codeDiscountNodeByCode(code: $code) {\n      id\n    }\n  }\n",
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -936,7 +934,7 @@
               "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1967,
+                "currentlyAvailable": 1963,
                 "restoreRate": 100
               }
             }
@@ -947,9 +945,9 @@
     {
       "operationName": "DiscountUniquenessCheck",
       "variables": {
-        "code": "REFSBADVAR1778109432052"
+        "code": "REFSBADVAR1785199607559"
       },
-      "query": "#graphql\n  query DiscountUniquenessCheck($code: String!) {\n    codeDiscountNodeByCode(code: $code) {\n      id\n    }\n  }\n",
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -962,7 +960,7 @@
               "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1974,
+                "currentlyAvailable": 1970,
                 "restoreRate": 100
               }
             }
@@ -973,9 +971,9 @@
     {
       "operationName": "DiscountUniquenessCheck",
       "variables": {
-        "code": "REFSBADCOLL1778109432052"
+        "code": "REFSBADCOLL1785199607559"
       },
-      "query": "#graphql\n  query DiscountUniquenessCheck($code: String!) {\n    codeDiscountNodeByCode(code: $code) {\n      id\n    }\n  }\n",
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -988,7 +986,7 @@
               "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1983,
+                "currentlyAvailable": 1978,
                 "restoreRate": 100
               }
             }
@@ -999,9 +997,9 @@
     {
       "operationName": "DiscountUniquenessCheck",
       "variables": {
-        "code": "REFSBXGYBADBUY1778109432052"
+        "code": "REFSBXGYBADBUY1785199607559"
       },
-      "query": "#graphql\n  query DiscountUniquenessCheck($code: String!) {\n    codeDiscountNodeByCode(code: $code) {\n      id\n    }\n  }\n",
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -1014,7 +1012,7 @@
               "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1992,
+                "currentlyAvailable": 1985,
                 "restoreRate": 100
               }
             }
@@ -1025,9 +1023,61 @@
     {
       "operationName": "DiscountUniquenessCheck",
       "variables": {
-        "code": "REFSCOLLZERO1778109432052"
+        "code": "REFSCOLLZERO1785199607559"
       },
-      "query": "#graphql\n  query DiscountUniquenessCheck($code: String!) {\n    codeDiscountNodeByCode(code: $code) {\n      id\n    }\n  }\n",
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1991,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "REFSOKPROD1785199607559"
+      },
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "REFSOKVAR1785199607559"
+      },
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -1051,61 +1101,9 @@
     {
       "operationName": "DiscountUniquenessCheck",
       "variables": {
-        "code": "REFSOKPROD1778109432052"
+        "code": "REFSOKCOLL1785199607559"
       },
-      "query": "#graphql\n  query DiscountUniquenessCheck($code: String!) {\n    codeDiscountNodeByCode(code: $code) {\n      id\n    }\n  }\n",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "codeDiscountNodeByCode": null
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 1,
-              "actualQueryCost": 1,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1999,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "operationName": "DiscountUniquenessCheck",
-      "variables": {
-        "code": "REFSOKVAR1778109432052"
-      },
-      "query": "#graphql\n  query DiscountUniquenessCheck($code: String!) {\n    codeDiscountNodeByCode(code: $code) {\n      id\n    }\n  }\n",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "codeDiscountNodeByCode": null
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 1,
-              "actualQueryCost": 1,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1999,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "operationName": "DiscountUniquenessCheck",
-      "variables": {
-        "code": "REFSOKCOLL1778109432052"
-      },
-      "query": "#graphql\n  query DiscountUniquenessCheck($code: String!) {\n    codeDiscountNodeByCode(code: $code) {\n      id\n    }\n  }\n",
+      "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

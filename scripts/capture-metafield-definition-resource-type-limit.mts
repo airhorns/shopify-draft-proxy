@@ -1,7 +1,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write status output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 
@@ -24,6 +24,17 @@ type DefinitionNode = {
   namespace?: string | null;
   key?: string | null;
   ownerType?: string | null;
+  standardTemplate?: { id?: string | null } | null;
+};
+
+type UpstreamCall = {
+  method: 'POST';
+  apiSurface: 'admin';
+  path: string;
+  operationName: string;
+  variables: Record<string, unknown>;
+  query: string;
+  response: { status: number; body: unknown };
 };
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
@@ -37,6 +48,15 @@ const runId = Date.now().toString(36);
 const primaryNamespace = `resource_limit_${runId}`;
 const secondaryNamespace = `resource_limit_secondary_${runId}`;
 const maxProbeCreations = 260;
+const createDefinitionDocumentPath =
+  'config/parity-requests/metafields/metafield-definition-resource-type-limit.graphql';
+const hydrateByIdentifierDocumentPath =
+  'config/parity-requests/metafields/metafield-definition-hydrate-by-identifier.graphql';
+const hydrateResourceScopeDocumentPath =
+  'config/parity-requests/metafields/metafield-definitions-hydrate-resource-scope.graphql';
+const createDefinitionMutation = await readFile(createDefinitionDocumentPath, 'utf8');
+const hydrateByIdentifierDocument = await readFile(hydrateByIdentifierDocumentPath, 'utf8');
+const hydrateResourceScopeDocument = await readFile(hydrateResourceScopeDocumentPath, 'utf8');
 
 const { runGraphqlRaw } = createAdminGraphqlClient({
   adminOrigin,
@@ -73,24 +93,6 @@ const readNamespaceDefinitionsQuery = `#graphql
       pageInfo {
         hasNextPage
         endCursor
-      }
-    }
-  }
-`;
-
-const createDefinitionMutation = `#graphql
-  mutation CreateProductMetafieldDefinitionForResourceLimit($definition: MetafieldDefinitionInput!) {
-    metafieldDefinitionCreate(definition: $definition) {
-      createdDefinition {
-        id
-        namespace
-        key
-        ownerType
-      }
-      userErrors {
-        field
-        message
-        code
       }
     }
   }
@@ -207,6 +209,68 @@ async function captureGraphql(name: string, query: string, variables: Record<str
   return captureFromResult(name, query, variables, result);
 }
 
+async function recordUpstreamCall(
+  operationName: string,
+  query: string,
+  variables: Record<string, unknown>,
+): Promise<UpstreamCall> {
+  const capture = await captureGraphql(operationName, query, variables);
+  return {
+    method: 'POST',
+    apiSurface: 'admin',
+    path: `/admin/api/${apiVersion}/graphql.json`,
+    operationName,
+    variables,
+    query,
+    response: { status: capture.status, body: capture.response },
+  };
+}
+
+async function recordResourceLimitPrerequisites(limitVariables: Record<string, unknown>): Promise<UpstreamCall[]> {
+  const definition = readObject(limitVariables['definition']);
+  const namespace = readString(definition?.['namespace']);
+  const key = readString(definition?.['key']);
+  if (namespace === null || key === null) {
+    throw new Error(`Limit variables do not contain a namespace/key: ${JSON.stringify(limitVariables)}`);
+  }
+  const identityCall = await recordUpstreamCall('MetafieldDefinitionHydrateByIdentifier', hydrateByIdentifierDocument, {
+    identifier: { ownerType: 'PRODUCT', namespace, key },
+  });
+  let lastObservedBucketDefinitions = 0;
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const calls: UpstreamCall[] = [];
+    let after: string | null = null;
+    let observedBucketDefinitions = 0;
+    for (let page = 0; page < 3; page += 1) {
+      const variables = { ownerType: 'PRODUCT', query: '-namespace:app--*', first: 250, after };
+      const call = await recordUpstreamCall(
+        'MetafieldDefinitionsHydrateResourceScope',
+        hydrateResourceScopeDocument,
+        variables,
+      );
+      calls.push(call);
+      const nodes = readPath(call.response.body, ['data', 'metafieldDefinitions', 'nodes']);
+      if (!Array.isArray(nodes)) {
+        throw new Error(`Resource-scope hydrate page ${page + 1} did not return nodes`);
+      }
+      observedBucketDefinitions += (nodes as DefinitionNode[]).filter(merchantResourceLimitDefinition).length;
+      const pageInfo = readObject(readPath(call.response.body, ['data', 'metafieldDefinitions', 'pageInfo']));
+      if (observedBucketDefinitions >= 256 || pageInfo?.['hasNextPage'] !== true) break;
+      const endCursor = readString(pageInfo['endCursor']);
+      if (endCursor === null) {
+        throw new Error(`Resource-scope hydrate page ${page + 1} did not return endCursor`);
+      }
+      after = endCursor;
+    }
+    if (observedBucketDefinitions >= 256) return [identityCall, ...calls];
+    lastObservedBucketDefinitions = observedBucketDefinitions;
+    await sleep(1_000);
+  }
+  throw new Error(
+    `Resource-scope hydrate observed only ${lastObservedBucketDefinitions} merchant-bucket definitions at the cap after waiting for Shopify's search index`,
+  );
+}
+
 async function readAllDefinitions(query: string, variables: Record<string, unknown>, name: string): Promise<Capture[]> {
   const captures: Capture[] = [];
   let after: string | null = null;
@@ -259,6 +323,7 @@ let secondaryNamespaceAttempt: Capture | null = null;
 let cleanup: Capture[] = [];
 let postCleanupPrimaryNamespace: Capture[] = [];
 let postCleanupSecondaryNamespace: Capture[] = [];
+let upstreamCalls: UpstreamCall[] = [];
 
 try {
   for (let index = 0; index < maxProbeCreations; index += 1) {
@@ -287,6 +352,8 @@ try {
   if (limitAttempt === null) {
     throw new Error(`Did not observe RESOURCE_TYPE_LIMIT_EXCEEDED after ${maxProbeCreations} create attempts.`);
   }
+
+  upstreamCalls = await recordResourceLimitPrerequisites(limitAttempt.request.variables);
 
   secondaryNamespaceAttempt = await captureGraphql(
     'secondary-namespace-create-after-primary-limit',
@@ -344,7 +411,7 @@ await writeFile(
       apiVersion,
       summary:
         'MetafieldDefinitionCreate PRODUCT ownerType resource limit capture. The script records the preflight catalog, creates disposable PRODUCT definitions until Shopify returns RESOURCE_TYPE_LIMIT_EXCEEDED, probes a second namespace after the limit, then deletes every created definition.',
-      seed: {
+      setup: {
         runId,
         primaryNamespace,
         secondaryNamespace,
@@ -364,7 +431,7 @@ await writeFile(
       cleanup,
       postCleanupPrimaryNamespace,
       postCleanupSecondaryNamespace,
-      upstreamCalls: [],
+      upstreamCalls,
     },
     null,
     2,
