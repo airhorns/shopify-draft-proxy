@@ -132,9 +132,10 @@ impl DraftProxy {
 
         let response = (self.upstream_transport)(request.clone());
         if (200..300).contains(&response.status) {
+            self.observe_selected_node_data_for_request(fields, &response.body, request);
             let data =
                 self.node_query_data_with_upstream_fallback(fields, &response.body, Some(request));
-            self.observe_nodes_data(&json!({ "data": data }));
+            self.observe_selected_node_data_for_request(fields, &json!({ "data": data }), request);
         }
         self.execution_session.node_hydration = Some(RequestNodeHydration {
             response,

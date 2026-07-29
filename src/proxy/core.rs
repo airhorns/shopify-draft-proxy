@@ -474,6 +474,8 @@ impl DraftProxy {
             json!(base_metafield_definition_observed_ids);
         let deleted_metafield_definitions_value = json!(deleted_metafield_definitions);
         let base_state = json!({
+                "appSubscriptions": self.store.base.app_subscriptions.records.clone(),
+                "appSubscriptionOrder": self.store.base.app_subscriptions.order.clone(),
                 "products": product_state_map_json(&self.store.products.base.records),
                 "productOrder": self.store.products.base.order,
                 "productVariants": product_variant_state_map_json(&self.store.product_variants.base.records),
@@ -568,6 +570,9 @@ impl DraftProxy {
                 "shippingPackages": self.store.staged.shipping_packages.records.clone(),
                 "deletedShippingPackageIds": deleted_shipping_package_ids,
                 "installedApps": self.store.staged.installed_apps.clone(),
+                "appSubscriptions": self.store.staged.app_subscriptions.records.clone(),
+                "appSubscriptionOrder": self.store.staged.app_subscriptions.order.clone(),
+                "deletedAppSubscriptionIds": self.store.staged.app_subscriptions.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "revokedAppAccessScopes": self.store.staged.revoked_app_access_scopes.iter().map(|(app_id, scopes)| {
                     (app_id.clone(), scopes.iter().cloned().collect::<Vec<_>>())
                 }).collect::<BTreeMap<_, _>>(),
@@ -1669,6 +1674,13 @@ impl DraftProxy {
             product_state_map_from_json(&state["baseState"]["products"]),
             string_array_from_json(&state["baseState"]["productOrder"]),
         );
+        self.store.base.app_subscriptions.replace_with_order(
+            value_map_from_json(state["baseState"].get("appSubscriptions")),
+            state["baseState"]
+                .get("appSubscriptionOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
         self.store.product_variants.base.replace_with_order(
             product_variant_state_map_from_json(&state["baseState"]["productVariants"]),
             string_array_from_json(&state["baseState"]["productVariantOrder"]),
@@ -1778,6 +1790,13 @@ impl DraftProxy {
             value_map_from_json(state["stagedState"].get("collectionJobs"));
         self.store.staged.installed_apps =
             value_map_from_json(state["stagedState"].get("installedApps"));
+        replace_staged_value_records(
+            &mut self.store.staged.app_subscriptions,
+            &state["stagedState"],
+            "appSubscriptions",
+            Some("appSubscriptionOrder"),
+            Some("deletedAppSubscriptionIds"),
+        );
         self.store.staged.revoked_app_access_scopes = state["stagedState"]
             .get("revokedAppAccessScopes")
             .and_then(Value::as_object)

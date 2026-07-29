@@ -963,6 +963,8 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
         r##"
             {
                 "baseState": {
+                    "appSubscriptionOrder": [],
+                    "appSubscriptions": {},
                     "availableLocales": null,
                     "giftCardCompleteQueries": [],
                     "giftCardConfiguration": null,
@@ -1100,6 +1102,8 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                 },
                 "stagedState": {
                     "abandonments": {},
+                    "appSubscriptionOrder": [],
+                    "appSubscriptions": {},
                     "createdPublicationIds": [],
                     "currentChannelPublicationId": null,
                     "currentChannelPublicationResolved": false,
@@ -1113,6 +1117,7 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "customers": {},
                     "customersCountBase": null,
                     "delegatedAccessTokens": {},
+                    "deletedAppSubscriptionIds": [],
                     "deletedCustomerIds": [],
                     "deletedDeliveryCustomizationIds": [],
                     "deletedDeliveryProfileIds": [],

@@ -474,6 +474,7 @@ enum B2bRelationshipCompleteness {
 
 #[derive(Clone, Default, Serialize)]
 struct BaseState {
+    app_subscriptions: OrderedRecords<Value>,
     delivery_profiles: OrderedRecords<Value>,
     delivery_promise_providers: OrderedRecords<Value>,
     delivery_promise_provider_complete_location_ids: BTreeSet<String>,
@@ -614,7 +615,7 @@ struct StagedState {
     taggable_resources: BTreeMap<String, Value>,
     carrier_services: StagedRecords<Value>,
     installed_apps: BTreeMap<String, Value>,
-    app_subscriptions: BTreeMap<String, Value>,
+    app_subscriptions: StagedRecords<Value>,
     app_one_time_purchases: BTreeMap<String, Value>,
     revoked_app_access_scopes: BTreeMap<String, BTreeSet<String>>,
     uninstalled_app_ids: BTreeSet<String>,
