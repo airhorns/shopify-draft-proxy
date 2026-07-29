@@ -92,18 +92,15 @@ const STOREFRONT_CUSTOMER_RESET_REQUESTED_AT_FIELD: &str = "__storefrontResetReq
 const STOREFRONT_CUSTOMER_ACTIVATION_TOKEN_FIELD: &str = "__proxyAccountActivationToken";
 
 const STOREFRONT_FIRST_SLICE_HYDRATE_QUERY: &str =
-    include_str!("../../config/parity-requests/storefront/storefront-first-slice-hydrate.graphql");
-const STOREFRONT_FIRST_SLICE_CONTEXT_HYDRATE_QUERY: &str = include_str!(
-    "../../config/parity-requests/storefront/storefront-first-slice-hydrate-context.graphql"
-);
-const STOREFRONT_ENRICHMENT_TAXONOMY_HYDRATE_QUERY: &str = include_str!(
-    "../../config/parity-requests/storefront/storefront-enrichment-taxonomy-hydrate.graphql"
-);
-const STOREFRONT_ENRICHMENT_CONTEXT_HYDRATE_QUERY: &str = include_str!(
-    "../../config/parity-requests/storefront/storefront-enrichment-context-hydrate.graphql"
-);
+    include_str!("../runtime_graphql/storefront/storefront-first-slice-hydrate.graphql");
+const STOREFRONT_FIRST_SLICE_CONTEXT_HYDRATE_QUERY: &str =
+    include_str!("../runtime_graphql/storefront/storefront-first-slice-hydrate-context.graphql");
+const STOREFRONT_ENRICHMENT_TAXONOMY_HYDRATE_QUERY: &str =
+    include_str!("../runtime_graphql/storefront/storefront-enrichment-taxonomy-hydrate.graphql");
+const STOREFRONT_ENRICHMENT_CONTEXT_HYDRATE_QUERY: &str =
+    include_str!("../runtime_graphql/storefront/storefront-enrichment-context-hydrate.graphql");
 const STOREFRONT_MENU_HYDRATE_QUERY: &str =
-    include_str!("../../config/parity-requests/storefront/storefront-content-menu-hydrate.graphql");
+    include_str!("../runtime_graphql/storefront/storefront-content-menu-hydrate.graphql");
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum StorefrontContentKind {

@@ -1,0 +1,1481 @@
+{
+  "scenarioId": "online-store-content-handle-reservations",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-07-20T10:45:41.244Z",
+  "setup": {
+    "pagePrimary": {
+      "request": {
+        "query": "mutation OnlineStoreContentHandlePageCreate($page: PageCreateInput!) {\n  pageCreate(page: $page) {\n    page {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "page": {
+            "title": "Content Handle Reservation 20260720104536 Page"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "pageCreate": {
+            "page": {
+              "id": "gid://shopify/Page/161554792754",
+              "title": "Content Handle Reservation 20260720104536 Page",
+              "handle": "content-handle-reservation-20260720104536-page"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "blogPrimary": {
+      "request": {
+        "query": "mutation OnlineStoreContentHandleBlogCreate($blog: BlogCreateInput!) {\n  blogCreate(blog: $blog) {\n    blog {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "blog": {
+            "title": "Content Handle Reservation 20260720104536 Blog"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "blogCreate": {
+            "blog": {
+              "id": "gid://shopify/Blog/121905971506",
+              "title": "Content Handle Reservation 20260720104536 Blog",
+              "handle": "content-handle-reservation-20260720104536-blog"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "articlePrimary": {
+      "request": {
+        "query": "mutation OnlineStoreContentHandleArticleCreate($article: ArticleCreateInput!) {\n  articleCreate(article: $article) {\n    article {\n      id\n      title\n      handle\n      blog {\n        id\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "article": {
+            "blogId": "gid://shopify/Blog/121905971506",
+            "title": "Content Handle Reservation 20260720104536 Article",
+            "author": {
+              "name": "Content Handle Reservation Author"
+            }
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "articleCreate": {
+            "article": {
+              "id": "gid://shopify/Article/685180879154",
+              "title": "Content Handle Reservation 20260720104536 Article",
+              "handle": "content-handle-reservation-20260720104536-article",
+              "blog": {
+                "id": "gid://shopify/Blog/121905971506"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1959,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    }
+  },
+  "operations": {
+    "pageGeneratedCollision": {
+      "request": {
+        "query": "mutation OnlineStoreContentHandlePageCreate($page: PageCreateInput!) {\n  pageCreate(page: $page) {\n    page {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "page": {
+            "title": "Content Handle Reservation 20260720104536 Page"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "pageCreate": {
+            "page": {
+              "id": "gid://shopify/Page/161554825522",
+              "title": "Content Handle Reservation 20260720104536 Page",
+              "handle": "content-handle-reservation-20260720104536-page-1"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1985,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "pageExplicitCollision": {
+      "request": {
+        "query": "mutation OnlineStoreContentHandlePageCreate($page: PageCreateInput!) {\n  pageCreate(page: $page) {\n    page {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "page": {
+            "title": "Content Handle Reservation 20260720104536 Page Explicit",
+            "handle": "content-handle-reservation-20260720104536-page"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "pageCreate": {
+            "page": null,
+            "userErrors": [
+              {
+                "field": ["page", "handle"],
+                "message": "Handle has already been taken",
+                "code": "TAKEN"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "pageSelfUpdate": {
+      "request": {
+        "query": "mutation OnlineStoreContentHandlePageUpdate($id: ID!, $page: PageUpdateInput!) {\n  pageUpdate(id: $id, page: $page) {\n    page {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Page/161554792754",
+          "page": {
+            "handle": "content-handle-reservation-20260720104536-page"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "pageUpdate": {
+            "page": {
+              "id": "gid://shopify/Page/161554792754",
+              "title": "Content Handle Reservation 20260720104536 Page",
+              "handle": "content-handle-reservation-20260720104536-page"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "pageCollisionUpdate": {
+      "request": {
+        "query": "mutation OnlineStoreContentHandlePageUpdate($id: ID!, $page: PageUpdateInput!) {\n  pageUpdate(id: $id, page: $page) {\n    page {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Page/161554825522",
+          "page": {
+            "handle": "content-handle-reservation-20260720104536-page"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "pageUpdate": {
+            "page": null,
+            "userErrors": [
+              {
+                "field": ["page", "handle"],
+                "message": "Handle has already been taken",
+                "code": "TAKEN"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "blogGeneratedCollision": {
+      "request": {
+        "query": "mutation OnlineStoreContentHandleBlogCreate($blog: BlogCreateInput!) {\n  blogCreate(blog: $blog) {\n    blog {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "blog": {
+            "title": "Content Handle Reservation 20260720104536 Blog"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "blogCreate": {
+            "blog": {
+              "id": "gid://shopify/Blog/121906004274",
+              "title": "Content Handle Reservation 20260720104536 Blog",
+              "handle": "content-handle-reservation-20260720104536-blog-1"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1981,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "blogExplicitCollision": {
+      "request": {
+        "query": "mutation OnlineStoreContentHandleBlogCreate($blog: BlogCreateInput!) {\n  blogCreate(blog: $blog) {\n    blog {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "blog": {
+            "title": "Content Handle Reservation 20260720104536 Blog Explicit",
+            "handle": "content-handle-reservation-20260720104536-blog"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "blogCreate": {
+            "blog": {
+              "id": "gid://shopify/Blog/121906037042",
+              "title": "Content Handle Reservation 20260720104536 Blog Explicit",
+              "handle": "content-handle-reservation-20260720104536-blog-2"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1983,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "blogSelfUpdate": {
+      "request": {
+        "query": "mutation OnlineStoreContentHandleBlogUpdate($id: ID!, $blog: BlogUpdateInput!) {\n  blogUpdate(id: $id, blog: $blog) {\n    blog {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Blog/121905971506",
+          "blog": {
+            "handle": "content-handle-reservation-20260720104536-blog"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "blogUpdate": {
+            "blog": {
+              "id": "gid://shopify/Blog/121905971506",
+              "title": "Content Handle Reservation 20260720104536 Blog",
+              "handle": "content-handle-reservation-20260720104536-blog"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1958,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "blogCollisionUpdate": {
+      "request": {
+        "query": "mutation OnlineStoreContentHandleBlogUpdate($id: ID!, $blog: BlogUpdateInput!) {\n  blogUpdate(id: $id, blog: $blog) {\n    blog {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Blog/121906004274",
+          "blog": {
+            "handle": "content-handle-reservation-20260720104536-blog"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "blogUpdate": {
+            "blog": {
+              "id": "gid://shopify/Blog/121906004274",
+              "title": "Content Handle Reservation 20260720104536 Blog",
+              "handle": "content-handle-reservation-20260720104536-blog-1"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1959,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "articleGeneratedCollision": {
+      "request": {
+        "query": "mutation OnlineStoreContentHandleArticleCreate($article: ArticleCreateInput!) {\n  articleCreate(article: $article) {\n    article {\n      id\n      title\n      handle\n      blog {\n        id\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "article": {
+            "blogId": "gid://shopify/Blog/121905971506",
+            "title": "Content Handle Reservation 20260720104536 Article",
+            "author": {
+              "name": "Content Handle Reservation Author"
+            }
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "articleCreate": {
+            "article": {
+              "id": "gid://shopify/Article/685180911922",
+              "title": "Content Handle Reservation 20260720104536 Article",
+              "handle": "content-handle-reservation-20260720104536-article-1",
+              "blog": {
+                "id": "gid://shopify/Blog/121905971506"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1964,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "articleExplicitCollision": {
+      "request": {
+        "query": "mutation OnlineStoreContentHandleArticleCreate($article: ArticleCreateInput!) {\n  articleCreate(article: $article) {\n    article {\n      id\n      title\n      handle\n      blog {\n        id\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "article": {
+            "blogId": "gid://shopify/Blog/121905971506",
+            "title": "Content Handle Reservation 20260720104536 Article Explicit",
+            "handle": "content-handle-reservation-20260720104536-article",
+            "author": {
+              "name": "Content Handle Reservation Author"
+            }
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "articleCreate": {
+            "article": null,
+            "userErrors": [
+              {
+                "field": ["article", "handle"],
+                "message": "Handle has already been taken",
+                "code": "TAKEN"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1971,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "articleSelfUpdate": {
+      "request": {
+        "query": "mutation OnlineStoreContentHandleArticleUpdate($id: ID!, $article: ArticleUpdateInput!) {\n  articleUpdate(id: $id, article: $article) {\n    article {\n      id\n      title\n      handle\n      blog {\n        id\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Article/685180879154",
+          "article": {
+            "handle": "content-handle-reservation-20260720104536-article"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "articleUpdate": {
+            "article": {
+              "id": "gid://shopify/Article/685180879154",
+              "title": "Content Handle Reservation 20260720104536 Article",
+              "handle": "content-handle-reservation-20260720104536-article",
+              "blog": {
+                "id": "gid://shopify/Blog/121905971506"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1939,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "articleCollisionUpdate": {
+      "request": {
+        "query": "mutation OnlineStoreContentHandleArticleUpdate($id: ID!, $article: ArticleUpdateInput!) {\n  articleUpdate(id: $id, article: $article) {\n    article {\n      id\n      title\n      handle\n      blog {\n        id\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Article/685180911922",
+          "article": {
+            "handle": "content-handle-reservation-20260720104536-article"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "articleUpdate": {
+            "article": null,
+            "userErrors": [
+              {
+                "field": ["article", "handle"],
+                "message": "Handle has already been taken",
+                "code": "TAKEN"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1943,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "articleCrossBlogExplicitReuse": {
+      "request": {
+        "query": "mutation OnlineStoreContentHandleArticleCreate($article: ArticleCreateInput!) {\n  articleCreate(article: $article) {\n    article {\n      id\n      title\n      handle\n      blog {\n        id\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "article": {
+            "blogId": "gid://shopify/Blog/121906004274",
+            "title": "Content Handle Reservation 20260720104536 Article Cross Blog",
+            "handle": "content-handle-reservation-20260720104536-article",
+            "author": {
+              "name": "Content Handle Reservation Author"
+            }
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "articleCreate": {
+            "article": {
+              "id": "gid://shopify/Article/685180944690",
+              "title": "Content Handle Reservation 20260720104536 Article Cross Blog",
+              "handle": "content-handle-reservation-20260720104536-article",
+              "blog": {
+                "id": "gid://shopify/Blog/121906004274"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1943,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    }
+  },
+  "cleanup": [
+    {
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreContentHandleArticleCleanup($id: ID!) {\n    articleDelete(id: $id) {\n      deletedArticleId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Article/685180944690"
+        }
+      },
+      "response": {
+        "data": {
+          "articleDelete": {
+            "deletedArticleId": "gid://shopify/Article/685180944690",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1948,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreContentHandleArticleCleanup($id: ID!) {\n    articleDelete(id: $id) {\n      deletedArticleId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Article/685180911922"
+        }
+      },
+      "response": {
+        "data": {
+          "articleDelete": {
+            "deletedArticleId": "gid://shopify/Article/685180911922",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1953,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreContentHandleArticleCleanup($id: ID!) {\n    articleDelete(id: $id) {\n      deletedArticleId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Article/685180879154"
+        }
+      },
+      "response": {
+        "data": {
+          "articleDelete": {
+            "deletedArticleId": "gid://shopify/Article/685180879154",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1959,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreContentHandlePageCleanup($id: ID!) {\n    pageDelete(id: $id) {\n      deletedPageId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Page/161554825522"
+        }
+      },
+      "response": {
+        "data": {
+          "pageDelete": {
+            "deletedPageId": "gid://shopify/Page/161554825522",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1963,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreContentHandlePageCleanup($id: ID!) {\n    pageDelete(id: $id) {\n      deletedPageId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Page/161554792754"
+        }
+      },
+      "response": {
+        "data": {
+          "pageDelete": {
+            "deletedPageId": "gid://shopify/Page/161554792754",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1967,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreContentHandleBlogCleanup($id: ID!) {\n    blogDelete(id: $id) {\n      deletedBlogId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Blog/121906037042"
+        }
+      },
+      "response": {
+        "data": {
+          "blogDelete": {
+            "deletedBlogId": "gid://shopify/Blog/121906037042",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1971,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreContentHandleBlogCleanup($id: ID!) {\n    blogDelete(id: $id) {\n      deletedBlogId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Blog/121906004274"
+        }
+      },
+      "response": {
+        "data": {
+          "blogDelete": {
+            "deletedBlogId": "gid://shopify/Blog/121906004274",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1973,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreContentHandleBlogCleanup($id: ID!) {\n    blogDelete(id: $id) {\n      deletedBlogId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Blog/121905971506"
+        }
+      },
+      "response": {
+        "data": {
+          "blogDelete": {
+            "deletedBlogId": "gid://shopify/Blog/121905971506",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1976,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "OnlineStorePageHandleReservationHydrate",
+      "query": "query OnlineStorePageHandleReservationHydrate($query: String!, $after: String) {\n  pages(first: 250, after: $after, query: $query) {\n    nodes {\n      __typename\n      id\n      handle\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "query": "handle:content-handle-reservation-20260720104536-page",
+        "after": null
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "pages": {
+              "nodes": [
+                {
+                  "__typename": "Page",
+                  "id": "gid://shopify/Page/161554792754",
+                  "handle": "content-handle-reservation-20260720104536-page"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "endCursor": "eyJsYXN0X2lkIjoxNjE1NTQ3OTI3NTQsImxhc3RfdmFsdWUiOiIxNjE1NTQ3OTI3NTQifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "OnlineStorePageHandleReservationHydrate",
+      "query": "query OnlineStorePageHandleReservationHydrate($query: String!, $after: String) {\n  pages(first: 250, after: $after, query: $query) {\n    nodes {\n      __typename\n      id\n      handle\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "query": "handle:content-handle-reservation-20260720104536-page-1",
+        "after": null
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "pages": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "OnlineStorePageHydrate",
+      "query": "query OnlineStorePageHydrate($id: ID!) {\n  page(id: $id) {\n    __typename\n    id\n    title\n    handle\n    body\n    bodySummary\n    isPublished\n    publishedAt\n    createdAt\n    updatedAt\n    templateSuffix\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Page/161554792754"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "page": {
+              "__typename": "Page",
+              "id": "gid://shopify/Page/161554792754",
+              "title": "Content Handle Reservation 20260720104536 Page",
+              "handle": "content-handle-reservation-20260720104536-page",
+              "body": "",
+              "bodySummary": "",
+              "isPublished": true,
+              "publishedAt": "2026-07-20T10:45:36Z",
+              "createdAt": "2026-07-20T10:45:36Z",
+              "updatedAt": "2026-07-20T10:45:36Z",
+              "templateSuffix": null
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "OnlineStorePageHydrate",
+      "query": "query OnlineStorePageHydrate($id: ID!) {\n  page(id: $id) {\n    __typename\n    id\n    title\n    handle\n    body\n    bodySummary\n    isPublished\n    publishedAt\n    createdAt\n    updatedAt\n    templateSuffix\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Page/161554825522"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "page": {
+              "__typename": "Page",
+              "id": "gid://shopify/Page/161554825522",
+              "title": "Content Handle Reservation 20260720104536 Page",
+              "handle": "content-handle-reservation-20260720104536-page-1",
+              "body": "",
+              "bodySummary": "",
+              "isPublished": true,
+              "publishedAt": "2026-07-20T10:45:37Z",
+              "createdAt": "2026-07-20T10:45:37Z",
+              "updatedAt": "2026-07-20T10:45:37Z",
+              "templateSuffix": null
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "OnlineStoreBlogHandleReservationHydrate",
+      "query": "query OnlineStoreBlogHandleReservationHydrate($query: String!, $after: String) {\n  blogs(first: 250, after: $after, query: $query) {\n    nodes {\n      __typename\n      id\n      handle\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "query": "handle:content-handle-reservation-20260720104536-blog",
+        "after": null
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "blogs": {
+              "nodes": [
+                {
+                  "__typename": "Blog",
+                  "id": "gid://shopify/Blog/121905971506",
+                  "handle": "content-handle-reservation-20260720104536-blog"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "endCursor": "eyJsYXN0X2lkIjoxMjE5MDU5NzE1MDYsImxhc3RfdmFsdWUiOiIxMjE5MDU5NzE1MDYifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "OnlineStoreBlogHandleReservationHydrate",
+      "query": "query OnlineStoreBlogHandleReservationHydrate($query: String!, $after: String) {\n  blogs(first: 250, after: $after, query: $query) {\n    nodes {\n      __typename\n      id\n      handle\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "query": "handle:content-handle-reservation-20260720104536-blog-1",
+        "after": null
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "blogs": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "OnlineStoreBlogHandleReservationHydrate",
+      "query": "query OnlineStoreBlogHandleReservationHydrate($query: String!, $after: String) {\n  blogs(first: 250, after: $after, query: $query) {\n    nodes {\n      __typename\n      id\n      handle\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "query": "handle:content-handle-reservation-20260720104536-blog-2",
+        "after": null
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "blogs": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1982,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "OnlineStoreBlogMutationHydrate",
+      "query": "query OnlineStoreBlogMutationHydrate($id: ID!, $after: String) {\n  blog(id: $id) {\n    __typename\n    id\n    title\n    handle\n    commentPolicy\n    tags\n    templateSuffix\n    createdAt\n    updatedAt\n    articlesCount {\n      count\n      precision\n    }\n    metafields(first: 250, after: $after) {\n      nodes {\n        __typename\n        id\n        namespace\n        key\n        type\n        value\n        jsonValue\n        compareDigest\n        ownerType\n        createdAt\n        updatedAt\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Blog/121905971506",
+        "after": null
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "blog": {
+              "__typename": "Blog",
+              "id": "gid://shopify/Blog/121905971506",
+              "title": "Content Handle Reservation 20260720104536 Blog",
+              "handle": "content-handle-reservation-20260720104536-blog",
+              "commentPolicy": "CLOSED",
+              "tags": [],
+              "templateSuffix": null,
+              "createdAt": "2026-07-20T10:45:37Z",
+              "updatedAt": "2026-07-20T10:45:37Z",
+              "articlesCount": {
+                "count": 0,
+                "precision": "EXACT"
+              },
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 24,
+              "actualQueryCost": 24,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1974,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "OnlineStoreBlogMutationHydrate",
+      "query": "query OnlineStoreBlogMutationHydrate($id: ID!, $after: String) {\n  blog(id: $id) {\n    __typename\n    id\n    title\n    handle\n    commentPolicy\n    tags\n    templateSuffix\n    createdAt\n    updatedAt\n    articlesCount {\n      count\n      precision\n    }\n    metafields(first: 250, after: $after) {\n      nodes {\n        __typename\n        id\n        namespace\n        key\n        type\n        value\n        jsonValue\n        compareDigest\n        ownerType\n        createdAt\n        updatedAt\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Blog/121906004274",
+        "after": null
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "blog": {
+              "__typename": "Blog",
+              "id": "gid://shopify/Blog/121906004274",
+              "title": "Content Handle Reservation 20260720104536 Blog",
+              "handle": "content-handle-reservation-20260720104536-blog-1",
+              "commentPolicy": "CLOSED",
+              "tags": [],
+              "templateSuffix": null,
+              "createdAt": "2026-07-20T10:45:38Z",
+              "updatedAt": "2026-07-20T10:45:38Z",
+              "articlesCount": {
+                "count": 0,
+                "precision": "EXACT"
+              },
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 24,
+              "actualQueryCost": 24,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1959,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "OnlineStoreArticleHandleReservationHydrate",
+      "query": "query OnlineStoreArticleHandleReservationHydrate($query: String!, $after: String) {\n  articles(first: 250, after: $after, query: $query) {\n    nodes {\n      __typename\n      id\n      handle\n      blog {\n        id\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "query": "handle:content-handle-reservation-20260720104536-article blog_id:121905971506",
+        "after": null
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "articles": {
+              "nodes": [
+                {
+                  "__typename": "Article",
+                  "id": "gid://shopify/Article/685180879154",
+                  "handle": "content-handle-reservation-20260720104536-article",
+                  "blog": {
+                    "id": "gid://shopify/Blog/121905971506"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "endCursor": "eyJsYXN0X2lkIjo2ODUxODA4NzkxNTQsImxhc3RfdmFsdWUiOiI2ODUxODA4NzkxNTQifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 24,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1972,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "OnlineStoreArticleHandleReservationHydrate",
+      "query": "query OnlineStoreArticleHandleReservationHydrate($query: String!, $after: String) {\n  articles(first: 250, after: $after, query: $query) {\n    nodes {\n      __typename\n      id\n      handle\n      blog {\n        id\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "query": "handle:content-handle-reservation-20260720104536-article-1 blog_id:121905971506",
+        "after": null
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "articles": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 24,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1970,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "OnlineStoreArticleHandleReservationHydrate",
+      "query": "query OnlineStoreArticleHandleReservationHydrate($query: String!, $after: String) {\n  articles(first: 250, after: $after, query: $query) {\n    nodes {\n      __typename\n      id\n      handle\n      blog {\n        id\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "query": "handle:content-handle-reservation-20260720104536-article blog_id:121906004274",
+        "after": null
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "articles": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 24,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1966,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "OnlineStoreArticleMutationHydrate",
+      "query": "query OnlineStoreArticleMutationHydrate($id: ID!, $after: String) {\n  article(id: $id) {\n    __typename\n    id\n    title\n    handle\n    body\n    summary\n    tags\n    isPublished\n    publishedAt\n    createdAt\n    updatedAt\n    templateSuffix\n    author {\n      name\n    }\n    image {\n      id\n      altText\n      url\n      width\n      height\n    }\n    blog {\n      __typename\n      id\n      title\n      handle\n      commentPolicy\n      tags\n      templateSuffix\n      createdAt\n      updatedAt\n      articlesCount {\n        count\n        precision\n      }\n    }\n    metafields(first: 250, after: $after) {\n      nodes {\n        __typename\n        id\n        namespace\n        key\n        type\n        value\n        jsonValue\n        compareDigest\n        ownerType\n        createdAt\n        updatedAt\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Article/685180879154",
+        "after": null
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "article": {
+              "__typename": "Article",
+              "id": "gid://shopify/Article/685180879154",
+              "title": "Content Handle Reservation 20260720104536 Article",
+              "handle": "content-handle-reservation-20260720104536-article",
+              "body": "",
+              "summary": null,
+              "tags": [],
+              "isPublished": true,
+              "publishedAt": "2026-07-20T10:45:38Z",
+              "createdAt": "2026-07-20T10:45:38Z",
+              "updatedAt": "2026-07-20T10:45:38Z",
+              "templateSuffix": null,
+              "author": {
+                "name": "Content Handle Reservation Author"
+              },
+              "image": null,
+              "blog": {
+                "__typename": "Blog",
+                "id": "gid://shopify/Blog/121905971506",
+                "title": "Content Handle Reservation 20260720104536 Blog",
+                "handle": "content-handle-reservation-20260720104536-blog",
+                "commentPolicy": "CLOSED",
+                "tags": [],
+                "templateSuffix": null,
+                "createdAt": "2026-07-20T10:45:37Z",
+                "updatedAt": "2026-07-20T10:45:39Z",
+                "articlesCount": {
+                  "count": 2,
+                  "precision": "EXACT"
+                }
+              },
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 27,
+              "actualQueryCost": 27,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1956,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "OnlineStoreArticleMutationHydrate",
+      "query": "query OnlineStoreArticleMutationHydrate($id: ID!, $after: String) {\n  article(id: $id) {\n    __typename\n    id\n    title\n    handle\n    body\n    summary\n    tags\n    isPublished\n    publishedAt\n    createdAt\n    updatedAt\n    templateSuffix\n    author {\n      name\n    }\n    image {\n      id\n      altText\n      url\n      width\n      height\n    }\n    blog {\n      __typename\n      id\n      title\n      handle\n      commentPolicy\n      tags\n      templateSuffix\n      createdAt\n      updatedAt\n      articlesCount {\n        count\n        precision\n      }\n    }\n    metafields(first: 250, after: $after) {\n      nodes {\n        __typename\n        id\n        namespace\n        key\n        type\n        value\n        jsonValue\n        compareDigest\n        ownerType\n        createdAt\n        updatedAt\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Article/685180911922",
+        "after": null
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "article": {
+              "__typename": "Article",
+              "id": "gid://shopify/Article/685180911922",
+              "title": "Content Handle Reservation 20260720104536 Article",
+              "handle": "content-handle-reservation-20260720104536-article-1",
+              "body": "",
+              "summary": null,
+              "tags": [],
+              "isPublished": true,
+              "publishedAt": "2026-07-20T10:45:39Z",
+              "createdAt": "2026-07-20T10:45:39Z",
+              "updatedAt": "2026-07-20T10:45:39Z",
+              "templateSuffix": null,
+              "author": {
+                "name": "Content Handle Reservation Author"
+              },
+              "image": null,
+              "blog": {
+                "__typename": "Blog",
+                "id": "gid://shopify/Blog/121905971506",
+                "title": "Content Handle Reservation 20260720104536 Blog",
+                "handle": "content-handle-reservation-20260720104536-blog",
+                "commentPolicy": "CLOSED",
+                "tags": [],
+                "templateSuffix": null,
+                "createdAt": "2026-07-20T10:45:37Z",
+                "updatedAt": "2026-07-20T10:45:39Z",
+                "articlesCount": {
+                  "count": 2,
+                  "precision": "EXACT"
+                }
+              },
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 27,
+              "actualQueryCost": 27,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1939,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

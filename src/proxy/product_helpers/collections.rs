@@ -1018,12 +1018,7 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> StagedConnectionResult<Value> {
         staged_connection_query(
-            self.store
-                .staged
-                .collections
-                .values()
-                .cloned()
-                .collect::<Vec<_>>(),
+            self.store.collections(),
             arguments,
             |collection, query| self.collection_search_decision(collection, query),
             collection_staged_sort_key,
@@ -1874,10 +1869,8 @@ impl DraftProxy {
         self.observe_nodes_response(&response);
     }
 
-    /// Forward the options-aware product hydrate (selecting the option/optionValue
-    /// graph that the generic observation query omits) and observe it, so a cold
-    /// productOptionsReorder resolves the real owning product + option graph from
-    /// upstream instead of relying on seeded state.
+    /// Hydrate the complete product mutation baseline before option mutations so
+    /// omitted fields and unseen option/variant relationships remain intact.
     pub(in crate::proxy) fn hydrate_product_options_owner(
         &mut self,
         request: &Request,
@@ -2732,29 +2725,38 @@ impl DraftProxy {
         title: &str,
         current_id: Option<&str>,
     ) -> String {
-        let requested = requested_handle
+        let requested_handle = requested_handle
             .filter(|handle| !handle.trim().is_empty())
-            .map(str::to_string)
-            .unwrap_or_else(|| slugify_handle(title));
+            .map(str::to_string);
+        let generated = requested_handle.is_none();
+        let requested = requested_handle.unwrap_or_else(|| slugify_handle(title));
+        let occupied = self
+            .store
+            .collections()
+            .into_iter()
+            .filter(|collection| collection.get("id").and_then(Value::as_str) != current_id)
+            .filter_map(|collection| {
+                collection
+                    .get("handle")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            })
+            .collect::<BTreeSet<_>>();
+        if !occupied.contains(&requested) {
+            return requested;
+        }
+        if generated {
+            return next_available_generated_handle(&requested, &occupied);
+        }
         let base = strip_numeric_suffix(&requested);
-        let mut candidate = requested;
         let mut suffix = 1;
-        while self.collection_handle_exists(&candidate, current_id) {
-            candidate = format!("{base}-{suffix}");
+        loop {
+            let candidate = format!("{base}-{suffix}");
+            if !occupied.contains(&candidate) {
+                return candidate;
+            }
             suffix += 1;
         }
-        candidate
-    }
-
-    fn collection_handle_exists(&self, handle: &str, current_id: Option<&str>) -> bool {
-        self.store
-            .staged
-            .collections
-            .iter()
-            .any(|(id, collection)| {
-                Some(id.as_str()) != current_id
-                    && collection.get("handle").and_then(Value::as_str) == Some(handle)
-            })
     }
 }
 

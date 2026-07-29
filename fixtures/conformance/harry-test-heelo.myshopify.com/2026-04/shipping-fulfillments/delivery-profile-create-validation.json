@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-07-05T07:03:53.919Z",
+  "capturedAt": "2026-07-28T04:25:54.928Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "evidence": {
@@ -70,7 +70,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1988,
+                "currentlyAvailable": 1987,
                 "restoreRate": 100
               }
             }
@@ -111,7 +111,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1988,
+                "currentlyAvailable": 1985,
                 "restoreRate": 100
               }
             }
@@ -157,7 +157,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1985,
                 "restoreRate": 100
               }
             }
@@ -172,43 +172,58 @@
   ],
   "upstreamCalls": [
     {
-      "operationName": "ShippingDeliveryProfileLocationsHydrate",
-      "variables": {},
-      "query": "query ShippingDeliveryProfileLocationsHydrate {\n    locationsAvailableForDeliveryProfilesConnection(first: 3) {\n      nodes {\n        id\n        name\n        isActive\n        isFulfillmentService\n      }\n    }\n  }",
+      "operationName": "ShippingDeliveryProfileLocationNodesHydrate",
+      "variables": {
+        "ids": ["gid://shopify/Location/999999999"]
+      },
+      "query": "query ShippingDeliveryProfileLocationNodesHydrate($ids: [ID!]!) { nodes(ids: $ids) { __typename ... on Location { id name isActive isFulfillmentService } } }",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "locationsAvailableForDeliveryProfilesConnection": {
-              "nodes": [
-                {
-                  "id": "gid://shopify/Location/106318430514",
-                  "name": "Shop location",
-                  "isActive": true,
-                  "isFulfillmentService": false
-                },
-                {
-                  "id": "gid://shopify/Location/106318463282",
-                  "name": "My Custom Location",
-                  "isActive": true,
-                  "isFulfillmentService": false
-                },
-                {
-                  "id": "gid://shopify/Location/106318496050",
-                  "name": "Snow City Warehouse",
-                  "isActive": true,
-                  "isFulfillmentService": true
-                }
-              ]
-            }
+            "nodes": [null]
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 4,
-              "actualQueryCost": 4,
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1996,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingDeliveryProfileLocationNodesHydrate",
+      "variables": {
+        "ids": ["gid://shopify/Location/106318430514"]
+      },
+      "query": "query ShippingDeliveryProfileLocationNodesHydrate($ids: [ID!]!) { nodes(ids: $ids) { __typename ... on Location { id name isActive isFulfillmentService } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Location",
+                "id": "gid://shopify/Location/106318430514",
+                "name": "Shop location",
+                "isActive": true,
+                "isFulfillmentService": false
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
                 "restoreRate": 100
               }
             }

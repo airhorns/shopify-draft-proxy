@@ -1,0 +1,48 @@
+{
+  "scenarioId": "media-file-mutation-first-lifecycle",
+  "operationNames": ["fileAcknowledgeUpdateFailed", "fileDelete", "product"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/media/media-file-mutation-first-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/media/media-file-mutation-first-acknowledge.graphql",
+    "variablesCapturePath": "$.acknowledge.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify lifecycle capture whose proxy replay begins with no local file or product state. Exact read-only upstream calls hydrate the real file for acknowledgement and the complete product owner after local delete; the strict targets prove acknowledge/delete payloads and immediate product-media cleanup.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-first-acknowledge-hydrates-real-file",
+        "capturePath": "$.acknowledge.response.data.fileAcknowledgeUpdateFailed",
+        "proxyPath": "$.data.fileAcknowledgeUpdateFailed"
+      },
+      {
+        "name": "delete-after-hydrated-acknowledgement-matches-shopify",
+        "capturePath": "$.delete.response.data.fileDelete",
+        "proxyPath": "$.data.fileDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-mutation-first-delete.graphql",
+          "variablesCapturePath": "$.delete.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "file-delete-removes-product-media-association",
+        "capturePath": "$.downstreamRead.response.data.product",
+        "proxyPath": "$.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-mutation-first-downstream.graphql",
+          "variablesCapturePath": "$.downstreamRead.variables",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  }
+}
