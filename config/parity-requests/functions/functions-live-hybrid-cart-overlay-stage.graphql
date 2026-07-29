@@ -1,0 +1,14 @@
+mutation FunctionsLiveHybridCartOverlayStage($functionId: String!) {
+  cartTransformCreate(functionId: $functionId, blockOnFailure: false) {
+    cartTransform {
+      id
+      functionId
+      blockOnFailure
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
