@@ -57,6 +57,86 @@ class ShopifyDraftProxyTransportTest < Minitest::Test
     proxy&.dispose
   end
 
+  def test_commit_resolves_headers_for_each_staged_operation
+    captured = []
+    transport = lambda do |request|
+      captured << request
+      {
+        "status" => 200,
+        "headers" => { "content-type" => "application/json" },
+        "body" => JSON.generate("data" => { "ok" => true }),
+      }
+    end
+    proxy = ShopifyDraftProxy.create(
+      read_mode: "snapshot",
+      shopify_admin_origin: "https://example.myshopify.com",
+      transport: transport,
+    )
+    service_app_mutation = STAGE_MUTATION.sub("Promo orders", "VIP orders").sub("tag:promo", "tag:vip")
+
+    proxy.process_graphql_request(
+      { query: STAGE_MUTATION },
+      headers: { "Authorization" => "Bearer {{credential}}" },
+    )
+    proxy.process_graphql_request(
+      { query: service_app_mutation },
+      headers: { "X-Shopify-ServiceApp-Scope-Restricted-Token" => "{{credential}}" },
+    )
+
+    result = proxy.commit(
+      headers: lambda do |operation|
+        if operation.fetch("headers").key?("Authorization")
+          { "Authorization" => "Bearer resolved-staff-token" }
+        else
+          { "X-Shopify-ServiceApp-Scope-Restricted-Token" => "resolved-service-app-token" }
+        end
+      end,
+    )
+
+    assert_equal true, result.fetch("ok")
+    assert_equal "Bearer resolved-staff-token", captured[0].fetch("headers").fetch("Authorization")
+    assert_equal(
+      "resolved-service-app-token",
+      captured[1].fetch("headers").fetch("X-Shopify-ServiceApp-Scope-Restricted-Token"),
+    )
+  ensure
+    proxy&.dispose
+  end
+
+  def test_commit_stops_when_the_headers_callable_raises
+    captured = []
+    proxy = ShopifyDraftProxy.create(
+      read_mode: "snapshot",
+      shopify_admin_origin: "https://example.myshopify.com",
+      transport: lambda do |request|
+        captured << request
+        { "status" => 200, "headers" => {}, "body" => JSON.generate("data" => { "ok" => true }) }
+      end,
+    )
+    second_mutation = STAGE_MUTATION.sub("Promo orders", "VIP orders").sub("tag:promo", "tag:vip")
+    proxy.process_graphql_request({ query: STAGE_MUTATION })
+    proxy.process_graphql_request({ query: second_mutation })
+    resolved = 0
+
+    error = assert_raises(ShopifyDraftProxy::CommitError) do
+      proxy.commit(
+        headers: lambda do |_operation|
+          resolved += 1
+          raise "missing credential" if resolved == 2
+
+          { "Authorization" => "Bearer first-token" }
+        end,
+      )
+    end
+
+    assert_equal 1, error.result.fetch("committed")
+    assert_equal 1, error.result.fetch("failed")
+    assert_match(/missing credential/, error.result.fetch("error"))
+    assert_equal 1, captured.length
+  ensure
+    proxy&.dispose
+  end
+
   def test_default_net_http_transport_translates_request_and_response_shapes
     received = {}
     server = TCPServer.new("127.0.0.1", 0)

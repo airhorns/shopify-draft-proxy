@@ -211,15 +211,26 @@ impl NativeDraftProxy {
     }
 
     fn commit(&self, options: RHash) -> Result<Value, Error> {
-        let headers = ruby_hash_get(options, "headers")?
-            .map(headers_from_value)
-            .transpose()?
-            .unwrap_or_default();
-        let request = Request {
-            method: "POST".to_string(),
-            path: "/__meta/commit".to_string(),
-            headers,
-            body: String::new(),
+        let response = match ruby_hash_get(options, "headers")? {
+            Some(callable) if RHash::from_value(callable).is_none() => self
+                .0
+                .borrow_mut()
+                .commit_with_header_resolver(|operation| {
+                    resolve_operation_headers(callable, operation)
+                }),
+            headers => {
+                let headers = headers
+                    .map(headers_from_value)
+                    .transpose()?
+                    .unwrap_or_default();
+                let request = Request {
+                    method: "POST".to_string(),
+                    path: "/__meta/commit".to_string(),
+                    headers,
+                    body: String::new(),
+                };
+                self.0.borrow_mut().process_request(request)
+            }
         };
         // The core always answers with a well-formed commit result body — `ok:
         // true` (HTTP 200) on full success, or an inspectable `ok: false` (HTTP
@@ -230,7 +241,6 @@ impl NativeDraftProxy {
         // result, so the upstream cause is never discarded at the binding (this
         // is what the JS binding does in `runtime.ts`; the old Ruby binding threw
         // the detail away).
-        let response = self.0.borrow_mut().process_request(request);
         json_to_ruby(response.body)
     }
 }
@@ -335,6 +345,20 @@ fn content_type_headers(mut headers: BTreeMap<String, String>) -> BTreeMap<Strin
         headers.insert("content-type".to_string(), "application/json".to_string());
     }
     headers
+}
+
+fn resolve_operation_headers(
+    callable: Value,
+    operation: &serde_json::Value,
+) -> Result<BTreeMap<String, String>, String> {
+    let operation = json_to_ruby(operation.clone()).map_err(|error| error.to_string())?;
+    let resolved: Value = callable
+        .funcall("call", (operation,))
+        .map_err(|error| error.to_string())?;
+    if RHash::from_value(resolved).is_none() {
+        return Err("commit headers callable must return a Hash".to_string());
+    }
+    headers_from_value(resolved).map_err(|error| error.to_string())
 }
 
 fn headers_from_value(value: Value) -> Result<BTreeMap<String, String>, Error> {
