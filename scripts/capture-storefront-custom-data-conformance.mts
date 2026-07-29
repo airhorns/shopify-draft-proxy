@@ -5,6 +5,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
+import { captureMetafieldsSetOwnerExistence } from './conformance-capture-lib.js';
 import { createAdminGraphqlClient, runStorefrontGraphqlRequest } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import {
@@ -336,6 +337,7 @@ try {
   assertNoTopLevelErrors(adminShopCapture.response, 'admin shop');
   const shopId = readRequiredString(adminShopCapture.response, ['data', 'shop', 'id'], 'admin shop id');
 
+  upstreamCalls.push(await captureMetafieldsSetOwnerExistence(runGraphqlRaw, apiVersion, [shopId]));
   upstreamCalls.push(
     await recordAdminUpstreamCall('MetafieldDefinitionHydrateByIdentifier', hydrateByIdentifierDocument, {
       identifier: { ownerType: 'SHOP', namespace: metafieldNamespace, key: 'visible' },

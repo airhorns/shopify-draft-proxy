@@ -1,33 +1,33 @@
 {
   "seedProduct": {
-    "id": "gid://shopify/Product/10225391599922",
-    "title": "Hermes Product Metafield Conformance 1782826835309",
+    "id": "gid://shopify/Product/10252752617778",
+    "title": "Hermes Product Metafield Conformance 1785296278833",
     "variants": {
       "nodes": [
         {
-          "id": "gid://shopify/ProductVariant/51396231397682",
+          "id": "gid://shopify/ProductVariant/51517509763378",
           "title": "Default Title"
         }
       ]
     }
   },
   "seedCollection": {
-    "id": "gid://shopify/Collection/513983775026",
-    "title": "Hermes Metafield Owner Collection 1782826835309",
-    "handle": "hermes-metafield-owner-collection-1782826835309"
+    "id": "gid://shopify/Collection/514881945906",
+    "title": "Hermes Metafield Owner Collection 1785296278833",
+    "handle": "hermes-metafield-owner-collection-1785296278833"
   },
   "mutation": {
     "variables": {
       "metafields": [
         {
-          "ownerId": "gid://shopify/ProductVariant/51396231397682",
+          "ownerId": "gid://shopify/ProductVariant/51517509763378",
           "namespace": "custom",
           "key": "variant_care",
           "type": "single_line_text_field",
           "value": "Spot clean"
         },
         {
-          "ownerId": "gid://shopify/Collection/513983775026",
+          "ownerId": "gid://shopify/Collection/514881945906",
           "namespace": "custom",
           "key": "collection_season",
           "type": "single_line_text_field",
@@ -40,7 +40,7 @@
         "metafieldsSet": {
           "metafields": [
             {
-              "id": "gid://shopify/Metafield/44627837911346",
+              "id": "gid://shopify/Metafield/45359477063986",
               "namespace": "custom",
               "key": "variant_care",
               "type": "single_line_text_field",
@@ -48,7 +48,7 @@
               "compareDigest": "430fb14bc99318a95a9768789614704f101e9839f28db554feb9ec86b7d2366f"
             },
             {
-              "id": "gid://shopify/Metafield/44627837944114",
+              "id": "gid://shopify/Metafield/45359477096754",
               "namespace": "custom",
               "key": "collection_season",
               "type": "single_line_text_field",
@@ -73,22 +73,22 @@
     }
   },
   "downstreamReadVariables": {
-    "productId": "gid://shopify/Product/10225391599922",
-    "variantId": "gid://shopify/ProductVariant/51396231397682",
-    "collectionId": "gid://shopify/Collection/513983775026"
+    "productId": "gid://shopify/Product/10252752617778",
+    "variantId": "gid://shopify/ProductVariant/51517509763378",
+    "collectionId": "gid://shopify/Collection/514881945906"
   },
   "downstreamRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/10225391599922",
-        "title": "Hermes Product Metafield Conformance 1782826835309",
+        "id": "gid://shopify/Product/10252752617778",
+        "title": "Hermes Product Metafield Conformance 1785296278833",
         "variants": {
           "nodes": [
             {
-              "id": "gid://shopify/ProductVariant/51396231397682",
+              "id": "gid://shopify/ProductVariant/51517509763378",
               "title": "Default Title",
               "care": {
-                "id": "gid://shopify/Metafield/44627837911346",
+                "id": "gid://shopify/Metafield/45359477063986",
                 "namespace": "custom",
                 "key": "variant_care",
                 "type": "single_line_text_field",
@@ -99,7 +99,7 @@
               "metafields": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/Metafield/44627837911346",
+                    "id": "gid://shopify/Metafield/45359477063986",
                     "namespace": "custom",
                     "key": "variant_care",
                     "type": "single_line_text_field",
@@ -111,8 +111,8 @@
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjo0NDYyNzgzNzkxMTM0NiwibGFzdF92YWx1ZSI6IjQ0NjI3ODM3OTExMzQ2In0=",
-                  "endCursor": "eyJsYXN0X2lkIjo0NDYyNzgzNzkxMTM0NiwibGFzdF92YWx1ZSI6IjQ0NjI3ODM3OTExMzQ2In0="
+                  "startCursor": "eyJsYXN0X2lkIjo0NTM1OTQ3NzA2Mzk4NiwibGFzdF92YWx1ZSI6IjQ1MzU5NDc3MDYzOTg2In0=",
+                  "endCursor": "eyJsYXN0X2lkIjo0NTM1OTQ3NzA2Mzk4NiwibGFzdF92YWx1ZSI6IjQ1MzU5NDc3MDYzOTg2In0="
                 }
               }
             }
@@ -120,10 +120,10 @@
         }
       },
       "productVariant": {
-        "id": "gid://shopify/ProductVariant/51396231397682",
+        "id": "gid://shopify/ProductVariant/51517509763378",
         "title": "Default Title",
         "care": {
-          "id": "gid://shopify/Metafield/44627837911346",
+          "id": "gid://shopify/Metafield/45359477063986",
           "namespace": "custom",
           "key": "variant_care",
           "type": "single_line_text_field",
@@ -134,7 +134,7 @@
         "metafields": {
           "nodes": [
             {
-              "id": "gid://shopify/Metafield/44627837911346",
+              "id": "gid://shopify/Metafield/45359477063986",
               "namespace": "custom",
               "key": "variant_care",
               "type": "single_line_text_field",
@@ -146,17 +146,17 @@
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjo0NDYyNzgzNzkxMTM0NiwibGFzdF92YWx1ZSI6IjQ0NjI3ODM3OTExMzQ2In0=",
-            "endCursor": "eyJsYXN0X2lkIjo0NDYyNzgzNzkxMTM0NiwibGFzdF92YWx1ZSI6IjQ0NjI3ODM3OTExMzQ2In0="
+            "startCursor": "eyJsYXN0X2lkIjo0NTM1OTQ3NzA2Mzk4NiwibGFzdF92YWx1ZSI6IjQ1MzU5NDc3MDYzOTg2In0=",
+            "endCursor": "eyJsYXN0X2lkIjo0NTM1OTQ3NzA2Mzk4NiwibGFzdF92YWx1ZSI6IjQ1MzU5NDc3MDYzOTg2In0="
           }
         }
       },
       "collection": {
-        "id": "gid://shopify/Collection/513983775026",
-        "title": "Hermes Metafield Owner Collection 1782826835309",
-        "handle": "hermes-metafield-owner-collection-1782826835309",
+        "id": "gid://shopify/Collection/514881945906",
+        "title": "Hermes Metafield Owner Collection 1785296278833",
+        "handle": "hermes-metafield-owner-collection-1785296278833",
         "season": {
-          "id": "gid://shopify/Metafield/44627837944114",
+          "id": "gid://shopify/Metafield/45359477096754",
           "namespace": "custom",
           "key": "collection_season",
           "type": "single_line_text_field",
@@ -167,7 +167,7 @@
         "metafields": {
           "nodes": [
             {
-              "id": "gid://shopify/Metafield/44627837944114",
+              "id": "gid://shopify/Metafield/45359477096754",
               "namespace": "custom",
               "key": "collection_season",
               "type": "single_line_text_field",
@@ -179,8 +179,8 @@
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjo0NDYyNzgzNzk0NDExNCwibGFzdF92YWx1ZSI6IjQ0NjI3ODM3OTQ0MTE0In0=",
-            "endCursor": "eyJsYXN0X2lkIjo0NDYyNzgzNzk0NDExNCwibGFzdF92YWx1ZSI6IjQ0NjI3ODM3OTQ0MTE0In0="
+            "startCursor": "eyJsYXN0X2lkIjo0NTM1OTQ3NzA5Njc1NCwibGFzdF92YWx1ZSI6IjQ1MzU5NDc3MDk2NzU0In0=",
+            "endCursor": "eyJsYXN0X2lkIjo0NTM1OTQ3NzA5Njc1NCwibGFzdF92YWx1ZSI6IjQ1MzU5NDc3MDk2NzU0In0="
           }
         }
       }
@@ -196,5 +196,275 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "OwnerMetafieldsExistenceHydrate",
+      "variables": {
+        "ids": ["gid://shopify/Collection/514881945906", "gid://shopify/ProductVariant/51517509763378"]
+      },
+      "query": "query OwnerMetafieldsExistenceHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Collection",
+                "id": "gid://shopify/Collection/514881945906"
+              },
+              {
+                "__typename": "ProductVariant",
+                "id": "gid://shopify/ProductVariant/51517509763378"
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2025-01/graphql.json",
+      "apiSurface": "admin",
+      "query": "query OwnerMetafieldsHydrateNodes($ids: [ID!]!, $metafield0Namespace: String!, $metafield0Key: String!, $metafield1Namespace: String!, $metafield1Key: String!) { nodes(ids: $ids) { __typename id ... on HasMetafields { metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } metafield1: metafield(namespace: $metafield1Namespace, key: $metafield1Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } } ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt  } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } } ... on Collection { id title handle } ... on Customer { id displayName email } ... on Order { id name } ... on Company { id name } ... on Page { id title } ... on Article { id title } } }",
+      "operationName": "OwnerMetafieldsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Collection/514881945906", "gid://shopify/ProductVariant/51517509763378"],
+        "metafield0Key": "variant_care",
+        "metafield0Namespace": "custom",
+        "metafield1Key": "collection_season",
+        "metafield1Namespace": "custom"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Collection",
+                "id": "gid://shopify/Collection/514881945906",
+                "metafield0": null,
+                "metafield1": {
+                  "id": "gid://shopify/Metafield/45359477096754",
+                  "namespace": "custom",
+                  "key": "collection_season",
+                  "type": "single_line_text_field",
+                  "value": "Winter",
+                  "jsonValue": "Winter",
+                  "compareDigest": "49afdbb15b9a73b1d63f2e66d489b9f973808d626661ba0e0de31806adb41e00",
+                  "createdAt": "2026-07-29T03:38:00Z",
+                  "updatedAt": "2026-07-29T03:38:00Z",
+                  "ownerType": "COLLECTION",
+                  "definition": null
+                },
+                "title": "Hermes Metafield Owner Collection 1785296278833",
+                "handle": "hermes-metafield-owner-collection-1785296278833"
+              },
+              {
+                "__typename": "ProductVariant",
+                "id": "gid://shopify/ProductVariant/51517509763378",
+                "metafield0": {
+                  "id": "gid://shopify/Metafield/45359477063986",
+                  "namespace": "custom",
+                  "key": "variant_care",
+                  "type": "single_line_text_field",
+                  "value": "Spot clean",
+                  "jsonValue": "Spot clean",
+                  "compareDigest": "430fb14bc99318a95a9768789614704f101e9839f28db554feb9ec86b7d2366f",
+                  "createdAt": "2026-07-29T03:38:00Z",
+                  "updatedAt": "2026-07-29T03:38:00Z",
+                  "ownerType": "PRODUCTVARIANT",
+                  "definition": null
+                },
+                "metafield1": null,
+                "title": "Default Title",
+                "sku": null,
+                "barcode": null,
+                "price": "0.00",
+                "compareAtPrice": null,
+                "taxable": true,
+                "inventoryPolicy": "DENY",
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Title",
+                    "value": "Default Title"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53623272210738",
+                  "tracked": false,
+                  "requiresShipping": true
+                },
+                "product": {
+                  "id": "gid://shopify/Product/10252752617778",
+                  "title": "Hermes Product Metafield Conformance 1785296278833",
+                  "handle": "hermes-product-metafield-conformance-1785296278833",
+                  "status": "DRAFT",
+                  "totalInventory": 0,
+                  "tracksInventory": false,
+                  "createdAt": "2026-07-29T03:37:58Z",
+                  "updatedAt": "2026-07-29T03:38:07Z"
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 9,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1991,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2025-01/graphql.json",
+      "apiSurface": "admin",
+      "query": "query MetafieldsSetOwnerExpansionDownstreamReadNoCompareDigest($productId: ID!, $variantId: ID!, $collectionId: ID!) {\n  product(id: $productId) {\n    id\n    title\n    variants(first: 1) {\n      nodes {\n        id\n        title\n        care: metafield(namespace: \"custom\", key: \"variant_care\") {\n          id\n          namespace\n          key\n          type\n          value\n          ownerType\n        }\n        metafields(first: 10) {\n          nodes {\n            id\n            namespace\n            key\n            type\n            value\n            ownerType\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n    }\n  }\n  productVariant(id: $variantId) {\n    id\n    title\n    care: metafield(namespace: \"custom\", key: \"variant_care\") {\n      id\n      namespace\n      key\n      type\n      value\n      ownerType\n    }\n    metafields(first: 10) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        ownerType\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  collection(id: $collectionId) {\n    id\n    title\n    handle\n    season: metafield(namespace: \"custom\", key: \"collection_season\") {\n      id\n      namespace\n      key\n      type\n      value\n      ownerType\n    }\n    metafields(first: 10) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        ownerType\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "productId": "gid://shopify/Product/10252752617778",
+        "variantId": "gid://shopify/ProductVariant/51517509763378",
+        "collectionId": "gid://shopify/Collection/514881945906"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/10252752617778",
+              "title": "Hermes Product Metafield Conformance 1785296278833",
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51517509763378",
+                    "title": "Default Title",
+                    "care": {
+                      "id": "gid://shopify/Metafield/45359477063986",
+                      "namespace": "custom",
+                      "key": "variant_care",
+                      "type": "single_line_text_field",
+                      "value": "Spot clean",
+                      "ownerType": "PRODUCTVARIANT"
+                    },
+                    "metafields": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Metafield/45359477063986",
+                          "namespace": "custom",
+                          "key": "variant_care",
+                          "type": "single_line_text_field",
+                          "value": "Spot clean",
+                          "ownerType": "PRODUCTVARIANT"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo0NTM1OTQ3NzA2Mzk4NiwibGFzdF92YWx1ZSI6IjQ1MzU5NDc3MDYzOTg2In0=",
+                        "endCursor": "eyJsYXN0X2lkIjo0NTM1OTQ3NzA2Mzk4NiwibGFzdF92YWx1ZSI6IjQ1MzU5NDc3MDYzOTg2In0="
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "productVariant": {
+              "id": "gid://shopify/ProductVariant/51517509763378",
+              "title": "Default Title",
+              "care": {
+                "id": "gid://shopify/Metafield/45359477063986",
+                "namespace": "custom",
+                "key": "variant_care",
+                "type": "single_line_text_field",
+                "value": "Spot clean",
+                "ownerType": "PRODUCTVARIANT"
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/45359477063986",
+                    "namespace": "custom",
+                    "key": "variant_care",
+                    "type": "single_line_text_field",
+                    "value": "Spot clean",
+                    "ownerType": "PRODUCTVARIANT"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo0NTM1OTQ3NzA2Mzk4NiwibGFzdF92YWx1ZSI6IjQ1MzU5NDc3MDYzOTg2In0=",
+                  "endCursor": "eyJsYXN0X2lkIjo0NTM1OTQ3NzA2Mzk4NiwibGFzdF92YWx1ZSI6IjQ1MzU5NDc3MDYzOTg2In0="
+                }
+              }
+            },
+            "collection": {
+              "id": "gid://shopify/Collection/514881945906",
+              "title": "Hermes Metafield Owner Collection 1785296278833",
+              "handle": "hermes-metafield-owner-collection-1785296278833",
+              "season": {
+                "id": "gid://shopify/Metafield/45359477096754",
+                "namespace": "custom",
+                "key": "collection_season",
+                "type": "single_line_text_field",
+                "value": "Winter",
+                "ownerType": "COLLECTION"
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/45359477096754",
+                    "namespace": "custom",
+                    "key": "collection_season",
+                    "type": "single_line_text_field",
+                    "value": "Winter",
+                    "ownerType": "COLLECTION"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo0NTM1OTQ3NzA5Njc1NCwibGFzdF92YWx1ZSI6IjQ1MzU5NDc3MDk2NzU0In0=",
+                  "endCursor": "eyJsYXN0X2lkIjo0NTM1OTQ3NzA5Njc1NCwibGFzdF92YWx1ZSI6IjQ1MzU5NDc3MDk2NzU0In0="
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 27,
+              "actualQueryCost": 18,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1982,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

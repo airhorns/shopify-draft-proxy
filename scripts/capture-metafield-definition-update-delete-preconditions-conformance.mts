@@ -4,6 +4,7 @@ import 'dotenv/config';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { captureMetafieldsSetOwnerExistence } from './conformance-capture-lib.js';
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
@@ -286,6 +287,7 @@ async function setupFlow(label: string, suffix: string, withMetafield: boolean):
   });
   const definitionId = createdDefinitionId(create);
   if (productId !== undefined) {
+    upstreamCalls.push(await captureMetafieldsSetOwnerExistence(runGraphqlRaw, apiVersion, [productId]));
     await recordOwnerMetafield(productId, namespace, key);
   }
   const metafieldsSet =

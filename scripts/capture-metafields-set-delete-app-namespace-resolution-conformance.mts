@@ -4,6 +4,7 @@ import 'dotenv/config';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { captureMetafieldsSetOwnerExistence, recordParityUpstreamCalls } from './conformance-capture-lib.js';
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
@@ -258,6 +259,7 @@ try {
   captures.push(productCreate);
   seed.productId = readStringPath(productCreate.response, ['data', 'productCreate', 'product', 'id'], 'product-create');
   assertNoUserErrors(productCreate.response, ['data', 'productCreate', 'userErrors'], 'product-create');
+  const ownerExistence = await captureMetafieldsSetOwnerExistence(runGraphqlRaw, apiVersion, [seed.productId]);
 
   const appPrefixedSet = await captureGraphql('app-prefixed-set', queries.set, {
     metafields: [
@@ -339,35 +341,32 @@ try {
   });
   captures.push(crossAppDelete);
 
-  await cleanupProduct(cleanup);
-
+  const fixture = {
+    capturedAt: new Date().toISOString(),
+    storeDomain,
+    apiVersion,
+    summary:
+      'metafieldsSet and metafieldsDelete app namespace resolution for value mutations, including omitted namespace defaulting and cross-app access denial.',
+    seed,
+    productCreate,
+    appPrefixedSet,
+    postAppPrefixedSetRead,
+    missingNamespaceSet,
+    postMissingNamespaceSetRead,
+    appPrefixedDelete,
+    postDeleteRead,
+    crossAppSet,
+    crossAppDelete,
+    cleanup,
+    upstreamCalls: [ownerExistence],
+  };
   await mkdir(outputDir, { recursive: true });
-  await writeFile(
+  await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`);
+  fixture.upstreamCalls = recordParityUpstreamCalls(['metafields-set-delete-app-namespace-resolution'], apiVersion, [
     outputPath,
-    `${JSON.stringify(
-      {
-        capturedAt: new Date().toISOString(),
-        storeDomain,
-        apiVersion,
-        summary:
-          'metafieldsSet and metafieldsDelete app namespace resolution for value mutations, including omitted namespace defaulting and cross-app access denial.',
-        seed,
-        productCreate,
-        appPrefixedSet,
-        postAppPrefixedSetRead,
-        missingNamespaceSet,
-        postMissingNamespaceSetRead,
-        appPrefixedDelete,
-        postDeleteRead,
-        crossAppSet,
-        crossAppDelete,
-        cleanup,
-        upstreamCalls: [],
-      },
-      null,
-      2,
-    )}\n`,
-  );
+  ])[outputPath];
+  await cleanupProduct(cleanup);
+  await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`);
   console.log(`Wrote ${outputPath}`);
 } catch (error) {
   try {

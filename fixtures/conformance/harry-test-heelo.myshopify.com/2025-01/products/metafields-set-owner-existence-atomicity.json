@@ -1,0 +1,379 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-07-19T16:38:53.096Z",
+  "setup": {
+    "validOwner": {
+      "query": "#graphql\n  mutation MetafieldsOwnerExistenceCreateProduct($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        handle\n        status\n        totalInventory\n        tracksInventory\n        createdAt\n        updatedAt\n      }\n      userErrors { field message }\n    }\n  }\n",
+      "variables": {
+        "product": {
+          "title": "Metafields owner existence valid 1784479130349",
+          "status": "DRAFT"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10243958964530",
+              "title": "Metafields owner existence valid 1784479130349",
+              "handle": "metafields-owner-existence-valid-1784479130349",
+              "status": "DRAFT",
+              "totalInventory": 0,
+              "tracksInventory": false,
+              "createdAt": "2026-07-19T16:38:50Z",
+              "updatedAt": "2026-07-19T16:38:50Z"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "deletedOwner": {
+      "query": "#graphql\n  mutation MetafieldsOwnerExistenceCreateProduct($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        handle\n        status\n        totalInventory\n        tracksInventory\n        createdAt\n        updatedAt\n      }\n      userErrors { field message }\n    }\n  }\n",
+      "variables": {
+        "product": {
+          "title": "Metafields owner existence deleted 1784479130349",
+          "status": "DRAFT"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10243958997298",
+              "title": "Metafields owner existence deleted 1784479130349",
+              "handle": "metafields-owner-existence-deleted-1784479130349",
+              "status": "DRAFT",
+              "totalInventory": 0,
+              "tracksInventory": false,
+              "createdAt": "2026-07-19T16:38:50Z",
+              "updatedAt": "2026-07-19T16:38:51Z"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "deletedOwnerCleanup": {
+      "query": "#graphql\n  mutation MetafieldsOwnerExistenceDeleteProduct($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors { field message }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Product/10243958997298"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10243958997298",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "singleInvalid": {
+    "query": "mutation MetafieldsSetParityPlan($metafields: [MetafieldsSetInput!]!) {\n  metafieldsSet(metafields: $metafields) {\n    metafields {\n      id\n      namespace\n      key\n      type\n      value\n      compareDigest\n    }\n    userErrors {\n      field\n      message\n      code\n      elementIndex\n    }\n  }\n}\n",
+    "variables": {
+      "metafields": [
+        {
+          "ownerId": "gid://shopify/Product/10243958997298",
+          "namespace": "owner_existence_1784479130349",
+          "key": "atomicity",
+          "type": "single_line_text_field",
+          "value": "must not persist"
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldsSet": {
+          "metafields": [],
+          "userErrors": [
+            {
+              "field": ["metafields", "0", "ownerId"],
+              "message": "Owner does not exist.",
+              "code": "INVALID_VALUE",
+              "elementIndex": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "mixedInvalid": {
+    "query": "mutation MetafieldsSetParityPlan($metafields: [MetafieldsSetInput!]!) {\n  metafieldsSet(metafields: $metafields) {\n    metafields {\n      id\n      namespace\n      key\n      type\n      value\n      compareDigest\n    }\n    userErrors {\n      field\n      message\n      code\n      elementIndex\n    }\n  }\n}\n",
+    "variables": {
+      "metafields": [
+        {
+          "ownerId": "gid://shopify/Product/10243958964530",
+          "namespace": "owner_existence_1784479130349",
+          "key": "atomicity",
+          "type": "single_line_text_field",
+          "value": "valid row must roll back"
+        },
+        {
+          "ownerId": "gid://shopify/Product/10243958997298",
+          "namespace": "owner_existence_1784479130349",
+          "key": "atomicity",
+          "type": "single_line_text_field",
+          "value": "missing row must fail"
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldsSet": {
+          "metafields": [],
+          "userErrors": [
+            {
+              "field": ["metafields", "1", "ownerId"],
+              "message": "Owner does not exist.",
+              "code": "INVALID_VALUE",
+              "elementIndex": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "query": "query MetafieldsSetOwnerExistenceRead($id: ID!, $namespace: String!, $key: String!) {\n  product(id: $id) {\n    id\n    metafield(namespace: $namespace, key: $key) {\n      id\n      namespace\n      key\n      type\n      value\n    }\n    metafields(first: 10, namespace: $namespace) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Product/10243958964530",
+      "namespace": "owner_existence_1784479130349",
+      "key": "atomicity"
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "product": {
+          "id": "gid://shopify/Product/10243958964530",
+          "metafield": null,
+          "metafields": {
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 8,
+          "actualQueryCost": 8,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1992,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "validOwner": {
+      "query": "#graphql\n  mutation MetafieldsOwnerExistenceDeleteProduct($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors { field message }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Product/10243958964530"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10243958964530",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "OwnerMetafieldsExistenceHydrate",
+      "variables": {
+        "ids": ["gid://shopify/Product/10243958997298"]
+      },
+      "query": "query OwnerMetafieldsExistenceHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [null]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "OwnerMetafieldsExistenceHydrate",
+      "variables": {
+        "ids": ["gid://shopify/Product/10243958964530", "gid://shopify/Product/10243958997298"]
+      },
+      "query": "query OwnerMetafieldsExistenceHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10243958964530"
+              },
+              null
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "MetafieldsSetOwnerExistenceRead",
+      "variables": {
+        "id": "gid://shopify/Product/10243958964530",
+        "namespace": "owner_existence_1784479130349",
+        "key": "atomicity"
+      },
+      "query": "query MetafieldsSetOwnerExistenceRead($id: ID!, $namespace: String!, $key: String!) {\n  product(id: $id) {\n    id\n    metafield(namespace: $namespace, key: $key) {\n      id\n      namespace\n      key\n      type\n      value\n    }\n    metafields(first: 10, namespace: $namespace) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/10243958964530",
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 8,
+              "actualQueryCost": 8,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1992,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
