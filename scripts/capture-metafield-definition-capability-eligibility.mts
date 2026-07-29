@@ -25,7 +25,7 @@ const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 
 const outputPath = path.join(outputDir, 'metafield-definition-capability-eligibility.json');
 const primaryDocumentPath = 'config/parity-requests/metafields/metafield-definition-capability-eligibility.graphql';
 
-const { runGraphql } = createAdminGraphqlClient({
+const { runGraphql, runGraphqlRaw } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
@@ -34,6 +34,14 @@ const { runGraphql } = createAdminGraphqlClient({
 const namespace = `capability_eligibility_${Date.now().toString(36)}`;
 const variables = { namespace };
 const primaryDocument = await readFile(primaryDocumentPath, 'utf8');
+const hydrateByIdentifierDocument = await readFile(
+  'config/parity-requests/metafields/metafield-definition-hydrate-by-identifier.graphql',
+  'utf8',
+);
+const hydrateResourceScopeDocument = await readFile(
+  'config/parity-requests/metafields/metafield-definitions-hydrate-resource-scope.graphql',
+  'utf8',
+);
 
 const readNamespaceDefinitionsQuery = `#graphql
   query TemporaryMetafieldDefinitions($ownerType: MetafieldOwnerType!, $namespace: String!) {
@@ -117,9 +125,83 @@ function collectCreatedDefinitions(response: unknown): DefinitionNode[] {
   });
 }
 
+function readObject(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function readPath(value: unknown, parts: string[]): unknown {
+  let current = value;
+  for (const part of parts) current = readObject(current)?.[part];
+  return current;
+}
+
+async function recordUpstreamCall(operationName: string, query: string, variables: Record<string, unknown>) {
+  const result = await runGraphqlRaw(query, variables);
+  if (result.status < 200 || result.status >= 300 || result.payload.errors) {
+    throw new Error(`${operationName} failed: ${JSON.stringify(result, null, 2)}`);
+  }
+  return {
+    method: 'POST',
+    apiSurface: 'admin',
+    path: `/admin/api/${apiVersion}/graphql.json`,
+    operationName,
+    variables,
+    query,
+    response: { status: result.status, body: result.payload },
+  };
+}
+
+async function recordResourceScopeHydrate() {
+  const calls = [];
+  let after: string | null = null;
+  let observedBucketDefinitions = 0;
+  for (let page = 0; page < 3; page += 1) {
+    const variables = { ownerType: 'PRODUCT', query: '-namespace:app--*', first: 250, after };
+    const call = await recordUpstreamCall(
+      'MetafieldDefinitionsHydrateResourceScope',
+      hydrateResourceScopeDocument,
+      variables,
+    );
+    calls.push(call);
+    const nodes = readPath(call.response.body, ['data', 'metafieldDefinitions', 'nodes']);
+    if (!Array.isArray(nodes)) throw new Error(`Resource-scope page ${page + 1} did not return nodes`);
+    observedBucketDefinitions += nodes.filter((node) => readObject(node)?.['namespace'] !== 'shopify').length;
+    const pageInfo = readObject(readPath(call.response.body, ['data', 'metafieldDefinitions', 'pageInfo']));
+    if (observedBucketDefinitions >= 256 || pageInfo?.['hasNextPage'] !== true) break;
+    const endCursor = pageInfo?.['endCursor'];
+    if (typeof endCursor !== 'string') throw new Error(`Resource-scope page ${page + 1} omitted endCursor`);
+    after = endCursor;
+  }
+  return calls;
+}
+
+async function recordPrimaryPrerequisites() {
+  const identities = [
+    { ownerType: 'PRODUCT', namespace, key: 'external_id' },
+    { ownerType: 'PRODUCT', namespace, key: 'json_payload' },
+    ...Array.from({ length: 51 }, (_, index) => ({
+      ownerType: 'PRODUCT',
+      namespace,
+      key: `admin_${String(index + 1).padStart(2, '0')}`,
+    })),
+    { ownerType: 'PRODUCT', namespace: 'shopify', key: 'material' },
+  ];
+  const calls = [];
+  for (const identifier of identities) {
+    calls.push(
+      await recordUpstreamCall('MetafieldDefinitionHydrateByIdentifier', hydrateByIdentifierDocument, {
+        identifier,
+      }),
+    );
+  }
+  calls.push(...(await recordResourceScopeHydrate()));
+  return calls;
+}
+
 let primaryResponse: unknown = null;
 let preflightAdminFilterableDefinitions: DefinitionNode[] = [];
 let cleanup: unknown[] = [];
+let upstreamCalls: unknown[] = [];
 
 try {
   await mkdir(outputDir, { recursive: true });
@@ -137,6 +219,7 @@ try {
     );
   }
 
+  upstreamCalls = await recordPrimaryPrerequisites();
   primaryResponse = await runGraphql(primaryDocument, variables);
 } finally {
   cleanup = await deleteNamespaceDefinitions();
@@ -161,7 +244,7 @@ await writeFile(
         createdDefinitions: collectCreatedDefinitions(primaryResponse),
       },
       cleanup,
-      upstreamCalls: [],
+      upstreamCalls,
     },
     null,
     2,
