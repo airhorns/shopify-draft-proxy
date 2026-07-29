@@ -4,7 +4,7 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-variants-bulk-delete-parity.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-variants-bulk-delete-parity.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/productVariantsBulkDelete-parity-plan.graphql",
@@ -61,14 +61,16 @@
       },
       {
         "name": "downstream-read-data",
-        "capturePath": "$.downstreamRead.data",
+        "capturePath": "$.downstreamRead.response.data",
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/productVariantsBulkDelete-downstream-read.graphql",
           "variables": {
             "id": {
               "fromPrimaryProxyPath": "$.data.productVariantsBulkDelete.product.id"
             },
-            "query": "sku:HERMES-BULK-810153-RED"
+            "query": {
+              "fromCapturePath": "$.downstreamRead.requestVariables.query"
+            }
           }
         },
         "proxyPath": "$.data"

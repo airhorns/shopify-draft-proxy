@@ -20,8 +20,8 @@
   ],
   "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/functions/functions-fulfillment-constraint-rule-errors.graphql",
-    "variablesCapturePath": "$.errorShape.variables",
+    "documentPath": "config/parity-requests/functions/functions-fulfillment-constraint-rule-update-existing.graphql",
+    "variablesCapturePath": "$.updateExistingRule.variables",
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
@@ -30,9 +30,29 @@
     "expectedDifferences": [],
     "targets": [
       {
+        "name": "hydrated-existing-fulfillment-constraint-rule-update",
+        "capturePath": "$.updateExistingRule.response.payload.data.successfulUpdate",
+        "proxyPath": "$.data.successfulUpdate"
+      },
+      {
+        "name": "updated-fulfillment-constraint-rule-downstream-read",
+        "capturePath": "$.downstreamRead.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-fulfillment-constraint-rule-update-read.graphql",
+          "variablesCapturePath": "$.downstreamRead.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
         "name": "fulfillment-constraint-rule-deterministic-user-errors",
         "capturePath": "$.errorShape.response.payload.data",
-        "proxyPath": "$.data"
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-fulfillment-constraint-rule-errors.graphql",
+          "variablesCapturePath": "$.errorShape.variables",
+          "apiVersion": "2026-04"
+        }
       },
       {
         "name": "fulfillment-constraint-rule-unknown-function-user-errors",
@@ -58,18 +78,8 @@
             "reason": "The app id interpolated into Shopify's shared functions.function_not_found message is shop/app-specific; compare the stable template and supplied function id while allowing the numeric app id to vary."
           }
         ]
-      },
-      {
-        "name": "fulfillment-constraint-rules-empty-read",
-        "capturePath": "$.readEmpty.response.payload.data",
-        "proxyPath": "$.data",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/functions/functions-fulfillment-constraint-rules-empty-read.graphql",
-          "variablesCapturePath": "$.readEmpty.variables",
-          "apiVersion": "2026-04"
-        }
       }
     ]
   },
-  "notes": "Live Shopify 2026-04 evidence for fulfillmentConstraintRuleCreate missing identifier, multiple identifiers, empty deliveryMethodTypes, unknown functionId/functionHandle, fulfillmentConstraintRuleDelete unknown id, and an empty fulfillmentConstraintRules read. The same capture records that live introspection exposes only fulfillmentConstraintRules, not a singular fulfillmentConstraintRule(id:) root. The current conformance app has no released fulfillment-constraint Function, so success-path, wrong-API-type, and read-after-created-rule live capture require releasing a purchase.fulfillment-constraint-rule.run or cart.fulfillment-constraints.generate.run Function with the required read/write fulfillment constraint scopes."
+  "notes": "Live Shopify 2026-04 evidence for a released fulfillment-constraint Function and disposable rule lifecycle. The primary proxy request cold-hydrates the captured pre-update rule through the exact FunctionFulfillmentConstraintRulesHydrate cassette, updates deliveryMethodTypes locally while preserving Function/app identity and metafields, and exposes the staged update through the downstream fulfillmentConstraintRules read. The capture also covers missing/multiple Function identifiers, empty deliveryMethodTypes, unknown Function identifiers, delete/update unknown-id NOT_FOUND shapes, and the empty rule catalog."
 }

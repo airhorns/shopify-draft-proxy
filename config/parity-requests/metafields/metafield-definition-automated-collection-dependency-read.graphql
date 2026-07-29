@@ -1,0 +1,52 @@
+query MetafieldDefinitionAutomatedCollectionRead(
+  $definitionId: ID!
+  $productId: ID!
+  $collectionId: ID!
+  $namespace: String!
+  $key: String!
+) {
+  metafieldDefinition(id: $definitionId) {
+    id
+    namespace
+    key
+    ownerType
+    capabilities {
+      smartCollectionCondition {
+        enabled
+        eligible
+      }
+    }
+  }
+  product(id: $productId) {
+    id
+    metafield(namespace: $namespace, key: $key) {
+      id
+      namespace
+      key
+      type
+      value
+    }
+  }
+  collection(id: $collectionId) {
+    id
+    title
+    ruleSet {
+      appliedDisjunctively
+      rules {
+        column
+        relation
+        condition
+        conditionObject {
+          __typename
+          ... on CollectionRuleMetafieldCondition {
+            metafieldDefinition {
+              id
+              namespace
+              key
+            }
+          }
+        }
+      }
+    }
+  }
+}

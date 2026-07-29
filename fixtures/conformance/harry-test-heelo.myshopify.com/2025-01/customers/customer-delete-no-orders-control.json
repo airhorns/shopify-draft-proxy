@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-07-05T05:23:53.797Z",
+  "capturedAt": "2026-07-19T20:44:07.401Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "setup": {
@@ -8,7 +8,7 @@
       "query": "mutation CustomerDeleteOrderPreconditionCustomerCreate($input: CustomerInput!) {\n  customerCreate(input: $input) {\n    customer {\n      id\n      email\n      displayName\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "email": "hermes-delete-control-1783229032217@example.com",
+          "email": "hermes-delete-control-1784493845400@example.com",
           "firstName": "Control",
           "lastName": "Delete"
         }
@@ -17,8 +17,8 @@
         "data": {
           "customerCreate": {
             "customer": {
-              "id": "gid://shopify/Customer/10900113981746",
-              "email": "hermes-delete-control-1783229032217@example.com",
+              "id": "gid://shopify/Customer/10994370052402",
+              "email": "hermes-delete-control-1784493845400@example.com",
               "displayName": "Control Delete"
             },
             "userErrors": []
@@ -43,8 +43,8 @@
       "data": {
         "customerCreate": {
           "customer": {
-            "id": "gid://shopify/Customer/10900113981746",
-            "email": "hermes-delete-control-1783229032217@example.com",
+            "id": "gid://shopify/Customer/10994370052402",
+            "email": "hermes-delete-control-1784493845400@example.com",
             "displayName": "Control Delete"
           },
           "userErrors": []
@@ -65,7 +65,7 @@
     "customerDelete": {
       "data": {
         "customerDelete": {
-          "deletedCustomerId": "gid://shopify/Customer/10900113981746",
+          "deletedCustomerId": "gid://shopify/Customer/10994370052402",
           "userErrors": []
         }
       },
@@ -99,5 +99,59 @@
     }
   },
   "cleanup": {},
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "CustomerHydrate",
+      "query": "\nquery CustomerHydrate($id: ID!) {\n  customer(id: $id) {\n    id\n    firstName\n    lastName\n    displayName\n    email\n    phone\n    locale\n    note\n    canDelete\n    verifiedEmail\n    dataSaleOptOut\n    taxExempt\n    taxExemptions\n    state\n    tags\n    createdAt\n    updatedAt\n    defaultEmailAddress { emailAddress }\n    defaultPhoneNumber { phoneNumber }\n    defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Customer/10994370052402"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10994370052402",
+              "firstName": "Control",
+              "lastName": "Delete",
+              "displayName": "Control Delete",
+              "email": "hermes-delete-control-1784493845400@example.com",
+              "phone": null,
+              "locale": "en",
+              "note": null,
+              "canDelete": true,
+              "verifiedEmail": true,
+              "dataSaleOptOut": false,
+              "taxExempt": false,
+              "taxExemptions": [],
+              "state": "DISABLED",
+              "tags": [],
+              "createdAt": "2026-07-19T20:44:05Z",
+              "updatedAt": "2026-07-19T20:44:05Z",
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-delete-control-1784493845400@example.com"
+              },
+              "defaultPhoneNumber": null,
+              "defaultAddress": null
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

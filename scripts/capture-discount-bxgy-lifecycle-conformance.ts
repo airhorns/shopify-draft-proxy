@@ -8,6 +8,11 @@ import { createAdminGraphqlClient } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { assertDiscountConformanceScopes, probeDiscountConformanceScopes } from './discount-conformance-lib.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+import {
+  captureDiscountItemRefsHydrate,
+  captureDiscountUniquenessCheck,
+  type RecordedUpstreamCall,
+} from './support/shopify/runtime-hydration-capture.js';
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
   defaultApiVersion: '2026-04',
@@ -477,6 +482,7 @@ assertDiscountConformanceScopes(scopeProbe);
 const stamp = Date.now();
 const startsAt = '2026-04-25T00:00:00Z';
 const cleanup: Array<() => Promise<unknown>> = [];
+const upstreamCalls: RecordedUpstreamCall[] = [];
 let capture: Record<string, unknown> = {};
 
 try {
@@ -562,6 +568,15 @@ try {
       usesPerOrderLimit: 1,
     },
   };
+  upstreamCalls.push(
+    await captureDiscountItemRefsHydrate(runGraphqlRaw, [
+      buyProduct.id,
+      buyProduct.variantId,
+      getProduct.id,
+      collectionId,
+    ]),
+  );
+  upstreamCalls.push(await captureDiscountUniquenessCheck(runGraphqlRaw, codeCreateVariables.input.code));
   const codeCreate = await runGraphql(codeCreateMutation, codeCreateVariables);
   const codeCreateData = codeCreate.data as
     | { discountCodeBxgyCreate?: { userErrors?: unknown; codeDiscountNode?: { id?: unknown } } }
@@ -593,6 +608,7 @@ try {
       },
     },
   };
+  upstreamCalls.push(await captureDiscountUniquenessCheck(runGraphqlRaw, codeUpdateVariables.input.code));
   const codeUpdate = await runGraphql(codeUpdateMutation, codeUpdateVariables);
   const codeUpdateData = codeUpdate.data as { discountCodeBxgyUpdate?: { userErrors?: unknown } } | undefined;
   assertNoUserErrors('discountCodeBxgyUpdate', codeUpdateData?.discountCodeBxgyUpdate?.userErrors);
@@ -730,7 +746,33 @@ try {
       activate: automaticActivate,
       delete: automaticDelete,
     },
+    proxyRequests: {
+      primary: {
+        codeInput: codeCreateVariables.input,
+        automaticInput: automaticCreateVariables.input,
+      },
+      codeUpdate: {
+        id: { fromPrimaryProxyPath: '$.data.discountCodeBxgyCreate.codeDiscountNode.id' },
+        input: codeUpdateVariables.input,
+      },
+      automaticUpdate: {
+        id: { fromPrimaryProxyPath: '$.data.discountAutomaticBxgyCreate.automaticDiscountNode.id' },
+        input: automaticUpdateVariables.input,
+      },
+      codeId: {
+        id: { fromPrimaryProxyPath: '$.data.discountCodeBxgyCreate.codeDiscountNode.id' },
+      },
+      automaticId: {
+        id: { fromPrimaryProxyPath: '$.data.discountAutomaticBxgyCreate.automaticDiscountNode.id' },
+      },
+      read: {
+        codeId: { fromPrimaryProxyPath: '$.data.discountCodeBxgyCreate.codeDiscountNode.id' },
+        automaticId: { fromPrimaryProxyPath: '$.data.discountAutomaticBxgyCreate.automaticDiscountNode.id' },
+        code: codeUpdateVariables.input.code,
+      },
+    },
     read,
+    upstreamCalls,
   };
 } finally {
   for (const cleanupStep of cleanup.reverse()) {

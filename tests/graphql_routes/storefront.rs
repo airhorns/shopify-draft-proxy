@@ -13,6 +13,32 @@ fn storefront_graphql_request(query: &str, variables: Value) -> Request {
     )
 }
 
+fn empty_online_store_handle_reservation_response(request: &Request) -> Option<Response> {
+    let body: Value = serde_json::from_str(&request.body).ok()?;
+    let query = body.get("query")?.as_str()?;
+    let data = if query.contains("OnlineStorePageHandleReservationHydrate") {
+        json!({"pages": empty_online_store_handle_connection()})
+    } else if query.contains("OnlineStoreBlogHandleReservationHydrate") {
+        json!({"blogs": empty_online_store_handle_connection()})
+    } else if query.contains("OnlineStoreArticleHandleReservationHydrate") {
+        json!({"articles": empty_online_store_handle_connection()})
+    } else {
+        return None;
+    };
+    Some(Response {
+        status: 200,
+        headers: Default::default(),
+        body: json!({"data": data}),
+    })
+}
+
+fn empty_online_store_handle_connection() -> Value {
+    json!({
+        "nodes": [],
+        "pageInfo": { "hasNextPage": false, "endCursor": null }
+    })
+}
+
 fn storefront_product_fixture(
     id: &str,
     title: &str,
@@ -3251,6 +3277,182 @@ fn storefront_cart_delivery_lifecycle_stages_rates_selection_and_state_round_tri
 }
 
 #[test]
+fn storefront_cart_strict_address_validation_uses_country_metadata() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| panic!("Storefront cart address validation must stay local"));
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["shop"] = json!({ "currencyCode": "USD" });
+    });
+    let create_cart = |proxy: &mut DraftProxy, country_code: &str| {
+        let response = proxy.process_request(storefront_graphql_request(
+            include_str!("../../config/parity-requests/storefront/storefront-cart-create.graphql"),
+            json!({ "input": { "buyerIdentity": { "countryCode": country_code } } }),
+        ));
+        response.body["data"]["cartCreate"]["cart"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("strict address cart create failed: {}", response.body))
+            .to_string()
+    };
+    let add_addresses = |proxy: &mut DraftProxy, cart_id: &str, addresses: Value| {
+        proxy.process_request(storefront_graphql_request(
+            include_str!(
+                "../../config/parity-requests/storefront/storefront-cart-delivery-addresses-add.graphql"
+            ),
+            json!({ "cartId": cart_id, "addresses": addresses }),
+        ))
+    };
+
+    let emirates_cart_id = create_cart(&mut proxy, "AE");
+    let emirates_required = add_addresses(
+        &mut proxy,
+        &emirates_cart_id,
+        json!([{
+            "address": { "deliveryAddress": { "countryCode": "AE" } },
+            "validationStrategy": "STRICT"
+        }]),
+    );
+    assert_eq!(
+        emirates_required.body["data"]["cartDeliveryAddressesAdd"]["userErrors"],
+        json!([
+            { "field": ["addresses", "0", "address", "deliveryAddress", "lastName"], "message": "A last name is required in order to continue.", "code": "ADDRESS_FIELD_IS_REQUIRED" },
+            { "field": ["addresses", "0", "address", "deliveryAddress", "address1"], "message": "An address is required in order to continue.", "code": "ADDRESS_FIELD_IS_REQUIRED" },
+            { "field": ["addresses", "0", "address", "deliveryAddress", "provinceCode"], "message": "The specified country requires a zone.", "code": "ADDRESS_FIELD_IS_REQUIRED" },
+            { "field": ["addresses", "0", "address", "deliveryAddress", "city"], "message": "A city is required in order to continue.", "code": "ADDRESS_FIELD_IS_REQUIRED" }
+        ])
+    );
+    assert_eq!(
+        emirates_required.body["data"]["cartDeliveryAddressesAdd"]["cart"]["delivery"]["addresses"],
+        json!([])
+    );
+
+    let emirates_invalid_zone = add_addresses(
+        &mut proxy,
+        &emirates_cart_id,
+        json!([{
+            "address": { "deliveryAddress": {
+                "firstName": "Cart", "lastName": "Buyer", "address1": "1 Example Street",
+                "city": "Dubai", "provinceCode": "ZZ", "countryCode": "AE"
+            } },
+            "validationStrategy": "STRICT"
+        }]),
+    );
+    assert_eq!(
+        emirates_invalid_zone.body["data"]["cartDeliveryAddressesAdd"]["userErrors"],
+        json!([{
+            "field": ["addresses", "0", "address", "deliveryAddress", "provinceCode"],
+            "message": "The specified country requires a zone.",
+            "code": "ADDRESS_FIELD_IS_REQUIRED"
+        }])
+    );
+    assert_eq!(
+        emirates_invalid_zone.body["data"]["cartDeliveryAddressesAdd"]["cart"]["delivery"]
+            ["addresses"],
+        json!([])
+    );
+
+    let emirates_valid = add_addresses(
+        &mut proxy,
+        &emirates_cart_id,
+        json!([{
+            "address": { "deliveryAddress": {
+                "firstName": "Cart", "lastName": "Buyer", "address1": "1 Example Street",
+                "city": "Dubai", "provinceCode": "du", "countryCode": "AE"
+            } },
+            "validationStrategy": "STRICT"
+        }]),
+    );
+    assert_eq!(
+        emirates_valid.body["data"]["cartDeliveryAddressesAdd"]["userErrors"],
+        json!([])
+    );
+    let emirates_address = &emirates_valid.body["data"]["cartDeliveryAddressesAdd"]["cart"]
+        ["delivery"]["addresses"][0]["address"];
+    assert_eq!(emirates_address["provinceCode"], json!("DU"));
+    assert_eq!(emirates_address["zip"], Value::Null);
+
+    let singapore_cart_id = create_cart(&mut proxy, "SG");
+    let singapore_valid = add_addresses(
+        &mut proxy,
+        &singapore_cart_id,
+        json!([{
+            "address": { "deliveryAddress": {
+                "lastName": "Buyer", "address1": "1 Example Street", "countryCode": "SG",
+                "zip": "018989"
+            } },
+            "validationStrategy": "STRICT"
+        }]),
+    );
+    assert_eq!(
+        singapore_valid.body["data"]["cartDeliveryAddressesAdd"]["userErrors"],
+        json!([])
+    );
+    let singapore_address = &singapore_valid.body["data"]["cartDeliveryAddressesAdd"]["cart"]
+        ["delivery"]["addresses"][0]["address"];
+    assert_eq!(singapore_address["city"], Value::Null);
+    assert_eq!(singapore_address["provinceCode"], Value::Null);
+    assert_eq!(singapore_address["zip"], json!("018989"));
+
+    let lenient_cart_id = create_cart(&mut proxy, "AU");
+    let lenient = add_addresses(
+        &mut proxy,
+        &lenient_cart_id,
+        json!([{
+            "address": { "deliveryAddress": { "countryCode": "AU" } }
+        }]),
+    );
+    assert_eq!(
+        lenient.body["data"]["cartDeliveryAddressesAdd"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        lenient.body["data"]["cartDeliveryAddressesAdd"]["cart"]["delivery"]["addresses"][0]
+            ["address"]["countryCode"],
+        json!("AU")
+    );
+
+    let australia_cart_id = create_cart(&mut proxy, "AU");
+    let australia_required = add_addresses(
+        &mut proxy,
+        &australia_cart_id,
+        json!([{
+            "address": { "deliveryAddress": { "countryCode": "AU" } },
+            "validationStrategy": "STRICT"
+        }]),
+    );
+    assert_eq!(
+        australia_required.body["data"]["cartDeliveryAddressesAdd"]["userErrors"],
+        json!([
+            { "field": ["addresses", "0", "address", "deliveryAddress", "lastName"], "message": "A last name is required in order to continue.", "code": "ADDRESS_FIELD_IS_REQUIRED" },
+            { "field": ["addresses", "0", "address", "deliveryAddress", "address1"], "message": "An address is required in order to continue.", "code": "ADDRESS_FIELD_IS_REQUIRED" },
+            { "field": ["addresses", "0", "address", "deliveryAddress", "provinceCode"], "message": "The specified country requires a zone.", "code": "ADDRESS_FIELD_IS_REQUIRED" },
+            { "field": ["addresses", "0", "address", "deliveryAddress", "zip"], "message": "Country specified requires a postal code in order to continue.", "code": "ADDRESS_FIELD_IS_REQUIRED" },
+            { "field": ["addresses", "0", "address", "deliveryAddress", "city"], "message": "A city is required in order to continue.", "code": "ADDRESS_FIELD_IS_REQUIRED" }
+        ])
+    );
+
+    let australia_postal_normalized = add_addresses(
+        &mut proxy,
+        &australia_cart_id,
+        json!([{
+            "address": { "deliveryAddress": {
+                "firstName": "Cart", "lastName": "Buyer", "address1": "1 Example Street",
+                "city": "Sydney", "provinceCode": "ZZ", "countryCode": "AU", "zip": "2000"
+            } },
+            "validationStrategy": "STRICT"
+        }]),
+    );
+    assert_eq!(
+        australia_postal_normalized.body["data"]["cartDeliveryAddressesAdd"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        australia_postal_normalized.body["data"]["cartDeliveryAddressesAdd"]["cart"]["delivery"]
+            ["addresses"][0]["address"]["provinceCode"],
+        json!("NSW")
+    );
+}
+
+#[test]
 fn storefront_cart_delivery_validates_ownership_inputs_and_stale_options() {
     let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
         .with_upstream_transport(|_| panic!("Storefront cart delivery validation must stay local"));
@@ -5835,7 +6037,34 @@ fn storefront_shop_metafields_use_staged_shop_owner_without_hydration() {
     let mut proxy = configured_proxy(
         ReadMode::LiveHybrid,
         Some(UnsupportedMutationMode::Passthrough),
-    );
+    )
+    .with_upstream_transport(|request| {
+        let body: Value = serde_json::from_str(&request.body).expect("upstream JSON body");
+        match body["operationName"].as_str().unwrap_or_default() {
+            "MetafieldDefinitionHydrateByIdentifier" => Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "metafieldDefinition": null } }),
+            },
+            "MetafieldDefinitionsHydrateResourceScope" => Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "metafieldDefinitions": {
+                            "nodes": [],
+                            "pageInfo": { "hasNextPage": false, "endCursor": null }
+                        }
+                    }
+                }),
+            },
+            _ => Response {
+                status: 502,
+                headers: Default::default(),
+                body: json!({ "errors": [{ "message": "No setup hydration configured" }] }),
+            },
+        }
+    });
 
     stage_metafield_definition(
         &mut proxy,
@@ -5855,7 +6084,7 @@ fn storefront_shop_metafields_use_staged_shop_owner_without_hydration() {
     );
     stage_metafields_set(
         &mut proxy,
-        "gid://shopify/Shop/storefront-metafields-no-hydrate",
+        "gid://shopify/Shop/storefront-metafields-no-hydrate?shopify-draft-proxy=synthetic",
         json!([
             {
                 "namespace": "custom",
@@ -6000,6 +6229,9 @@ fn storefront_content_roots_project_staged_admin_content() {
     .with_upstream_transport(|request| {
         if request.path.starts_with("/api/") {
             panic!("staged Storefront content should not call Storefront upstream");
+        }
+        if let Some(response) = empty_online_store_handle_reservation_response(&request) {
+            return response;
         }
         Response {
             status: 599,
@@ -7561,6 +7793,312 @@ fn storefront_node_and_nodes_dispatch_supported_visible_types_and_preserve_slots
 }
 
 #[test]
+fn storefront_node_hydrates_an_unrelated_id_after_local_product_discovery() {
+    let observed_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let observed_for_proxy = Arc::clone(&observed_requests);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        if let Some(response) = empty_online_store_handle_reservation_response(&request) {
+            return response;
+        }
+        observed_for_proxy.lock().unwrap().push(request);
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "node": {
+                        "__typename": "Page",
+                        "id": "gid://shopify/Page/upstream-unrelated",
+                        "handle": "upstream-unrelated",
+                        "title": "Upstream unrelated page"
+                    }
+                }
+            }),
+        }
+    });
+
+    let staged = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageUnrelatedProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id title }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "Local discovery product" } }),
+    ));
+    assert_eq!(staged.status, 200, "{}", staged.body);
+    assert_eq!(
+        staged.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let staged_content = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageOtherDiscoveryState(
+          $collection: CollectionInput!
+          $page: PageCreateInput!
+        ) {
+          collectionCreate(input: $collection) {
+            collection { id title }
+            userErrors { field message }
+          }
+          pageCreate(page: $page) {
+            page { id title }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "collection": { "title": "Local discovery collection" },
+            "page": { "title": "Local discovery page", "isPublished": true }
+        }),
+    ));
+    assert_eq!(staged_content.status, 200, "{}", staged_content.body);
+    assert_eq!(
+        staged_content.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        staged_content.body["data"]["pageCreate"]["userErrors"],
+        json!([])
+    );
+
+    let response = proxy.process_request(storefront_graphql_request(
+        r#"
+        query UnrelatedStorefrontNode($id: ID!) {
+          node(id: $id) {
+            __typename
+            id
+            ... on Page { handle title }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Page/upstream-unrelated" }),
+    ));
+
+    assert_eq!(response.status, 200, "{}", response.body);
+    assert_eq!(response.body["errors"], Value::Null, "{}", response.body);
+    assert_eq!(
+        response.body["data"]["node"],
+        json!({
+            "__typename": "Page",
+            "id": "gid://shopify/Page/upstream-unrelated",
+            "handle": "upstream-unrelated",
+            "title": "Upstream unrelated page"
+        })
+    );
+    assert_eq!(observed_requests.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn storefront_nodes_merge_each_id_and_reuse_one_upstream_request() {
+    let publication_id = "gid://shopify/Publication/storefront-node-overlay";
+    let observed_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let observed_for_proxy = Arc::clone(&observed_requests);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        observed_for_proxy.lock().unwrap().push(request);
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "single": {
+                        "__typename": "Page",
+                        "id": "gid://shopify/Page/upstream-mixed",
+                        "handle": "upstream-mixed",
+                        "title": "Upstream mixed page"
+                    },
+                    "mixed": [
+                        null,
+                        {
+                            "__typename": "Page",
+                            "id": "gid://shopify/Page/upstream-mixed",
+                            "handle": "upstream-mixed",
+                            "title": "Upstream mixed page"
+                        },
+                        {
+                            "__typename": "Menu",
+                            "id": "gid://shopify/Menu/upstream-mixed",
+                            "handle": "upstream-mixed-menu",
+                            "title": "Upstream mixed menu"
+                        },
+                        null,
+                        {
+                            "__typename": "Collection",
+                            "id": "gid://shopify/Collection/upstream-mixed",
+                            "handle": "upstream-mixed-collection",
+                            "title": "Upstream mixed collection"
+                        },
+                        {
+                            "__typename": "Page",
+                            "id": "gid://shopify/Page/upstream-mixed",
+                            "handle": "upstream-mixed",
+                            "title": "Upstream mixed page"
+                        }
+                    ]
+                }
+            }),
+        }
+    });
+    restore_storefront_current_publication(&mut proxy, publication_id);
+
+    let staged = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageMixedNodeProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id title }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "Local mixed-node product" } }),
+    ));
+    let product_id = staged.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    publish_to_current_storefront_channel(&mut proxy, &product_id);
+
+    let response = proxy.process_request(storefront_graphql_request(
+        r#"
+        query MixedStorefrontNodes($pageId: ID!, $ids: [ID!]!) {
+          single: node(id: $pageId) {
+            __typename
+            id
+            ... on Page { handle title }
+          }
+          mixed: nodes(ids: $ids) {
+            __typename
+            id
+            ... on Product { title }
+            ... on Page { handle title }
+            ... on Menu { handle title }
+            ... on Collection { handle title }
+          }
+        }
+        "#,
+        json!({
+            "pageId": "gid://shopify/Page/upstream-mixed",
+            "ids": [
+                product_id,
+                "gid://shopify/Page/upstream-mixed",
+                "gid://shopify/Menu/upstream-mixed",
+                "gid://shopify/Page/upstream-missing",
+                "gid://shopify/Collection/upstream-mixed",
+                "gid://shopify/Page/upstream-mixed"
+            ]
+        }),
+    ));
+
+    assert_eq!(response.status, 200, "{}", response.body);
+    assert_eq!(response.body["errors"], Value::Null, "{}", response.body);
+    assert_eq!(
+        response.body["data"]["single"]["title"],
+        json!("Upstream mixed page")
+    );
+    let nodes = response.body["data"]["mixed"].as_array().unwrap();
+    assert_eq!(nodes.len(), 6);
+    assert_eq!(nodes[0]["title"], json!("Local mixed-node product"));
+    assert_eq!(nodes[1]["title"], json!("Upstream mixed page"));
+    assert_eq!(nodes[2]["title"], json!("Upstream mixed menu"));
+    assert_eq!(nodes[3], Value::Null);
+    assert_eq!(nodes[4]["title"], json!("Upstream mixed collection"));
+    assert_eq!(nodes[5], nodes[1]);
+    assert_eq!(observed_requests.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn storefront_nodes_overlay_tombstones_while_hydrating_other_ids() {
+    let deleted_product_id = "gid://shopify/Product/storefront-node-deleted";
+    let upstream_page_id = "gid://shopify/Page/storefront-node-upstream";
+    let observed_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let observed_for_proxy = Arc::clone(&observed_requests);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(UnsupportedMutationMode::Passthrough),
+    )
+    .with_base_products(vec![storefront_product_fixture(
+        deleted_product_id,
+        "Deleted Node product",
+        "deleted-node-product",
+        None,
+    )])
+    .with_upstream_transport(move |request| {
+        observed_for_proxy.lock().unwrap().push(request);
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "mixed": [
+                        {
+                            "__typename": "Product",
+                            "id": deleted_product_id,
+                            "title": "Upstream must not resurrect this product"
+                        },
+                        {
+                            "__typename": "Page",
+                            "id": upstream_page_id,
+                            "handle": "storefront-node-upstream",
+                            "title": "Hydrated upstream Page"
+                        }
+                    ]
+                }
+            }),
+        }
+    });
+
+    let deleted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteStorefrontNodeProduct($input: ProductDeleteInput!) {
+          productDelete(input: $input) {
+            deletedProductId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": deleted_product_id } }),
+    ));
+    assert_eq!(deleted.status, 200, "{}", deleted.body);
+    assert_eq!(
+        deleted.body["data"]["productDelete"]["userErrors"],
+        json!([])
+    );
+
+    let response = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontNodeTombstoneOverlay($ids: [ID!]!) {
+          mixed: nodes(ids: $ids) {
+            __typename
+            id
+            ... on Product { title }
+            ... on Page { handle title }
+          }
+        }
+        "#,
+        json!({ "ids": [deleted_product_id, upstream_page_id] }),
+    ));
+
+    assert_eq!(response.status, 200, "{}", response.body);
+    assert_eq!(response.body["errors"], Value::Null, "{}", response.body);
+    assert_eq!(response.body["data"]["mixed"][0], Value::Null);
+    assert_eq!(
+        response.body["data"]["mixed"][1]["title"],
+        json!("Hydrated upstream Page")
+    );
+    assert_eq!(observed_requests.lock().unwrap().len(), 1);
+}
+
+#[test]
 fn storefront_discovery_rejects_malformed_global_ids_like_shopify() {
     let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
         .with_upstream_transport(|_| panic!("invalid snapshot node must not call upstream"));
@@ -7582,13 +8120,29 @@ fn storefront_discovery_rejects_malformed_global_ids_like_shopify() {
 }
 
 #[test]
-fn storefront_discovery_parity_document_with_operation_name_stays_local() {
+fn storefront_discovery_parity_document_hydrates_only_unresolved_nodes() {
     let publication_id = "gid://shopify/Publication/storefront-discovery-parity-document";
+    let observed_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let observed_for_proxy = Arc::clone(&observed_requests);
     let mut proxy = configured_proxy(
         ReadMode::LiveHybrid,
         Some(UnsupportedMutationMode::Passthrough),
     )
-    .with_upstream_transport(|_| panic!("staged Storefront discovery must stay local"));
+    .with_upstream_transport(move |request| {
+        if let Some(response) = empty_online_store_handle_reservation_response(&request) {
+            return response;
+        }
+        observed_for_proxy.lock().unwrap().push(request);
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "aliasedNodes": [null, null, null, null, null, null]
+                }
+            }),
+        }
+    });
     restore_state_with(&mut proxy, |state| {
         state["baseState"]["shop"] = json!({ "currencyCode": "USD" });
     });
@@ -7628,6 +8182,7 @@ fn storefront_discovery_parity_document_with_operation_name_stays_local() {
     assert_eq!(response.body["data"]["mixed"]["totalCount"], json!(1));
     assert_eq!(response.body["data"]["prefixLast"]["totalCount"], json!(3));
     assert_eq!(response.body["data"]["aliasedNodes"][1], Value::Null);
+    assert_eq!(observed_requests.lock().unwrap().len(), 1);
 }
 
 #[test]
@@ -7637,7 +8192,10 @@ fn storefront_search_and_predictive_search_use_effective_visible_state() {
         ReadMode::LiveHybrid,
         Some(UnsupportedMutationMode::Passthrough),
     )
-    .with_upstream_transport(|_| panic!("staged Storefront discovery must stay local"));
+    .with_upstream_transport(|request| {
+        empty_online_store_handle_reservation_response(&request)
+            .unwrap_or_else(|| panic!("staged Storefront discovery must stay local"))
+    });
     restore_storefront_current_publication(&mut proxy, publication_id);
     let fixture = stage_storefront_discovery_fixture(&mut proxy);
 
@@ -7704,6 +8262,15 @@ fn storefront_search_and_predictive_search_use_effective_visible_state() {
     assert_eq!(
         first.body["data"]["search"]["pageInfo"]["hasNextPage"],
         json!(true)
+    );
+    assert_eq!(
+        first.body["data"]["search"]["productFilters"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|filter| filter["id"].clone())
+            .collect::<Vec<_>>(),
+        vec![json!("filter.v.availability"), json!("filter.v.price")]
     );
     assert_eq!(first.body["data"]["explicitTypes"]["totalCount"], json!(1));
     assert_eq!(
@@ -7779,6 +8346,10 @@ fn storefront_search_and_predictive_search_use_effective_visible_state() {
     let hidden = proxy.process_request(storefront_graphql_request(query, json!({ "after": null })));
     assert_eq!(hidden.body["data"]["search"]["totalCount"], json!(0));
     assert_eq!(hidden.body["data"]["search"]["nodes"], json!([]));
+    assert_eq!(
+        hidden.body["data"]["search"]["productFilters"][0]["id"],
+        json!("filter.v.price")
+    );
     assert_eq!(hidden.body["data"]["predictive"]["products"], json!([]));
     assert_eq!(hidden.body["data"]["predictive"]["collections"], json!([]));
     assert_eq!(hidden.body["data"]["predictive"]["articles"], json!([]));
