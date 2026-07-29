@@ -126,10 +126,13 @@ location catalog includes inactive and legacy rows needed for effective counts,
 duplicate-name checks, and the shop's active merchant-managed location limit.
 
 Practical rule: hydrate and retain the two catalogs separately. General staged
-location lifecycle changes overlay the normalized `locations` baseline;
-delivery-profile reads overlay a staged row only when that ID was already in the
-hydrated eligibility catalog. The captured
-`location-catalog-overlay-lifecycle` scenario also confirms that quoted
+location lifecycle changes overlay the normalized `locations` baseline. A
+staged add stays absent from delivery-profile eligibility at first, but the
+fresh `location-catalog-overlay-lifecycle` capture shows Shopify adds that row
+after deactivation with `isActive: false` and retains it after reactivation with
+`isActive: true`; deletion removes the derived row. Other delivery-profile
+reads overlay a staged row only after its ID enters the hydrated or captured
+lifecycle eligibility catalog. The same scenario also confirms that quoted
 multi-word `name:` expressions must remain one search term rather than being
 split on whitespace.
 
@@ -262,6 +265,29 @@ Order: protected source names were rejected before order creation, `shopify_pos`
 accepted payment terms, and later rapid attempts hit Shopify's order-create rate
 guard. The checked-in paid-update anchor is
 `config/parity-specs/payments/payment-terms-update-order-eligibility.json`.
+
+## Current: paymentTermsDelete has resolver-error precedence and needs schedule tombstones
+
+A cold-start 2026-04 capture against disposable DraftOrder-owned payment terms
+showed that `paymentTermsDelete` can resolve a persisted shop-owned target from
+only its full `PaymentTerms` GID. The proxy prerequisite is an exact query-only
+`node(id:)` read carrying the request's API version and auth context; the delete
+mutation itself remains local until explicit commit replay.
+
+The captured validation precedence is type-sensitive. A Shopify GID for a
+different resource returns a top-level `RESOURCE_NOT_FOUND` error with
+`Invalid id: <gid>` and a null mutation payload, without hydrating. An unknown
+but well-typed `PaymentTerms` GID hydrates to null and returns the payload-level
+`PAYMENT_TERMS_DELETE_UNSUCCESSFUL` / `Could not find payment terms.` userError.
+Neither failure changes staged state or appends a commit entry.
+
+Successful deletion must preserve more than owner detachment. Shopify returns
+the deleted terms GID, the owner's `paymentTerms` becomes null, and generic
+`node(id:)` reads for both the deleted `PaymentTerms` and its hydrated
+`PaymentSchedule` return null. Practical rule: retain explicit terms and
+schedule tombstones so base/hydrated records cannot reappear through node reads
+or meta dump/restore. The checked-in anchor is
+`config/parity-specs/payments/payment-terms-cold-delete.json`.
 
 ## Current: Draft-order percentage discounts accept negative values
 
@@ -2628,6 +2654,7 @@ Live evidence refreshed on this host:
 - custom collections return `ruleSet: null`; the captured smart collection returns a `ruleSet` with `appliedDisjunctively: false` and a `TITLE CONTAINS VANS` rule
 - both captured custom and smart collections currently return `sortOrder: BEST_SELLING`; the custom collection's blank description comes back as empty strings for both `description` and `descriptionHtml`, not `null`
 - the catalog fixture now selects the same rich metadata fields so `collections` parity covers the captured null/empty shapes alongside nested product connection shape
+- Repeated title-only `collectionCreate` calls reserve generated handles using two suffix branches. A nonnumeric generated handle keeps its base and appends `-1`, while a generated handle ending in digits increments that trailing number in place (`...-41` becomes `...-42`). Collection handle reservation must include both observed catalog rows and collections already staged in the current proxy session.
 - HAR-594 live probes against Admin GraphQL 2025-01 accepted collection titles that looked reserved from older Rails model notes. `Frontpage`, `All`, `Types`, `Vendors`, `Products`, and `Collections` all created collections successfully with empty `userErrors`; `Frontpage` deduped to `frontpage-2` when the shop already had the homepage collection handle. Do not add local reserved-title rejection unless a newer capture proves the GraphQL mutation surface rejects it.
 - The same HAR-594 capture showed `collectionAddProducts` and `collectionRemoveProducts` against a smart collection return `collection/job: null` with an `id`-scoped user error using the wording `Can't manually add products to a smart collection` / `Can't manually remove products from a smart collection`. A successful `collectionAddProducts` payload can still show `productsCount.count: 0` while the selected `products.nodes` includes the added product; the immediate downstream `collection(id:)` read returns the recomputed non-zero `productsCount`.
 - A refreshed 2025-01 capture shows re-adding an already-member product with `collectionAddProducts` returns the collection with the existing product connection and empty `userErrors`; duplicate membership is not a payload error.
@@ -3295,7 +3322,16 @@ Observed current-version surface:
 
 - read roots: `customerPaymentMethod`, `orderPaymentStatus`, `paymentCustomization`, `paymentCustomizations`, `paymentTermsTemplates`, `shopPayPaymentRequestReceipt`, `shopPayPaymentRequestReceipts`, `shopifyPaymentsAccount`, and `tenderTransactions`
 - scaffold-only mutation roots: customer payment method create/update/revoke/update-url/duplication roots, `orderCapture`, `orderCreateMandatePayment`, payment customization create/update/delete/activation, `paymentReminderSend`, payment terms create/update/delete, `shopifyPaymentsPayoutAlternateCurrencyCreate`, and `transactionVoid`
-- payment-adjacent guardrail: `orderCreateManualPayment` now stages local manual-payment success for orders already present in proxy state, while still mirroring the captured access-denied branch for unhydrated/non-local orders without passthrough. Live success conformance remains blocked on the current credential because the available conformance shop reports `shop.plan.shopifyPlus: false`.
+- payment-adjacent guardrail: `orderCreateManualPayment` resolves store/app capability before order presence, query-only hydrates eligible cold orders, and stages successful payment effects locally. Amount-bearing calls require a confirmed `write_orders` scope and Shopify Plus; omitted/null amount calls require the scope but do not require Plus. Capability transport failure or absent snapshot context stays an explicit unknown outcome rather than being inferred from cache state.
+
+2026-07-20 live `orderCreateManualPayment` capture on `harry-test-heelo.myshopify.com` (Admin 2026-04):
+
+- the non-Plus store returned the same top-level `ACCESS_DENIED` envelope for amount-bearing calls whether the proxy replay began with a cold or already-observed order
+- with `write_orders` present and `amount` omitted, both cold and warm disposable orders succeeded, used the default `manual` gateway, paid the full outstanding balance, and exposed matching transaction/money/status state on the immediate downstream read
+- `gid://shopify/Order/0` with omitted `amount` returned `order: null` plus `userErrors[{ field: ["id"], message: "Order does not exist" }]`, confirming that eligible not-found behavior is distinct from access denial
+- a newly created order can briefly return `Order is temporarily unavailable to be modified.`; the registered recorder retries only that exact transient branch before recording the final manual-payment interaction
+- an arbitrary `paymentMethodName` returned `Payment provider is not configured on shop.` even though the no-amount capability gate passed; configured-provider validation is a separate fidelity slice from store/app eligibility
+- an unbound nullable `$amount` remains present in the raw GraphQL argument expression but has no resolved variable value, so the Plus gate must inspect preserved raw argument metadata rather than treating the coerced argument entry as a submitted amount
 
 2026-04-25 live probe on `harry-test-heelo.myshopify.com`:
 
@@ -4221,7 +4257,7 @@ Practical rule:
   deterministic public or approved disposable-store setup can leave a real
   incomplete relocation job observable through `locationActivate`
 
-## 91. Public 2026-04 Files API does not expose `MediaImage.references`
+## 91. File deletion cannot depend on `MediaImage.references`
 
 Admin GraphQL 2026-04 live capture against
 `harry-test-heelo.myshopify.com` recorded the runtime
@@ -4232,14 +4268,29 @@ Older checked-in 2025-01 cascade evidence has a successful
 `MediaImage.references(first:)` response for product/media/variant relationship
 hydration, so do not assume this field is stable across public API versions.
 
+A fresh 2025-01 mutation-first lifecycle capture started with an unobserved
+`MediaImage` attached to a product. A public `nodes(ids:)` File lookup hydrated
+the real target for both `fileAcknowledgeUpdateFailed` and `fileDelete`, and the
+immediate post-delete `product.media` read omitted the deleted file. The capture
+therefore supports target hydration and the downstream lifecycle result, but it
+does not make a bounded reverse-reference page authoritative for every owner.
+
 Practical rule:
 
 - media parity cassettes must store the exact hydrate query and exact Shopify
   response, including public schema errors when that is what the runtime query
   receives
-- future file-delete cascade improvements should prefer a public,
-  version-stable product/media hydration path over relying on
-  `MediaImage.references` in API versions where the field is not exposed
+- hydrate mutation-first file targets through public `nodes(ids:)` File fields
+  before returning not-found validation
+- treat the local file tombstone as the authoritative relationship exclusion:
+  clear known product/variant associations immediately, and filter the same ID
+  from owners observed after the delete
+- when a cold product must be materialized after a delete, exhaust its public
+  product-media, variants, and per-variant media connections before staging it;
+  never promote the first bounded page into a domain-complete owner graph
+- a cold top-level `productVariant(id:)` read after delete must likewise exhaust
+  that variant's media connection before filtering the tombstone; otherwise a
+  deleted file beyond the first page can reappear while unrelated media vanish
 
 ## 92. Public 2026-04 Files API selection boundaries for local replacement parity
 
@@ -4886,7 +4937,32 @@ Practical rule:
   never send the supported draft-order mutation upstream or invoke carrier
   participants during normal calculation
 
-## 117. Delivery customization Function handles require catalog metadata matching
+## 117. Online Store handle collisions are scoped by resource and Blogs do not return TAKEN
+
+Admin GraphQL 2025-01 capture created colliding Pages, Blogs, and Articles and
+then exercised self-updates and updates into another record's handle. Generated
+handles used the next numeric suffix for all three resource families. Page and
+Blog reservations were shop-scoped, while an Article handle could be reused in
+a different Blog.
+
+Explicit collision behavior was not uniform. Page and Article create/update
+returned a null resource plus `TAKEN` on the resource's `handle` field. An
+explicit colliding Blog create succeeded with the next suffix instead. A Blog
+update into another Blog's handle returned the target Blog unchanged with no
+user error. Self-updates succeeded for every resource.
+
+Practical rule:
+
+- hydrate exact handle ownership with query-only requests before a mutation-first
+  create or update when effective local state cannot answer the collision check
+- reserve Page and Blog handles shop-wide and Article handles by parent Blog,
+  excluding the update target itself
+- advance trailing numeric suffixes instead of blindly appending another
+  `-1`
+- preserve Blog's distinct suffix/no-op behavior rather than sharing the Page
+  and Article `TAKEN` branch
+
+## 118. Delivery customization Function handles require catalog metadata matching
 
 Live Admin GraphQL 2026-04 capture showed an asymmetric Function surface.
 `DeliveryCustomizationInput` accepts `functionHandle`, but `ShopifyFunction`

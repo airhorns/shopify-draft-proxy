@@ -473,7 +473,7 @@ pub(crate) fn default_registry_bindings() -> Vec<ExecutableRootRegistration> {
         entry!("taxAppConfigure", Mutation, Functions, DraftProxy::functions_mutation_root, []),
         entry!("paymentReminderSend", Mutation, Payments, DraftProxy::payment_reminder_root, []),
         entry!("paymentTermsCreate", Mutation, Payments, DraftProxy::payment_terms_mutation_root, []),
-        entry!("paymentTermsDelete", Mutation, Payments, DraftProxy::payment_terms_mutation_root, []),
+        entry!("paymentTermsDelete", Mutation, Payments, DraftProxy::payment_terms_mutation_root, ["tests/graphql_routes/orders.rs"]),
         entry!("paymentTermsUpdate", Mutation, Payments, DraftProxy::payment_terms_mutation_root, []),
         unimplemented_entry!("disputeEvidenceUpdate", Mutation, Payments, []),
         unimplemented_entry!("shopifyPaymentsPayoutAlternateCurrencyCreate", Mutation, Payments, []),

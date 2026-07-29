@@ -7,6 +7,7 @@ mod owner_metafields;
 pub(in crate::proxy) use self::bulk_operations::bulk_operation_field_resolver_type_policies;
 pub(in crate::proxy) use self::media::{
     media_field_resolver_registrations, media_field_resolver_type_policies,
+    remove_media_ids_from_observed_product,
 };
 pub(in crate::proxy) use self::owner_metafields::{
     list_reference_ids, owner_metafield_field_resolver_registrations, scalar_reference_id,
@@ -17,7 +18,7 @@ const TAGGABLE_ORDER_HYDRATE_QUERY: &str =
 const TAGGABLE_DRAFT_ORDER_HYDRATE_QUERY: &str =
     "query OrdersDraftOrderHydrate($id: ID!) {\n  draftOrder(id: $id) { id name tags }\n}";
 const TAGGABLE_CUSTOMER_HYDRATE_QUERY: &str =
-    include_str!("../../config/parity-requests/customers/taggable-customer-hydrate.graphql");
+    include_str!("../runtime_graphql/customers/taggable-customer-hydrate.graphql.raw");
 const TAGGABLE_ARTICLE_HYDRATE_QUERY: &str = "query TagsArticleHydrate($id: ID!) {\n  article(id: $id) {\n    __typename\n    id\n    title\n    handle\n    tags\n    createdAt\n    updatedAt\n    blog { id }\n  }\n}";
 const TAGGABLE_PRODUCT_HYDRATE_QUERY: &str = "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      availablePublicationsCount { count precision }\n      resourcePublicationsCount { count precision }\n      resourcePublicationsV2(first: 10) { nodes { publication { id } publishDate isPublished } }\n      publications(first: 10) { nodes { isPublished publishDate product { id } } }\n    }\n  }\n}";
 const PRODUCT_VARIANTS_BULK_CREATE_INVENTORY_QUANTITIES_LIMIT: usize = 50_000;
@@ -515,14 +516,23 @@ impl DraftProxy {
         let Some(id) = resolved_string_field(&input, "id") else {
             return ResolverOutcome::value(product_update_missing_payload_value());
         };
-        if !self.ensure_product_mutation_hydrated(request, &id)
+        let mutation_hydration_complete = self.ensure_product_mutation_hydrated(request, &id);
+        if !mutation_hydration_complete
             && self.config.read_mode == ReadMode::LiveHybrid
+            && self.store.product_by_id(&id).is_none()
+        {
+            self.hydrate_product_nodes_for_observation_with_request(request, vec![id.clone()]);
+        }
+        if !mutation_hydration_complete
+            && self.config.read_mode == ReadMode::LiveHybrid
+            && self.store.product_by_id(&id).is_none()
         {
             return ResolverOutcome::value(product_update_missing_payload_value());
         }
         let Some(existing) = self.store.product_staged_or_base(&id) else {
             return ResolverOutcome::value(product_update_missing_payload_value());
         };
+        self.remember_product_catalog_base_record(&existing);
 
         if input.contains_key("title")
             && resolved_string_field(&input, "title")
@@ -554,6 +564,12 @@ impl DraftProxy {
         }
 
         let top_level_media_inputs = product_top_level_media_inputs(&arguments);
+        if !mutation_hydration_complete
+            && self.config.read_mode == ReadMode::LiveHybrid
+            && top_level_media_inputs.is_some()
+        {
+            return ResolverOutcome::value(product_update_missing_payload_value());
+        }
         if let Some(media_inputs) = top_level_media_inputs.as_ref() {
             let media_errors = product_top_level_media_user_errors(media_inputs);
             if !media_errors.is_empty() {
@@ -618,7 +634,7 @@ impl DraftProxy {
         let mut response_media = existing.media.clone();
         response_media.extend(media_append.mutation_nodes);
 
-        let product = ProductRecord {
+        let mut product = ProductRecord {
             id: existing.id,
             created_at: existing.created_at,
             updated_at: self.next_product_updated_at(&existing.updated_at),
@@ -648,6 +664,29 @@ impl DraftProxy {
             collections: existing.collections,
             extra_fields,
         };
+        let mut staged_fields = vec!["updatedAt"];
+        for field in [
+            "title",
+            "handle",
+            "status",
+            "descriptionHtml",
+            "vendor",
+            "productType",
+            "tags",
+            "templateSuffix",
+            "seo",
+        ] {
+            if input.contains_key(field) {
+                staged_fields.push(field);
+            }
+        }
+        if product_category_input_id(&input).is_some() {
+            staged_fields.push("category");
+        }
+        if top_level_media_inputs.is_some() {
+            staged_fields.push("media");
+        }
+        mark_product_staged_fields(&mut product, &staged_fields);
         self.store.stage_product(product.clone());
         let mut response_product = product.clone();
         response_product.media = response_media;
@@ -2008,6 +2047,9 @@ impl DraftProxy {
         }
         if !self.store.has_product(&id) {
             return ResolverOutcome::value(product_delete_missing_payload_value());
+        }
+        if let Some(existing) = self.store.product_by_id(&id).cloned() {
+            self.remember_product_catalog_base_record(&existing);
         }
 
         if is_async_delete {

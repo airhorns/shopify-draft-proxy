@@ -74,6 +74,7 @@ impl DraftProxy {
             registry: ResolverRegistry::new(default_registry()),
             store: Store::with_default_baseline(),
             shop_sells_subscriptions: None,
+            product_catalog_base_records: BTreeMap::new(),
             clock: Arc::new(default_runtime_clock),
             last_mutation_timestamp: None,
             execution_session: ExecutionSession::default(),
@@ -213,6 +214,7 @@ impl DraftProxy {
                 self.store.clear_staged();
                 self.store.reset_synthetic_id_sequence();
                 self.shop_sells_subscriptions = None;
+                self.product_catalog_base_records.clear();
                 self.last_mutation_timestamp = None;
                 self.execution_session = ExecutionSession::default();
                 ok_json(json!({ "ok": true, "message": "state reset" }))
@@ -643,12 +645,22 @@ impl DraftProxy {
                 "deletedDiscountIds": self.store.staged.discounts.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "discountRedeemCodeBulkCreations": self.store.staged.discount_redeem_code_bulk_creations.clone(),
                 "ownerMetafields": self.store.staged.owner_metafields.clone(),
-                "deletedOwnerMetafields": deleted_owner_metafields
+                "deletedOwnerMetafields": deleted_owner_metafields,
+                "paymentTerms": self.store.staged.payment_terms.clone(),
+                "paymentTermsOwnerIndex": self.store.staged.payment_terms_owner_index.clone(),
+                "deletedPaymentTermsIds": self.store.staged.deleted_payment_terms_ids.iter().cloned().collect::<Vec<_>>(),
+                "deletedPaymentScheduleIds": self.store.staged.deleted_payment_schedule_ids.iter().cloned().collect::<Vec<_>>()
         });
         let mut snapshot = json!({
             "baseState": base_state,
             "stagedState": staged_state
         });
+        if self.store.staged.observed_shipping_locations_complete {
+            snapshot["stagedState"]["observedShippingLocationsComplete"] = json!(true);
+        }
+        if let Some(cursor) = &self.store.staged.observed_shipping_locations_next_cursor {
+            snapshot["stagedState"]["observedShippingLocationsNextCursor"] = json!(cursor);
+        }
         snapshot["baseState"]["draftOrders"] = json!(self.store.base.draft_orders.records.clone());
         snapshot["baseState"]["draftOrderOrder"] = json!(self.store.base.draft_orders.order);
         snapshot["baseState"]["draftOrderCountBaselines"] =
@@ -880,6 +892,18 @@ impl DraftProxy {
         if let Some(count) = self.store.staged.online_store_blogs_count_base {
             snapshot["stagedState"]["onlineStoreBlogsCountBase"] = json!(count);
         }
+        if !self
+            .store
+            .staged
+            .observed_online_store_blog_handle_owners
+            .is_empty()
+        {
+            snapshot["stagedState"]["observedOnlineStoreBlogHandleOwners"] = json!(self
+                .store
+                .staged
+                .observed_online_store_blog_handle_owners
+                .clone());
+        }
         if !self.store.staged.online_store_pages.is_empty() {
             snapshot["stagedState"]["onlineStorePages"] =
                 json!(self.store.staged.online_store_pages.clone());
@@ -897,6 +921,18 @@ impl DraftProxy {
         }
         if let Some(count) = self.store.staged.online_store_pages_count_base {
             snapshot["stagedState"]["onlineStorePagesCountBase"] = json!(count);
+        }
+        if !self
+            .store
+            .staged
+            .observed_online_store_page_handle_owners
+            .is_empty()
+        {
+            snapshot["stagedState"]["observedOnlineStorePageHandleOwners"] = json!(self
+                .store
+                .staged
+                .observed_online_store_page_handle_owners
+                .clone());
         }
         if !self.store.staged.online_store_articles.is_empty() {
             snapshot["stagedState"]["onlineStoreArticles"] =
@@ -917,6 +953,18 @@ impl DraftProxy {
                 .iter()
                 .cloned()
                 .collect::<Vec<_>>());
+        }
+        if !self
+            .store
+            .staged
+            .observed_online_store_article_handle_owners
+            .is_empty()
+        {
+            snapshot["stagedState"]["observedOnlineStoreArticleHandleOwners"] = json!(self
+                .store
+                .staged
+                .observed_online_store_article_handle_owners
+                .clone());
         }
         if !self.store.staged.online_store_comments.is_empty() {
             snapshot["stagedState"]["onlineStoreComments"] =
@@ -1734,6 +1782,8 @@ impl DraftProxy {
             .get("onlineStoreBlogsCountBase")
             .and_then(Value::as_u64)
             .map(|count| count as usize);
+        self.store.staged.observed_online_store_blog_handle_owners =
+            string_map_from_json(state["stagedState"].get("observedOnlineStoreBlogHandleOwners"));
         self.store.staged.online_store_pages =
             value_map_from_json(state["stagedState"].get("onlineStorePages"));
         self.store.staged.online_store_page_order = state["stagedState"]
@@ -1750,6 +1800,8 @@ impl DraftProxy {
             .get("onlineStorePagesCountBase")
             .and_then(Value::as_u64)
             .map(|count| count as usize);
+        self.store.staged.observed_online_store_page_handle_owners =
+            string_map_from_json(state["stagedState"].get("observedOnlineStorePageHandleOwners"));
         self.store.staged.online_store_articles =
             value_map_from_json(state["stagedState"].get("onlineStoreArticles"));
         self.store.staged.online_store_article_order = state["stagedState"]
@@ -1762,6 +1814,11 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .collect();
+        self.store
+            .staged
+            .observed_online_store_article_handle_owners = nested_string_map_from_json(
+            state["stagedState"].get("observedOnlineStoreArticleHandleOwners"),
+        );
         self.store.staged.online_store_comments =
             value_map_from_json(state["stagedState"].get("onlineStoreComments"));
         self.store.staged.online_store_comment_order = state["stagedState"]
@@ -2515,6 +2572,34 @@ impl DraftProxy {
             .get("paymentCustomizationCatalogHydrated")
             .and_then(Value::as_bool)
             .unwrap_or(false);
+        self.store.staged.payment_terms =
+            value_map_from_json(state["stagedState"].get("paymentTerms"));
+        self.store.staged.payment_terms_owner_index = state["stagedState"]
+            .get("paymentTermsOwnerIndex")
+            .and_then(Value::as_object)
+            .map(|index| {
+                index
+                    .iter()
+                    .filter_map(|(owner_id, terms_id)| {
+                        terms_id
+                            .as_str()
+                            .map(|terms_id| (owner_id.clone(), terms_id.to_string()))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.deleted_payment_terms_ids = state["stagedState"]
+            .get("deletedPaymentTermsIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.staged.deleted_payment_schedule_ids = state["stagedState"]
+            .get("deletedPaymentScheduleIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.abandonments =
             value_map_from_json(state["stagedState"].get("abandonments"));
         self.store.staged.order_customer_orders =
@@ -2637,6 +2722,19 @@ impl DraftProxy {
                     .cloned()
                     .collect()
             });
+        self.store.staged.observed_shipping_locations_complete = state["stagedState"]
+            .get("observedShippingLocationsComplete")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        self.store.staged.observed_shipping_locations_next_cursor =
+            if self.store.staged.observed_shipping_locations_complete {
+                None
+            } else {
+                state["stagedState"]
+                    .get("observedShippingLocationsNextCursor")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            };
         replace_staged_value_records(
             &mut self.store.staged.locations,
             &state["stagedState"],
@@ -3234,6 +3332,20 @@ fn string_map_from_json(value: Option<&Value>) -> BTreeMap<String, String> {
                 .filter_map(|(key, value)| {
                     value.as_str().map(|value| (key.clone(), value.to_string()))
                 })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn nested_string_map_from_json(
+    value: Option<&Value>,
+) -> BTreeMap<String, BTreeMap<String, String>> {
+    value
+        .and_then(Value::as_object)
+        .map(|records| {
+            records
+                .iter()
+                .map(|(key, value)| (key.clone(), string_map_from_json(Some(value))))
                 .collect()
         })
         .unwrap_or_default()

@@ -12,14 +12,12 @@ const ADMIN_FILTERABLE_DEFINITION_LIMIT: usize = 50;
 const STANDARD_TEMPLATE_MARKER_FIELD: &str = "__shopifyDraftProxyStandardTemplateId";
 const RESERVED_NAMESPACE_ORPHANED_METAFIELDS_MESSAGE: &str =
     "Deleting a definition in a reserved namespace must have deleteAllAssociatedMetafields set to true.";
-const METAFIELD_DEFINITION_HYDRATE_BY_ID_QUERY: &str = include_str!(
-    "../../config/parity-requests/metafields/metafield-definition-hydrate-by-id.graphql"
-);
-const METAFIELD_DEFINITION_HYDRATE_BY_NAMESPACE_QUERY: &str = include_str!(
-    "../../config/parity-requests/metafields/metafield-definition-hydrate-by-namespace.graphql"
-);
+const METAFIELD_DEFINITION_HYDRATE_BY_ID_QUERY: &str =
+    include_str!("../runtime_graphql/metafields/metafield-definition-hydrate-by-id.graphql");
+const METAFIELD_DEFINITION_HYDRATE_BY_NAMESPACE_QUERY: &str =
+    include_str!("../runtime_graphql/metafields/metafield-definition-hydrate-by-namespace.graphql");
 const METAFIELD_DEFINITION_HYDRATE_OWNER_CATALOG_QUERY: &str = include_str!(
-    "../../config/parity-requests/metafields/metafield-definition-hydrate-owner-catalog.graphql"
+    "../runtime_graphql/metafields/metafield-definition-hydrate-owner-catalog.graphql.raw"
 );
 
 pub(in crate::proxy) fn metafield_definition_field_resolver_registrations(

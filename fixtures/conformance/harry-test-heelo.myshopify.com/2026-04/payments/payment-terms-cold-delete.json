@@ -1,0 +1,542 @@
+{
+  "capturedAt": "2026-07-20T04:10:16.482Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scenarioId": "payment-terms-cold-delete",
+  "setup": {
+    "draftOrderCreate": {
+      "query": "mutation PaymentTermsColdDeleteDraftOrderCreate($input: DraftOrderInput!) {\n    draftOrderCreate(input: $input) {\n      draftOrder {\n        id\n        name\n        status\n        completedAt\n        subtotalPriceSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n        totalPriceSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n      }\n      userErrors { field message }\n    }\n  }",
+      "variables": {
+        "input": {
+          "email": "payment-terms-cold-delete-1784520615190@example.com",
+          "note": "payment terms cold delete conformance",
+          "tags": ["shopify-draft-proxy", "payment-terms-cold-delete"],
+          "presentmentCurrencyCode": "CAD",
+          "lineItems": [
+            {
+              "title": "Payment terms cold delete item",
+              "quantity": 1,
+              "originalUnitPriceWithCurrency": {
+                "amount": "18.50",
+                "currencyCode": "CAD"
+              },
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "payment-terms-cold-delete-1784520615190"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "draftOrderCreate": {
+            "draftOrder": {
+              "id": "gid://shopify/DraftOrder/1283186557234",
+              "name": "#D375",
+              "status": "OPEN",
+              "completedAt": null,
+              "subtotalPriceSet": {
+                "shopMoney": {
+                  "amount": "18.5",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "18.5",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "18.5",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "18.5",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1978,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "paymentTermsCreate": {
+      "query": "mutation PaymentTermsColdDeleteSetup($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {\n    paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {\n      paymentTerms {\n        id\n        due\n        overdue\n        dueInDays\n        paymentTermsName\n        paymentTermsType\n        translatedName\n        paymentSchedules(first: 10) {\n          nodes {\n            id\n            dueAt\n            issuedAt\n            completedAt\n            due\n            amount { amount currencyCode }\n            balanceDue { amount currencyCode }\n            totalBalance { amount currencyCode }\n          }\n        }\n      }\n      userErrors { field message code }\n    }\n  }",
+      "variables": {
+        "referenceId": "gid://shopify/DraftOrder/1283186557234",
+        "attrs": {
+          "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+          "paymentSchedules": [
+            {
+              "issuedAt": "2026-07-20T00:00:00Z"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "paymentTermsCreate": {
+            "paymentTerms": {
+              "id": "gid://shopify/PaymentTerms/165092491570",
+              "due": false,
+              "overdue": false,
+              "dueInDays": 30,
+              "paymentTermsName": "Net 30",
+              "paymentTermsType": "NET",
+              "translatedName": "Net 30",
+              "paymentSchedules": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/PaymentSchedule/207959228722",
+                    "dueAt": "2026-08-19T00:00:00Z",
+                    "issuedAt": "2026-07-20T00:00:00Z",
+                    "completedAt": null,
+                    "due": false,
+                    "amount": {
+                      "amount": "18.5",
+                      "currencyCode": "CAD"
+                    },
+                    "balanceDue": {
+                      "amount": "18.5",
+                      "currencyCode": "CAD"
+                    },
+                    "totalBalance": {
+                      "amount": "18.5",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1974,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "target": {
+    "draftOrderId": "gid://shopify/DraftOrder/1283186557234",
+    "paymentTermsId": "gid://shopify/PaymentTerms/165092491570",
+    "paymentScheduleId": "gid://shopify/PaymentSchedule/207959228722"
+  },
+  "hydrate": {
+    "query": "query PaymentTermsDeleteHydrate($id: ID!) {\n    paymentTerms: node(id: $id) {\n      ... on PaymentTerms {\n        id\n        due\n        overdue\n        dueInDays\n        paymentTermsName\n        paymentTermsType\n        translatedName\n        order {\n          id\n          name\n          email\n          closed\n          closedAt\n          cancelledAt\n          displayFinancialStatus\n          totalOutstandingSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          currentTotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          lineItems(first: 1) {\n            nodes {\n              sellingPlan {\n                name\n              }\n            }\n          }\n        }\n        draftOrder {\n          id\n          name\n          status\n          completedAt\n          subtotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n        }\n        paymentSchedules(first: 10) {\n          nodes {\n            id\n            dueAt\n            issuedAt\n            completedAt\n            due\n            amount { amount currencyCode }\n            balanceDue { amount currencyCode }\n            totalBalance { amount currencyCode }\n          }\n        }\n      }\n    }\n  }",
+    "variables": {
+      "id": "gid://shopify/PaymentTerms/165092491570"
+    },
+    "response": {
+      "data": {
+        "paymentTerms": {
+          "id": "gid://shopify/PaymentTerms/165092491570",
+          "due": false,
+          "overdue": false,
+          "dueInDays": 30,
+          "paymentTermsName": "Net 30",
+          "paymentTermsType": "NET",
+          "translatedName": "Net 30",
+          "order": null,
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1283186557234",
+            "name": "#D375",
+            "status": "OPEN",
+            "completedAt": null,
+            "subtotalPriceSet": {
+              "shopMoney": {
+                "amount": "18.5",
+                "currencyCode": "CAD"
+              },
+              "presentmentMoney": {
+                "amount": "18.5",
+                "currencyCode": "CAD"
+              }
+            },
+            "totalPriceSet": {
+              "shopMoney": {
+                "amount": "18.5",
+                "currencyCode": "CAD"
+              },
+              "presentmentMoney": {
+                "amount": "18.5",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "paymentSchedules": {
+            "nodes": [
+              {
+                "id": "gid://shopify/PaymentSchedule/207959228722",
+                "dueAt": "2026-08-19T00:00:00Z",
+                "issuedAt": "2026-07-20T00:00:00Z",
+                "completedAt": null,
+                "due": false,
+                "amount": {
+                  "amount": "18.5",
+                  "currencyCode": "CAD"
+                },
+                "balanceDue": {
+                  "amount": "18.5",
+                  "currencyCode": "CAD"
+                },
+                "totalBalance": {
+                  "amount": "18.5",
+                  "currencyCode": "CAD"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 6,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1978,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cases": {
+    "wrongType": {
+      "query": "mutation PaymentTermsLifecycleDelete($input: PaymentTermsDeleteInput!) {\n  paymentTermsDelete(input: $input) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "input": {
+          "paymentTermsId": "gid://shopify/DraftOrder/1283186557234"
+        }
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "Invalid id: gid://shopify/DraftOrder/1283186557234",
+            "locations": [
+              {
+                "line": 2,
+                "column": 3
+              }
+            ],
+            "extensions": {
+              "code": "RESOURCE_NOT_FOUND"
+            },
+            "path": ["paymentTermsDelete"]
+          }
+        ],
+        "data": {
+          "paymentTermsDelete": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1965,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "unknown": {
+      "hydrate": {
+        "query": "query PaymentTermsDeleteHydrate($id: ID!) {\n    paymentTerms: node(id: $id) {\n      ... on PaymentTerms {\n        id\n        due\n        overdue\n        dueInDays\n        paymentTermsName\n        paymentTermsType\n        translatedName\n        order {\n          id\n          name\n          email\n          closed\n          closedAt\n          cancelledAt\n          displayFinancialStatus\n          totalOutstandingSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          currentTotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          lineItems(first: 1) {\n            nodes {\n              sellingPlan {\n                name\n              }\n            }\n          }\n        }\n        draftOrder {\n          id\n          name\n          status\n          completedAt\n          subtotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n        }\n        paymentSchedules(first: 10) {\n          nodes {\n            id\n            dueAt\n            issuedAt\n            completedAt\n            due\n            amount { amount currencyCode }\n            balanceDue { amount currencyCode }\n            totalBalance { amount currencyCode }\n          }\n        }\n      }\n    }\n  }",
+        "variables": {
+          "id": "gid://shopify/PaymentTerms/999999999999999"
+        },
+        "response": {
+          "data": {
+            "paymentTerms": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1972,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "query": "mutation PaymentTermsLifecycleDelete($input: PaymentTermsDeleteInput!) {\n  paymentTermsDelete(input: $input) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+        "variables": {
+          "input": {
+            "paymentTermsId": "gid://shopify/PaymentTerms/999999999999999"
+          }
+        },
+        "response": {
+          "data": {
+            "paymentTermsDelete": {
+              "deletedId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Could not find payment terms.",
+                  "code": "PAYMENT_TERMS_DELETE_UNSUCCESSFUL"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1958,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "delete": {
+      "query": "mutation PaymentTermsLifecycleDelete($input: PaymentTermsDeleteInput!) {\n  paymentTermsDelete(input: $input) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "input": {
+          "paymentTermsId": "gid://shopify/PaymentTerms/165092491570"
+        }
+      },
+      "response": {
+        "data": {
+          "paymentTermsDelete": {
+            "deletedId": "gid://shopify/PaymentTerms/165092491570",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1959,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "ownerReadAfterDelete": {
+      "query": "query PaymentTermsOwnerCascadeDraftRead($id: ID!) {\n  draftOrder(id: $id) {\n    id\n    name\n    paymentTerms {\n      id\n      paymentTermsName\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/1283186557234"
+      },
+      "response": {
+        "data": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1283186557234",
+            "name": "#D375",
+            "paymentTerms": null
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1960,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "nodesReadAfterDelete": {
+      "query": "query PaymentTermsColdDeleteNodesRead($paymentTermsId: ID!, $paymentScheduleId: ID!) {\n  paymentTerms: node(id: $paymentTermsId) {\n    ... on PaymentTerms {\n      id\n      paymentTermsName\n      paymentSchedules(first: 10) {\n        nodes {\n          id\n        }\n      }\n    }\n  }\n  paymentSchedule: node(id: $paymentScheduleId) {\n    ... on PaymentSchedule {\n      id\n      dueAt\n      issuedAt\n    }\n  }\n}",
+      "variables": {
+        "paymentTermsId": "gid://shopify/PaymentTerms/165092491570",
+        "paymentScheduleId": "gid://shopify/PaymentSchedule/207959228722"
+      },
+      "response": {
+        "data": {
+          "paymentTerms": null,
+          "paymentSchedule": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 8,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1953,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "PaymentTermsDeleteHydrate",
+      "variables": {
+        "id": "gid://shopify/PaymentTerms/165092491570"
+      },
+      "query": "query PaymentTermsDeleteHydrate($id: ID!) {\n    paymentTerms: node(id: $id) {\n      ... on PaymentTerms {\n        id\n        due\n        overdue\n        dueInDays\n        paymentTermsName\n        paymentTermsType\n        translatedName\n        order {\n          id\n          name\n          email\n          closed\n          closedAt\n          cancelledAt\n          displayFinancialStatus\n          totalOutstandingSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          currentTotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          lineItems(first: 1) {\n            nodes {\n              sellingPlan {\n                name\n              }\n            }\n          }\n        }\n        draftOrder {\n          id\n          name\n          status\n          completedAt\n          subtotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n        }\n        paymentSchedules(first: 10) {\n          nodes {\n            id\n            dueAt\n            issuedAt\n            completedAt\n            due\n            amount { amount currencyCode }\n            balanceDue { amount currencyCode }\n            totalBalance { amount currencyCode }\n          }\n        }\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "paymentTerms": {
+              "id": "gid://shopify/PaymentTerms/165092491570",
+              "due": false,
+              "overdue": false,
+              "dueInDays": 30,
+              "paymentTermsName": "Net 30",
+              "paymentTermsType": "NET",
+              "translatedName": "Net 30",
+              "order": null,
+              "draftOrder": {
+                "id": "gid://shopify/DraftOrder/1283186557234",
+                "name": "#D375",
+                "status": "OPEN",
+                "completedAt": null,
+                "subtotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "18.5",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "18.5",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "18.5",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "18.5",
+                    "currencyCode": "CAD"
+                  }
+                }
+              },
+              "paymentSchedules": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/PaymentSchedule/207959228722",
+                    "dueAt": "2026-08-19T00:00:00Z",
+                    "issuedAt": "2026-07-20T00:00:00Z",
+                    "completedAt": null,
+                    "due": false,
+                    "amount": {
+                      "amount": "18.5",
+                      "currencyCode": "CAD"
+                    },
+                    "balanceDue": {
+                      "amount": "18.5",
+                      "currencyCode": "CAD"
+                    },
+                    "totalBalance": {
+                      "amount": "18.5",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1978,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "PaymentTermsDeleteHydrate",
+      "variables": {
+        "id": "gid://shopify/PaymentTerms/999999999999999"
+      },
+      "query": "query PaymentTermsDeleteHydrate($id: ID!) {\n    paymentTerms: node(id: $id) {\n      ... on PaymentTerms {\n        id\n        due\n        overdue\n        dueInDays\n        paymentTermsName\n        paymentTermsType\n        translatedName\n        order {\n          id\n          name\n          email\n          closed\n          closedAt\n          cancelledAt\n          displayFinancialStatus\n          totalOutstandingSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          currentTotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          lineItems(first: 1) {\n            nodes {\n              sellingPlan {\n                name\n              }\n            }\n          }\n        }\n        draftOrder {\n          id\n          name\n          status\n          completedAt\n          subtotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n        }\n        paymentSchedules(first: 10) {\n          nodes {\n            id\n            dueAt\n            issuedAt\n            completedAt\n            due\n            amount { amount currencyCode }\n            balanceDue { amount currencyCode }\n            totalBalance { amount currencyCode }\n          }\n        }\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "paymentTerms": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1972,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": {
+    "draftOrderDelete": {
+      "query": "mutation PaymentTermsColdDeleteDraftOrderCleanup($input: DraftOrderDeleteInput!) {\n    draftOrderDelete(input: $input) {\n      deletedId\n      userErrors { field message }\n    }\n  }",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/DraftOrder/1283186557234"
+        }
+      },
+      "response": {
+        "data": {
+          "draftOrderDelete": {
+            "deletedId": "gid://shopify/DraftOrder/1283186557234",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1951,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "notes": "Live Shopify cold-start delete evidence. The replay starts with only the persisted PaymentTerms ID, uses the exact query-only hydration response, stages paymentTermsDelete locally, then verifies the DraftOrder owner and deleted PaymentTerms/PaymentSchedule nodes."
+}

@@ -1,0 +1,63 @@
+query ProductLiveHybridOverlayRead(
+  $matchQuery: String!
+  $deletedQuery: String!
+  $controlQuery: String!
+  $savedSearchId: ID!
+) {
+  catalog: products(first: 10, query: $matchQuery, sortKey: TITLE) {
+    nodes {
+      title
+      handle
+      status
+      tags
+    }
+  }
+  reverse: products(first: 1, query: $matchQuery, sortKey: TITLE, reverse: true) {
+    nodes {
+      title
+      handle
+      tags
+    }
+  }
+  firstPage: products(first: 1, query: $matchQuery, sortKey: TITLE) {
+    nodes {
+      title
+      handle
+      tags
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  savedSearch: products(first: 10, savedSearchId: $savedSearchId, sortKey: TITLE) {
+    nodes {
+      title
+      handle
+      tags
+    }
+  }
+  deleted: products(first: 10, query: $deletedQuery) {
+    nodes {
+      title
+      handle
+    }
+  }
+  unrelated: products(first: 10, query: $controlQuery) {
+    nodes {
+      title
+      handle
+      tags
+    }
+  }
+  matches: productsCount(query: $matchQuery) {
+    count
+    precision
+  }
+  limitedTotal: productsCount(limit: 1) {
+    count
+    precision
+  }
+}

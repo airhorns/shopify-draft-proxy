@@ -1183,6 +1183,32 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-live-hybrid-overlay',
+    scriptPath: 'scripts/capture-product-live-hybrid-overlay-conformance.ts',
+    purpose:
+      'LiveHybrid products/productsCount parity for bounded upstream windows overlaid with staged product create, update, and delete effects.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-live-hybrid-overlay.json`,
+      'config/parity-specs/products/product-live-hybrid-overlay.json',
+      'config/parity-requests/products/product-live-hybrid-catalog-window.graphql',
+      'config/parity-requests/products/product-live-hybrid-catalog-count.graphql',
+      'config/parity-requests/products/product-live-hybrid-saved-search-hydrate.graphql',
+      'config/parity-requests/products/product-live-hybrid-overlay-create.graphql',
+      'config/parity-requests/products/product-live-hybrid-overlay-delete.graphql',
+      'config/parity-requests/products/product-live-hybrid-overlay-read.graphql',
+      'config/parity-requests/products/product-live-hybrid-overlay-page.graphql',
+      'config/parity-requests/products/products-hydrate-nodes-observation.graphql',
+      'config/parity-requests/products/productUpdate-parity-plan.graphql',
+    ],
+    cleanupBehavior:
+      'Creates three disposable base products, one staged-create comparison product, and one PRODUCT saved search; records pre-mutation bounded window/count cassettes, captures create/update/delete reads, then removes all disposable resources.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The generated parity spec replays every mutation and read through public GraphQL requests while exact pre-mutation Shopify windows and counts provide the authoritative base slices without scanning the catalog.',
+  },
+  {
+    domain: 'products',
     captureId: 'product-mutations',
     scriptPath: 'scripts/capture-product-mutation-conformance.mts',
     purpose: 'productCreate/productUpdate/productDelete success and validation behavior.',
@@ -1874,6 +1900,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'media-file-mutation-first-lifecycle',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-media-file-mutation-first-lifecycle-conformance.mts',
+    purpose:
+      'Mutation-first fileAcknowledgeUpdateFailed/fileDelete target hydration and downstream product-media cascade.',
+    requiredAuthScopes: ['read_files', 'write_files', 'read_products', 'write_products'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/media/media-file-mutation-first-lifecycle.json',
+      'config/parity-requests/media/media-file-mutation-first-acknowledge.graphql',
+      'config/parity-requests/media/media-file-mutation-first-delete.graphql',
+      'config/parity-requests/media/media-file-mutation-first-downstream.graphql',
+      'config/parity-specs/media/media-file-mutation-first-lifecycle.json',
+      'config/parity-specs/media/fileDelete-product-media-parity.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable draft product and attached image, deletes the file during capture, and deletes the product in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'media-file-interface-fields',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-media-file-interface-fields-conformance.mts',
@@ -1911,6 +1957,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   {
     domain: 'files',
     captureId: 'media-file-cascade-variant-media-clear',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-media-file-cascade-variant-media-clear-conformance.mts',
     purpose:
       'Files API fileDelete and fileUpdate.referencesToRemove cascades that clear ProductVariant media membership after removing product media associations.',
@@ -7479,7 +7526,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'Creates two disposable products, two collections, one blog, one article, and three pages through Admin GraphQL; publishes catalog resources to Online Store; polls authenticated Storefront discovery and mixed Node reads until indexed; then deletes every created resource.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
-      'The recorder captures exact publication hydration plus a live Storefront mixed-Node cassette where a proxy-synthetic Product misses upstream while unrelated real Product, Collection, Page, and Menu IDs remain visible. Query suggestions use a stable broad prefix only as input; runtime behavior must derive suggestions and tracking parameters without response-keying on the captured term.',
+      'The recorder captures exact pre-mutation Page/Blog handle reservation and publication hydration calls plus a live Storefront mixed-Node cassette where a proxy-synthetic Product misses upstream while unrelated real Product, Collection, Page, and Menu IDs remain visible. `--refresh-handle-reservations` re-sends only the existing fixture handles as query-only live calls when those cassettes need coherent refresh without replacing unrelated Storefront payload evidence. Query suggestions use a stable broad prefix only as input; runtime behavior must derive suggestions and tracking parameters without response-keying on the captured term.',
   },
   {
     domain: 'storefront',
@@ -8123,6 +8170,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'online-store',
+    captureId: 'online-store-content-handle-reservations',
+    scriptPath: 'scripts/capture-online-store-content-handle-reservations-conformance.ts',
+    purpose:
+      'Shop-scoped Page/Blog and per-blog Article handle reservation for generated and explicit create collisions, update self-exclusion, update collisions, and cross-blog Article reuse.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}online-store-content-handle-reservations.json`,
+      'config/parity-specs/online-store/online-store-content-handle-reservations.json',
+      'config/parity-requests/online-store/online-store-content-handle-article-create.graphql',
+      'config/parity-requests/online-store/online-store-content-handle-article-update.graphql',
+      'config/parity-requests/online-store/online-store-content-handle-blog-create.graphql',
+      'config/parity-requests/online-store/online-store-content-handle-blog-update.graphql',
+      'config/parity-requests/online-store/online-store-content-handle-page-create.graphql',
+      'config/parity-requests/online-store/online-store-content-handle-page-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable pages, two blogs, and article collision rows in both blogs; cleanup deletes every successful article/page creation before deleting both blogs.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'online-store',
     captureId: 'online-store-salvaged-parity-recordings',
     scriptPath: 'scripts/capture-online-store-local-runtime-parity-retirement.ts',
     purpose:
@@ -8352,6 +8420,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable reserved-like, smart, and custom collections and deletes every successful collectionCreate result during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'collections',
+    captureId: 'collection-handle-dedup',
+    scriptPath: 'scripts/capture-collection-handle-dedup-conformance.mts',
+    purpose:
+      'collectionCreate generated-handle reservation for repeated nonnumeric titles and generated handles ending in digits.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}collection-handle-dedup-parity.json`,
+      'config/parity-specs/products/collectionCreate-handle-dedup.json',
+      'config/parity-requests/products/collectionCreate-handle-dedup.graphql',
+    ],
+    cleanupBehavior:
+      'Creates four disposable collections through repeated-title collectionCreate calls, then deletes them in reverse order during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -9352,13 +9436,17 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-order-management-conformance.ts',
     purpose:
-      'orderClose, orderOpen, orderCancel, orderCustomerSet/Remove, orderInvoiceSend, orderCreateManualPayment access-denied, and taxSummaryCreate access-denied parity slices.',
+      'orderClose, orderOpen, orderCancel, orderCustomerSet/Remove, orderInvoiceSend, orderCreateManualPayment capability/cold-warm/manual-payment parity, and taxSummaryCreate access-denied slices.',
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_customers', 'write_customers'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}orderCancel-parity.json`,
       `${CAPTURE_ROOT}orderCancel-restock-refundMethod-parity.json`,
       `${CAPTURE_ROOT}orderClose-parity.json`,
       `${CAPTURE_ROOT}orderCreateManualPayment-access-denied-parity.json`,
+      `${CAPTURE_ROOT}orderCreateManualPayment-cold-success-parity.json`,
+      `${CAPTURE_ROOT}orderCreateManualPayment-missing-order-parity.json`,
+      `${CAPTURE_ROOT}orderCreateManualPayment-warm-access-denied-parity.json`,
+      `${CAPTURE_ROOT}orderCreateManualPayment-warm-success-parity.json`,
       `${CAPTURE_ROOT}orderCustomerRemove-parity.json`,
       `${CAPTURE_ROOT}orderCustomerSet-parity.json`,
       `${CAPTURE_ROOT}orderInvoiceSend-parity.json`,
@@ -9372,6 +9460,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/orders/orderClose-parity.json',
       'config/parity-specs/orders/orderClose-snapshot-staging.json',
       'config/parity-specs/orders/orderCreateManualPayment-access-denied-parity.json',
+      'config/parity-specs/orders/orderCreateManualPayment-cold-success-parity.json',
+      'config/parity-specs/orders/orderCreateManualPayment-missing-order-parity.json',
+      'config/parity-specs/orders/orderCreateManualPayment-warm-access-denied-parity.json',
+      'config/parity-specs/orders/orderCreateManualPayment-warm-success-parity.json',
       'config/parity-specs/orders/orderCustomerRemove-parity.json',
       'config/parity-specs/orders/orderCustomerSet-parity.json',
       'config/parity-specs/orders/orderCustomerSet-and-Remove-error-paths.json',
@@ -9384,7 +9476,11 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/orders/orderCancel-restock-refundMethod-parity.graphql',
       'config/parity-requests/orders/orderClose-parity.graphql',
       'config/parity-requests/orders/orderClose-snapshot-staging-setup.graphql',
+      'config/parity-requests/orders/order-create-manual-payment-capability.graphql',
+      'config/parity-requests/orders/order-create-manual-payment-context.graphql',
       'config/parity-requests/orders/orderCreateManualPayment-access-denied-parity.graphql',
+      'config/parity-requests/orders/orderCreateManualPayment-order-read.graphql',
+      'config/parity-requests/orders/orderCreateManualPayment-success-parity.graphql',
       'config/parity-requests/orders/orderCustomerRemove-parity.graphql',
       'config/parity-requests/orders/orderCustomerRemove-error-paths.graphql',
       'config/parity-requests/orders/orderCustomerSet-parity.graphql',
@@ -11986,6 +12082,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates a disposable draft order, deletes payment terms during the scenario, then deletes the draft order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'payments',
+    captureId: 'payment-terms-cold-delete',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-payment-terms-cold-delete-conformance.ts',
+    purpose:
+      'Records mutation-first paymentTermsDelete for persisted DraftOrder-owned terms, exact query-only hydration, validation precedence, owner detachment, and deleted node reachability.',
+    requiredAuthScopes: ['read_draft_orders', 'write_draft_orders', 'read_payment_terms', 'write_payment_terms'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}payment-terms-cold-delete.json`,
+      'config/parity-specs/payments/payment-terms-cold-delete.json',
+      'config/parity-requests/payments/payment-terms-cold-delete-nodes-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates a disposable DraftOrder with real payment terms, deletes the terms during capture, verifies owner/terms/schedule reads, then deletes the DraftOrder.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

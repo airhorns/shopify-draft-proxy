@@ -45,6 +45,77 @@ pub(in crate::proxy) const PAYMENT_TERMS_DRAFT_HYDRATE_QUERY: &str = "query Paym
 /// recorded `PaymentTermsHydrate` cassette byte-for-byte.
 pub(in crate::proxy) const PAYMENT_TERMS_NODE_HYDRATE_QUERY: &str = "query PaymentTermsHydrate($id: ID!) {\n    paymentTerms: node(id: $id) {\n      ... on PaymentTerms {\n        id\n        due\n        overdue\n        dueInDays\n        paymentTermsName\n        paymentTermsType\n        translatedName\n        order {\n          id\n          email\n          closed\n          closedAt\n          cancelledAt\n          displayFinancialStatus\n          totalOutstandingSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          currentTotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          lineItems(first: 1) {\n            nodes {\n              sellingPlan {\n                name\n              }\n            }\n          }\n        }\n        draftOrder {\n          id\n          status\n          completedAt\n          subtotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n        }\n        paymentSchedules(first: 10) {\n          nodes {\n            id\n            dueAt\n            issuedAt\n            completedAt\n            due\n            amount { amount currencyCode }\n            balanceDue { amount currencyCode }\n            totalBalance { amount currencyCode }\n          }\n        }\n      }\n    }\n  }";
 
+/// Exact query-only prerequisite document for mutation-first delete of persisted
+/// payment terms. Unlike update hydration, it retains owner names because the
+/// hydrated owner becomes the local read-after-delete projection.
+pub(in crate::proxy) const PAYMENT_TERMS_DELETE_HYDRATE_QUERY: &str = r#"query PaymentTermsDeleteHydrate($id: ID!) {
+    paymentTerms: node(id: $id) {
+      ... on PaymentTerms {
+        id
+        due
+        overdue
+        dueInDays
+        paymentTermsName
+        paymentTermsType
+        translatedName
+        order {
+          id
+          name
+          email
+          closed
+          closedAt
+          cancelledAt
+          displayFinancialStatus
+          totalOutstandingSet {
+            shopMoney { amount currencyCode }
+            presentmentMoney { amount currencyCode }
+          }
+          currentTotalPriceSet {
+            shopMoney { amount currencyCode }
+            presentmentMoney { amount currencyCode }
+          }
+          totalPriceSet {
+            shopMoney { amount currencyCode }
+            presentmentMoney { amount currencyCode }
+          }
+          lineItems(first: 1) {
+            nodes {
+              sellingPlan {
+                name
+              }
+            }
+          }
+        }
+        draftOrder {
+          id
+          name
+          status
+          completedAt
+          subtotalPriceSet {
+            shopMoney { amount currencyCode }
+            presentmentMoney { amount currencyCode }
+          }
+          totalPriceSet {
+            shopMoney { amount currencyCode }
+            presentmentMoney { amount currencyCode }
+          }
+        }
+        paymentSchedules(first: 10) {
+          nodes {
+            id
+            dueAt
+            issuedAt
+            completedAt
+            due
+            amount { amount currencyCode }
+            balanceDue { amount currencyCode }
+            totalBalance { amount currencyCode }
+          }
+        }
+      }
+    }
+  }"#;
+
 pub(in crate::proxy) fn payment_terms_user_error(field: Value, message: &str, code: &str) -> Value {
     user_error(field, message, Some(code))
 }
@@ -481,6 +552,44 @@ pub(in crate::proxy) fn payment_terms_delete_payload_value(
     })
 }
 
+fn payment_terms_delete_not_found() -> (Value, Option<String>) {
+    (
+        payment_terms_delete_payload_value(
+            Value::Null,
+            vec![payment_terms_user_error(
+                Value::Null,
+                "Could not find payment terms.",
+                "PAYMENT_TERMS_DELETE_UNSUCCESSFUL",
+            )],
+        ),
+        None,
+    )
+}
+
+fn payment_terms_owner_from_hydrated_node(node: &Value) -> Option<(String, Value)> {
+    let owner = match (
+        node.get("order").filter(|owner| owner.is_object()),
+        node.get("draftOrder").filter(|owner| owner.is_object()),
+    ) {
+        (Some(owner), None) => ("Order", owner),
+        (None, Some(owner)) => ("DraftOrder", owner),
+        _ => return None,
+    };
+    let owner_id = owner.1.get("id")?.as_str()?;
+    is_shopify_gid_of_type(owner_id, owner.0).then(|| (owner_id.to_string(), owner.1.clone()))
+}
+
+fn payment_terms_schedule_ids(record: &Value) -> Vec<String> {
+    record
+        .pointer("/paymentSchedules/nodes")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|schedule| schedule.get("id").and_then(Value::as_str))
+        .map(str::to_string)
+        .collect()
+}
+
 pub(in crate::proxy) fn payment_terms_attrs_from_create_arguments(
     arguments: &BTreeMap<String, ResolvedValue>,
 ) -> BTreeMap<String, ResolvedValue> {
@@ -635,6 +744,9 @@ impl DraftProxy {
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
+        if invocation.root_name == "paymentTermsDelete" {
+            return self.payment_terms_delete_outcome(invocation);
+        }
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         let (value, staged_id) = match invocation.root_name {
             "paymentTermsCreate" => {
@@ -643,13 +755,48 @@ impl DraftProxy {
             "paymentTermsUpdate" => {
                 self.payment_terms_update_payload(invocation.request, &arguments)
             }
-            "paymentTermsDelete" => self.payment_terms_delete_payload(&arguments),
             root => {
                 return ResolverOutcome::error(format!(
                     "Unknown payment-terms mutation root `{root}`"
                 ));
             }
         };
+        let mut outcome = ResolverOutcome::value(value);
+        if let Some(id) = staged_id {
+            outcome = outcome.with_log_draft(LogDraft::staged(
+                invocation.root_name,
+                "payments",
+                vec![id],
+            ));
+        }
+        outcome
+    }
+
+    fn payment_terms_delete_outcome(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let input = resolved_object_field(&arguments, "input").unwrap_or_default();
+        let payment_terms_id = resolved_string_field(&input, "paymentTermsId").unwrap_or_default();
+        if matches!(shopify_gid_resource_type(&payment_terms_id), Some(resource_type) if resource_type != "PaymentTerms")
+        {
+            let error = json!({
+                "message": format!("Invalid id: {payment_terms_id}"),
+                "locations": [{
+                    "line": invocation.root_location.line,
+                    "column": invocation.root_location.column
+                }],
+                "extensions": { "code": "RESOURCE_NOT_FOUND" },
+                "path": [invocation.response_key]
+            });
+            return ResolverOutcome::value(Value::Null).with_errors(root_field_errors_from_json(
+                &[error],
+                invocation.response_key,
+            ));
+        }
+
+        let (value, staged_id) = self.payment_terms_delete_payload(invocation.request, &arguments);
         let mut outcome = ResolverOutcome::value(value);
         if let Some(id) = staged_id {
             outcome = outcome.with_log_draft(LogDraft::staged(
@@ -816,6 +963,7 @@ impl DraftProxy {
 
     fn payment_terms_delete_payload(
         &mut self,
+        request: &Request,
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> (Value, Option<String>) {
         let input = resolved_object_field(arguments, "input").unwrap_or_default();
@@ -823,28 +971,64 @@ impl DraftProxy {
         if self
             .store
             .staged
-            .payment_terms
-            .remove(&payment_terms_id)
-            .is_some()
+            .deleted_payment_terms_ids
+            .contains(&payment_terms_id)
         {
-            if let Some(owner_id) = self.remove_payment_terms_owner_link(&payment_terms_id) {
-                self.attach_payment_terms_to_owner(&owner_id, None);
-            }
-            return (
-                payment_terms_delete_payload_value(json!(payment_terms_id), Vec::new()),
-                Some(payment_terms_id),
-            );
+            return payment_terms_delete_not_found();
         }
+
+        let staged_record = self
+            .store
+            .staged
+            .payment_terms
+            .get(&payment_terms_id)
+            .cloned();
+        let hydrated = if staged_record.is_none() {
+            self.hydrate_payment_terms_delete_target(request, &payment_terms_id)
+        } else {
+            None
+        };
+        let record = staged_record.or_else(|| hydrated.clone());
+        let Some(record) = record.filter(|record| {
+            record.get("id").and_then(Value::as_str) == Some(payment_terms_id.as_str())
+        }) else {
+            return payment_terms_delete_not_found();
+        };
+        let hydrated_owner = hydrated
+            .as_ref()
+            .and_then(payment_terms_owner_from_hydrated_node);
+        if hydrated.is_some() && hydrated_owner.is_none() {
+            return payment_terms_delete_not_found();
+        }
+        let schedule_ids = payment_terms_schedule_ids(&record);
+
+        self.store.staged.payment_terms.remove(&payment_terms_id);
+        let local_owner_id = self.remove_payment_terms_owner_link(&payment_terms_id);
+        if let Some((owner_id, owner)) = hydrated_owner {
+            if is_shopify_gid_of_type(&owner_id, "DraftOrder") {
+                self.store
+                    .staged
+                    .draft_orders
+                    .insert(owner_id.clone(), owner);
+            } else {
+                self.store.staged.orders.insert(owner_id.clone(), owner);
+            }
+            self.attach_payment_terms_to_owner(&owner_id, None);
+        } else if let Some(owner_id) = local_owner_id {
+            self.attach_payment_terms_to_owner(&owner_id, None);
+        }
+        self.store
+            .staged
+            .deleted_payment_terms_ids
+            .insert(payment_terms_id.clone());
+        self.store
+            .staged
+            .deleted_payment_schedule_ids
+            .extend(schedule_ids);
+
         (
-            payment_terms_delete_payload_value(
-                Value::Null,
-                vec![payment_terms_user_error(
-                    Value::Null,
-                    "Could not find payment terms.",
-                    "PAYMENT_TERMS_DELETE_UNSUCCESSFUL",
-                )],
-            ),
-            None,
+            payment_terms_delete_payload_value(json!(payment_terms_id), Vec::new()),
+            Some(payment_terms_id),
         )
     }
 
@@ -998,6 +1182,33 @@ impl DraftProxy {
             .cloned()
     }
 
+    fn hydrate_payment_terms_delete_target(
+        &self,
+        request: &Request,
+        terms_id: &str,
+    ) -> Option<Value> {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return None;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": PAYMENT_TERMS_DELETE_HYDRATE_QUERY,
+                "operationName": "PaymentTermsDeleteHydrate",
+                "variables": { "id": terms_id }
+            }),
+        );
+        if response.status >= 400 || response.body.get("errors").is_some() {
+            return None;
+        }
+        response
+            .body
+            .get("data")?
+            .get("paymentTerms")
+            .filter(|node| !node.is_null())
+            .cloned()
+    }
+
     /// Reads the money already materialized on a staged payment-terms record's
     /// first schedule node, so an update whose owner link is unavailable reuses
     /// the money established at create time.
@@ -1058,6 +1269,32 @@ impl DraftProxy {
                 })
         };
         entry["paymentTerms"] = terms;
+    }
+
+    pub(in crate::proxy) fn payment_terms_node_value_by_id(&self, id: &str) -> Option<Value> {
+        match shopify_gid_resource_type(id) {
+            Some("PaymentTerms") => {
+                if self.store.staged.deleted_payment_terms_ids.contains(id) {
+                    return Some(Value::Null);
+                }
+                self.store.staged.payment_terms.get(id).cloned()
+            }
+            Some("PaymentSchedule") => {
+                if self.store.staged.deleted_payment_schedule_ids.contains(id) {
+                    return Some(Value::Null);
+                }
+                self.store.staged.payment_terms.values().find_map(|record| {
+                    record
+                        .pointer("/paymentSchedules/nodes")
+                        .and_then(Value::as_array)
+                        .into_iter()
+                        .flatten()
+                        .find(|schedule| schedule.get("id").and_then(Value::as_str) == Some(id))
+                        .cloned()
+                })
+            }
+            _ => None,
+        }
     }
 
     pub(in crate::proxy) fn payment_terms_owner_record_with_effective_due(
