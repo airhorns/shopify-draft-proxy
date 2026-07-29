@@ -4962,7 +4962,35 @@ Practical rule:
 - preserve Blog's distinct suffix/no-op behavior rather than sharing the Page
   and Article `TAKEN` branch
 
-## 118. Delivery customization Function handles require catalog metadata matching
+## 118. Function overlay boundaries are app-scoped and window-shaped
+
+Admin GraphQL 2026-04 live probes and the registered Functions overlay capture
+against `harry-test-heelo.myshopify.com` exercised cart-transform continuation
+and fulfillment-constraint rule tombstone behavior.
+
+Observed behavior:
+
+- after one cart transform existed for the conformance API client, creating a
+  second transform backed by another released cart-transform Function returned
+  `An API client cannot have more than 1 cart transform functions per shop`
+- requesting the window after the sole cart-transform cursor returned an empty
+  connection with both `hasNextPage` and `hasPreviousPage` false and both
+  boundary cursors null
+- the released `conformance-fulfillment-constraint` Function appeared in the
+  Admin Function catalog with API type `fulfillment_constraints`; a real rule
+  backed by it could be created, listed, and deleted
+
+Practical rule:
+
+- enforce cart-transform cardinality per API client rather than assuming each
+  released Function may own a separate transform
+- preserve Shopify's captured all-false/null `pageInfo` for an empty
+  continuation after a local cursor; the presence of an `after` argument alone
+  does not prove a previous page
+- recognize the plural `fulfillment_constraints` API type when resolving a
+  Function for fulfillment-constraint rule lifecycle operations
+
+## 119. Delivery customization Function handles require catalog metadata matching
 
 Live Admin GraphQL 2026-04 capture showed an asymmetric Function surface.
 `DeliveryCustomizationInput` accepts `functionHandle`, but `ShopifyFunction`

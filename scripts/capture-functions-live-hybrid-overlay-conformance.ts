@@ -10,6 +10,7 @@ import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify
 
 const validationFunctionHandle = 'conformance-validation';
 const cartTransformFunctionHandle = 'conformance-cart-transform';
+const fulfillmentConstraintFunctionHandle = 'conformance-fulfillment-constraint';
 const disposableTitlePrefix = 'Functions overlay disposable';
 const requestDir = path.join('config', 'parity-requests', 'functions');
 
@@ -105,6 +106,10 @@ function readCartTransformNodes(captureResult: Capture): JsonRecord[] {
   return readArray(readPath(captureResult.response.payload, ['data', 'cartTransforms', 'nodes'])).map(readRecord);
 }
 
+function readFulfillmentConstraintRuleNodes(captureResult: Capture): JsonRecord[] {
+  return readArray(readPath(captureResult.response.payload, ['data', 'fulfillmentConstraintRules'])).map(readRecord);
+}
+
 function requireFunction(nodes: FunctionNode[], handle: string, apiType: string): FunctionNode {
   const node =
     nodes.find((candidate) => candidate.handle === handle) ?? nodes.find((candidate) => candidate.apiType === apiType);
@@ -128,6 +133,23 @@ function cartTransformId(captureResult: Capture): string {
   );
   if (!id) {
     throw new Error(`cartTransformCreate did not return an id: ${JSON.stringify(captureResult.response, null, 2)}`);
+  }
+  return id;
+}
+
+function fulfillmentConstraintRuleId(captureResult: Capture): string {
+  const id = readString(
+    readPath(captureResult.response.payload, [
+      'data',
+      'fulfillmentConstraintRuleCreate',
+      'fulfillmentConstraintRule',
+      'id',
+    ]),
+  );
+  if (!id) {
+    throw new Error(
+      `fulfillmentConstraintRuleCreate did not return an id: ${JSON.stringify(captureResult.response, null, 2)}`,
+    );
   }
   return id;
 }
@@ -165,122 +187,27 @@ const functionMetadataCatalogHydrateDocument = `query FunctionMetadataCatalogHyd
 }
 `;
 
-const functionHydrateByHandleDocument = `query FunctionHydrateByHandle {
-  shopifyFunctions(first: 100) {
-    nodes {
-      id
-      title
-      handle
-      apiType
-      description
-      appKey
-      app {
-        __typename
-        id
-        title
-        handle
-        apiKey
-      }
-    }
-  }
-}
-`;
-
-const functionValidationHydrateByIdDocument = `query FunctionValidationHydrateById($id: ID!) {
-  validation(id: $id) {
+const functionHydrateByIdDocument = `query FunctionHydrateById($id: String!) {
+  shopifyFunction(id: $id) {
     id
     title
-    enabled
-    blockOnFailure
-    shopifyFunction {
+    apiType
+    description
+    appKey
+    app {
+      __typename
       id
       title
-      handle
-      apiType
-      description
-      appKey
-      app {
-        __typename
-        id
-        title
-        handle
-        apiKey
-      }
-    }
-    metafields(first: 100) {
-      nodes {
-        id
-        namespace
-        key
-        type
-        value
-        updatedAt
-      }
+      apiKey
     }
   }
 }
 `;
 
-const functionValidationsHydrateDocument = `query FunctionValidationsHydrate {
-  validations(first: 100) {
-    nodes {
-      id
-      title
-      enabled
-      blockOnFailure
-      shopifyFunction {
-        id
-        title
-        handle
-        apiType
-        description
-        appKey
-        app {
-          __typename
-          id
-          title
-          handle
-          apiKey
-        }
-      }
-      metafields(first: 100) {
-        nodes {
-          id
-          namespace
-          key
-          type
-          value
-          updatedAt
-        }
-      }
-    }
-  }
-}
-`;
-
-const functionCartTransformsHydrateDocument = `query FunctionCartTransformsHydrate {
-  cartTransforms(first: 100) {
-    nodes {
-      id
-      functionId
-      blockOnFailure
-      metafields(first: 100) {
-        nodes {
-          id
-          namespace
-          key
-          type
-          value
-          compareDigest
-          ownerType
-          createdAt
-          updatedAt
-        }
-      }
-    }
-  }
-}
-`;
+const functionConnectionWindowHydrateThreeDocument = `query FunctionConnectionWindowHydrate { validations(first: 3, reverse: true) { edges { cursor node { id title enabled blockOnFailure shopifyFunction { id apiType } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }`;
+const functionConnectionWindowHydrateFourDocument = `query FunctionConnectionWindowHydrate { validations(first: 4, reverse: true) { edges { cursor node { id title enabled blockOnFailure shopifyFunction { id apiType } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }`;
+const cartTransformConnectionWindowHydrateThreeDocument = `query FunctionConnectionWindowHydrate { cartTransforms(first: 3) { edges { cursor node { id functionId blockOnFailure } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }`;
+const fulfillmentConstraintListHydrateDocument = `query FunctionListWindowHydrate { fulfillmentConstraintRules { deliveryMethodTypes function { handle apiType } id } }`;
 
 const inventoryDocument = `query FunctionsLiveHybridOverlayInventory {
   validations(first: 100) {
@@ -298,6 +225,13 @@ const inventoryDocument = `query FunctionsLiveHybridOverlayInventory {
     nodes {
       id
       functionId
+    }
+  }
+  fulfillmentConstraintRules {
+    id
+    function {
+      id
+      handle
     }
   }
 }
@@ -327,22 +261,29 @@ const cartTransformDeleteDocument = `mutation FunctionsLiveHybridOverlayCartTran
 }
 `;
 
-const baseCartTransformCreateDocument = `mutation FunctionsLiveHybridOverlayBaseCartTransform(
+const fulfillmentConstraintRuleDeleteDocument = `mutation FunctionsLiveHybridOverlayFulfillmentRuleCleanup($id: ID!) {
+  fulfillmentConstraintRuleDelete(id: $id) {
+    success
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
+`;
+
+const baseFulfillmentConstraintRuleCreateDocument = `mutation FunctionsLiveHybridOverlayFulfillmentRuleSetup(
   $functionId: String!
-  $blockOnFailure: Boolean
-  $metafields: [MetafieldInput!]
 ) {
-  cartTransformCreate(functionId: $functionId, blockOnFailure: $blockOnFailure, metafields: $metafields) {
-    cartTransform {
+  fulfillmentConstraintRuleCreate(functionId: $functionId, deliveryMethodTypes: [SHIPPING]) {
+    fulfillmentConstraintRule {
       id
-      functionId
-      blockOnFailure
-      metafield(namespace: "bundles", key: "config") {
-        namespace
-        key
-        type
-        value
-        ownerType
+      deliveryMethodTypes
+      function {
+        id
+        handle
+        apiType
       }
     }
     userErrors {
@@ -357,19 +298,36 @@ const baseCartTransformCreateDocument = `mutation FunctionsLiveHybridOverlayBase
 const baseValidationCreateDocument = await loadRequest('functions-live-hybrid-overlay-stage.graphql');
 const stagedValidationCreateDocument = baseValidationCreateDocument;
 const overlayReadDocument = await loadRequest('functions-live-hybrid-overlay-read.graphql');
+const windowReadDocument = await loadRequest('functions-live-hybrid-overlay-window.graphql');
+const stagedValidationDeleteDocument = await loadRequest('functions-live-hybrid-overlay-delete.graphql');
+const stagedCartTransformCreateDocument = await loadRequest('functions-live-hybrid-cart-overlay-stage.graphql');
+const cartTransformWindowReadDocument = await loadRequest('functions-live-hybrid-cart-overlay-window.graphql');
+const stagedCartTransformDeleteDocument = await loadRequest('functions-live-hybrid-cart-overlay-delete.graphql');
+const fulfillmentConstraintRuleBaseReadDocument = await loadRequest(
+  'functions-live-hybrid-fulfillment-rule-base-read.graphql',
+);
+const stagedFulfillmentConstraintRuleDeleteDocument = await loadRequest(
+  'functions-live-hybrid-fulfillment-rule-delete.graphql',
+);
+const fulfillmentConstraintRuleTombstoneReadDocument = await loadRequest(
+  'functions-live-hybrid-fulfillment-rule-tombstone-read.graphql',
+);
 
 async function cleanupExisting(
   validationFunction: FunctionNode,
-  cartFunction: FunctionNode,
+  cartFunctions: FunctionNode[],
+  fulfillmentConstraintFunction: FunctionNode,
 ): Promise<{
   inventory: Capture;
   validationDeletes: Capture[];
   cartTransformDeletes: Capture[];
+  fulfillmentConstraintRuleDeletes: Capture[];
 }> {
   const inventory = await capture(inventoryDocument);
   assertNoTopLevelErrors(inventory.response, 'Function inventory cleanup read');
   const validationDeletes: Capture[] = [];
   const cartTransformDeletes: Capture[] = [];
+  const fulfillmentConstraintRuleDeletes: Capture[] = [];
 
   for (const node of readValidationNodes(inventory)) {
     const id = readString(node['id']);
@@ -387,12 +345,24 @@ async function cleanupExisting(
 
   for (const node of readCartTransformNodes(inventory)) {
     const id = readString(node['id']);
-    if (id && node['functionId'] === cartFunction.id) {
+    if (id && cartFunctions.some((functionNode) => node['functionId'] === functionNode.id)) {
       cartTransformDeletes.push(await capture(cartTransformDeleteDocument, { id }));
     }
   }
 
-  return { inventory, validationDeletes, cartTransformDeletes };
+  for (const node of readFulfillmentConstraintRuleNodes(inventory)) {
+    const id = readString(node['id']);
+    const functionNode = readRecord(node['function']);
+    if (
+      id &&
+      (functionNode['id'] === fulfillmentConstraintFunction.id ||
+        functionNode['handle'] === fulfillmentConstraintFunction.handle)
+    ) {
+      fulfillmentConstraintRuleDeletes.push(await capture(fulfillmentConstraintRuleDeleteDocument, { id }));
+    }
+  }
+
+  return { inventory, validationDeletes, cartTransformDeletes, fulfillmentConstraintRuleDeletes };
 }
 
 const functionLookup = await capture(functionMetadataCatalogHydrateDocument);
@@ -400,12 +370,20 @@ assertNoTopLevelErrors(functionLookup.response, 'shopifyFunctions lookup');
 const functionNodes = readFunctionNodes(functionLookup);
 const validationFunction = requireFunction(functionNodes, validationFunctionHandle, 'cart_checkout_validation');
 const cartFunction = requireFunction(functionNodes, cartTransformFunctionHandle, 'cart_transform');
+const cartFunctions = functionNodes.filter((functionNode) => functionNode.apiType === 'cart_transform');
+const fulfillmentConstraintFunction = requireFunction(
+  functionNodes,
+  fulfillmentConstraintFunctionHandle,
+  'fulfillment_constraints',
+);
 
-const cleanupBefore = await cleanupExisting(validationFunction, cartFunction);
+const cleanupBefore = await cleanupExisting(validationFunction, cartFunctions, fulfillmentConstraintFunction);
 
 let baseValidationId: string | null = null;
+let refillValidationId: string | null = null;
 let stagedValidationId: string | null = null;
-let baseCartTransformId: string | null = null;
+let stagedCartTransformId: string | null = null;
+let baseFulfillmentConstraintRuleId: string | null = null;
 const cleanupAfter: Capture[] = [];
 
 try {
@@ -420,44 +398,66 @@ try {
   assertNoUserErrors(baseValidationCreate, 'validationCreate', 'base validationCreate');
   baseValidationId = validationId(baseValidationCreate, 'validationCreate');
 
-  const baseCartTransformCreate = await capture(baseCartTransformCreateDocument, {
-    functionId: cartFunction.id,
-    blockOnFailure: false,
-    metafields: [
-      {
-        namespace: 'bundles',
-        key: 'config',
-        type: 'json',
-        value: '{"mode":"base"}',
-      },
-    ],
+  const refillValidationCreate = await capture(baseValidationCreateDocument, {
+    validation: {
+      functionHandle: validationFunction.handle,
+      title: `${disposableTitlePrefix} refill validation`,
+      enable: false,
+      blockOnFailure: false,
+    },
   });
-  assertNoUserErrors(baseCartTransformCreate, 'cartTransformCreate', 'base cartTransformCreate');
-  baseCartTransformId = cartTransformId(baseCartTransformCreate);
+  assertNoUserErrors(refillValidationCreate, 'validationCreate', 'refill validationCreate');
+  refillValidationId = validationId(refillValidationCreate, 'validationCreate');
 
-  const functionHydrateByHandle = await capture(functionHydrateByHandleDocument, {
-    handle: validationFunction.handle,
-    apiType: 'VALIDATION',
+  const baseFulfillmentConstraintRuleCreate = await capture(baseFulfillmentConstraintRuleCreateDocument, {
+    functionId: fulfillmentConstraintFunction.id,
   });
-  assertNoTopLevelErrors(functionHydrateByHandle.response, 'FunctionHydrateByHandle cassette');
+  assertNoUserErrors(
+    baseFulfillmentConstraintRuleCreate,
+    'fulfillmentConstraintRuleCreate',
+    'base fulfillmentConstraintRuleCreate',
+  );
+  baseFulfillmentConstraintRuleId = fulfillmentConstraintRuleId(baseFulfillmentConstraintRuleCreate);
 
-  const functionValidationHydrateById = await capture(functionValidationHydrateByIdDocument, {
-    id: baseValidationId,
+  const validationFunctionHydrateById = await capture(functionHydrateByIdDocument, {
+    id: validationFunction.id,
   });
-  assertNoTopLevelErrors(functionValidationHydrateById.response, 'FunctionValidationHydrateById cassette');
+  assertNoTopLevelErrors(validationFunctionHydrateById.response, 'validation FunctionHydrateById cassette');
 
-  const functionValidationsHydrate = await capture(functionValidationsHydrateDocument);
-  assertNoTopLevelErrors(functionValidationsHydrate.response, 'FunctionValidationsHydrate cassette');
+  const baseWindowFirst = await capture(windowReadDocument, { after: null });
+  assertNoTopLevelErrors(baseWindowFirst.response, 'base first window cassette');
+  const baseWindowRefillThree = await capture(functionConnectionWindowHydrateThreeDocument);
+  assertNoTopLevelErrors(baseWindowRefillThree.response, 'base three-row refill cassette');
+  const baseWindowRefillFour = await capture(functionConnectionWindowHydrateFourDocument);
+  assertNoTopLevelErrors(baseWindowRefillFour.response, 'base four-row refill cassette');
 
-  const functionCartTransformsHydrate = await capture(functionCartTransformsHydrateDocument);
-  assertNoTopLevelErrors(functionCartTransformsHydrate.response, 'FunctionCartTransformsHydrate cassette');
+  const cartFunctionHydrateById = await capture(functionHydrateByIdDocument, {
+    id: cartFunction.id,
+  });
+  assertNoTopLevelErrors(cartFunctionHydrateById.response, 'cart FunctionHydrateById cassette');
+  const cartWindowBaseFirst = await capture(cartTransformWindowReadDocument, { after: null });
+  assertNoTopLevelErrors(cartWindowBaseFirst.response, 'base cart-transform first window cassette');
+  const cartWindowBaseRefill = await capture(cartTransformConnectionWindowHydrateThreeDocument);
+  assertNoTopLevelErrors(cartWindowBaseRefill.response, 'base cart-transform bounded refill cassette');
+  const cartWindowBaseAfterDelete = await capture(cartTransformWindowReadDocument, { after: null });
+  assertNoTopLevelErrors(cartWindowBaseAfterDelete.response, 'base cart-transform post-delete window cassette');
 
-  const functionMetadataCatalogHydrate = await capture(functionMetadataCatalogHydrateDocument);
-  assertNoTopLevelErrors(functionMetadataCatalogHydrate.response, 'FunctionMetadataCatalogHydrate cassette');
+  const fulfillmentConstraintRuleBaseRead = await capture(fulfillmentConstraintRuleBaseReadDocument);
+  assertNoTopLevelErrors(fulfillmentConstraintRuleBaseRead.response, 'base fulfillment-rule read');
+  const fulfillmentConstraintRuleBaseWithoutIdentity = await capture(fulfillmentConstraintRuleTombstoneReadDocument);
+  assertNoTopLevelErrors(
+    fulfillmentConstraintRuleBaseWithoutIdentity.response,
+    'base fulfillment-rule identity-omitting cassette',
+  );
+  const fulfillmentConstraintRuleBaseIdentityHydrate = await capture(fulfillmentConstraintListHydrateDocument);
+  assertNoTopLevelErrors(
+    fulfillmentConstraintRuleBaseIdentityHydrate.response,
+    'base fulfillment-rule identity hydrate cassette',
+  );
 
   const stagedValidationCreate = await capture(stagedValidationCreateDocument, {
     validation: {
-      functionHandle: validationFunction.handle,
+      functionId: validationFunction.id,
       title: `${disposableTitlePrefix} staged validation`,
       enable: true,
       blockOnFailure: false,
@@ -465,6 +465,63 @@ try {
   });
   assertNoUserErrors(stagedValidationCreate, 'validationCreate', 'staged validationCreate');
   stagedValidationId = validationId(stagedValidationCreate, 'validationCreate');
+
+  const windowFirst = await capture(windowReadDocument, { after: null });
+  assertNoTopLevelErrors(windowFirst.response, 'Functions overlay first window');
+  const stagedWindowCursor = readString(
+    readPath(windowFirst.response.payload, ['data', 'validations', 'pageInfo', 'endCursor']),
+  );
+  if (!stagedWindowCursor) {
+    throw new Error(`Functions overlay first window did not return a cursor: ${JSON.stringify(windowFirst, null, 2)}`);
+  }
+  const windowAfter = await capture(windowReadDocument, { after: stagedWindowCursor });
+  assertNoTopLevelErrors(windowAfter.response, 'Functions overlay after window');
+
+  const refillValidationDelete = await capture(stagedValidationDeleteDocument, { id: refillValidationId });
+  assertNoUserErrors(refillValidationDelete, 'validationDelete', 'refill validationDelete');
+  refillValidationId = null;
+  const windowAfterTombstone = await capture(windowReadDocument, { after: stagedWindowCursor });
+  assertNoTopLevelErrors(windowAfterTombstone.response, 'Functions overlay tombstone refill window');
+
+  const stagedCartTransformCreate = await capture(stagedCartTransformCreateDocument, {
+    functionId: cartFunction.id,
+  });
+  assertNoUserErrors(stagedCartTransformCreate, 'cartTransformCreate', 'staged cartTransformCreate');
+  stagedCartTransformId = cartTransformId(stagedCartTransformCreate);
+  const cartWindowFirst = await capture(cartTransformWindowReadDocument, { after: null });
+  assertNoTopLevelErrors(cartWindowFirst.response, 'cart-transform overlay first window');
+  const stagedCartWindowCursor = readString(
+    readPath(cartWindowFirst.response.payload, ['data', 'cartTransforms', 'pageInfo', 'endCursor']),
+  );
+  if (!stagedCartWindowCursor) {
+    throw new Error(
+      `Cart-transform overlay first window did not return a cursor: ${JSON.stringify(cartWindowFirst, null, 2)}`,
+    );
+  }
+  const cartWindowAfter = await capture(cartTransformWindowReadDocument, { after: stagedCartWindowCursor });
+  assertNoTopLevelErrors(cartWindowAfter.response, 'cart-transform overlay after window');
+  const stagedCartTransformDelete = await capture(stagedCartTransformDeleteDocument, {
+    id: stagedCartTransformId,
+  });
+  assertNoUserErrors(stagedCartTransformDelete, 'cartTransformDelete', 'staged cartTransformDelete');
+  stagedCartTransformId = null;
+  const cartWindowAfterDelete = await capture(cartTransformWindowReadDocument, { after: null });
+  assertNoTopLevelErrors(cartWindowAfterDelete.response, 'cart-transform window after staged delete');
+
+  const stagedFulfillmentConstraintRuleDelete = await capture(stagedFulfillmentConstraintRuleDeleteDocument, {
+    id: baseFulfillmentConstraintRuleId,
+  });
+  assertNoUserErrors(
+    stagedFulfillmentConstraintRuleDelete,
+    'fulfillmentConstraintRuleDelete',
+    'base fulfillmentConstraintRuleDelete',
+  );
+  baseFulfillmentConstraintRuleId = null;
+  const fulfillmentConstraintRulesAfterTombstone = await capture(fulfillmentConstraintRuleTombstoneReadDocument);
+  assertNoTopLevelErrors(
+    fulfillmentConstraintRulesAfterTombstone.response,
+    'fulfillment-rule list after base tombstone',
+  );
 
   const overlayRead = await capture(overlayReadDocument, {
     stagedValidationId,
@@ -481,72 +538,140 @@ try {
     storeDomain,
     apiVersion,
     summary:
-      'Live Functions overlay evidence with one existing validation, one existing cart transform, and one later validation lifecycle.',
+      'Live Functions overlay evidence for validation windows, a staged cart-transform local-cursor refill, and a fulfillment-rule base tombstone with identity-only refill.',
     shopifyFunctions: {
       validation: normalizeFunctionNode(validationFunction),
       cartTransform: normalizeFunctionNode(cartFunction),
+      fulfillmentConstraint: normalizeFunctionNode(fulfillmentConstraintFunction),
     },
     cleanupBefore,
     baseValidationCreate,
-    baseCartTransformCreate,
+    refillValidationCreate,
+    baseFulfillmentConstraintRuleCreate,
     stagedValidationCreate,
+    baseWindowFirst,
+    baseWindowRefillThree,
+    baseWindowRefillFour,
+    windowFirst,
+    windowAfter,
+    refillValidationDelete,
+    windowAfterTombstone,
+    stagedCartTransformCreate,
+    cartWindowFirst,
+    cartWindowAfter,
+    stagedCartTransformDelete,
+    cartWindowAfterDelete,
+    fulfillmentConstraintRuleBaseRead,
+    stagedFulfillmentConstraintRuleDelete,
+    fulfillmentConstraintRulesAfterTombstone,
     overlayRead,
     cleanupAfter,
     upstreamCalls: [
       {
-        operationName: 'FunctionHydrateByHandle',
-        variables: {
-          handle: validationFunction.handle,
-          apiType: 'VALIDATION',
-        },
-        query: functionHydrateByHandle.query,
+        operationName: 'FunctionHydrateById',
+        variables: { id: validationFunction.id },
+        query: validationFunctionHydrateById.query,
         response: {
-          status: functionHydrateByHandle.response.status,
-          body: functionHydrateByHandle.response.payload,
+          status: validationFunctionHydrateById.response.status,
+          body: validationFunctionHydrateById.response.payload,
         },
       },
       {
-        operationName: 'FunctionValidationHydrateById',
-        variables: { id: baseValidationId },
-        query: functionValidationHydrateById.query,
+        operationName: 'FunctionsLiveHybridOverlayWindow',
+        variables: { after: null },
+        query: baseWindowFirst.query,
         response: {
-          status: functionValidationHydrateById.response.status,
-          body: functionValidationHydrateById.response.payload,
+          status: baseWindowFirst.response.status,
+          body: baseWindowFirst.response.payload,
         },
       },
       {
-        operationName: 'FunctionValidationsHydrate',
+        operationName: 'FunctionConnectionWindowHydrate',
         variables: {},
-        query: functionValidationsHydrate.query,
+        query: baseWindowRefillThree.query,
         response: {
-          status: functionValidationsHydrate.response.status,
-          body: functionValidationsHydrate.response.payload,
+          status: baseWindowRefillThree.response.status,
+          body: baseWindowRefillThree.response.payload,
         },
       },
       {
-        operationName: 'FunctionCartTransformsHydrate',
+        operationName: 'FunctionConnectionWindowHydrate',
         variables: {},
-        query: functionCartTransformsHydrate.query,
+        query: baseWindowRefillFour.query,
         response: {
-          status: functionCartTransformsHydrate.response.status,
-          body: functionCartTransformsHydrate.response.payload,
+          status: baseWindowRefillFour.response.status,
+          body: baseWindowRefillFour.response.payload,
         },
       },
       {
-        operationName: 'FunctionMetadataCatalogHydrate',
-        variables: {},
-        query: functionMetadataCatalogHydrate.query,
+        operationName: 'FunctionHydrateById',
+        variables: { id: cartFunction.id },
+        query: cartFunctionHydrateById.query,
         response: {
-          status: functionMetadataCatalogHydrate.response.status,
-          body: functionMetadataCatalogHydrate.response.payload,
+          status: cartFunctionHydrateById.response.status,
+          body: cartFunctionHydrateById.response.payload,
+        },
+      },
+      {
+        operationName: 'FunctionsLiveHybridCartOverlayWindow',
+        variables: { after: null },
+        query: cartWindowBaseFirst.query,
+        response: {
+          status: cartWindowBaseFirst.response.status,
+          body: cartWindowBaseFirst.response.payload,
+        },
+      },
+      {
+        operationName: 'FunctionConnectionWindowHydrate',
+        variables: {},
+        query: cartWindowBaseRefill.query,
+        response: {
+          status: cartWindowBaseRefill.response.status,
+          body: cartWindowBaseRefill.response.payload,
+        },
+      },
+      {
+        operationName: 'FunctionsLiveHybridCartOverlayWindow',
+        variables: { after: null },
+        query: cartWindowBaseAfterDelete.query,
+        response: {
+          status: cartWindowBaseAfterDelete.response.status,
+          body: cartWindowBaseAfterDelete.response.payload,
+        },
+      },
+      {
+        operationName: 'FunctionsLiveHybridFulfillmentRuleBaseRead',
+        variables: {},
+        query: fulfillmentConstraintRuleBaseRead.query,
+        response: {
+          status: fulfillmentConstraintRuleBaseRead.response.status,
+          body: fulfillmentConstraintRuleBaseRead.response.payload,
+        },
+      },
+      {
+        operationName: 'FunctionsLiveHybridFulfillmentRuleTombstoneRead',
+        variables: {},
+        query: fulfillmentConstraintRuleBaseWithoutIdentity.query,
+        response: {
+          status: fulfillmentConstraintRuleBaseWithoutIdentity.response.status,
+          body: fulfillmentConstraintRuleBaseWithoutIdentity.response.payload,
+        },
+      },
+      {
+        operationName: 'FunctionListWindowHydrate',
+        variables: {},
+        query: fulfillmentConstraintRuleBaseIdentityHydrate.query,
+        response: {
+          status: fulfillmentConstraintRuleBaseIdentityHydrate.response.status,
+          body: fulfillmentConstraintRuleBaseIdentityHydrate.response.payload,
         },
       },
     ],
     notes: {
       setup:
-        'The script removes disposable Function resources for the released conformance functions, creates one base validation and one base cart transform, records upstream hydrate cassettes from that base state, then creates the validation lifecycle that the proxy stages locally.',
+        'The script removes disposable Function resources, creates two base validations and one base fulfillment rule, records exact validation/cart/list window cassettes, then runs the validation and cart-transform lifecycles plus the fulfillment-rule tombstone through public Admin GraphQL.',
       cleanup:
-        'The finally block deletes the base validation, staged validation, and base cart transform when they were created.',
+        'The finally block deletes every validation, cart transform, and fulfillment rule created by this capture when an earlier assertion fails.',
     },
   };
 
@@ -554,8 +679,16 @@ try {
   stagedValidationId = null;
   if (baseValidationId) cleanupAfter.push(await capture(validationDeleteDocument, { id: baseValidationId }));
   baseValidationId = null;
-  if (baseCartTransformId) cleanupAfter.push(await capture(cartTransformDeleteDocument, { id: baseCartTransformId }));
-  baseCartTransformId = null;
+  if (refillValidationId) cleanupAfter.push(await capture(validationDeleteDocument, { id: refillValidationId }));
+  refillValidationId = null;
+  if (stagedCartTransformId) {
+    cleanupAfter.push(await capture(cartTransformDeleteDocument, { id: stagedCartTransformId }));
+  }
+  stagedCartTransformId = null;
+  if (baseFulfillmentConstraintRuleId) {
+    cleanupAfter.push(await capture(fulfillmentConstraintRuleDeleteDocument, { id: baseFulfillmentConstraintRuleId }));
+  }
+  baseFulfillmentConstraintRuleId = null;
 
   await mkdir(outputDir, { recursive: true });
   await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
@@ -567,7 +700,13 @@ try {
   if (baseValidationId) {
     cleanupAfter.push(await capture(validationDeleteDocument, { id: baseValidationId }));
   }
-  if (baseCartTransformId) {
-    cleanupAfter.push(await capture(cartTransformDeleteDocument, { id: baseCartTransformId }));
+  if (refillValidationId) {
+    cleanupAfter.push(await capture(validationDeleteDocument, { id: refillValidationId }));
+  }
+  if (stagedCartTransformId) {
+    cleanupAfter.push(await capture(cartTransformDeleteDocument, { id: stagedCartTransformId }));
+  }
+  if (baseFulfillmentConstraintRuleId) {
+    cleanupAfter.push(await capture(fulfillmentConstraintRuleDeleteDocument, { id: baseFulfillmentConstraintRuleId }));
   }
 }
