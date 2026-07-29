@@ -1,0 +1,10 @@
+mutation FunctionsLiveHybridFulfillmentRuleDelete($id: ID!) {
+  fulfillmentConstraintRuleDelete(id: $id) {
+    success
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
