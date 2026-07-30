@@ -14854,6 +14854,7 @@ fn localization_source_observations_do_not_replace_canonical_product_or_collecti
                         "ObserveLocalizationSources",
                         "ObserveDisjointParentSiblings",
                         "HydrateCanonicalParents",
+                        "ProductMutationPreflightHydrate",
                     ]
                     .into_iter()
                     .find(|name| query.contains(name))
@@ -14982,6 +14983,128 @@ fn localization_source_observations_do_not_replace_canonical_product_or_collecti
                         }
                     ]
                 }),
+                "ProductMutationPreflightHydrate" => {
+                    let mut product = json!({
+                        "__typename": "Product",
+                        "id": product_id,
+                        "legacyResourceId": "81001",
+                        "createdAt": "2025-02-03T04:05:06Z",
+                        "updatedAt": "2025-03-04T05:06:07Z",
+                        "title": "Rich source product",
+                        "handle": "rich-source-product",
+                        "status": "ARCHIVED",
+                        "publishedAt": null,
+                        "descriptionHtml": "<p>Rich product body</p>",
+                        "vendor": "Rich Vendor",
+                        "productType": "Rich Type",
+                        "tags": ["alpha", "beta"],
+                        "templateSuffix": "rich-product",
+                        "totalInventory": 8,
+                        "tracksInventory": true,
+                        "onlineStorePreviewUrl": "https://example.test/products/rich-source-product",
+                        "requiresSellingPlan": false,
+                        "isGiftCard": false,
+                        "giftCardTemplateSuffix": null,
+                        "seo": {
+                            "title": "Rich product SEO",
+                            "description": "Rich product SEO description"
+                        },
+                        "category": null
+                    });
+                    product["options"] = json!([{
+                        "id": "gid://shopify/ProductOption/81005",
+                        "name": "Color",
+                        "position": 1,
+                        "values": ["Blue"],
+                        "optionValues": [{
+                            "id": "gid://shopify/ProductOptionValue/81006",
+                            "name": "Blue",
+                            "hasVariants": true
+                        }]
+                    }]);
+
+                    let mut variant = json!({
+                        "id": "gid://shopify/ProductVariant/81004",
+                        "title": "Blue",
+                        "sku": "RICH-81004",
+                        "barcode": "81004",
+                        "price": "8.00",
+                        "compareAtPrice": "10.00",
+                        "position": 1,
+                        "taxable": true,
+                        "taxCode": "P000000",
+                        "inventoryPolicy": "DENY",
+                        "inventoryQuantity": 8,
+                        "requiresComponents": false,
+                        "showUnitPrice": false,
+                        "unitPriceMeasurement": null
+                    });
+                    variant["selectedOptions"] = json!([{ "name": "Color", "value": "Blue" }]);
+                    variant["metafields"] = json!({ "nodes": [] });
+                    variant["inventoryItem"] = json!({
+                        "id": "gid://shopify/InventoryItem/81004",
+                        "tracked": true,
+                        "requiresShipping": true,
+                        "countryCodeOfOrigin": "CA",
+                        "provinceCodeOfOrigin": "ON",
+                        "harmonizedSystemCode": "810000",
+                        "measurement": {
+                            "weight": { "unit": "KILOGRAMS", "value": 0.5 }
+                        }
+                    });
+                    variant["media"] = json!({ "nodes": [{ "id": media_id }] });
+                    product["variants"] = json!({
+                        "nodes": [variant],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": "variant-81004",
+                            "endCursor": "variant-81004"
+                        }
+                    });
+
+                    product["media"] = json!({
+                        "nodes": [{
+                            "__typename": "MediaImage",
+                            "id": media_id,
+                            "alt": "Rich product media",
+                            "mediaContentType": "IMAGE",
+                            "status": "READY",
+                            "preview": {
+                                "image": {
+                                    "url": "https://cdn.example.test/rich-source-product.png",
+                                    "width": 800,
+                                    "height": 600
+                                }
+                            },
+                            "image": {
+                                "url": "https://cdn.example.test/rich-source-product.png",
+                                "width": 800,
+                                "height": 600
+                            }
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": "media-81003",
+                            "endCursor": "media-81003"
+                        }
+                    });
+                    product["collections"] = json!({
+                        "nodes": [{
+                            "id": collection_id,
+                            "title": "Rich source collection",
+                            "handle": "rich-source-collection"
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": "collection-81002",
+                            "endCursor": "collection-81002"
+                        }
+                    });
+                    json!({ "product": product })
+                },
                 unexpected => panic!("unexpected upstream operation: {unexpected}"),
             };
             Response {
@@ -15285,7 +15408,8 @@ fn localization_source_observations_do_not_replace_canonical_product_or_collecti
         [
             "ObserveLocalizationSources",
             "ObserveDisjointParentSiblings",
-            "HydrateCanonicalParents"
+            "HydrateCanonicalParents",
+            "ProductMutationPreflightHydrate"
         ]
     );
 }

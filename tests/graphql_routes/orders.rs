@@ -3446,6 +3446,29 @@ fn return_process_preserves_existing_reverse_fulfillment_disposition() {
         [0]["lineItems"]["nodes"][0]["id"]
         .clone();
 
+    let disposition_location = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedReturnProcessDispositionLocation($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Return process disposition location",
+                "address": { "countryCode": "CA" }
+            }
+        }),
+    ));
+    assert_eq!(
+        disposition_location.body["data"]["locationAdd"]["userErrors"],
+        json!([])
+    );
+    let disposition_location_id =
+        disposition_location.body["data"]["locationAdd"]["location"]["id"].clone();
+
     let dispose = proxy.process_request(json_graphql_request(
         r#"
         mutation ReturnProcessDispositionSeedDispose(
@@ -3465,7 +3488,7 @@ fn return_process_preserves_existing_reverse_fulfillment_disposition() {
                 "reverseFulfillmentOrderLineItemId": reverse_line_id.clone(),
                 "quantity": 1,
                 "dispositionType": "NOT_RESTOCKED",
-                "locationId": "gid://shopify/Location/123"
+                "locationId": disposition_location_id
             }]
         }),
     ));
@@ -3514,7 +3537,7 @@ fn return_process_preserves_existing_reverse_fulfillment_disposition() {
     let expected_dispositions = json!([{
         "type": "NOT_RESTOCKED",
         "quantity": 1,
-        "location": { "id": "gid://shopify/Location/123" }
+        "location": { "id": disposition_location_id }
     }]);
     assert_eq!(
         process.body["data"]["returnProcess"]["return"]["reverseFulfillmentOrders"]["nodes"][0]
