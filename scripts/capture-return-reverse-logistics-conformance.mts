@@ -43,6 +43,18 @@ async function capture(query: string, variables: JsonRecord = {}): Promise<Graph
   };
 }
 
+function recordedUpstreamCall(captureResult: GraphqlCapture, operationName: string): JsonRecord {
+  return {
+    operationName,
+    variables: captureResult.variables,
+    query: captureResult.query,
+    response: {
+      status: captureResult.response.status,
+      body: captureResult.response.payload,
+    },
+  };
+}
+
 async function writeJson(filePath: string, payload: unknown): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`);
@@ -76,6 +88,16 @@ function requireEmptyUserErrors(captureResult: GraphqlCapture, rootName: string)
   const userErrors = readArray(root?.['userErrors']);
   if (errors || userErrors.length > 0) {
     throw new Error(`Unexpected ${rootName} errors: ${JSON.stringify(captureResult.response.payload)}`);
+  }
+}
+
+function requireUserErrors(captureResult: GraphqlCapture, rootName: string): void {
+  const payload = captureResult.response.payload as JsonRecord;
+  const errors = payload['errors'];
+  const root = readRecord(readRecord(payload['data'])?.[rootName]);
+  const userErrors = readArray(root?.['userErrors']);
+  if (!errors && userErrors.length === 0) {
+    throw new Error(`Expected ${rootName} rejection: ${JSON.stringify(captureResult.response.payload)}`);
   }
 }
 
@@ -255,9 +277,17 @@ const reverseDeliveryUpdateMutation = await readRequest('reverse-delivery-shippi
 const reverseFulfillmentDisposeMutation = await readRequest('reverse-fulfillment-order-dispose-recorded.graphql');
 const returnProcessMutation = await readRequest('return-process-recorded.graphql');
 const downstreamReadQuery = await readRequest('return-reverse-logistics-read-recorded.graphql');
+const reverseLogisticsRfoHydrateQuery = await readRequest('reverse-logistics-rfo-mutation-hydrate.graphql');
+const reverseLogisticsDeliveryHydrateQuery = await readRequest('reverse-logistics-delivery-mutation-hydrate.graphql');
+const reverseLogisticsDisposeHydrateQuery = await readRequest('reverse-logistics-dispose-mutation-hydrate.graphql');
 // The exact document the proxy forwards to hydrate a return's order on a cold
 // miss; recording its live response is what replaces the seeded order.
 const returnOrderHydrateQuery = await readRequest('return-order-hydrate.graphql');
+
+const missingReverseFulfillmentOrderId = 'gid://shopify/ReverseFulfillmentOrder/999999999999999';
+const missingReverseFulfillmentOrderLineItemId = 'gid://shopify/ReverseFulfillmentOrderLineItem/999999999999999';
+const missingReverseDeliveryId = 'gid://shopify/ReverseDelivery/999999999999999';
+const missingLocationId = 'gid://shopify/Location/999999999999999';
 
 const stamp = new Date()
   .toISOString()
@@ -440,6 +470,96 @@ const reverseFulfillmentOrderLineItemId = requireString(
   reverseFulfillmentOrderLineItem['id'],
   'first reverse fulfillment order line item id',
 );
+const validationTrackingInput = { number: `VALIDATE-${stamp}` };
+
+const validRfoHydrateBeforeCreate = await capture(reverseLogisticsRfoHydrateQuery, {
+  id: reverseFulfillmentOrderId,
+});
+const validRfoHydrateBeforeDuplicateValidation = await capture(reverseLogisticsRfoHydrateQuery, {
+  id: reverseFulfillmentOrderId,
+});
+const validRfoHydrateBeforeQuantityValidation = await capture(reverseLogisticsRfoHydrateQuery, {
+  id: reverseFulfillmentOrderId,
+});
+const validRfoHydrateBeforeColdCreate = await capture(reverseLogisticsRfoHydrateQuery, {
+  id: reverseFulfillmentOrderId,
+});
+const missingRfoHydrate = await capture(reverseLogisticsRfoHydrateQuery, {
+  id: missingReverseFulfillmentOrderId,
+});
+const wrongTypeRfoHydrate = await capture(reverseLogisticsRfoHydrateQuery, { id: returnId });
+
+const missingReverseFulfillmentOrderCreate = await capture(reverseDeliveryCreateMutation, {
+  reverseFulfillmentOrderId: missingReverseFulfillmentOrderId,
+  reverseDeliveryLineItems: [],
+  trackingInput: validationTrackingInput,
+  labelInput: null,
+});
+requireUserErrors(missingReverseFulfillmentOrderCreate, 'reverseDeliveryCreateWithShipping');
+
+const wrongTypeReverseFulfillmentOrderCreate = await capture(reverseDeliveryCreateMutation, {
+  reverseFulfillmentOrderId: returnId,
+  reverseDeliveryLineItems: [],
+  trackingInput: validationTrackingInput,
+  labelInput: null,
+});
+requireUserErrors(wrongTypeReverseFulfillmentOrderCreate, 'reverseDeliveryCreateWithShipping');
+
+const missingReverseFulfillmentOrderLineCreate = await capture(reverseDeliveryCreateMutation, {
+  reverseFulfillmentOrderId,
+  reverseDeliveryLineItems: [
+    {
+      reverseFulfillmentOrderLineItemId: missingReverseFulfillmentOrderLineItemId,
+      quantity: 1,
+    },
+  ],
+  trackingInput: validationTrackingInput,
+  labelInput: null,
+});
+requireUserErrors(missingReverseFulfillmentOrderLineCreate, 'reverseDeliveryCreateWithShipping');
+
+const wrongTypeReverseFulfillmentOrderLineCreate = await capture(reverseDeliveryCreateMutation, {
+  reverseFulfillmentOrderId,
+  reverseDeliveryLineItems: [
+    {
+      reverseFulfillmentOrderLineItemId: returnId,
+      quantity: 1,
+    },
+  ],
+  trackingInput: validationTrackingInput,
+  labelInput: null,
+});
+requireUserErrors(wrongTypeReverseFulfillmentOrderLineCreate, 'reverseDeliveryCreateWithShipping');
+
+const overQuantityReverseDeliveryCreate = await capture(reverseDeliveryCreateMutation, {
+  reverseFulfillmentOrderId,
+  reverseDeliveryLineItems: [
+    {
+      reverseFulfillmentOrderLineItemId,
+      quantity: 2,
+    },
+  ],
+  trackingInput: validationTrackingInput,
+  labelInput: null,
+});
+requireUserErrors(overQuantityReverseDeliveryCreate, 'reverseDeliveryCreateWithShipping');
+
+const duplicateReverseDeliveryLineCreate = await capture(reverseDeliveryCreateMutation, {
+  reverseFulfillmentOrderId,
+  reverseDeliveryLineItems: [
+    {
+      reverseFulfillmentOrderLineItemId,
+      quantity: 1,
+    },
+    {
+      reverseFulfillmentOrderLineItemId,
+      quantity: 1,
+    },
+  ],
+  trackingInput: validationTrackingInput,
+  labelInput: null,
+});
+requireUserErrors(duplicateReverseDeliveryLineCreate, 'reverseDeliveryCreateWithShipping');
 
 const trackingInput = {
   number: `HAR442-RETURN-${stamp}`,
@@ -465,11 +585,98 @@ const reverseDelivery =
   readRecord(returnPayload(reverseDeliveryCreate, 'reverseDeliveryCreateWithShipping')['reverseDelivery']) ?? {};
 const reverseDeliveryId = requireString(reverseDelivery['id'], 'reverse delivery id');
 
+const validDeliveryHydrateBeforeUpdate = await capture(reverseLogisticsDeliveryHydrateQuery, {
+  id: reverseDeliveryId,
+});
+const missingDeliveryHydrate = await capture(reverseLogisticsDeliveryHydrateQuery, {
+  id: missingReverseDeliveryId,
+});
+const wrongTypeDeliveryHydrate = await capture(reverseLogisticsDeliveryHydrateQuery, { id: returnId });
+
+const missingReverseDeliveryUpdate = await capture(reverseDeliveryUpdateMutation, {
+  reverseDeliveryId: missingReverseDeliveryId,
+  trackingInput: updatedTrackingInput,
+});
+requireUserErrors(missingReverseDeliveryUpdate, 'reverseDeliveryShippingUpdate');
+
+const wrongTypeReverseDeliveryUpdate = await capture(reverseDeliveryUpdateMutation, {
+  reverseDeliveryId: returnId,
+  trackingInput: updatedTrackingInput,
+});
+requireUserErrors(wrongTypeReverseDeliveryUpdate, 'reverseDeliveryShippingUpdate');
+
 const reverseDeliveryUpdate = await capture(reverseDeliveryUpdateMutation, {
   reverseDeliveryId,
   trackingInput: updatedTrackingInput,
 });
 requireEmptyUserErrors(reverseDeliveryUpdate, 'reverseDeliveryShippingUpdate');
+
+const validDisposeHydrateBeforeDispose = await capture(reverseLogisticsDisposeHydrateQuery, {
+  ids: [reverseFulfillmentOrderLineItemId, locationId],
+});
+const locationOnlyDisposeHydrate = await capture(reverseLogisticsDisposeHydrateQuery, {
+  ids: [locationId],
+});
+const missingLineDisposeHydrate = await capture(reverseLogisticsDisposeHydrateQuery, {
+  ids: [missingReverseFulfillmentOrderLineItemId, locationId],
+});
+const wrongTypeLineDisposeHydrate = await capture(reverseLogisticsDisposeHydrateQuery, {
+  ids: [returnId, locationId],
+});
+const missingLocationDisposeHydrate = await capture(reverseLogisticsDisposeHydrateQuery, {
+  ids: [reverseFulfillmentOrderLineItemId, missingLocationId],
+});
+const wrongTypeLocationDisposeHydrate = await capture(reverseLogisticsDisposeHydrateQuery, {
+  ids: [reverseFulfillmentOrderLineItemId, returnId],
+});
+
+const missingReverseFulfillmentOrderLineDispose = await capture(reverseFulfillmentDisposeMutation, {
+  dispositionInputs: [
+    {
+      reverseFulfillmentOrderLineItemId: missingReverseFulfillmentOrderLineItemId,
+      quantity: 1,
+      dispositionType: 'NOT_RESTOCKED',
+      locationId,
+    },
+  ],
+});
+requireUserErrors(missingReverseFulfillmentOrderLineDispose, 'reverseFulfillmentOrderDispose');
+
+const wrongTypeReverseFulfillmentOrderLineDispose = await capture(reverseFulfillmentDisposeMutation, {
+  dispositionInputs: [
+    {
+      reverseFulfillmentOrderLineItemId: returnId,
+      quantity: 1,
+      dispositionType: 'NOT_RESTOCKED',
+      locationId,
+    },
+  ],
+});
+requireUserErrors(wrongTypeReverseFulfillmentOrderLineDispose, 'reverseFulfillmentOrderDispose');
+
+const missingLocationDispose = await capture(reverseFulfillmentDisposeMutation, {
+  dispositionInputs: [
+    {
+      reverseFulfillmentOrderLineItemId,
+      quantity: 1,
+      dispositionType: 'RESTOCKED',
+      locationId: missingLocationId,
+    },
+  ],
+});
+requireUserErrors(missingLocationDispose, 'reverseFulfillmentOrderDispose');
+
+const wrongTypeLocationDispose = await capture(reverseFulfillmentDisposeMutation, {
+  dispositionInputs: [
+    {
+      reverseFulfillmentOrderLineItemId,
+      quantity: 1,
+      dispositionType: 'RESTOCKED',
+      locationId: returnId,
+    },
+  ],
+});
+requireUserErrors(wrongTypeLocationDispose, 'reverseFulfillmentOrderDispose');
 
 const reverseFulfillmentDispose = await capture(reverseFulfillmentDisposeMutation, {
   dispositionInputs: [
@@ -559,6 +766,22 @@ const explicitSecondReverseFulfillmentOrderLineItemId = requireString(
   'explicit second reverse fulfillment order line item id',
 );
 
+const explicitRfoHydrateBeforeCreate = await capture(reverseLogisticsRfoHydrateQuery, {
+  id: explicitReverseFulfillmentOrderId,
+});
+const unrelatedReverseFulfillmentOrderLineCreate = await capture(reverseDeliveryCreateMutation, {
+  reverseFulfillmentOrderId: explicitReverseFulfillmentOrderId,
+  reverseDeliveryLineItems: [
+    {
+      reverseFulfillmentOrderLineItemId,
+      quantity: 1,
+    },
+  ],
+  trackingInput: validationTrackingInput,
+  labelInput: null,
+});
+requireUserErrors(unrelatedReverseFulfillmentOrderLineCreate, 'reverseDeliveryCreateWithShipping');
+
 const reverseDeliveryExplicitCreate = await capture(reverseDeliveryCreateMutation, {
   reverseFulfillmentOrderId: explicitReverseFulfillmentOrderId,
   reverseDeliveryLineItems: [
@@ -603,8 +826,27 @@ await writeJson(fixturePath, {
     updatedTrackingInput,
     labelInput,
   },
+  reverseDeliveryCreateValidation: {
+    missingReverseFulfillmentOrder: missingReverseFulfillmentOrderCreate,
+    wrongTypeReverseFulfillmentOrder: wrongTypeReverseFulfillmentOrderCreate,
+    missingReverseFulfillmentOrderLine: missingReverseFulfillmentOrderLineCreate,
+    wrongTypeReverseFulfillmentOrderLine: wrongTypeReverseFulfillmentOrderLineCreate,
+    unrelatedReverseFulfillmentOrderLine: unrelatedReverseFulfillmentOrderLineCreate,
+    duplicateReverseFulfillmentOrderLine: duplicateReverseDeliveryLineCreate,
+    overQuantity: overQuantityReverseDeliveryCreate,
+  },
   reverseDeliveryCreate,
+  reverseDeliveryUpdateValidation: {
+    missingReverseDelivery: missingReverseDeliveryUpdate,
+    wrongTypeReverseDelivery: wrongTypeReverseDeliveryUpdate,
+  },
   reverseDeliveryUpdate,
+  reverseFulfillmentDisposeValidation: {
+    missingReverseFulfillmentOrderLine: missingReverseFulfillmentOrderLineDispose,
+    wrongTypeReverseFulfillmentOrderLine: wrongTypeReverseFulfillmentOrderLineDispose,
+    missingLocation: missingLocationDispose,
+    wrongTypeLocation: wrongTypeLocationDispose,
+  },
   reverseFulfillmentDispose,
   downstreamRead,
   returnProcess,
@@ -622,6 +864,22 @@ await writeJson(fixturePath, {
         body: returnOrderHydrate.payload,
       },
     },
+    recordedUpstreamCall(validRfoHydrateBeforeCreate, 'ReverseLogisticsRfoMutationHydrate'),
+    recordedUpstreamCall(validRfoHydrateBeforeDuplicateValidation, 'ReverseLogisticsRfoMutationHydrate'),
+    recordedUpstreamCall(validRfoHydrateBeforeQuantityValidation, 'ReverseLogisticsRfoMutationHydrate'),
+    recordedUpstreamCall(validRfoHydrateBeforeColdCreate, 'ReverseLogisticsRfoMutationHydrate'),
+    recordedUpstreamCall(explicitRfoHydrateBeforeCreate, 'ReverseLogisticsRfoMutationHydrate'),
+    recordedUpstreamCall(missingRfoHydrate, 'ReverseLogisticsRfoMutationHydrate'),
+    recordedUpstreamCall(wrongTypeRfoHydrate, 'ReverseLogisticsRfoMutationHydrate'),
+    recordedUpstreamCall(validDeliveryHydrateBeforeUpdate, 'ReverseLogisticsDeliveryMutationHydrate'),
+    recordedUpstreamCall(missingDeliveryHydrate, 'ReverseLogisticsDeliveryMutationHydrate'),
+    recordedUpstreamCall(wrongTypeDeliveryHydrate, 'ReverseLogisticsDeliveryMutationHydrate'),
+    recordedUpstreamCall(validDisposeHydrateBeforeDispose, 'ReverseLogisticsDisposeMutationHydrate'),
+    recordedUpstreamCall(locationOnlyDisposeHydrate, 'ReverseLogisticsDisposeMutationHydrate'),
+    recordedUpstreamCall(missingLineDisposeHydrate, 'ReverseLogisticsDisposeMutationHydrate'),
+    recordedUpstreamCall(wrongTypeLineDisposeHydrate, 'ReverseLogisticsDisposeMutationHydrate'),
+    recordedUpstreamCall(missingLocationDisposeHydrate, 'ReverseLogisticsDisposeMutationHydrate'),
+    recordedUpstreamCall(wrongTypeLocationDisposeHydrate, 'ReverseLogisticsDisposeMutationHydrate'),
   ],
 });
 

@@ -1,0 +1,77 @@
+query ReverseLogisticsRfoMutationHydrate($id: ID!) {
+  reverseFulfillmentOrder(id: $id) {
+    __typename
+    id
+    status
+    order {
+      id
+    }
+    lineItems(first: 50) {
+      nodes {
+        __typename
+        id
+        totalQuantity
+        fulfillmentLineItem {
+          id
+          lineItem {
+            id
+            variant {
+              id
+            }
+          }
+        }
+        dispositions {
+          __typename
+          id
+          type
+          quantity
+          createdAt
+          location {
+            id
+          }
+        }
+      }
+    }
+    reverseDeliveries(first: 50) {
+      nodes {
+        __typename
+        id
+        reverseDeliveryLineItems(first: 50) {
+          nodes {
+            __typename
+            id
+            quantity
+            reverseFulfillmentOrderLineItem {
+              id
+            }
+            dispositions {
+              __typename
+              id
+              type
+              quantity
+              createdAt
+              location {
+                id
+              }
+            }
+          }
+        }
+        deliverable {
+          __typename
+          ... on ReverseDeliveryShippingDeliverable {
+            tracking {
+              number
+              url
+              carrierName
+            }
+            label {
+              publicFileUrl
+              createdAt
+              updatedAt
+            }
+          }
+        }
+      }
+    }
+  }
+}

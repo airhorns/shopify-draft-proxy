@@ -13,7 +13,12 @@
     "reverseFulfillmentOrderDispose"
   ],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "lifecycle-transition-parity", "downstream-read-parity"],
+  "assertionKinds": [
+    "payload-shape",
+    "lifecycle-transition-parity",
+    "downstream-read-parity",
+    "validation-error-parity"
+  ],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-recorded.json"
   ],
@@ -22,7 +27,7 @@
     "variablesCapturePath": "$.returnRequest.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live 2026-04 HAR-442 recording for return request approval, explicit multi-line and empty reverseDeliveryLineItems expansion, ReverseDeliveryLabelInput.fileUrl, shipping update, NOT_RESTOCKED reverse fulfillment disposal on a disposable custom order line, return processing, and downstream top-level/order reads. Shopify's live schema exposes ReverseFulfillmentOrderLineItem.dispositions rather than the older local convenience dispositionType/remainingQuantity fields.",
+  "notes": "Live 2026-04 recording for return request approval, authoritative cold reverse-logistics hydration, missing/wrong-type/unrelated/duplicate/quantity validation, explicit multi-line and empty reverseDeliveryLineItems expansion, ReverseDeliveryLabelInput.fileUrl, shipping update, NOT_RESTOCKED reverse fulfillment disposal, return processing, and downstream top-level/order reads. Shopify's live schema exposes ReverseFulfillmentOrderLineItem.dispositions rather than the older local convenience dispositionType/remainingQuantity fields. Shopify accepted over-quantity disposal in this custom-line setup, so the stricter local guard remains runtime-tested rather than claimed as captured parity.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -141,6 +146,180 @@
               }
             }
           }
+        }
+      },
+      {
+        "name": "cold-create-missing-rfo",
+        "capturePath": "$.reverseDeliveryCreateValidation.missingReverseFulfillmentOrder.response.payload.data.reverseDeliveryCreateWithShipping",
+        "proxyPath": "$.data.reverseDeliveryCreateWithShipping",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/reverse-delivery-create-with-shipping-recorded.graphql",
+          "variablesCapturePath": "$.reverseDeliveryCreateValidation.missingReverseFulfillmentOrder.variables"
+        }
+      },
+      {
+        "name": "cold-create-wrong-type-rfo",
+        "capturePath": "$.reverseDeliveryCreateValidation.wrongTypeReverseFulfillmentOrder.response.payload",
+        "proxyPath": "$",
+        "selectedPaths": [
+          "$.data.reverseDeliveryCreateWithShipping",
+          "$.errors[0].message",
+          "$.errors[0].extensions.code",
+          "$.errors[0].path"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/reverse-delivery-create-with-shipping-recorded.graphql",
+          "variablesCapturePath": "$.reverseDeliveryCreateValidation.wrongTypeReverseFulfillmentOrder.variables"
+        }
+      },
+      {
+        "name": "cold-create-missing-rfo-line",
+        "capturePath": "$.reverseDeliveryCreateValidation.missingReverseFulfillmentOrderLine.response.payload.data.reverseDeliveryCreateWithShipping",
+        "proxyPath": "$.data.reverseDeliveryCreateWithShipping",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/reverse-delivery-create-with-shipping-recorded.graphql",
+          "variablesCapturePath": "$.reverseDeliveryCreateValidation.missingReverseFulfillmentOrderLine.variables"
+        }
+      },
+      {
+        "name": "cold-create-wrong-type-rfo-line",
+        "capturePath": "$.reverseDeliveryCreateValidation.wrongTypeReverseFulfillmentOrderLine.response.payload",
+        "proxyPath": "$",
+        "selectedPaths": [
+          "$.data.reverseDeliveryCreateWithShipping",
+          "$.errors[0].message",
+          "$.errors[0].extensions.code",
+          "$.errors[0].path"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/reverse-delivery-create-with-shipping-recorded.graphql",
+          "variablesCapturePath": "$.reverseDeliveryCreateValidation.wrongTypeReverseFulfillmentOrderLine.variables"
+        }
+      },
+      {
+        "name": "cold-create-unrelated-rfo-line",
+        "capturePath": "$.reverseDeliveryCreateValidation.unrelatedReverseFulfillmentOrderLine.response.payload.data.reverseDeliveryCreateWithShipping",
+        "proxyPath": "$.data.reverseDeliveryCreateWithShipping",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/reverse-delivery-create-with-shipping-recorded.graphql",
+          "variablesCapturePath": "$.reverseDeliveryCreateValidation.unrelatedReverseFulfillmentOrderLine.variables"
+        }
+      },
+      {
+        "name": "cold-create-duplicate-rfo-line",
+        "capturePath": "$.reverseDeliveryCreateValidation.duplicateReverseFulfillmentOrderLine.response.payload.data.reverseDeliveryCreateWithShipping",
+        "proxyPath": "$.data.reverseDeliveryCreateWithShipping",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/reverse-delivery-create-with-shipping-recorded.graphql",
+          "variablesCapturePath": "$.reverseDeliveryCreateValidation.duplicateReverseFulfillmentOrderLine.variables"
+        }
+      },
+      {
+        "name": "cold-create-over-quantity",
+        "capturePath": "$.reverseDeliveryCreateValidation.overQuantity.response.payload.data.reverseDeliveryCreateWithShipping",
+        "proxyPath": "$.data.reverseDeliveryCreateWithShipping",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/reverse-delivery-create-with-shipping-recorded.graphql",
+          "variablesCapturePath": "$.reverseDeliveryCreateValidation.overQuantity.variables"
+        }
+      },
+      {
+        "name": "cold-update-missing-delivery",
+        "capturePath": "$.reverseDeliveryUpdateValidation.missingReverseDelivery.response.payload.data.reverseDeliveryShippingUpdate",
+        "proxyPath": "$.data.reverseDeliveryShippingUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/reverse-delivery-shipping-update-recorded.graphql",
+          "variablesCapturePath": "$.reverseDeliveryUpdateValidation.missingReverseDelivery.variables"
+        }
+      },
+      {
+        "name": "cold-update-wrong-type-delivery",
+        "capturePath": "$.reverseDeliveryUpdateValidation.wrongTypeReverseDelivery.response.payload",
+        "proxyPath": "$",
+        "selectedPaths": [
+          "$.data.reverseDeliveryShippingUpdate",
+          "$.errors[0].message",
+          "$.errors[0].extensions.code",
+          "$.errors[0].path"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/reverse-delivery-shipping-update-recorded.graphql",
+          "variablesCapturePath": "$.reverseDeliveryUpdateValidation.wrongTypeReverseDelivery.variables"
+        }
+      },
+      {
+        "name": "cold-dispose-missing-rfo-line",
+        "capturePath": "$.reverseFulfillmentDisposeValidation.missingReverseFulfillmentOrderLine.response.payload.data.reverseFulfillmentOrderDispose",
+        "proxyPath": "$.data.reverseFulfillmentOrderDispose",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/reverse-fulfillment-order-dispose-recorded.graphql",
+          "variablesCapturePath": "$.reverseFulfillmentDisposeValidation.missingReverseFulfillmentOrderLine.variables"
+        }
+      },
+      {
+        "name": "cold-dispose-wrong-type-rfo-line",
+        "capturePath": "$.reverseFulfillmentDisposeValidation.wrongTypeReverseFulfillmentOrderLine.response.payload",
+        "proxyPath": "$",
+        "selectedPaths": [
+          "$.data.reverseFulfillmentOrderDispose",
+          "$.errors[0].message",
+          "$.errors[0].extensions.code",
+          "$.errors[0].path"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/reverse-fulfillment-order-dispose-recorded.graphql",
+          "variablesCapturePath": "$.reverseFulfillmentDisposeValidation.wrongTypeReverseFulfillmentOrderLine.variables"
+        }
+      },
+      {
+        "name": "cold-dispose-missing-location",
+        "capturePath": "$.reverseFulfillmentDisposeValidation.missingLocation.response.payload.data.reverseFulfillmentOrderDispose",
+        "proxyPath": "$.data.reverseFulfillmentOrderDispose",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/reverse-fulfillment-order-dispose-recorded.graphql",
+          "variablesCapturePath": "$.reverseFulfillmentDisposeValidation.missingLocation.variables"
+        }
+      },
+      {
+        "name": "cold-dispose-wrong-type-location",
+        "capturePath": "$.reverseFulfillmentDisposeValidation.wrongTypeLocation.response.payload",
+        "proxyPath": "$",
+        "selectedPaths": [
+          "$.data.reverseFulfillmentOrderDispose",
+          "$.errors[0].message",
+          "$.errors[0].extensions.code",
+          "$.errors[0].path"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/reverse-fulfillment-order-dispose-recorded.graphql",
+          "variablesCapturePath": "$.reverseFulfillmentDisposeValidation.wrongTypeLocation.variables"
+        }
+      },
+      {
+        "name": "cold-reverse-fulfillment-dispose-payload",
+        "capturePath": "$.reverseFulfillmentDispose.response.payload.data.reverseFulfillmentOrderDispose",
+        "proxyPath": "$.data.reverseFulfillmentOrderDispose",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/reverse-fulfillment-order-dispose-recorded.graphql",
+          "variablesCapturePath": "$.reverseFulfillmentDispose.variables"
+        }
+      },
+      {
+        "name": "cold-reverse-delivery-create-payload",
+        "capturePath": "$.reverseDeliveryCreate.response.payload.data.reverseDeliveryCreateWithShipping",
+        "proxyPath": "$.data.reverseDeliveryCreateWithShipping",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/reverse-delivery-create-with-shipping-recorded.graphql",
+          "variablesCapturePath": "$.reverseDeliveryCreate.variables"
+        }
+      },
+      {
+        "name": "cold-reverse-delivery-update-payload",
+        "capturePath": "$.reverseDeliveryUpdate.response.payload.data.reverseDeliveryShippingUpdate",
+        "proxyPath": "$.data.reverseDeliveryShippingUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/reverse-delivery-shipping-update-recorded.graphql",
+          "variablesCapturePath": "$.reverseDeliveryUpdate.variables"
         }
       },
       {
