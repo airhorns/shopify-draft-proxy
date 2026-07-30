@@ -4,6 +4,7 @@ import 'dotenv/config';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { captureMetafieldsSetOwnerExistence } from './conformance-capture-lib.js';
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
@@ -218,6 +219,7 @@ try {
   requireNoUserErrors(productCreate.response, ['data', 'productCreate', 'userErrors'], 'productCreate setup');
   productId = requireString(readPath(productCreate.response, ['data', 'productCreate', 'product', 'id']), 'product id');
 
+  upstreamCalls.push(await captureMetafieldsSetOwnerExistence(runGraphqlRaw, apiVersion, [productId]));
   upstreamCalls.push(
     await recordUpstreamCall('MetafieldDefinitionHydrateByIdentifier', hydrateByIdentifierDocument, {
       identifier: { ownerType: 'PRODUCT', namespace, key },

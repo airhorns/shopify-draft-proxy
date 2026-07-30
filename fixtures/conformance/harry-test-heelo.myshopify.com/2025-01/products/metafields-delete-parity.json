@@ -3,12 +3,12 @@
     "variables": {
       "metafields": [
         {
-          "ownerId": "gid://shopify/Product/10225391599922",
+          "ownerId": "gid://shopify/Product/10252752617778",
           "namespace": "custom",
           "key": "material"
         },
         {
-          "ownerId": "gid://shopify/Product/10225391599922",
+          "ownerId": "gid://shopify/Product/10252752617778",
           "namespace": "custom",
           "key": "missing"
         }
@@ -21,7 +21,7 @@
             {
               "key": "material",
               "namespace": "custom",
-              "ownerId": "gid://shopify/Product/10225391599922"
+              "ownerId": "gid://shopify/Product/10252752617778"
             },
             null
           ],
@@ -42,15 +42,15 @@
     }
   },
   "downstreamReadVariables": {
-    "id": "gid://shopify/Product/10225391599922"
+    "id": "gid://shopify/Product/10252752617778"
   },
   "downstreamRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/10225391599922",
+        "id": "gid://shopify/Product/10252752617778",
         "primarySpec": null,
         "origin": {
-          "id": "gid://shopify/Metafield/44627837878578",
+          "id": "gid://shopify/Metafield/45359477031218",
           "namespace": "details",
           "key": "origin",
           "type": "single_line_text_field",
@@ -58,7 +58,7 @@
           "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3"
         },
         "season": {
-          "id": "gid://shopify/Metafield/44627838075186",
+          "id": "gid://shopify/Metafield/45359477358898",
           "namespace": "details",
           "key": "season",
           "type": "single_line_text_field",
@@ -68,7 +68,7 @@
         "metafields": {
           "nodes": [
             {
-              "id": "gid://shopify/Metafield/44627837878578",
+              "id": "gid://shopify/Metafield/45359477031218",
               "namespace": "details",
               "key": "origin",
               "type": "single_line_text_field",
@@ -76,7 +76,7 @@
               "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3"
             },
             {
-              "id": "gid://shopify/Metafield/44627838075186",
+              "id": "gid://shopify/Metafield/45359477358898",
               "namespace": "details",
               "key": "season",
               "type": "single_line_text_field",
@@ -84,7 +84,7 @@
               "compareDigest": "f1425e64410adace8ddc7c055fb7f8e45b07a3d25b99ed49e4d58230fa241899"
             },
             {
-              "id": "gid://shopify/Metafield/44627838173490",
+              "id": "gid://shopify/Metafield/45359477424434",
               "namespace": "app--347082227713",
               "key": "missing_namespace",
               "type": "single_line_text_field",
@@ -95,8 +95,8 @@
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjo0NDYyNzgzNzg3ODU3OCwibGFzdF92YWx1ZSI6IjQ0NjI3ODM3ODc4NTc4In0=",
-            "endCursor": "eyJsYXN0X2lkIjo0NDYyNzgzODE3MzQ5MCwibGFzdF92YWx1ZSI6IjQ0NjI3ODM4MTczNDkwIn0="
+            "startCursor": "eyJsYXN0X2lkIjo0NTM1OTQ3NzAzMTIxOCwibGFzdF92YWx1ZSI6IjQ1MzU5NDc3MDMxMjE4In0=",
+            "endCursor": "eyJsYXN0X2lkIjo0NTM1OTQ3NzQyNDQzNCwibGFzdF92YWx1ZSI6IjQ1MzU5NDc3NDI0NDM0In0="
           }
         }
       }
@@ -166,7 +166,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1988,
                 "restoreRate": 100
               }
             }
@@ -178,7 +178,7 @@
       "variables": {
         "metafields": [
           {
-            "ownerId": "gid://shopify/Product/10225391599922",
+            "ownerId": "gid://shopify/Product/10252752617778",
             "namespace": "custom"
           }
         ]
@@ -199,7 +199,7 @@
                 "code": "INVALID_VARIABLE",
                 "value": [
                   {
-                    "ownerId": "gid://shopify/Product/10225391599922",
+                    "ownerId": "gid://shopify/Product/10252752617778",
                     "namespace": "custom"
                   }
                 ],

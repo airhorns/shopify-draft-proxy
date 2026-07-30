@@ -4,6 +4,11 @@ import 'dotenv/config';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import {
+  captureMetafieldsSetOwnerExistence,
+  recordParityUpstreamCalls,
+  type RecordedUpstreamCall,
+} from './conformance-capture-lib.js';
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
@@ -176,6 +181,59 @@ let appMetafieldsSet: CapturedInteraction | undefined;
 let appReservedDeleteNoFlag: CapturedInteraction | undefined;
 let appDefinitionReadAfterGuard: CapturedInteraction | undefined;
 let appReservedDeleteWithFlag: CapturedInteraction | undefined;
+let ownerExistence: RecordedUpstreamCall | null = null;
+let recordedUpstreamCalls: RecordedUpstreamCall[] | null = null;
+
+function requiredFixture() {
+  if (
+    !standardEnable ||
+    !standardImmutableUpdate ||
+    !standardReadAfterRejectedUpdate ||
+    !productCreate ||
+    !appDefinitionCreate ||
+    !appMetafieldsSet ||
+    !appReservedDeleteNoFlag ||
+    !appDefinitionReadAfterGuard ||
+    !appReservedDeleteWithFlag
+  ) {
+    throw new Error('Capture did not complete all required interactions; cleanup was attempted.');
+  }
+
+  return {
+    capturedAt: new Date().toISOString(),
+    storeDomain,
+    apiVersion,
+    seed: {
+      runId,
+      requestingApiClientId,
+      appNamespaceInput,
+      appNamespaceResolved,
+      standardTemplateId: 'gid://shopify/StandardMetafieldDefinitionTemplate/1',
+      standardCreatedByCapture,
+    },
+    standard: {
+      beforeRead: standardBeforeRead,
+      enable: standardEnable,
+      immutableUpdate: standardImmutableUpdate,
+      readAfterRejectedUpdate: standardReadAfterRejectedUpdate,
+    },
+    appReserved: {
+      productCreate,
+      definitionCreate: appDefinitionCreate,
+      metafieldsSet: appMetafieldsSet,
+      deleteNoFlag: appReservedDeleteNoFlag,
+      readAfterGuard: appDefinitionReadAfterGuard,
+      deleteWithFlag: appReservedDeleteWithFlag,
+    },
+    cleanup,
+    upstreamCalls: recordedUpstreamCalls ?? (ownerExistence ? [ownerExistence] : []),
+  };
+}
+
+async function writeFixture(): Promise<void> {
+  await mkdir(outputDir, { recursive: true });
+  await writeFile(outputPath, `${JSON.stringify(requiredFixture(), null, 2)}\n`, 'utf8');
+}
 
 const standardBeforeRead = await captureDocument('standard definition pre-read', requestPaths.read, {
   identifier: standardIdentifier,
@@ -230,6 +288,7 @@ try {
   });
   assertNoUserErrors(productCreate.response, ['data', 'productCreate', 'userErrors'], 'productCreate');
   productId = readStringPath(productCreate.response, ['data', 'productCreate', 'product', 'id'], 'productCreate');
+  ownerExistence = await captureMetafieldsSetOwnerExistence(runGraphqlRaw, apiVersion, [productId]);
 
   appDefinitionCreate = await captureDocument('app-reserved metafieldDefinitionCreate', requestPaths.appCreate, {
     definition: {
@@ -293,6 +352,14 @@ try {
     'app-reserved metafieldDefinitionDelete with flag',
   );
   appDefinitionId = undefined;
+
+  await writeFixture();
+  recordedUpstreamCalls = recordParityUpstreamCalls(['metafield-definition-protected-guards'], apiVersion, [
+    outputPath,
+  ])[outputPath]?.filter(
+    (call) =>
+      call.operationName !== 'MetafieldDefinitionsHydrateByNamespace' || call.variables['namespace'] !== 'descriptors',
+  );
 } finally {
   if (appDefinitionId) {
     cleanup.push(await cleanupDefinition(appDefinitionId));
@@ -305,50 +372,5 @@ try {
   }
 }
 
-if (
-  !standardEnable ||
-  !standardImmutableUpdate ||
-  !standardReadAfterRejectedUpdate ||
-  !productCreate ||
-  !appDefinitionCreate ||
-  !appMetafieldsSet ||
-  !appReservedDeleteNoFlag ||
-  !appDefinitionReadAfterGuard ||
-  !appReservedDeleteWithFlag
-) {
-  throw new Error('Capture did not complete all required interactions; cleanup was attempted.');
-}
-
-const fixture = {
-  capturedAt: new Date().toISOString(),
-  storeDomain,
-  apiVersion,
-  seed: {
-    runId,
-    requestingApiClientId,
-    appNamespaceInput,
-    appNamespaceResolved,
-    standardTemplateId: 'gid://shopify/StandardMetafieldDefinitionTemplate/1',
-    standardCreatedByCapture,
-  },
-  standard: {
-    beforeRead: standardBeforeRead,
-    enable: standardEnable,
-    immutableUpdate: standardImmutableUpdate,
-    readAfterRejectedUpdate: standardReadAfterRejectedUpdate,
-  },
-  appReserved: {
-    productCreate,
-    definitionCreate: appDefinitionCreate,
-    metafieldsSet: appMetafieldsSet,
-    deleteNoFlag: appReservedDeleteNoFlag,
-    readAfterGuard: appDefinitionReadAfterGuard,
-    deleteWithFlag: appReservedDeleteWithFlag,
-  },
-  cleanup,
-  upstreamCalls: [],
-};
-
-await mkdir(outputDir, { recursive: true });
-await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
+await writeFixture();
 console.log(`Wrote ${outputPath}`);

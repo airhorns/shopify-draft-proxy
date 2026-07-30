@@ -4,6 +4,11 @@ import 'dotenv/config';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import {
+  captureMetafieldsSetOwnerExistence,
+  recordParityUpstreamCalls,
+  type RecordedUpstreamCall,
+} from './conformance-capture-lib.js';
 import { createAdminGraphqlClient, type ConformanceGraphqlPayload } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
@@ -37,7 +42,7 @@ const [metafieldsSetMutation, downstreamReadQuery, inputValidationMutation] = aw
   readFile(inputValidationDocumentPath, 'utf8'),
 ]);
 
-const { runGraphql } = createAdminGraphqlClient({
+const { runGraphql, runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
@@ -205,7 +210,33 @@ let setup: CapturedGraphqlCall<{ product: { title: string; status: 'DRAFT' } }, 
 let acceptedSet: CapturedGraphqlCall<MetafieldsSetVariables> | null = null;
 let downstreamRead: CapturedGraphqlCall<ProductReadVariables> | null = null;
 let cleanup: ConformanceGraphqlPayload<ProductDeleteData> | null = null;
+let ownerExistence: RecordedUpstreamCall | null = null;
+let recordedUpstreamCalls: RecordedUpstreamCall[] | null = null;
 const invalidCases: Record<string, CapturedGraphqlCall<MetafieldsSetVariables>> = {};
+
+function buildFixture() {
+  if (!setup || !productId || !acceptedSet || !downstreamRead || Object.keys(invalidCases).length === 0) {
+    throw new Error('metafieldsSet value type fidelity capture did not produce all required calls.');
+  }
+  return {
+    scenarioId: 'metafieldsSet-value-type-fidelity',
+    storeDomain,
+    apiVersion,
+    capturedAt: new Date().toISOString(),
+    setup: {
+      createProduct: setup,
+    },
+    acceptedSet,
+    downstreamRead,
+    invalidCases,
+    cleanup,
+    upstreamCalls: recordedUpstreamCalls ?? (ownerExistence ? [ownerExistence] : []),
+  };
+}
+
+async function writeFixture(): Promise<void> {
+  await writeFile(outputPath, `${JSON.stringify(buildFixture(), null, 2)}\n`, 'utf8');
+}
 
 try {
   const setupVariables = {
@@ -222,6 +253,7 @@ try {
   if (!productId) {
     throw new Error(`Product setup failed: ${JSON.stringify(setup.response)}`);
   }
+  ownerExistence = await captureMetafieldsSetOwnerExistence(runGraphqlRequest, apiVersion, [productId]);
 
   acceptedSet = await captureMetafieldsSet(metafieldsSetMutation, buildAcceptedSet(productId, namespace));
 
@@ -237,6 +269,10 @@ try {
   for (const [caseName, variables] of Object.entries(buildInvalidCases(productId, namespace))) {
     invalidCases[caseName] = await captureMetafieldsSet(inputValidationMutation, variables);
   }
+  await writeFixture();
+  recordedUpstreamCalls = recordParityUpstreamCalls(['metafieldsSet-value-type-fidelity'], apiVersion, [outputPath])[
+    outputPath
+  ];
 } finally {
   if (productId) {
     try {
@@ -260,32 +296,7 @@ try {
   }
 }
 
-if (!setup || !productId || !acceptedSet || !downstreamRead || Object.keys(invalidCases).length === 0) {
-  throw new Error('metafieldsSet value type fidelity capture did not produce all required calls.');
-}
-
-await writeFile(
-  outputPath,
-  `${JSON.stringify(
-    {
-      scenarioId: 'metafieldsSet-value-type-fidelity',
-      storeDomain,
-      apiVersion,
-      capturedAt: new Date().toISOString(),
-      setup: {
-        createProduct: setup,
-      },
-      acceptedSet,
-      downstreamRead,
-      invalidCases,
-      cleanup,
-      upstreamCalls: [],
-    },
-    null,
-    2,
-  )}\n`,
-  'utf8',
-);
+await writeFixture();
 
 console.log(
   JSON.stringify(

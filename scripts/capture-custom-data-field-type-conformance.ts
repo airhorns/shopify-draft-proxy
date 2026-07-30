@@ -4,6 +4,11 @@ import 'dotenv/config';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import {
+  captureMetafieldsSetOwnerExistence,
+  recordParityUpstreamCalls,
+  type RecordedUpstreamCall,
+} from './conformance-capture-lib.js';
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
@@ -90,6 +95,22 @@ const productDeleteMutation = `#graphql
   mutation CustomDataTypeMatrixProductDelete($input: ProductDeleteInput!) {
     productDelete(input: $input) {
       deletedProductId
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const metafieldsDeleteMutation = `#graphql
+  mutation CustomDataTypeMatrixMetafieldsDelete($metafields: [MetafieldIdentifierInput!]!) {
+    metafieldsDelete(metafields: $metafields) {
+      deletedMetafields {
+        ownerId
+        namespace
+        key
+      }
       userErrors {
         field
         message
@@ -606,6 +627,7 @@ const metaobjectMatrices: Array<{
   downstreamRead: Capture;
 }> = [];
 const cleanupCaptures: Capture[] = [];
+let ownerExistence: RecordedUpstreamCall | null = null;
 
 try {
   const currencyCapture = await captureGraphql('shop-currency-read', shopCurrencyQuery, {});
@@ -625,6 +647,7 @@ try {
     'productCreate variant',
   );
   setupCaptures.push(productCreate);
+  ownerExistence = await captureMetafieldsSetOwnerExistence(runGraphqlRaw, apiVersion, [seed.productId]);
 
   const collectionCreate = await runSuccessMutation(
     'setup-collection-create',
@@ -791,58 +814,70 @@ try {
     });
   }
 
-  await cleanup(cleanupCaptures);
-
-  await mkdir(outputDir, { recursive: true });
-  await writeFile(
-    outputPath,
-    `${JSON.stringify(
+  const fixture = {
+    capturedAt: new Date().toISOString(),
+    storeDomain,
+    apiVersion,
+    seed,
+    metafieldCoveredTypes: metafieldCoveredCases.map((typeCase) => typeCase.type),
+    metaobjectCoveredTypes: metaobjectCoveredCases.map((typeCase) => typeCase.type),
+    excludedTypes: [
       {
-        capturedAt: new Date().toISOString(),
-        storeDomain,
-        apiVersion,
-        seed,
-        metafieldCoveredTypes: metafieldCoveredCases.map((typeCase) => typeCase.type),
-        metaobjectCoveredTypes: metaobjectCoveredCases.map((typeCase) => typeCase.type),
-        excludedTypes: [
-          {
-            types: [
-              'id',
-              'list.id',
-              'metaobject_reference',
-              'list.metaobject_reference',
-              'mixed_reference',
-              'list.mixed_reference',
-              'company_reference',
-              'list.company_reference',
-              'customer_reference',
-              'list.customer_reference',
-              'file_reference',
-              'list.file_reference',
-              'page_reference',
-              'list.page_reference',
-              'article_reference',
-              'list.article_reference',
-              'order_reference',
-              'list.order_reference',
-              'product_taxonomy_value_reference',
-              'list.product_taxonomy_value_reference',
-            ],
-            reason:
-              'These require separate definition-backed metafield or resource-specific setup not covered by the product-owned metafieldsSet portion of this disposable matrix. Metaobject-owned id/metaobject/mixed reference fields are covered by metaobjectCoveredTypes.',
-          },
+        types: [
+          'id',
+          'list.id',
+          'metaobject_reference',
+          'list.metaobject_reference',
+          'mixed_reference',
+          'list.mixed_reference',
+          'company_reference',
+          'list.company_reference',
+          'customer_reference',
+          'list.customer_reference',
+          'file_reference',
+          'list.file_reference',
+          'page_reference',
+          'list.page_reference',
+          'article_reference',
+          'list.article_reference',
+          'order_reference',
+          'list.order_reference',
+          'product_taxonomy_value_reference',
+          'list.product_taxonomy_value_reference',
         ],
-        setup: setupCaptures,
-        seededReads,
-        preconditionRead,
-        metafieldBatches,
-        metaobjectMatrices,
-        cleanup: cleanupCaptures,
+        reason:
+          'These require separate definition-backed metafield or resource-specific setup not covered by the product-owned metafieldsSet portion of this disposable matrix. Metaobject-owned id/metaobject/mixed reference fields are covered by metaobjectCoveredTypes.',
       },
-      null,
-      2,
-    )}\n`,
-  );
+    ],
+    setup: setupCaptures,
+    seededReads,
+    preconditionRead,
+    metafieldBatches,
+    metaobjectMatrices,
+    cleanup: cleanupCaptures,
+    upstreamCalls: ownerExistence ? [ownerExistence] : [],
+  };
+  for (const [index, metafields] of chunk(
+    metafieldCoveredCases.map(({ key }) => ({ ownerId: seed.productId, namespace: seed.namespace, key })),
+    25,
+  ).entries()) {
+    cleanupCaptures.push(
+      await runSuccessMutation(`cleanup-metafields-delete-${index + 1}`, metafieldsDeleteMutation, { metafields }, [
+        'data',
+        'metafieldsDelete',
+        'userErrors',
+      ]),
+    );
+  }
+  await mkdir(outputDir, { recursive: true });
+  await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`);
+  fixture.upstreamCalls = recordParityUpstreamCalls(
+    ['custom-data-metafield-type-matrix', 'custom-data-metaobject-field-type-matrix'],
+    apiVersion,
+    [outputPath],
+  )[outputPath]!;
+  await cleanup(cleanupCaptures);
+  await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`);
   console.log(`Wrote ${outputPath}`);
 } catch (error) {
   try {

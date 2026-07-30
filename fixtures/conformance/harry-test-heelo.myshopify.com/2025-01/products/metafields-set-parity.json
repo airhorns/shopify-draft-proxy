@@ -3,14 +3,14 @@
     "variables": {
       "metafields": [
         {
-          "ownerId": "gid://shopify/Product/10225391599922",
+          "ownerId": "gid://shopify/Product/10252752617778",
           "namespace": "custom",
           "key": "material",
           "type": "single_line_text_field",
           "value": "Canvas"
         },
         {
-          "ownerId": "gid://shopify/Product/10225391599922",
+          "ownerId": "gid://shopify/Product/10252752617778",
           "namespace": "details",
           "key": "origin",
           "type": "single_line_text_field",
@@ -23,7 +23,7 @@
         "metafieldsSet": {
           "metafields": [
             {
-              "id": "gid://shopify/Metafield/44627837845810",
+              "id": "gid://shopify/Metafield/45359476998450",
               "namespace": "custom",
               "key": "material",
               "type": "single_line_text_field",
@@ -31,7 +31,7 @@
               "compareDigest": "5604f34413e7aa54d8576ec602e7824b1ddbba13c2ce6799e333fe4594278b64"
             },
             {
-              "id": "gid://shopify/Metafield/44627837878578",
+              "id": "gid://shopify/Metafield/45359477031218",
               "namespace": "details",
               "key": "origin",
               "type": "single_line_text_field",
@@ -56,14 +56,14 @@
     }
   },
   "downstreamReadVariables": {
-    "id": "gid://shopify/Product/10225391599922"
+    "id": "gid://shopify/Product/10252752617778"
   },
   "downstreamRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/10225391599922",
+        "id": "gid://shopify/Product/10252752617778",
         "primarySpec": {
-          "id": "gid://shopify/Metafield/44627837845810",
+          "id": "gid://shopify/Metafield/45359476998450",
           "namespace": "custom",
           "key": "material",
           "type": "single_line_text_field",
@@ -71,7 +71,7 @@
           "compareDigest": "5604f34413e7aa54d8576ec602e7824b1ddbba13c2ce6799e333fe4594278b64"
         },
         "origin": {
-          "id": "gid://shopify/Metafield/44627837878578",
+          "id": "gid://shopify/Metafield/45359477031218",
           "namespace": "details",
           "key": "origin",
           "type": "single_line_text_field",
@@ -82,7 +82,7 @@
         "metafields": {
           "nodes": [
             {
-              "id": "gid://shopify/Metafield/44627837845810",
+              "id": "gid://shopify/Metafield/45359476998450",
               "namespace": "custom",
               "key": "material",
               "type": "single_line_text_field",
@@ -90,7 +90,7 @@
               "compareDigest": "5604f34413e7aa54d8576ec602e7824b1ddbba13c2ce6799e333fe4594278b64"
             },
             {
-              "id": "gid://shopify/Metafield/44627837878578",
+              "id": "gid://shopify/Metafield/45359477031218",
               "namespace": "details",
               "key": "origin",
               "type": "single_line_text_field",
@@ -101,8 +101,8 @@
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjo0NDYyNzgzNzg0NTgxMCwibGFzdF92YWx1ZSI6IjQ0NjI3ODM3ODQ1ODEwIn0=",
-            "endCursor": "eyJsYXN0X2lkIjo0NDYyNzgzNzg3ODU3OCwibGFzdF92YWx1ZSI6IjQ0NjI3ODM3ODc4NTc4In0="
+            "startCursor": "eyJsYXN0X2lkIjo0NTM1OTQ3Njk5ODQ1MCwibGFzdF92YWx1ZSI6IjQ1MzU5NDc2OTk4NDUwIn0=",
+            "endCursor": "eyJsYXN0X2lkIjo0NTM1OTQ3NzAzMTIxOCwibGFzdF92YWx1ZSI6IjQ1MzU5NDc3MDMxMjE4In0="
           }
         }
       }
@@ -118,5 +118,101 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "OwnerMetafieldsExistenceHydrate",
+      "variables": {
+        "ids": ["gid://shopify/Product/10252752617778"]
+      },
+      "query": "query OwnerMetafieldsExistenceHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10252752617778"
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2025-01/graphql.json",
+      "apiSurface": "admin",
+      "query": "query OwnerMetafieldsHydrateNodes($ids: [ID!]!, $metafield0Namespace: String!, $metafield0Key: String!, $metafield1Namespace: String!, $metafield1Key: String!) { nodes(ids: $ids) { __typename id ... on HasMetafields { metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } metafield1: metafield(namespace: $metafield1Namespace, key: $metafield1Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } } ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt  } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } } ... on Collection { id title handle } ... on Customer { id displayName email } ... on Order { id name } ... on Company { id name } ... on Page { id title } ... on Article { id title } } }",
+      "operationName": "OwnerMetafieldsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/10252752617778"],
+        "metafield0Key": "material",
+        "metafield0Namespace": "custom",
+        "metafield1Key": "origin",
+        "metafield1Namespace": "details"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10252752617778",
+                "metafield0": null,
+                "metafield1": {
+                  "id": "gid://shopify/Metafield/45359477031218",
+                  "namespace": "details",
+                  "key": "origin",
+                  "type": "single_line_text_field",
+                  "value": "VN",
+                  "jsonValue": "VN",
+                  "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3",
+                  "createdAt": "2026-07-29T03:37:59Z",
+                  "updatedAt": "2026-07-29T03:37:59Z",
+                  "ownerType": "PRODUCT",
+                  "definition": null
+                },
+                "title": "Hermes Product Metafield Conformance 1785296278833",
+                "handle": "hermes-product-metafield-conformance-1785296278833",
+                "status": "DRAFT",
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "createdAt": "2026-07-29T03:37:58Z",
+                "updatedAt": "2026-07-29T03:38:07Z"
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

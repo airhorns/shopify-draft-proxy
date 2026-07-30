@@ -4,6 +4,7 @@ import 'dotenv/config';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { captureMetafieldsSetOwnerExistence, recordParityUpstreamCalls } from './conformance-capture-lib.js';
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
@@ -250,6 +251,7 @@ let pageId: string | null = null;
 let blogId: string | null = null;
 let articleId: string | null = null;
 let createdMarketId: string | null = null;
+let parityPrerequisitesCleaned = false;
 
 function readObject(value: unknown): JsonRecord | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as JsonRecord) : null;
@@ -329,8 +331,53 @@ async function cleanupCapture(label: string, query: string, variables: JsonRecor
   }
 }
 
+async function cleanupParityPrerequisites(): Promise<void> {
+  if (productId) {
+    await cleanupCapture('cleanup product metafields', metafieldsDeleteMutation, {
+      metafields: [{ ownerId: productId, namespace, key: 'starts_at' }],
+    });
+  }
+  if (pageId || articleId) {
+    const metafields = [
+      pageId ? { ownerId: pageId, namespace: ownerNamespace, key: 'page' } : null,
+      articleId ? { ownerId: articleId, namespace: ownerNamespace, key: 'article' } : null,
+    ].filter(Boolean);
+    if (metafields.length > 0) {
+      await cleanupCapture('cleanup online store owner metafields', metafieldsDeleteMutation, {
+        metafields: metafields as JsonRecord[],
+      });
+    }
+  }
+  const ownerMetafields = [];
+  const ownerTypes = readObject(fixture['ownerTypes']);
+  const locationId = ownerTypes?.['locationId'];
+  const marketId = ownerTypes?.['marketId'];
+  if (typeof locationId === 'string') {
+    ownerMetafields.push({ ownerId: locationId, namespace: ownerNamespace, key: 'location' });
+  }
+  if (typeof marketId === 'string') {
+    ownerMetafields.push({ ownerId: marketId, namespace: ownerNamespace, key: 'market' });
+  }
+  if (ownerMetafields.length > 0) {
+    await cleanupCapture('cleanup location and market owner metafields', metafieldsDeleteMutation, {
+      metafields: ownerMetafields,
+    });
+  }
+  for (const id of createdMetafieldDefinitionIds) {
+    await cleanupCapture('cleanup metafieldDefinitionDelete', metafieldDefinitionDeleteMutation, { id });
+  }
+  if (metaobjectId) {
+    await cleanupCapture('cleanup metaobjectDelete', metaobjectDeleteMutation, { id: metaobjectId });
+  }
+  for (const id of createdMetaobjectDefinitionIds) {
+    await cleanupCapture('cleanup metaobjectDefinitionDelete', metaobjectDefinitionDeleteMutation, { id });
+  }
+  parityPrerequisitesCleaned = true;
+}
+
 async function captureOwnerHydration(ids: string[]): Promise<void> {
   const sortedIds = [...ids].sort();
+  upstreamCalls.push(await captureMetafieldsSetOwnerExistence(runGraphqlRaw, apiVersion, sortedIds));
   const result = await runGraphqlRaw(ownerMetafieldsHydrateQuery, { ids: sortedIds });
   if (result.status < 200 || result.status >= 300 || result.payload.errors) {
     throw new Error(`Owner hydration cassette capture failed: ${JSON.stringify(result, null, 2)}`);
@@ -671,46 +718,19 @@ try {
     marketId,
     metafieldsSet: ownerTypeSet,
   };
+  await cleanupParityPrerequisites();
+  fixture['cleanup'] = cleanup;
+  fixture['upstreamCalls'] = upstreamCalls;
+  await mkdir(outputDir, { recursive: true });
+  await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
+  upstreamCalls.splice(
+    0,
+    upstreamCalls.length,
+    ...recordParityUpstreamCalls(['metafields-set-validation-gaps'], apiVersion, [outputPath])[outputPath]!,
+  );
 } finally {
-  if (productId) {
-    await cleanupCapture('cleanup product metafields', metafieldsDeleteMutation, {
-      metafields: [{ ownerId: productId, namespace, key: 'starts_at' }],
-    });
-  }
-  if (pageId || articleId || productId) {
-    const metafields = [
-      pageId ? { ownerId: pageId, namespace: ownerNamespace, key: 'page' } : null,
-      articleId ? { ownerId: articleId, namespace: ownerNamespace, key: 'article' } : null,
-    ].filter(Boolean);
-    if (metafields.length > 0) {
-      await cleanupCapture('cleanup online store owner metafields', metafieldsDeleteMutation, {
-        metafields: metafields as JsonRecord[],
-      });
-    }
-  }
-  const ownerMetafields = [];
-  const ownerTypes = readObject(fixture['ownerTypes']);
-  const locationId = ownerTypes?.['locationId'];
-  const marketId = ownerTypes?.['marketId'];
-  if (typeof locationId === 'string') {
-    ownerMetafields.push({ ownerId: locationId, namespace: ownerNamespace, key: 'location' });
-  }
-  if (typeof marketId === 'string') {
-    ownerMetafields.push({ ownerId: marketId, namespace: ownerNamespace, key: 'market' });
-  }
-  if (ownerMetafields.length > 0) {
-    await cleanupCapture('cleanup location and market owner metafields', metafieldsDeleteMutation, {
-      metafields: ownerMetafields,
-    });
-  }
-  for (const id of createdMetafieldDefinitionIds) {
-    await cleanupCapture('cleanup metafieldDefinitionDelete', metafieldDefinitionDeleteMutation, { id });
-  }
-  if (metaobjectId) {
-    await cleanupCapture('cleanup metaobjectDelete', metaobjectDeleteMutation, { id: metaobjectId });
-  }
-  for (const id of createdMetaobjectDefinitionIds) {
-    await cleanupCapture('cleanup metaobjectDefinitionDelete', metaobjectDefinitionDeleteMutation, { id });
+  if (!parityPrerequisitesCleaned) {
+    await cleanupParityPrerequisites();
   }
   if (articleId) {
     await cleanupCapture('cleanup articleDelete', articleDeleteMutation, { id: articleId });

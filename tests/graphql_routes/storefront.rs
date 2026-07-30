@@ -6033,7 +6033,8 @@ fn storefront_shop_metafields_require_storefront_definition_access() {
 }
 
 #[test]
-fn storefront_shop_metafields_use_staged_shop_owner_without_hydration() {
+fn storefront_shop_metafields_use_known_shop_owner_without_hydration() {
+    let shop_id = "gid://shopify/Shop/storefront-metafields-no-hydrate";
     let mut proxy = configured_proxy(
         ReadMode::LiveHybrid,
         Some(UnsupportedMutationMode::Passthrough),
@@ -6065,6 +6066,19 @@ fn storefront_shop_metafields_use_staged_shop_owner_without_hydration() {
             },
         }
     });
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["shop"] = json!({
+            "id": shop_id,
+            "name": "Known Storefront metafields shop",
+            "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                }
+            }
+        });
+    });
 
     stage_metafield_definition(
         &mut proxy,
@@ -6084,7 +6098,7 @@ fn storefront_shop_metafields_use_staged_shop_owner_without_hydration() {
     );
     stage_metafields_set(
         &mut proxy,
-        "gid://shopify/Shop/storefront-metafields-no-hydrate?shopify-draft-proxy=synthetic",
+        shop_id,
         json!([
             {
                 "namespace": "custom",
