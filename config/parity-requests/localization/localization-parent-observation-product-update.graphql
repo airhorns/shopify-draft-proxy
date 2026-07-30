@@ -1,0 +1,39 @@
+mutation LocalizationParentObservationProductUpdate($product: ProductUpdateInput!) {
+  productUpdate(product: $product) {
+    product {
+      id
+      title
+      handle
+      status
+      createdAt
+      updatedAt
+      descriptionHtml
+      vendor
+      productType
+      tags
+      templateSuffix
+      seo {
+        title
+        description
+      }
+      media(first: 10) {
+        nodes {
+          id
+          mediaContentType
+          status
+        }
+      }
+      collections(first: 10) {
+        nodes {
+          id
+          title
+          handle
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

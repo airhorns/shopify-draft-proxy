@@ -688,6 +688,7 @@ impl DraftProxy {
         }
         mark_product_staged_fields(&mut product, &staged_fields);
         self.store.stage_product(product.clone());
+        self.sync_localization_product_source_after_update(&product, &input);
         let mut response_product = product.clone();
         response_product.media = response_media;
 

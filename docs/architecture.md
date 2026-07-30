@@ -285,6 +285,9 @@ Inventory lifecycle preflights use the caller's Admin API path and headers for q
 Core state categories:
 
 - base state learned from snapshots, fixtures, or upstream reads
+- field-presence-aware localization source projections kept separately from
+  canonical Product and Collection records, so narrow translation reads cannot
+  claim parent completeness or suppress later canonical hydration
 - staged Store state for local inserts/updates/deletes and other local domain effects not yet committed
 - ordered mutation log entries containing original request path, headers, raw query, variables, capability metadata, resource IDs, and status
 - one store-owned synthetic identity sequence scoped to a `DraftProxy` instance, with allocation checking canonical aliases across persisted state and mutation logs
