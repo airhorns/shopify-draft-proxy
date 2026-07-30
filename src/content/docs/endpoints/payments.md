@@ -123,13 +123,14 @@ The checked-in capture `fixtures/conformance/harry-test-heelo.myshopify.com/2025
 Current 2025-01 fixture-backed no-data coverage:
 
 - `cashTrackingSession(id:)`, `pointOfSaleDevice(id:)`, `dispute(id:)`, and `shopPayPaymentRequestReceipt(token:)` return `null` for unknown identifiers.
-- Generic `node(id:)` / `nodes(ids:)` dispatch also returns Shopify-like `null` entries for unknown `CashTrackingSession`, `PointOfSaleDevice`, and `ShopifyPaymentsDispute` GIDs. This is no-data behavior only; non-empty finance, POS, and dispute Node payloads remain unsupported until scrubbed fixtures and local state models exist.
+- Generic `node(id:)` / `nodes(ids:)` dispatch returns Shopify-like `null` entries for unknown `CashTrackingSession`, `PointOfSaleDevice`, and `ShopifyPaymentsDispute` GIDs in Snapshot mode. These types are not registered in the local Node resolver inventory. In LiveHybrid they follow the generic unsupported-type forwarding path so Shopify can authoritatively return a non-empty node; once Shopify returns null for an exact ID, later generic reads may reuse that API-version-scoped authoritative miss until reset. Generic forwarding does not make their lifecycle locally supported.
 - `cashTrackingSessions(first: 1)` and `shopPayPaymentRequestReceipts(first: 1)` return empty connections with false `pageInfo` flags on the current store.
 - `disputes(first: 1)` returns an empty connection.
 - `disputeEvidence(id:)` and `shopifyPaymentsAccount` return `null` data alongside captured `ACCESS_DENIED` errors for the current credential; those are access results, not no-data evidence, and are not synthesized in Snapshot.
 
 Still-blocked sensitive coverage:
 
+- The active installation has `read_cash_tracking`, `write_cash_tracking`, and `read_shopify_payments_disputes`, but the conformance store has no cash drawers, cash-tracking sessions, POS payment sessions, POS-origin orders, or disputes. Admin GraphQL can discover devices only through existing drawers, payment sessions, or order transactions and has no device-create mutation; a device requires an external Shopify POS installation. A dispute requires a real external chargeback or inquiry and has no Admin create mutation. These store-capability boundaries prevent a non-empty Node capture; LiveHybrid coverage is therefore limited to generic forwarding mechanics rather than registered type support.
 - `disputeEvidence(id:)` is denied without `read_shopify_payments_dispute_evidences`.
 - `financeAppAccessPolicy` is denied without the required valid finance app user session/client; `financeKycInformation` is denied without `read_financial_kyc_information` plus finance-app permission.
 - `disputeEvidenceUpdate` is denied without `write_shopify_payments_dispute_evidences` plus staff dispute/order permission.
