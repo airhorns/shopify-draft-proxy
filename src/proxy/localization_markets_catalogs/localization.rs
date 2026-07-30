@@ -1,4 +1,13 @@
 use super::*;
+use crate::proxy::request_context::{AdminOperationContext, RequestCacheKey};
+
+fn localization_context_hydration_key() -> RequestCacheKey {
+    RequestCacheKey::singleton("localization-markets-context")
+}
+
+pub(super) fn markets_query_hydration_key() -> RequestCacheKey {
+    RequestCacheKey::singleton("markets-query")
+}
 
 pub(in crate::proxy) fn localization_field_resolver_registrations() -> Vec<FieldResolverRegistration>
 {
@@ -230,6 +239,49 @@ fn localization_mutation_target_ids(
 }
 
 impl DraftProxy {
+    pub(in crate::proxy) fn prepare_localization_markets_query(
+        &mut self,
+        context: &AdminOperationContext<'_>,
+    ) {
+        let mixed_surface = context.has_domain(CapabilityDomain::Localization)
+            && context.has_domain(CapabilityDomain::Markets)
+            && context.all_domains(|domain| {
+                matches!(
+                    domain,
+                    CapabilityDomain::Localization | CapabilityDomain::Markets
+                )
+            });
+        let has_local_localization_root = context.roots.iter().any(|root| {
+            matches!(
+                root.name.as_str(),
+                "translatableResource" | "translatableResources" | "translatableResourcesByIds"
+            ) && !self.localization_should_fetch_upstream(&root.name)
+        });
+        if self.config.read_mode != ReadMode::LiveHybrid
+            || context.operation_type != OperationType::Query
+            || !mixed_surface
+            || !has_local_localization_root
+            || !self.markets_should_fetch_upstream(context.roots, context.variables)
+        {
+            return;
+        }
+        let use_original_request = context
+            .roots
+            .iter()
+            .any(|root| matches!(root.name.as_str(), "shopLocales" | "availableLocales"));
+        self.preflight_localization_markets_context(
+            context.request,
+            context.roots,
+            use_original_request,
+        );
+        self.execution_session
+            .request_cache
+            .mark_complete(localization_context_hydration_key());
+        self.execution_session
+            .request_cache
+            .mark_complete(markets_query_hydration_key());
+    }
+
     pub(crate) fn localization_query_root(
         &mut self,
         invocation: RootInvocation<'_>,
@@ -242,7 +294,11 @@ impl DraftProxy {
             ..
         } = invocation;
         let arguments = resolved_arguments_from_json(&arguments);
-        if self.execution_session.localization_context_preflighted {
+        if self
+            .execution_session
+            .request_cache
+            .is_complete(&localization_context_hydration_key())
+        {
             return ResolverOutcome::value(self.localization_query_value(
                 root_name,
                 response_key,
@@ -307,10 +363,8 @@ impl DraftProxy {
         fields: &[RootFieldSelection],
         use_original_request: bool,
     ) {
-        self.execution_session.localization_context_preflighted = true;
-        self.execution_session.markets_query_preflighted = true;
         if use_original_request {
-            let response = (self.upstream_transport)(request.clone());
+            let response = self.cached_or_forward_upstream_response(request);
             if (200..300).contains(&response.status) && response.body.get("errors").is_none() {
                 self.hydrate_markets_from_upstream_for_fields(&response.body, fields);
                 self.hydrate_localization_from_upstream(&response.body);
@@ -326,7 +380,8 @@ impl DraftProxy {
         if first == 0 {
             return;
         }
-        let response = self.upstream_post(
+        let response = self.request_hydration_post_once(
+            markets_query_hydration_key(),
             request,
             json!({
                 "query": "query LocalizationMarketsHydrate($first: Int!) { markets(first: $first) { nodes { id name handle status type } } }",

@@ -1,5 +1,20 @@
 use super::media::media_file_record_from_node;
 use super::*;
+use crate::proxy::request_context::{AdminOperationContext, EntityEvidenceState, RequestCacheKey};
+
+pub(in crate::proxy) const OWNER_METAFIELD_EVIDENCE_SCOPE: &str = "owner-metafields";
+const OWNER_METAFIELD_FIELD_EVIDENCE_SCOPE: &str = "owner-metafield-field";
+
+fn owner_metafield_field_evidence_key(
+    owner_id: &str,
+    namespace: &str,
+    key: &str,
+) -> RequestCacheKey {
+    RequestCacheKey::composite(
+        OWNER_METAFIELD_FIELD_EVIDENCE_SCOPE,
+        &[owner_id, namespace, key],
+    )
+}
 
 pub(in crate::proxy) fn owner_metafield_field_resolver_registrations(
 ) -> Vec<FieldResolverRegistration> {
@@ -65,6 +80,19 @@ fn owner_metafields_field(
 }
 
 impl DraftProxy {
+    pub(in crate::proxy) fn prepare_owner_metafield_read(
+        &mut self,
+        context: &AdminOperationContext<'_>,
+    ) {
+        if context.operation_type != OperationType::Query
+            || !context.has_local_root()
+            || !self.should_route_owner_metafields_read(context.roots, context.variables)
+        {
+            return;
+        }
+        self.hydrate_owner_metafield_read_fields(context.request, context.roots, context.variables);
+    }
+
     pub(in crate::proxy) fn should_route_owner_metafields_read(
         &self,
         fields: &[RootFieldSelection],
@@ -819,9 +847,13 @@ impl DraftProxy {
             .map(|field| self.owner_field_id(field, variables))
             .filter(|owner_id| !owner_id.is_empty())
             .collect::<Vec<_>>();
-        self.execution_session
-            .owner_metafield_read_ids
-            .extend(requested_owner_ids);
+        for owner_id in requested_owner_ids {
+            self.execution_session.request_cache.mark_entity(
+                OWNER_METAFIELD_EVIDENCE_SCOPE,
+                owner_id,
+                EntityEvidenceState::Requested,
+            );
+        }
         let needs_hydration = fields.iter().any(|field| {
             if !Self::owner_field_selects_metafields_at_root(&field.name, &field.selection) {
                 return false;
@@ -860,15 +892,19 @@ impl DraftProxy {
                 .collect::<Vec<_>>();
             for (owner_id, node) in observed {
                 if !owner_id.is_empty() {
-                    self.execution_session
-                        .owner_metafield_hydrated_ids
-                        .insert(owner_id.clone());
                     if node.is_null() {
-                        self.execution_session
-                            .owner_metafield_missing_ids
-                            .insert(owner_id);
+                        self.execution_session.request_cache.mark_entity(
+                            OWNER_METAFIELD_EVIDENCE_SCOPE,
+                            owner_id,
+                            EntityEvidenceState::Missing,
+                        );
                         continue;
                     }
+                    self.execution_session.request_cache.mark_entity(
+                        OWNER_METAFIELD_EVIDENCE_SCOPE,
+                        owner_id,
+                        EntityEvidenceState::Observed,
+                    );
                 }
                 if node.is_object() {
                     self.stage_observed_owner_metafield_node(&node);
@@ -986,8 +1022,8 @@ impl DraftProxy {
     ) -> Option<bool> {
         if self
             .execution_session
-            .owner_metafield_missing_ids
-            .contains(owner_id)
+            .request_cache
+            .entity_is_missing(OWNER_METAFIELD_EVIDENCE_SCOPE, owner_id)
         {
             return Some(false);
         }
@@ -1125,14 +1161,13 @@ impl DraftProxy {
             .into_iter()
             .filter(|id| {
                 shape.metafields.iter().any(|field| {
-                    !self
-                        .execution_session
-                        .owner_metafield_resolved_keys
-                        .contains(&(id.clone(), field.namespace.clone(), field.key.clone()))
+                    !self.execution_session.request_cache.is_complete(
+                        &owner_metafield_field_evidence_key(id, &field.namespace, &field.key),
+                    )
                 }) || !self
                     .execution_session
-                    .owner_metafield_hydrated_ids
-                    .contains(id)
+                    .request_cache
+                    .entity_was_hydrated(OWNER_METAFIELD_EVIDENCE_SCOPE, id)
             })
             .collect::<Vec<_>>();
         if ids.is_empty() {
@@ -1141,7 +1176,19 @@ impl DraftProxy {
         let Some((query, variables)) = owner_metafield_hydrate_request(ids.clone(), &shape) else {
             return;
         };
-        let response = self.upstream_post(
+        for id in &ids {
+            self.execution_session.request_cache.mark_entity(
+                OWNER_METAFIELD_EVIDENCE_SCOPE,
+                id,
+                EntityEvidenceState::Requested,
+            );
+        }
+        let hydration_key = RequestCacheKey::new(
+            OWNER_METAFIELD_EVIDENCE_SCOPE,
+            format!("{}:{query}", ids.join(",")),
+        );
+        let response = self.request_hydration_post_once(
+            hydration_key,
             request,
             json!({
                 "query": query,
@@ -1158,17 +1205,20 @@ impl DraftProxy {
                     continue;
                 };
                 if node.is_null() {
-                    self.execution_session
-                        .owner_metafield_missing_ids
-                        .insert(owner_id.clone());
                     for field in &shape.metafields {
-                        self.execution_session
-                            .owner_metafield_resolved_keys
-                            .insert((owner_id.clone(), field.namespace.clone(), field.key.clone()));
+                        self.execution_session.request_cache.mark_complete(
+                            owner_metafield_field_evidence_key(
+                                owner_id,
+                                &field.namespace,
+                                &field.key,
+                            ),
+                        );
                     }
-                    self.execution_session
-                        .owner_metafield_hydrated_ids
-                        .insert(owner_id.clone());
+                    self.execution_session.request_cache.mark_entity(
+                        OWNER_METAFIELD_EVIDENCE_SCOPE,
+                        owner_id,
+                        EntityEvidenceState::Missing,
+                    );
                     continue;
                 }
                 for (field_index, field) in shape.metafields.iter().enumerate() {
@@ -1178,9 +1228,13 @@ impl DraftProxy {
                         &field.namespace,
                         &field.key,
                     ) {
-                        self.execution_session
-                            .owner_metafield_resolved_keys
-                            .insert((owner_id.clone(), field.namespace.clone(), field.key.clone()));
+                        self.execution_session.request_cache.mark_complete(
+                            owner_metafield_field_evidence_key(
+                                owner_id,
+                                &field.namespace,
+                                &field.key,
+                            ),
+                        );
                     }
                 }
                 let resolved_connections =
@@ -1192,14 +1246,16 @@ impl DraftProxy {
                             node.get(format!("metafields{connection_index}")).is_some()
                         });
                 let resolved_fields = shape.metafields.iter().all(|field| {
-                    self.execution_session
-                        .owner_metafield_resolved_keys
-                        .contains(&(owner_id.clone(), field.namespace.clone(), field.key.clone()))
+                    self.execution_session.request_cache.is_complete(
+                        &owner_metafield_field_evidence_key(owner_id, &field.namespace, &field.key),
+                    )
                 });
                 if resolved_fields && resolved_connections {
-                    self.execution_session
-                        .owner_metafield_hydrated_ids
-                        .insert(owner_id.clone());
+                    self.execution_session.request_cache.mark_entity(
+                        OWNER_METAFIELD_EVIDENCE_SCOPE,
+                        owner_id,
+                        EntityEvidenceState::Observed,
+                    );
                 }
                 self.stage_observed_owner_metafield_node(node);
             }
@@ -1361,8 +1417,8 @@ impl DraftProxy {
     fn owner_needs_metafield_hydration(&self, root_field: &str, owner_id: &str) -> bool {
         if self
             .execution_session
-            .owner_metafield_hydrated_ids
-            .contains(owner_id)
+            .request_cache
+            .entity_was_hydrated(OWNER_METAFIELD_EVIDENCE_SCOPE, owner_id)
         {
             return false;
         }
@@ -1807,10 +1863,9 @@ impl DraftProxy {
             || self.observed_owner_metafields_connection_is_complete(owner_id)
             || self.config.read_mode != ReadMode::LiveHybrid
             || is_synthetic_gid(owner_id)
-            || self
-                .execution_session
-                .owner_metafield_resolved_keys
-                .contains(&(owner_id.to_string(), namespace.to_string(), key.to_string()))
+            || self.execution_session.request_cache.is_complete(
+                &owner_metafield_field_evidence_key(owner_id, namespace, key),
+            )
         {
             OwnerMetafieldResolution::Absent
         } else {

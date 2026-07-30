@@ -65,21 +65,21 @@ impl DraftProxy {
             "DeliveryCustomization",
         );
 
-        if let Some(hydration) =
-            self.execution_session
-                .node_hydration
-                .as_ref()
-                .filter(|hydration| {
-                    hydration
-                        .upstream_response_keys
-                        .contains(invocation.response_key)
-                })
+        if let Some(response) = self
+            .execution_session
+            .request_cache
+            .is_complete(&node_query_response_key(invocation.response_key))
+            .then(|| {
+                self.execution_session
+                    .request_cache
+                    .caller_response()
+                    .cloned()
+            })
+            .flatten()
         {
-            let hydration_response = hydration.response.clone();
-            let mut outcome = resolver_outcome_from_upstream_response(
-                hydration_response.clone(),
-                invocation.response_key,
-            );
+            let hydration_response = response.clone();
+            let mut outcome =
+                resolver_outcome_from_upstream_response(response, invocation.response_key);
             if outcome.errors.is_empty() {
                 self.observe_nodes_response(&hydration_response);
                 self.observe_delivery_promise_node_root_value(

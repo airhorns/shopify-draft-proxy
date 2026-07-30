@@ -97,19 +97,26 @@ write upstream. A fully passthrough document is forwarded once, not once per
 selected root. Live-hybrid queries that need upstream evidence execute the
 caller's complete document through one request-scoped cache, so mixed
 local/passthrough roots and sibling overlays consume the same Shopify response.
-The runtime keeps the raw, alias-shaped transport value separate from a
-canonicalized observation copy: untouched upstream values bypass local
+The cache keeps the raw, alias-shaped transport value separate from a
+canonicalized observation copy, keys supplemental reads and completion facts,
+and records per-entity requested/observed/missing evidence without adding new
+domain fields to `ExecutionSession`. Untouched upstream values bypass local
 child-field resolution, while a value replaced by a store overlay or derived
 fallback is explicitly marked local and continues through the field-resolver
-registry. Request setup retains explicit preflight planning for discounts,
-owner metafields, localization/markets, and generic nodes, but those reads reuse
-the cached complete response when the caller selected the required evidence.
-Narrow secondary hydration documents remain only for data that the caller's
-operation cannot supply, especially mutation prerequisites and relationship
-lookups. When registered read-through roots all consume the same non-2xx
-upstream response, the runtime returns that transport response verbatim before
-schema projection so the backend status, headers, and error body are not
-replaced by local non-null execution errors.
+registry. `request_context.rs` holds the small operation-wide boundary: it
+classifies whole-document passthrough through domain-owned predicates and calls
+the few preparations that genuinely need every selected root (owner
+metafields, localization/markets, and multi-root `node(s)`). Ordinary and
+domain-only hydration stays lazy in the owning resolver; discount prerequisite
+hydration, for example, begins at the first discount mutation root and batches
+the operation's shallow root arguments there. There is no second planner
+registry, boxed callback scheduler, or trigger lifecycle. Narrow secondary
+hydration documents remain only for data that the caller's operation cannot
+supply, especially mutation prerequisites and relationship lookups. When
+registered read-through roots all consume the same non-2xx upstream response,
+the runtime returns that transport response verbatim before schema projection
+so the backend status, headers, and error body are not replaced by local
+non-null execution errors.
 
 ## GraphQL schema and resolver boundaries
 
@@ -136,7 +143,7 @@ replaced by local non-null execution errors.
 - owns `DraftProxy`, `Config`, `ReadMode`, the normalized Store, synthetic identity allocation, registry metadata, runtime clock, and injectable transports
 - declares the runtime's domain submodules while keeping proxy state instance-owned instead of global
 
-### `src/proxy/core.rs`, `src/proxy/routing.rs`, `src/proxy/graphql_runtime.rs`, `src/proxy/storefront_graphql_runtime.rs`, `src/proxy/graphql_error_compat.rs`
+### `src/proxy/core.rs`, `src/proxy/routing.rs`, `src/proxy/graphql_runtime.rs`, `src/proxy/request_context.rs`, `src/proxy/storefront_graphql_runtime.rs`, `src/proxy/graphql_error_compat.rs`
 
 - expose `process_request(...)` as the central route boundary
 - implement meta routes: health, config, log, state, reset, dump, and restore
@@ -147,6 +154,8 @@ replaced by local non-null execution errors.
 - preserve original multi-root mutation documents in the replay log while preventing mixed local/passthrough writes
 - preserve each locally executed `bulkOperationRunMutation` JSONL row as its own ordered replay entry instead of collapsing those entries into the outer job-submission document
 - wrap upstream transports with the stage-locally mutation guard while leaving query hydration and commit replay on their explicit transport paths
+- keep whole-operation routing and the small explicit set of cross-root preparations in `request_context.rs`, while domain-only hydration remains resolver-owned
+- coalesce caller-document responses, keyed supplemental responses, completion facts, and entity evidence in one request-scoped cache
 - preserve `with_clock(...)`, `with_upstream_transport(...)`, and `with_commit_transport(...)` test seams so behavior stays deterministic
 
 ### `src/admin_graphql.rs`

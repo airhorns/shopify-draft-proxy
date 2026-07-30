@@ -1,4 +1,5 @@
 use super::*;
+use crate::proxy::request_context::{EntityEvidenceState, RequestCacheKey};
 
 mod errors;
 mod hydrate_queries;
@@ -7,6 +8,21 @@ mod redeem_codes;
 use self::errors::*;
 use self::hydrate_queries::*;
 use self::redeem_codes::*;
+
+fn discount_references_hydration_key() -> RequestCacheKey {
+    RequestCacheKey::singleton("discount-references")
+}
+
+fn discount_reference_evidence_key(expected_type: &str, id: &str) -> RequestCacheKey {
+    RequestCacheKey::composite("discount-reference", &[expected_type, id])
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum DiscountPrerequisiteState {
+    Present,
+    Absent,
+    Unresolved,
+}
 
 pub(in crate::proxy) fn discount_field_resolver_registrations() -> Vec<FieldResolverRegistration> {
     let mut registrations = [
@@ -288,15 +304,6 @@ struct DiscountMutationArguments<'a> {
     arguments: &'a BTreeMap<String, ResolvedValue>,
 }
 
-impl<'a> From<&'a RootFieldSelection> for DiscountMutationArguments<'a> {
-    fn from(field: &'a RootFieldSelection) -> Self {
-        Self {
-            name: &field.name,
-            arguments: &field.arguments,
-        }
-    }
-}
-
 impl<'a> From<&'a DiscountMutationInput> for DiscountMutationArguments<'a> {
     fn from(field: &'a DiscountMutationInput) -> Self {
         Self {
@@ -307,6 +314,38 @@ impl<'a> From<&'a DiscountMutationInput> for DiscountMutationArguments<'a> {
 }
 
 impl DraftProxy {
+    fn prepare_discount_mutation_references(
+        &mut self,
+        request: &Request,
+        roots: &[OperationRootInvocation],
+    ) {
+        if self
+            .execution_session
+            .request_cache
+            .is_complete(&discount_references_hydration_key())
+        {
+            return;
+        }
+        let roots = roots
+            .iter()
+            .map(|root| {
+                (
+                    root.name.as_str(),
+                    resolved_arguments_from_json(&root.arguments),
+                )
+            })
+            .collect::<Vec<_>>();
+        let fields = roots
+            .iter()
+            .map(|(name, arguments)| DiscountMutationArguments { name, arguments })
+            .collect::<Vec<_>>();
+        self.hydrate_discount_item_refs_for_arguments(request, &fields);
+        self.hydrate_discount_context_refs_for_arguments(request, &fields);
+        self.execution_session
+            .request_cache
+            .mark_complete(discount_references_hydration_key());
+    }
+
     pub(crate) fn discount_query_root(
         &mut self,
         invocation: RootInvocation<'_>,
@@ -338,6 +377,7 @@ impl DraftProxy {
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
+        self.prepare_discount_mutation_references(invocation.request, &invocation.operation_roots);
         let RootInvocation {
             response_key,
             root_name,
@@ -665,7 +705,11 @@ impl DraftProxy {
         // references up front by forwarding a single batched node lookup and
         // observing the result, so the per-field create/update validation below decides
         // INVALID references against real store state instead of seeded state.
-        if !self.execution_session.discount_refs_preflighted {
+        if !self
+            .execution_session
+            .request_cache
+            .is_complete(&discount_references_hydration_key())
+        {
             self.hydrate_discount_item_refs_for_arguments(
                 request,
                 &[DiscountMutationArguments::from(field)],
@@ -675,7 +719,11 @@ impl DraftProxy {
         // a read for each referenced customer / segment that is not already staged and
         // observe the result, so `resolve_discount_context_names` bakes the real
         // display name / segment name from store state instead of a seeded precondition.
-        if !self.execution_session.discount_refs_preflighted {
+        if !self
+            .execution_session
+            .request_cache
+            .is_complete(&discount_references_hydration_key())
+        {
             self.hydrate_discount_context_refs_for_arguments(
                 request,
                 &[DiscountMutationArguments::from(field)],
@@ -988,18 +1036,6 @@ impl DraftProxy {
     /// `ProductsHydrateNodes` cassette byte-for-byte. Only forwarded in
     /// `live-hybrid`; Snapshot catalogs are authoritative without an upstream
     /// lookup.
-    pub(in crate::proxy) fn hydrate_discount_item_refs(
-        &mut self,
-        request: &Request,
-        fields: &[RootFieldSelection],
-    ) {
-        let fields = fields
-            .iter()
-            .map(DiscountMutationArguments::from)
-            .collect::<Vec<_>>();
-        self.hydrate_discount_item_refs_for_arguments(request, &fields);
-    }
-
     fn hydrate_discount_item_refs_for_arguments(
         &mut self,
         request: &Request,
@@ -1050,6 +1086,14 @@ impl DraftProxy {
             return;
         }
         ids.sort_by(|left, right| compare_resource_ids(left, right));
+        for id in &ids {
+            for expected_type in expected_types.get(id).into_iter().flatten() {
+                self.execution_session.request_cache.mark_entity_key(
+                    discount_reference_evidence_key(expected_type, id),
+                    EntityEvidenceState::Requested,
+                );
+            }
+        }
         let response = self.upstream_post(
             request,
             json!({
@@ -1109,13 +1153,13 @@ impl DraftProxy {
             };
             for expected_type in expected {
                 let state = if resolved_type.as_deref() == Some(*expected_type) {
-                    DiscountPrerequisiteState::Present
+                    EntityEvidenceState::Observed
                 } else {
-                    DiscountPrerequisiteState::Absent
+                    EntityEvidenceState::Missing
                 };
                 self.execution_session
-                    .discount_reference_states
-                    .insert(((*expected_type).to_string(), id.clone()), state);
+                    .request_cache
+                    .mark_entity_key(discount_reference_evidence_key(expected_type, id), state);
             }
         }
         self.observe_nodes_response(response);
@@ -1131,18 +1175,6 @@ impl DraftProxy {
     /// earlier in the scenario are skipped. Only forwarded in `live-hybrid`; in
     /// `snapshot` mode there is no upstream to consult, so the names degrade to the
     /// permissive "id only" default (mirroring `hydrate_discount_item_refs`).
-    pub(in crate::proxy) fn hydrate_discount_context_refs(
-        &mut self,
-        request: &Request,
-        fields: &[RootFieldSelection],
-    ) {
-        let fields = fields
-            .iter()
-            .map(DiscountMutationArguments::from)
-            .collect::<Vec<_>>();
-        self.hydrate_discount_context_refs_for_arguments(request, &fields);
-    }
-
     fn hydrate_discount_context_refs_for_arguments(
         &mut self,
         request: &Request,
@@ -1437,11 +1469,15 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Snapshot {
             return DiscountPrerequisiteState::Absent;
         }
-        self.execution_session
-            .discount_reference_states
-            .get(&(expected_type.to_string(), gid.to_string()))
-            .copied()
-            .unwrap_or(DiscountPrerequisiteState::Unresolved)
+        match self
+            .execution_session
+            .request_cache
+            .entity_state_for_key(&discount_reference_evidence_key(expected_type, gid))
+        {
+            Some(EntityEvidenceState::Observed) => DiscountPrerequisiteState::Present,
+            Some(EntityEvidenceState::Missing) => DiscountPrerequisiteState::Absent,
+            Some(EntityEvidenceState::Requested) | None => DiscountPrerequisiteState::Unresolved,
+        }
     }
 
     fn discount_update(

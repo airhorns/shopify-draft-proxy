@@ -11,6 +11,7 @@ pub(in crate::proxy) use self::media::{
 };
 pub(in crate::proxy) use self::owner_metafields::{
     list_reference_ids, owner_metafield_field_resolver_registrations, scalar_reference_id,
+    OWNER_METAFIELD_EVIDENCE_SCOPE,
 };
 
 const TAGGABLE_ORDER_HYDRATE_QUERY: &str =

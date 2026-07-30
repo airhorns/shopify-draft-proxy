@@ -1536,11 +1536,7 @@ pub(in crate::proxy) fn draft_order_max_input_error(
 
 impl DraftProxy {
     fn observe_live_hybrid_draft_order_read(&mut self, request: &Request) {
-        let response = self
-            .execution_session
-            .upstream_query_response
-            .clone()
-            .unwrap_or_else(|| (self.upstream_transport)(request.clone()));
+        let response = self.cached_or_forward_upstream_response(request);
         self.observe_draft_order_read_response(request, &response);
     }
 

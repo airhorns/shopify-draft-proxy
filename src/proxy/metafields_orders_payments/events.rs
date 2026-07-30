@@ -1,4 +1,5 @@
 use super::*;
+use crate::proxy::request_context::AdminOperationContext;
 
 pub(in crate::proxy) fn event_field_resolver_registrations() -> Vec<FieldResolverRegistration> {
     [
@@ -49,6 +50,15 @@ pub(in crate::proxy) fn event_field_resolver_type_policies() -> Vec<FieldResolve
 }
 
 impl DraftProxy {
+    pub(in crate::proxy) fn events_query_is_upstream_authoritative(
+        &self,
+        context: &AdminOperationContext<'_>,
+    ) -> bool {
+        self.config.read_mode == ReadMode::LiveHybrid
+            && context.operation_type == OperationType::Query
+            && context.all_domains(|domain| domain == CapabilityDomain::Events)
+    }
+
     pub(crate) fn event_query_root(
         &mut self,
         invocation: RootInvocation<'_>,
