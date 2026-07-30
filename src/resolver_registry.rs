@@ -25,10 +25,7 @@ use crate::{
         ApiSurface, CapabilityDomain, CapabilityExecution, OperationCapability,
         OperationRegistryEntry,
     },
-    proxy::{
-        request_planner::{RequestExecutionPlan, RequestPlanningInvocation},
-        DraftProxy, Request,
-    },
+    proxy::{DraftProxy, Request},
     storefront_graphql::StorefrontApiVersion,
 };
 
@@ -256,14 +253,11 @@ impl ResolverOutcome<Value> {
 
 pub(crate) type NativeResolverHandler =
     for<'a> fn(&mut DraftProxy, RootInvocation<'a>) -> ResolverOutcome<Value>;
-pub(crate) type NativeRequestPlanner =
-    for<'a> fn(&DraftProxy, &RequestPlanningInvocation<'a>, &mut RequestExecutionPlan);
 
 #[derive(Debug, Clone)]
 pub(crate) struct ExecutableRootRegistration {
     pub entry: OperationRegistryEntry,
     pub handler: Option<NativeResolverHandler>,
-    pub request_planners: Vec<NativeRequestPlanner>,
 }
 
 pub(crate) type FieldResolverHandler =
@@ -484,7 +478,6 @@ pub struct ResolverRegistration {
     pub domain: CapabilityDomain,
     pub execution: CapabilityExecution,
     pub(crate) handler: NativeResolverHandler,
-    pub(crate) request_planners: Vec<NativeRequestPlanner>,
 }
 
 #[derive(Debug, Clone)]
@@ -513,7 +506,7 @@ impl ResolverRegistry {
                         registration.entry.operation_type,
                         registration.entry.name.clone(),
                     ),
-                    (registration.entry, handler, registration.request_planners),
+                    (registration.entry, handler),
                 ))
             })
             .collect::<BTreeMap<_, _>>();
@@ -547,7 +540,6 @@ impl ResolverRegistry {
                 domain: entry.domain,
                 execution: entry.execution(),
                 handler: binding.1,
-                request_planners: binding.2.clone(),
             };
             let previous = local_resolvers.insert(resolver_name.clone(), registration);
             assert!(

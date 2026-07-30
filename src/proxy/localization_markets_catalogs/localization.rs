@@ -1,15 +1,12 @@
 use super::*;
-use crate::proxy::{
-    hydration::HydrationKey,
-    request_planner::{HydrationTrigger, RequestExecutionPlan, RequestPlanningInvocation},
-};
+use crate::proxy::request_context::{AdminOperationContext, RequestCacheKey};
 
-fn localization_context_hydration_key() -> HydrationKey {
-    HydrationKey::singleton("localization-markets-context")
+fn localization_context_hydration_key() -> RequestCacheKey {
+    RequestCacheKey::singleton("localization-markets-context")
 }
 
-pub(super) fn markets_query_hydration_key() -> HydrationKey {
-    HydrationKey::singleton("markets-query")
+pub(super) fn markets_query_hydration_key() -> RequestCacheKey {
+    RequestCacheKey::singleton("markets-query")
 }
 
 pub(in crate::proxy) fn localization_field_resolver_registrations() -> Vec<FieldResolverRegistration>
@@ -152,53 +149,47 @@ fn localization_mutation_target_ids(
 }
 
 impl DraftProxy {
-    pub(crate) fn plan_localization_markets_query(
-        &self,
-        invocation: &RequestPlanningInvocation<'_>,
-        plan: &mut RequestExecutionPlan,
+    pub(in crate::proxy) fn prepare_localization_markets_query(
+        &mut self,
+        context: &AdminOperationContext<'_>,
     ) {
-        let mixed_surface = invocation.has_domain(CapabilityDomain::Localization)
-            && invocation.has_domain(CapabilityDomain::Markets)
-            && invocation.all_domains(|domain| {
+        let mixed_surface = context.has_domain(CapabilityDomain::Localization)
+            && context.has_domain(CapabilityDomain::Markets)
+            && context.all_domains(|domain| {
                 matches!(
                     domain,
                     CapabilityDomain::Localization | CapabilityDomain::Markets
                 )
             });
-        let has_local_localization_root = invocation.roots.iter().any(|root| {
+        let has_local_localization_root = context.roots.iter().any(|root| {
             matches!(
                 root.name.as_str(),
                 "translatableResource" | "translatableResources" | "translatableResourcesByIds"
             ) && !self.localization_should_fetch_upstream(&root.name)
         });
         if self.config.read_mode != ReadMode::LiveHybrid
-            || invocation.operation_type != OperationType::Query
+            || context.operation_type != OperationType::Query
             || !mixed_surface
             || !has_local_localization_root
-            || !self.markets_should_fetch_upstream(invocation.roots, invocation.variables)
+            || !self.markets_should_fetch_upstream(context.roots, context.variables)
         {
             return;
         }
-        let use_original_request = invocation
+        let use_original_request = context
             .roots
             .iter()
             .any(|root| matches!(root.name.as_str(), "shopLocales" | "availableLocales"));
-        let request = invocation.request.clone();
-        let roots = invocation.roots.to_vec();
-        plan.add_hydration(
-            [
-                localization_context_hydration_key(),
-                markets_query_hydration_key(),
-            ],
-            HydrationTrigger::BeforeOperation,
-            move |proxy| {
-                proxy.preflight_localization_markets_context(
-                    &request,
-                    &roots,
-                    use_original_request,
-                );
-            },
+        self.preflight_localization_markets_context(
+            context.request,
+            context.roots,
+            use_original_request,
         );
+        self.execution_session
+            .request_cache
+            .mark_complete(localization_context_hydration_key());
+        self.execution_session
+            .request_cache
+            .mark_complete(markets_query_hydration_key());
     }
 
     pub(crate) fn localization_query_root(
@@ -215,7 +206,7 @@ impl DraftProxy {
         let arguments = resolved_arguments_from_json(&arguments);
         if self
             .execution_session
-            .hydration
+            .request_cache
             .is_complete(&localization_context_hydration_key())
         {
             return ResolverOutcome::value(self.localization_query_value(

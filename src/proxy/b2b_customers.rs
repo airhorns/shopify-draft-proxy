@@ -154,7 +154,7 @@ impl DraftProxy {
             && invocation.root_name == "customersCount"
             && self
                 .execution_session
-                .hydration
+                .request_cache
                 .caller_response()
                 .is_none_or(|response| response.body["data"].get(invocation.response_key).is_none())
         {

@@ -5,7 +5,6 @@ use super::graphql_error_compat::{
     directive_variable_mismatch_error, product_create_argument_arity_error,
     required_variable_error, shopify_engine_response, shopify_root_id_errors,
 };
-use super::request_planner::RequestExecutionPlan;
 use super::*;
 use crate::admin_graphql::{
     self, apply_null_list_item_paths, AdminApiVersion, FieldResolverInvocation,
@@ -117,7 +116,7 @@ struct ProxyRootExecutor {
     version: AdminApiVersion,
     root_calls: BTreeMap<String, PreparedRootCall>,
     root_locations: BTreeMap<String, SourceLocation>,
-    request_plan: std::sync::Mutex<RequestExecutionPlan>,
+    observe_upstream_shop: bool,
     delivery_promise_mutation: Option<PreparedAtomicMutation>,
     delivery_promise_outcomes: std::sync::Mutex<Option<BTreeMap<String, ResolverOutcome<Value>>>>,
     full_passthrough_request: Option<Request>,
@@ -274,38 +273,6 @@ fn shared_root_response(responses: &BTreeMap<String, Response>) -> Option<&Respo
     responses.all(|response| response == first).then_some(first)
 }
 
-impl ProxyRootExecutor {
-    fn execute_request_plan_for_root(&self, response_key: &str) -> Result<(), String> {
-        let mut plan = self
-            .request_plan
-            .lock()
-            .map_err(|_| "Admin GraphQL request-plan lock was poisoned".to_string())?;
-        let domain = plan.domain_for_response_key(response_key);
-        let mut proxy = self
-            .proxy
-            .lock()
-            .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?;
-        plan.execute_before_domain(&mut proxy, domain);
-        if let Some(response) = proxy.execution_session.hydration.caller_response().cloned() {
-            plan.observe_caller_response(&mut proxy, &response);
-        }
-        Ok(())
-    }
-
-    fn observe_caller_response(&self, response: &Response) -> Result<(), String> {
-        let mut plan = self
-            .request_plan
-            .lock()
-            .map_err(|_| "Admin GraphQL request-plan lock was poisoned".to_string())?;
-        let mut proxy = self
-            .proxy
-            .lock()
-            .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?;
-        plan.observe_caller_response(&mut proxy, response);
-        Ok(())
-    }
-}
-
 impl RootFieldExecutor for ProxyRootExecutor {
     fn execute_root(&self, invocation: RootFieldInvocation) -> Result<RootFieldResult, String> {
         let RootFieldInvocation {
@@ -320,7 +287,6 @@ impl RootFieldExecutor for ProxyRootExecutor {
                     .to_string(),
             );
         }
-        self.execute_request_plan_for_root(&response_key)?;
         if matches!(
             root_name.as_str(),
             "deliveryPromiseProviderUpsert" | "deliveryPromiseParticipantsUpdate"
@@ -403,8 +369,9 @@ impl RootFieldExecutor for ProxyRootExecutor {
                 } else {
                     proxy.execute_passthrough_graphql(request)
                 };
-                drop(proxy);
-                self.observe_caller_response(&response)?;
+                if self.observe_upstream_shop {
+                    proxy.observe_upstream_shop_query(&response);
+                }
                 *cached = Some(response);
             }
             cached
@@ -436,7 +403,7 @@ impl RootFieldExecutor for ProxyRootExecutor {
                     .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?;
                 let upstream_value = proxy
                     .execution_session
-                    .hydration
+                    .request_cache
                     .caller_data()
                     .and_then(|data| data.get(&response_key))
                     .cloned();
@@ -507,7 +474,7 @@ impl RootFieldExecutor for ProxyRootExecutor {
                 let resolved_response = if value_source == ResolverValueSource::Upstream {
                     proxy
                         .execution_session
-                        .hydration
+                        .request_cache
                         .caller_response()
                         .cloned()
                         .unwrap_or_else(|| {
@@ -865,25 +832,26 @@ impl DraftProxy {
                 )
             })
             .unwrap_or((None, Vec::new(), BTreeMap::new()));
-        self.execution_session.hydration.set_caller_selections(
+        self.execution_session.request_cache.set_caller_selections(
             root_calls
                 .iter()
                 .map(|(response_key, call)| (response_key.clone(), call.field.selection.clone()))
                 .collect(),
         );
-        let request_plan = prepared
+        let operation_context = prepared.as_ref().map(|(document, variables, _)| {
+            self.admin_operation_context(
+                request,
+                document.operation_type,
+                &document.root_fields,
+                variables,
+            )
+        });
+        let disposition = operation_context
             .as_ref()
-            .map(|(document, variables, _)| {
-                self.admin_request_execution_plan(
-                    request,
-                    document.operation_type,
-                    &document.root_fields,
-                    variables,
-                )
-            })
-            .unwrap_or_else(RequestExecutionPlan::empty);
-        let has_local_root = request_plan.has_local_root();
-        let has_passthrough_root = request_plan.has_passthrough_root();
+            .map(|context| self.admin_request_disposition(context))
+            .unwrap_or_default();
+        let has_local_root = disposition.has_local_root;
+        let has_passthrough_root = disposition.has_passthrough_root;
 
         // A mixed mutation cannot be split without changing its atomicity or
         // risking a supported write upstream. Reject it before any resolver is
@@ -893,8 +861,9 @@ impl DraftProxy {
             && has_local_root
             && has_passthrough_root;
 
-        let all_passthrough = request_plan.all_passthrough();
-        let direct_full_query_passthrough = request_plan.direct_full_query_passthrough();
+        let all_passthrough = !root_names.is_empty() && !has_local_root && has_passthrough_root;
+        let direct_full_query_passthrough = disposition.direct_full_query_passthrough;
+        let observe_upstream_shop = disposition.observe_upstream_shop;
         if let Some((document, _, _)) = prepared.as_ref() {
             if let Some(error) = required_variable_error(document, &graphql_request.variables) {
                 return ok_json(json!({ "errors": [error] }));
@@ -949,6 +918,9 @@ impl DraftProxy {
                 },
             )
         });
+        if let Some(context) = &operation_context {
+            self.prepare_admin_operation(context);
+        }
         // `async-graphql`'s dynamic builder cannot register custom directive
         // definitions. Preserve Shopify's executable `@idempotent` contract in
         // the domain request, while removing only that directive from the copy
@@ -971,16 +943,10 @@ impl DraftProxy {
             let resolved_responses = Arc::new(std::sync::Mutex::new(BTreeMap::new()));
             let resolved_extensions = Arc::new(std::sync::Mutex::new(BTreeMap::new()));
             let full_passthrough_response = Arc::new(std::sync::Mutex::new(None));
-            let mut request_plan = request_plan;
             let log_start = {
                 let mut proxy = shared_proxy
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner);
-                request_plan.execute_before_operation(&mut proxy);
-                if let Some(response) = proxy.execution_session.hydration.caller_response().cloned()
-                {
-                    request_plan.observe_caller_response(&mut proxy, &response);
-                }
                 let log_start = proxy.log_entries.len();
                 if operation_type == Some(OperationType::Mutation) && has_local_root {
                     proxy.execution_session.mutation_log_start = Some(log_start);
@@ -993,7 +959,7 @@ impl DraftProxy {
                 version,
                 root_calls,
                 root_locations,
-                request_plan: std::sync::Mutex::new(request_plan),
+                observe_upstream_shop,
                 delivery_promise_mutation,
                 delivery_promise_outcomes: std::sync::Mutex::new(None),
                 full_passthrough_request: (all_passthrough || direct_full_query_passthrough)
@@ -1735,7 +1701,7 @@ impl DraftProxy {
         let response = self.cached_or_forward_upstream_response(request);
         let data = self
             .execution_session
-            .hydration
+            .request_cache
             .caller_data()
             .cloned()
             .unwrap_or_else(|| response.body.get("data").cloned().unwrap_or(Value::Null));
@@ -1750,16 +1716,16 @@ impl DraftProxy {
         &mut self,
         request: &Request,
     ) -> Response {
-        if let Some(response) = self.execution_session.hydration.caller_response() {
+        if let Some(response) = self.execution_session.request_cache.caller_response() {
             return response.clone();
         }
         let response = (self.upstream_transport)(request.clone());
         let canonical_data = canonicalize_upstream_data(
             response.body.get("data").unwrap_or(&Value::Null),
-            self.execution_session.hydration.caller_selections(),
+            self.execution_session.request_cache.caller_selections(),
         );
         self.execution_session
-            .hydration
+            .request_cache
             .record_caller_response(response.clone(), canonical_data);
         response
     }

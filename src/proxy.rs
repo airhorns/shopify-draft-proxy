@@ -2838,7 +2838,7 @@ struct ExecutionSession {
     api_surface: Option<ApiSurface>,
     api_version: Option<String>,
     mutation_log_start: Option<usize>,
-    hydration: hydration::RequestHydrationBroker,
+    request_cache: request_context::RequestCache,
     entity_cache: RequestEntityCache,
 }
 
@@ -2915,7 +2915,6 @@ mod discounts;
 mod functions;
 mod graphql_error_compat;
 mod graphql_runtime;
-mod hydration;
 mod json_helpers;
 mod localization_markets_catalogs;
 mod market_unsupported_country_regions;
@@ -2935,7 +2934,7 @@ mod privacy;
 mod product_helpers;
 mod product_operations;
 mod product_options;
-pub(crate) mod request_planner;
+mod request_context;
 mod resolved_values;
 mod resource_ids;
 mod routing;

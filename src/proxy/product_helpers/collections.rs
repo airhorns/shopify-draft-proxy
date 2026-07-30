@@ -852,7 +852,7 @@ impl DraftProxy {
                 && !self.store.collection_is_deleted(id)
                 && !self
                     .execution_session
-                    .hydration
+                    .request_cache
                     .entity_was_hydrated(OWNER_METAFIELD_EVIDENCE_SCOPE, id)
         }) || handle.as_deref().is_some_and(|handle| {
             self.store.collection_by_handle(handle).is_none()

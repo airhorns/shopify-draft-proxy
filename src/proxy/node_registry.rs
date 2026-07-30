@@ -67,10 +67,15 @@ impl DraftProxy {
 
         if let Some(response) = self
             .execution_session
-            .hydration
-            .supplemental(&node_query_hydration_key())
-            .filter(|evidence| evidence.covers_response_key(invocation.response_key))
-            .map(|evidence| evidence.response().clone())
+            .request_cache
+            .is_complete(&node_query_response_key(invocation.response_key))
+            .then(|| {
+                self.execution_session
+                    .request_cache
+                    .caller_response()
+                    .cloned()
+            })
+            .flatten()
         {
             let mut outcome =
                 resolver_outcome_from_upstream_response(response, invocation.response_key);

@@ -1,9 +1,7 @@
 use super::*;
 use crate::graphql::ParsedDocument;
 use crate::graphql::RawArgumentValue;
-use crate::proxy::request_planner::{
-    RequestExecutionPlan, RequestPlanningInvocation, RootReadAuthority,
-};
+use crate::proxy::request_context::AdminOperationContext;
 use base64::Engine as _;
 
 mod collections;
@@ -1036,24 +1034,20 @@ fn catalog_search_predicate_requires_full_catalog(predicate: &str) -> bool {
 }
 
 impl DraftProxy {
-    pub(crate) fn plan_product_query(
+    pub(in crate::proxy) fn product_query_is_upstream_authoritative(
         &self,
-        invocation: &RequestPlanningInvocation<'_>,
-        plan: &mut RequestExecutionPlan,
-    ) {
-        if invocation.operation_type == OperationType::Query
-            && invocation.has_domain(CapabilityDomain::Products)
-            && invocation.all_domains(|domain| {
+        context: &AdminOperationContext<'_>,
+    ) -> bool {
+        context.operation_type == OperationType::Query
+            && context.has_domain(CapabilityDomain::Products)
+            && context.all_domains(|domain| {
                 matches!(
                     domain,
                     CapabilityDomain::Products | CapabilityDomain::Unknown
                 )
             })
-            && !self.should_route_owner_metafields_read(invocation.roots, invocation.variables)
-            && self.product_read_needs_upstream(invocation.roots)
-        {
-            plan.set_domain_authority(CapabilityDomain::Products, RootReadAuthority::Upstream);
-        }
+            && !self.should_route_owner_metafields_read(context.roots, context.variables)
+            && self.product_read_needs_upstream(context.roots)
     }
 
     /// A catalog search over aggregate predicates needs Shopify's complete
@@ -1728,11 +1722,11 @@ impl DraftProxy {
         let owner_read_fallback = owner_metafield_catalog_active
             && self
                 .execution_session
-                .hydration
+                .request_cache
                 .entity_was_requested(OWNER_METAFIELD_EVIDENCE_SCOPE, id);
         let owner_known_missing = self
             .execution_session
-            .hydration
+            .request_cache
             .entity_is_missing(OWNER_METAFIELD_EVIDENCE_SCOPE, id);
         let has_local_answer = self.store.product_variant_by_id(id).is_some()
             || self.store.product_variants.staged.is_tombstoned(id)
@@ -1741,7 +1735,7 @@ impl DraftProxy {
             || owner_known_missing
             || self
                 .execution_session
-                .hydration
+                .request_cache
                 .entity_was_hydrated(OWNER_METAFIELD_EVIDENCE_SCOPE, id)
             || media_hydration_attempted;
         if self.config.read_mode == ReadMode::Live
@@ -1800,11 +1794,11 @@ impl DraftProxy {
         let owner_read_fallback = owner_metafield_catalog_active
             && self
                 .execution_session
-                .hydration
+                .request_cache
                 .entity_was_requested(OWNER_METAFIELD_EVIDENCE_SCOPE, id);
         let owner_known_missing = self
             .execution_session
-            .hydration
+            .request_cache
             .entity_is_missing(OWNER_METAFIELD_EVIDENCE_SCOPE, id);
         let has_local_answer = self.store.has_product(id)
             || self.store.product_is_tombstoned(id)
@@ -1813,7 +1807,7 @@ impl DraftProxy {
             || owner_known_missing
             || self
                 .execution_session
-                .hydration
+                .request_cache
                 .entity_was_hydrated(OWNER_METAFIELD_EVIDENCE_SCOPE, id);
         if self.config.read_mode == ReadMode::Live
             || (self.config.read_mode == ReadMode::LiveHybrid && !has_local_answer)

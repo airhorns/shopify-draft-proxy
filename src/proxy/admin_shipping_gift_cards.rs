@@ -1,11 +1,6 @@
 use super::resolved_values;
 use super::*;
-use crate::proxy::{
-    hydration::HydrationKey,
-    request_planner::{
-        HydrationTrigger, RequestExecutionPlan, RequestPlanningInvocation, RootReadAuthority,
-    },
-};
+use crate::proxy::request_context::{AdminOperationContext, RequestCacheKey};
 
 mod app_billing;
 mod backup_region;
@@ -41,8 +36,8 @@ pub(in crate::proxy) use self::publishable::{
 };
 pub(in crate::proxy) use self::segments::segment_field_resolver_type_policies;
 
-pub(in crate::proxy) fn node_query_hydration_key() -> HydrationKey {
-    HydrationKey::singleton("node-query")
+pub(in crate::proxy) fn node_query_response_key(response_key: &str) -> RequestCacheKey {
+    RequestCacheKey::new("node-query-response", response_key)
 }
 
 pub(in crate::proxy) fn shipping_field_resolver_type_policies() -> Vec<FieldResolverTypePolicy> {
@@ -91,47 +86,33 @@ pub(in crate::proxy) fn shipping_field_resolver_type_policies() -> Vec<FieldReso
 }
 
 impl DraftProxy {
-    pub(crate) fn plan_admin_platform_query(
+    pub(in crate::proxy) fn admin_platform_query_is_upstream_authoritative(
         &self,
-        invocation: &RequestPlanningInvocation<'_>,
-        plan: &mut RequestExecutionPlan,
-    ) {
-        if self.config.read_mode == ReadMode::LiveHybrid
-            && invocation.operation_type == OperationType::Query
-            && invocation.has_domain(CapabilityDomain::AdminPlatform)
-            && invocation.has_domain(CapabilityDomain::Unknown)
-            && invocation.all_domains(|domain| {
+        context: &AdminOperationContext<'_>,
+    ) -> bool {
+        self.config.read_mode == ReadMode::LiveHybrid
+            && context.operation_type == OperationType::Query
+            && context.has_domain(CapabilityDomain::AdminPlatform)
+            && context.has_domain(CapabilityDomain::Unknown)
+            && context.all_domains(|domain| {
                 matches!(
                     domain,
                     CapabilityDomain::AdminPlatform | CapabilityDomain::Unknown
                 )
             })
-        {
-            plan.set_domain_authority(CapabilityDomain::AdminPlatform, RootReadAuthority::Upstream);
-        }
     }
 
-    pub(crate) fn plan_node_query(
-        &self,
-        invocation: &RequestPlanningInvocation<'_>,
-        plan: &mut RequestExecutionPlan,
-    ) {
-        if invocation.operation_type != OperationType::Query
-            || invocation.roots.len() <= 1
-            || !invocation
+    pub(in crate::proxy) fn prepare_node_query(&mut self, context: &AdminOperationContext<'_>) {
+        if context.operation_type != OperationType::Query
+            || context.roots.len() <= 1
+            || !context
                 .roots
                 .iter()
                 .all(|root| matches!(root.name.as_str(), "node" | "nodes"))
         {
             return;
         }
-        let request = invocation.request.clone();
-        let roots = invocation.roots.to_vec();
-        plan.add_hydration(
-            [node_query_hydration_key()],
-            HydrationTrigger::BeforeOperation,
-            move |proxy| proxy.preflight_node_query_entities(&request, &roots),
-        );
+        self.preflight_node_query_entities(context.request, context.roots);
     }
 
     pub(crate) fn domain_query_root(
@@ -189,11 +170,11 @@ impl DraftProxy {
                 self.node_query_data_with_upstream_fallback(fields, &response.body, Some(request));
             self.observe_nodes_data(&json!({ "data": data }));
         }
-        self.execution_session.hydration.record_supplemental(
-            node_query_hydration_key(),
-            response,
-            upstream_response_keys,
-        );
+        for response_key in upstream_response_keys {
+            self.execution_session
+                .request_cache
+                .mark_complete(node_query_response_key(&response_key));
+        }
     }
 
     fn node_fields_only_target_resource_type(

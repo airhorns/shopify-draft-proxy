@@ -390,7 +390,7 @@ impl DraftProxy {
         // is not a local addition to the upstream count baseline.
         let upstream_identity_data = self
             .execution_session
-            .hydration
+            .request_cache
             .caller_response()
             .and_then(|response| response.body.get("data"))
             .cloned();

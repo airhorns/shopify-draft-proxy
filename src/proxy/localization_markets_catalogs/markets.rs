@@ -443,7 +443,7 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::LiveHybrid
             && !self
                 .execution_session
-                .hydration
+                .request_cache
                 .is_complete(&super::localization::markets_query_hydration_key())
             && self.markets_operation_should_fetch_upstream(&operation_roots)
         {
@@ -455,7 +455,7 @@ impl DraftProxy {
                 self.hydrate_localization_from_upstream(&body);
             }
             self.execution_session
-                .hydration
+                .request_cache
                 .mark_complete(super::localization::markets_query_hydration_key());
             if !had_markets_overlay_state {
                 return result.outcome;
