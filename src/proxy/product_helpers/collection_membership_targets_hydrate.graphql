@@ -1,0 +1,78 @@
+query CollectionMembershipTargetsHydrate(
+  $collectionId: ID!
+  $productIds: [ID!]!
+  $collectionQuery: String!
+  $first: Int!
+) {
+  collection(id: $collectionId) {
+    id
+    title
+    handle
+    sortOrder
+    ruleSet {
+      appliedDisjunctively
+      rules {
+        column
+        relation
+        condition
+      }
+    }
+    productsCount {
+      count
+      precision
+    }
+    products(first: $first, sortKey: MANUAL) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          handle
+          status
+          createdAt
+          updatedAt
+          vendor
+          productType
+          tags
+          totalInventory
+          tracksInventory
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+  nodes(ids: $productIds) {
+    ... on Product {
+      id
+      title
+      handle
+      status
+      createdAt
+      updatedAt
+      vendor
+      productType
+      tags
+      totalInventory
+      tracksInventory
+      variants(first: 10) {
+        nodes {
+          id
+          title
+          price
+        }
+      }
+      collections(first: 1, query: $collectionQuery) {
+        nodes {
+          id
+          title
+          handle
+        }
+      }
+    }
+  }
+}

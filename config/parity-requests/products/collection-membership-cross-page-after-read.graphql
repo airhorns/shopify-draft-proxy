@@ -1,0 +1,52 @@
+query CollectionMembershipCrossPageAfterRead(
+  $collectionId: ID!
+  $after: String!
+  $targetId: ID!
+  $untouchedId: ID!
+) {
+  collection(id: $collectionId) {
+    id
+    products(first: 3, after: $after, sortKey: MANUAL) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          handle
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    productsCount {
+      count
+      precision
+    }
+    hasTarget: hasProduct(id: $targetId)
+    hasUntouched: hasProduct(id: $untouchedId)
+  }
+  target: product(id: $targetId) {
+    id
+    collections(first: 10) {
+      nodes {
+        id
+        title
+        handle
+      }
+    }
+  }
+  untouched: product(id: $untouchedId) {
+    id
+    collections(first: 10) {
+      nodes {
+        id
+        title
+        handle
+      }
+    }
+  }
+}
