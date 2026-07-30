@@ -551,6 +551,7 @@ impl DraftProxy {
         }
         if let Some(outcome) = self.order_return_local_runtime_outcome(
             request,
+            response_key,
             root_field,
             &arguments,
             &requested_field_paths,
@@ -807,6 +808,7 @@ impl DraftProxy {
             | "returnProcess" => {
                 if let Some(outcome) = self.order_return_local_runtime_outcome(
                     request,
+                    response_key,
                     root_field,
                     &arguments,
                     &requested_field_paths,

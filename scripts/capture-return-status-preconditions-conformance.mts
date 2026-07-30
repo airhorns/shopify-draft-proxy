@@ -319,6 +319,9 @@ const returnRemoveFromReturnReadQuery = await readRequest('return-remove-from-re
 // The exact document the proxy forwards to hydrate a return's order on a cold
 // miss; recording its live response per order is what replaces the seeded orders.
 const returnOrderHydrateQuery = await readRequest('return-order-hydrate.graphql');
+// The exact query-only document every mutation-first return lifecycle handler
+// uses to observe an existing Return before eligibility or NOT_FOUND decisions.
+const returnLifecycleHydrateQuery = await readRequest('return-lifecycle-hydrate.graphql');
 
 const stamp = new Date()
   .toISOString()
@@ -476,8 +479,21 @@ const openReturnApproveRequest = await capture(returnApproveRequestMutation, { i
 requireEmptyUserErrors(openReturnApproveRequest, 'returnApproveRequest');
 const approvedOpenReturn = returnFromPayload(openReturnApproveRequest, 'returnApproveRequest');
 const approvedOpenReturnId = requireString(approvedOpenReturn['id'], 'approved open return id');
+const coldOpenReturnHydrate = await capture(returnLifecycleHydrateQuery, { id: approvedOpenReturnId });
+const hydratedOpenReturn = readRecord(
+  readRecord(readRecord(coldOpenReturnHydrate.response.payload)?.['data'])?.['return'],
+);
+if (coldOpenReturnHydrate.response.payload['errors'] || hydratedOpenReturn?.['id'] !== approvedOpenReturnId) {
+  throw new Error(
+    `Expected lifecycle hydrate to resolve the open return: ${JSON.stringify(coldOpenReturnHydrate.response.payload)}`,
+  );
+}
 const returnCloseOpen = await capture(returnCloseMutation, { id: approvedOpenReturnId });
 requireEmptyUserErrors(returnCloseOpen, 'returnClose');
+const coldReturnCloseRead = await capture(returnRemoveFromReturnReadQuery, {
+  returnId: approvedOpenReturnId,
+  orderId: openSeed.orderId,
+});
 const closedOpenReturn = returnFromPayload(returnCloseOpen, 'returnClose');
 const closedOpenReturnLineItem = readNodes(closedOpenReturn['returnLineItems'])[0] ?? {};
 const closedOpenReturnLineItemId = requireString(
@@ -544,6 +560,23 @@ requireEmptyUserErrors(processedApproveRequest, 'returnApproveRequest');
 const processedApprovedReturn = returnFromPayload(processedApproveRequest, 'returnApproveRequest');
 const processedReturnLineItem = readNodes(processedApprovedReturn['returnLineItems'])[0] ?? {};
 const processedReturnLineItemId = requireString(processedReturnLineItem['id'], 'processed return line item id');
+const cancelableReturnLineItemId = requireString(
+  readNodes(cancelableApprovedReturn['returnLineItems'])[0]?.['id'],
+  'foreign cancelable return line item id',
+);
+const returnProcessInvalidLine = await capture(returnProcessMutation, {
+  input: {
+    returnId: processedReturnId,
+    returnLineItems: [
+      {
+        id: cancelableReturnLineItemId,
+        quantity: 1,
+      },
+    ],
+    notifyCustomer: false,
+  },
+});
+requireUserErrors(returnProcessInvalidLine, 'returnProcess');
 const returnProcess = await capture(returnProcessMutation, {
   input: {
     returnId: processedReturnId,
@@ -562,6 +595,13 @@ requireUserErrors(returnCancelProcessedInvalid, 'returnCancel');
 
 const missingReturnId = 'gid://shopify/Return/999999999999999';
 const missingReturnLineItemId = 'gid://shopify/ReturnLineItem/999999999999999';
+const missingReturnHydrate = await capture(returnLifecycleHydrateQuery, { id: missingReturnId });
+const missingHydratePayload = readRecord(missingReturnHydrate.response.payload) ?? {};
+if (missingHydratePayload['errors'] || readRecord(missingHydratePayload['data'])?.['return'] !== null) {
+  throw new Error(
+    `Expected lifecycle hydrate to confirm a missing return: ${JSON.stringify(missingReturnHydrate.response.payload)}`,
+  );
+}
 const returnCancelMissing = await capture(returnCancelMutation, { id: missingReturnId });
 requireReturnNotFoundUserError(returnCancelMissing, 'returnCancel', ['id']);
 const returnCloseMissing = await capture(returnCloseMutation, { id: missingReturnId });
@@ -624,7 +664,7 @@ await writeJson(fixturePath, {
   storeDomain,
   source: 'live-shopify-admin-graphql',
   notes:
-    'Live return status precondition capture for returnClose, returnReopen, returnCancel, and removeFromReturn success, idempotent, invalid transition, invalid editable-status, and missing-return branches on disposable fulfilled orders and a never-created Return GID.',
+    'Live return status precondition capture for query-only mutation-first Return hydration plus returnClose, returnReopen, returnCancel, removeFromReturn, and returnProcess success, idempotent, invalid transition, invalid editable-status, and missing-return branches on disposable fulfilled orders and a never-created Return GID.',
   locations,
   setup: {
     locationId,
@@ -645,7 +685,9 @@ await writeJson(fixturePath, {
   openCloseReopenCase: {
     returnRequest: openReturnRequest,
     returnApproveRequest: openReturnApproveRequest,
+    coldReturnHydrate: coldOpenReturnHydrate,
     returnClose: returnCloseOpen,
+    coldReturnCloseRead,
     removeFromReturnClosedInvalid: removeFromClosedReturnInvalid,
     removeFromReturnClosedRead: removeFromClosedReturnRead,
     returnCloseIdempotent: returnCloseClosedIdempotent,
@@ -666,12 +708,14 @@ await writeJson(fixturePath, {
   processedCase: {
     returnRequest: processedReturnRequest,
     returnApproveRequest: processedApproveRequest,
+    returnProcessInvalidLine,
     returnProcess,
     returnCancelInvalid: returnCancelProcessedInvalid,
   },
   notFoundCase: {
     missingReturnId,
     missingReturnLineItemId,
+    coldReturnHydrate: missingReturnHydrate,
     returnCancel: returnCancelMissing,
     returnClose: returnCloseMissing,
     returnReopen: returnReopenMissing,
@@ -679,15 +723,35 @@ await writeJson(fixturePath, {
     returnProcess: returnProcessMissing,
   },
   cleanup,
-  upstreamCalls: returnSeeds.map((seed) => ({
-    operationName: 'OrdersReturnOrderHydrate',
-    variables: { id: seed.orderId },
-    query: returnOrderHydrateQuery,
-    response: {
-      status: seed.returnOrderHydrate.status,
-      body: seed.returnOrderHydrate.payload,
+  upstreamCalls: [
+    ...returnSeeds.map((seed) => ({
+      operationName: 'OrdersReturnOrderHydrate',
+      variables: { id: seed.orderId },
+      query: returnOrderHydrateQuery,
+      response: {
+        status: seed.returnOrderHydrate.status,
+        body: seed.returnOrderHydrate.payload,
+      },
+    })),
+    {
+      operationName: 'ReturnLifecycleHydrate',
+      variables: { id: approvedOpenReturnId },
+      query: returnLifecycleHydrateQuery,
+      response: {
+        status: coldOpenReturnHydrate.response.status,
+        body: coldOpenReturnHydrate.response.payload,
+      },
     },
-  })),
+    {
+      operationName: 'ReturnLifecycleHydrate',
+      variables: { id: missingReturnId },
+      query: returnLifecycleHydrateQuery,
+      response: {
+        status: missingReturnHydrate.response.status,
+        body: missingReturnHydrate.response.payload,
+      },
+    },
+  ],
 });
 
 console.log(

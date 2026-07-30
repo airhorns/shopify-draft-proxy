@@ -153,6 +153,17 @@ store setup:
 - over-disposing a custom-line RFO with `NOT_RESTOCKED` was accepted and appended
   another disposition, even after a prior disposal.
 
+A later authoritative cold-target capture established the surrounding ID
+precedence. A GID of the wrong resource type fails at the mutation root with
+`RESOURCE_NOT_FOUND` and `Invalid id: <gid>`. A typed-but-missing reverse
+fulfillment order or reverse delivery instead returns a payload `NOT_FOUND`.
+Missing and unrelated delivery lines return `must exist`; duplicate and
+over-quantity delivery lines return `cannot deliver more items than are
+returned`. A missing disposal location returns indexed `NOT_FOUND` and can be
+reported alongside the custom-line `RESTOCKED` error. The public store again
+returned the multiple-RFO error for a typed-but-missing disposal line and again
+accepted over-disposal.
+
 Practical rule: keep focused runtime tests for the stricter local validation
 contract when product requirements call for it, and use
 `return-reverse-logistics-dispose-validation` as the public parity anchor only
@@ -172,6 +183,24 @@ mutation payloads and downstream reads after processed quantities change, and
 `removeFromReturn` for the final line closes the return with `totalQuantity: 0`,
 so the aggregate becomes `RETURNED`. The checked-in anchor is
 `config/parity-specs/orders/order-return-status-lifecycle.json`.
+
+## Current: Return lifecycle NOT_FOUND requires an authoritative cold read
+
+A lifecycle mutation can be the first Return operation in a LiveHybrid proxy
+session. Absence from the staged overlay therefore says nothing about whether
+the Return exists in Shopify. Approve, decline, close, reopen, cancel, removal,
+and processing must first issue the bounded `ReturnLifecycleHydrate` query and
+retain its Return/order/line/refund/reverse-fulfillment context as observed base
+state. Only a successful `data.return: null` response is authoritative missing;
+transport, HTTP, GraphQL, and malformed-response failures must stay resolver
+errors rather than being rendered as `Return not found.`
+
+The capture also confirmed two schema details that are easy to guess wrong:
+`Return.refunds` is a `RefundConnection`, while public 2026-04
+`ReverseFulfillmentOrderLineItem` exposes neither `remainingQuantity` nor a
+`returnLineItem` back-reference. The hydrate therefore relates reverse work via
+the fulfillment-line context it can actually observe. The checked-in anchor is
+`config/parity-specs/orders/returnClose-Reopen-Cancel-state-preconditions.json`.
 
 ## Current: orderCreate inventory identity and location sourcing are independent
 

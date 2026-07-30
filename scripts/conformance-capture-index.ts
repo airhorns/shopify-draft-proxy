@@ -5705,6 +5705,28 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'localization',
+    captureId: 'localization-parent-observation-preservation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-localization-parent-observation-conformance.mts',
+    purpose:
+      'Product and Collection source-content observations followed by canonical Node hydration, disjoint reads, and narrow update preservation.',
+    requiredAuthScopes: ['read_products', 'write_products', 'read_translations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}localization-parent-observation-preservation.json`,
+      'config/parity-specs/localization/localization-parent-observation-preservation.json',
+      'config/parity-requests/localization/localization-parent-observation-source-read.graphql',
+      'config/parity-requests/localization/localization-parent-observation-canonical-nodes.graphql',
+      'config/parity-requests/localization/localization-parent-observation-disjoint-read.graphql',
+      'config/parity-requests/localization/localization-parent-observation-product-update.graphql',
+      'config/parity-requests/localization/localization-parent-observation-collection-update.graphql',
+      'config/parity-requests/localization/localization-parent-observation-final-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one rich Product with media and one Collection containing that Product, captures localization/canonical/update reads, then deletes both resources.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'localization',
     captureId: 'localization-market-translations',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-localization-market-translations-conformance.mts',
@@ -12880,6 +12902,12 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}return-reverse-logistics-recorded.json`,
       'config/parity-specs/orders/return-reverse-logistics-recorded.json',
+      'config/parity-requests/orders/reverse-delivery-create-with-shipping-recorded.graphql',
+      'config/parity-requests/orders/reverse-delivery-shipping-update-recorded.graphql',
+      'config/parity-requests/orders/reverse-fulfillment-order-dispose-recorded.graphql',
+      'config/parity-requests/orders/reverse-logistics-rfo-mutation-hydrate.graphql',
+      'config/parity-requests/orders/reverse-logistics-delivery-mutation-hydrate.graphql',
+      'config/parity-requests/orders/reverse-logistics-dispose-mutation-hydrate.graphql',
       'config/parity-requests/orders/return-reverse-logistics-read-recorded.graphql',
     ],
     cleanupBehavior:
@@ -13029,6 +13057,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/orders/returnApprove-decline-state-preconditions-live.json',
       'config/parity-requests/orders/return-approve-request-recorded.graphql',
       'config/parity-requests/orders/return-decline-request-local-staging.graphql',
+      'config/parity-requests/orders/return-lifecycle-hydrate.graphql',
       'config/parity-requests/orders/return-order-hydrate.graphql',
     ],
     cleanupBehavior:
@@ -13078,7 +13107,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-return-status-preconditions-conformance.mts',
     purpose:
-      'returnClose, returnReopen, returnCancel, removeFromReturn, and returnProcess status-machine/editability preconditions, idempotent no-op branches, processed-return cancel rejection, and missing-return NOT_FOUND userError shapes.',
+      'Query-only cold Return lifecycle hydration plus returnClose, returnReopen, returnCancel, removeFromReturn, and returnProcess status-machine/editability preconditions, idempotent no-op branches, processed-return cancel rejection, and missing-return NOT_FOUND userError shapes.',
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_returns', 'write_returns', 'write_fulfillments'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}returnClose-Reopen-Cancel-state-preconditions.json`,
@@ -13089,6 +13118,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/orders/return-process-recorded.graphql',
       'config/parity-requests/orders/return-reopen-state-precondition.graphql',
       'config/parity-requests/orders/return-order-hydrate.graphql',
+      'config/parity-requests/orders/return-lifecycle-hydrate.graphql',
       'config/parity-requests/orders/return-remove-from-return-state-precondition-read.graphql',
     ],
     cleanupBehavior:

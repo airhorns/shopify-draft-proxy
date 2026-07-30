@@ -131,7 +131,14 @@ from the return domain's reverse fulfillment order state. Explicit
 with the requested quantity and line item; empty inputs expand to all reverse
 fulfillment order lines at their total quantities. The recorded order/return
 parity fixture uses one two-line return for empty expansion and a second
-two-line return for explicit multi-line delivery creation.
+two-line return for explicit multi-line delivery creation. Live-hybrid create,
+shipping-update, and disposal mutations query-hydrate cold authoritative
+reverse-logistics resources and referenced locations before staging. Missing,
+wrong-type, unrelated, duplicate, and over-quantity references fail atomically;
+the handlers do not fabricate submitted relationships or append rejected
+mutations to the ordered commit log. Valid hydrated mutations remain local-only
+until explicit commit and are visible through reverse-logistics and generic
+node reads.
 
 Carrier-service slices cover create, update, delete, downstream
 `carrierService(id:)`, `carrierServices(...)`, active filters, unknown-id

@@ -487,6 +487,10 @@ struct BaseState {
     orders: OrderedRecords<Value>,
     return_precondition_hydrated_order_ids: BTreeSet<String>,
     order_count_baselines: BTreeMap<String, Value>,
+    returns: BTreeMap<String, Value>,
+    returns_by_order: BTreeMap<String, Vec<String>>,
+    return_missing_ids: BTreeSet<String>,
+    reverse_fulfillment_orders: BTreeMap<String, Value>,
     draft_orders: OrderedRecords<Value>,
     draft_order_count_baselines: BTreeMap<String, Value>,
     discounts: OrderedRecords<Value>,
@@ -540,6 +544,7 @@ struct BaseState {
     available_locales: BTreeMap<String, String>,
     shop_locales: BTreeMap<String, Value>,
     localization_product_ids: BTreeSet<String>,
+    localization_source_resources: BTreeMap<String, Value>,
     function_metadata: BTreeMap<String, Value>,
     function_metadata_order: Vec<String>,
     function_validations: BTreeMap<String, Value>,
@@ -685,6 +690,9 @@ struct StagedState {
     resource_publications: BTreeMap<String, BTreeSet<String>>,
     shop_locales: BTreeMap<String, Value>,
     localization_translations: Vec<Value>,
+    // Mutation-derived source-content overlays stay staged separately from the
+    // upstream localization projection so meta reset restores the observed base.
+    localization_source_resources: BTreeMap<String, Value>,
     // Market-localizable resources observed from a cold upstream read or mutation
     // preflight: resourceId -> the resource's `marketLocalizableContent` array. The
     // presence of a key records that the resource exists (so register/remove resolve
@@ -779,6 +787,7 @@ struct StagedState {
     returns_by_order: BTreeMap<String, Vec<String>>,
     reverse_deliveries: BTreeMap<String, Value>,
     reverse_fulfillment_orders: BTreeMap<String, Value>,
+    reverse_fulfillment_order_line_items: BTreeMap<String, Value>,
     next_order_number: u64,
     draft_order_tags: BTreeMap<String, Vec<String>>,
     order_customer_orders: BTreeMap<String, Value>,
@@ -2074,9 +2083,24 @@ impl Store {
         self.products.staged.is_tombstoned(id)
     }
 
+    fn localization_source_resource(&self, id: &str) -> Option<&Value> {
+        self.staged
+            .localization_source_resources
+            .get(id)
+            .or_else(|| self.base.localization_source_resources.get(id))
+    }
+
     fn has_localization_product(&self, id: &str) -> bool {
         !self.products.staged.is_tombstoned(id)
-            && (self.has_product(id) || self.base.localization_product_ids.contains(id))
+            && (self.has_product(id)
+                || self.base.localization_product_ids.contains(id)
+                || self.localization_source_resource(id).is_some())
+    }
+
+    fn has_localization_collection(&self, id: &str) -> bool {
+        !self.collection_is_deleted(id)
+            && (self.collection_by_id(id).is_some()
+                || self.localization_source_resource(id).is_some())
     }
 
     fn stage_product(&mut self, product: ProductRecord) {

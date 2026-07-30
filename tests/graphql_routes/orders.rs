@@ -3223,6 +3223,29 @@ fn run_generic_node_resolves_return_and_reverse_logistics_resources_from_staged_
         json!({ "number": "RD-2", "carrierName": Value::Null })
     );
 
+    let disposition_location = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedReverseDispositionLocation($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Reverse disposition location",
+                "address": { "countryCode": "CA" }
+            }
+        }),
+    ));
+    assert_eq!(
+        disposition_location.body["data"]["locationAdd"]["userErrors"],
+        json!([])
+    );
+    let disposition_location_id =
+        disposition_location.body["data"]["locationAdd"]["location"]["id"].clone();
+
     let dispose = proxy.process_request(json_graphql_request(
         r#"
         mutation DisposeReverseFulfillmentNodeLine($dispositionInputs: [ReverseFulfillmentOrderDisposeInput!]!) {
@@ -3240,7 +3263,7 @@ fn run_generic_node_resolves_return_and_reverse_logistics_resources_from_staged_
                 "reverseFulfillmentOrderLineItemId": reverse_fulfillment_order_line_item_id,
                 "quantity": 2,
                 "dispositionType": "NOT_RESTOCKED",
-                "locationId": "gid://shopify/Location/123"
+                "locationId": disposition_location_id
             }]
         }),
     ));
@@ -3263,7 +3286,7 @@ fn run_generic_node_resolves_return_and_reverse_logistics_resources_from_staged_
     ));
     assert_eq!(
         disposed_line_node.body["data"]["node"]["dispositions"][0]["location"]["id"],
-        json!("gid://shopify/Location/123")
+        disposition_location_id
     );
 
     let close = return_lifecycle_transition_for_test(&mut proxy, "returnClose", return_id.clone());
@@ -3396,6 +3419,149 @@ fn return_process_payload_and_reads_keep_processed_return_open() {
     assert_eq!(
         read_after["order"]["returns"]["nodes"][0]["status"],
         json!("OPEN")
+    );
+}
+
+#[test]
+fn return_process_preserves_existing_reverse_fulfillment_disposition() {
+    let mut proxy = snapshot_proxy();
+    let setup = stage_open_return_for_removal(&mut proxy);
+    let reverse_state = proxy.process_request(json_graphql_request(
+        r#"
+        query ReturnProcessDispositionSeed($id: ID!) {
+          return(id: $id) {
+            reverseFulfillmentOrders(first: 5) {
+              nodes {
+                id
+                lineItems(first: 5) { nodes { id } }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "id": setup.return_id.clone() }),
+    ));
+    assert_eq!(reverse_state.status, 200);
+    let reverse_line_id = reverse_state.body["data"]["return"]["reverseFulfillmentOrders"]["nodes"]
+        [0]["lineItems"]["nodes"][0]["id"]
+        .clone();
+
+    let disposition_location = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedReturnProcessDispositionLocation($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Return process disposition location",
+                "address": { "countryCode": "CA" }
+            }
+        }),
+    ));
+    assert_eq!(
+        disposition_location.body["data"]["locationAdd"]["userErrors"],
+        json!([])
+    );
+    let disposition_location_id =
+        disposition_location.body["data"]["locationAdd"]["location"]["id"].clone();
+
+    let dispose = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReturnProcessDispositionSeedDispose(
+          $inputs: [ReverseFulfillmentOrderDisposeInput!]!
+        ) {
+          reverseFulfillmentOrderDispose(dispositionInputs: $inputs) {
+            reverseFulfillmentOrderLineItems {
+              id
+              dispositions { type quantity location { id } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "inputs": [{
+                "reverseFulfillmentOrderLineItemId": reverse_line_id.clone(),
+                "quantity": 1,
+                "dispositionType": "NOT_RESTOCKED",
+                "locationId": disposition_location_id
+            }]
+        }),
+    ));
+    assert_eq!(dispose.status, 200);
+    assert_eq!(
+        dispose.body["data"]["reverseFulfillmentOrderDispose"]["userErrors"],
+        json!([])
+    );
+
+    let process = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReturnProcessPreservesDisposition($input: ReturnProcessInput!) {
+          returnProcess(input: $input) {
+            return {
+              id
+              status
+              reverseFulfillmentOrders(first: 5) {
+                nodes {
+                  id
+                  lineItems(first: 5) {
+                    nodes {
+                      id
+                      dispositions { type quantity location { id } }
+                    }
+                  }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "returnId": setup.return_id,
+                "returnLineItems": [{ "id": setup.return_line_item_id, "quantity": 1 }],
+                "notifyCustomer": false
+            }
+        }),
+    ));
+    assert_eq!(process.status, 200);
+    assert_eq!(
+        process.body["data"]["returnProcess"]["userErrors"],
+        json!([])
+    );
+    let expected_dispositions = json!([{
+        "type": "NOT_RESTOCKED",
+        "quantity": 1,
+        "location": { "id": disposition_location_id }
+    }]);
+    assert_eq!(
+        process.body["data"]["returnProcess"]["return"]["reverseFulfillmentOrders"]["nodes"][0]
+            ["lineItems"]["nodes"][0]["dispositions"],
+        expected_dispositions
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query ReturnProcessDispositionRead($id: ID!) {
+          node(id: $id) {
+            ... on ReverseFulfillmentOrderLineItem {
+              id
+              dispositions { type quantity location { id } }
+            }
+          }
+        }
+        "#,
+        json!({ "id": reverse_line_id }),
+    ));
+    assert_eq!(downstream.status, 200);
+    assert_eq!(
+        downstream.body["data"]["node"]["dispositions"],
+        expected_dispositions
     );
 }
 
@@ -3972,7 +4138,7 @@ fn return_lifecycle_transition_for_test(
             r#"
             mutation ReturnCancelMissingReturnForErrorShape($id: ID!) {
               returnCancel(id: $id) {
-                return { id status }
+                return { id status closedAt }
                 userErrors { field message code }
               }
             }
@@ -3983,7 +4149,7 @@ fn return_lifecycle_transition_for_test(
             r#"
             mutation ReturnCloseMissingReturnForErrorShape($id: ID!) {
               returnClose(id: $id) {
-                return { id status }
+                return { id status closedAt }
                 userErrors { field message code }
               }
             }
@@ -3994,7 +4160,7 @@ fn return_lifecycle_transition_for_test(
             r#"
             mutation ReturnReopenMissingReturnForErrorShape($id: ID!) {
               returnReopen(id: $id) {
-                return { id status }
+                return { id status closedAt }
                 userErrors { field message code }
               }
             }
@@ -4150,6 +4316,36 @@ fn return_reason_validation_fixture() -> Value {
         "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reason-validation.json"
     ))
     .unwrap()
+}
+
+fn reverse_logistics_validation_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-recorded.json"
+    ))
+    .unwrap()
+}
+
+fn recorded_reverse_logistics_proxy(upstream_requests: Arc<Mutex<Vec<Value>>>) -> DraftProxy {
+    let fixture = reverse_logistics_validation_fixture();
+    let upstream_calls = fixture["upstreamCalls"].as_array().unwrap().clone();
+    configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+        let body: Value =
+            serde_json::from_str(&request.body).expect("reverse-logistics hydrate body parses");
+        upstream_requests.lock().unwrap().push(body.clone());
+        let call = upstream_calls
+            .iter()
+            .find(|call| {
+                call["operationName"] == body["operationName"]
+                    && call["query"] == body["query"]
+                    && call["variables"] == body["variables"]
+            })
+            .unwrap_or_else(|| panic!("missing reverse-logistics hydrate cassette for {body}"));
+        Response {
+            status: call["response"]["status"].as_u64().unwrap() as u16,
+            headers: Default::default(),
+            body: call["response"]["body"].clone(),
+        }
+    })
 }
 
 fn return_reason_hydrated_proxy(fixture: &Value) -> DraftProxy {
@@ -4911,6 +5107,631 @@ fn reverse_delivery_create_empty_line_items_expand_to_all_rfo_lines() {
 }
 
 #[test]
+fn reverse_delivery_create_rejects_missing_and_wrong_type_relationships_atomically() {
+    let mut proxy = snapshot_proxy().with_upstream_transport(|_| {
+        panic!("snapshot reverse-logistics validation must not hydrate upstream")
+    });
+    let state_before = state_snapshot(&proxy);
+    let log_before = log_snapshot(&proxy);
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReproduceMissingReverseRelationships(
+          $reverseFulfillmentOrderId: ID!
+          $reverseDeliveryLineItems: [ReverseDeliveryLineItemInput!]!
+        ) {
+          reverseDeliveryCreateWithShipping(
+            reverseFulfillmentOrderId: $reverseFulfillmentOrderId
+            reverseDeliveryLineItems: $reverseDeliveryLineItems
+          ) {
+            reverseDelivery {
+              id
+              reverseFulfillmentOrder { id }
+              reverseDeliveryLineItems(first: 5) {
+                nodes {
+                  quantity
+                  reverseFulfillmentOrderLineItem { id }
+                }
+              }
+            }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({
+            "reverseFulfillmentOrderId": "gid://shopify/ReverseFulfillmentOrder/999999999999999",
+            "reverseDeliveryLineItems": [{
+                "reverseFulfillmentOrderLineItemId": "gid://shopify/ReverseFulfillmentOrderLineItem/999999999999999",
+                "quantity": 1
+            }]
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["reverseDeliveryCreateWithShipping"],
+        json!({
+            "reverseDelivery": Value::Null,
+            "userErrors": [{
+                "code": "NOT_FOUND",
+                "field": ["reverseFulfillmentOrderId"],
+                "message": "Reverse fulfillment order was not found."
+            }]
+        })
+    );
+    assert_eq!(state_snapshot(&proxy), state_before);
+    assert_eq!(log_snapshot(&proxy), log_before);
+
+    let wrong_type = proxy.process_request(json_graphql_request(
+        r#"
+        mutation WrongTypeReverseRelationship($reverseFulfillmentOrderId: ID!) {
+          reverseDeliveryCreateWithShipping(
+            reverseFulfillmentOrderId: $reverseFulfillmentOrderId
+            reverseDeliveryLineItems: []
+          ) {
+            reverseDelivery { id }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({ "reverseFulfillmentOrderId": "gid://shopify/Return/123" }),
+    ));
+    assert_eq!(
+        wrong_type.body["errors"][0]["message"],
+        json!("Invalid id: gid://shopify/Return/123")
+    );
+    assert_eq!(
+        wrong_type.body["errors"][0]["extensions"]["code"],
+        json!("RESOURCE_NOT_FOUND")
+    );
+    assert_eq!(
+        wrong_type.body["data"]["reverseDeliveryCreateWithShipping"],
+        Value::Null
+    );
+    assert_eq!(state_snapshot(&proxy), state_before);
+    assert_eq!(log_snapshot(&proxy), log_before);
+}
+
+#[test]
+fn reverse_delivery_create_rejects_unowned_duplicate_and_over_quantity_lines_atomically() {
+    let mut proxy = snapshot_proxy().with_upstream_transport(|_| {
+        panic!("staged reverse-logistics validation must not hydrate upstream")
+    });
+    let (first_rfo_id, first_lines) = stage_two_line_reverse_fulfillment_order(&mut proxy);
+    let (_second_rfo_id, second_lines) = stage_two_line_reverse_fulfillment_order(&mut proxy);
+    let state_before = state_snapshot(&proxy);
+    let log_before = log_snapshot(&proxy);
+    let request = |lines: Value| {
+        json_graphql_request(
+            r#"
+            mutation ValidateReverseDeliveryLines(
+              $reverseFulfillmentOrderId: ID!
+              $reverseDeliveryLineItems: [ReverseDeliveryLineItemInput!]!
+            ) {
+              reverseDeliveryCreateWithShipping(
+                reverseFulfillmentOrderId: $reverseFulfillmentOrderId
+                reverseDeliveryLineItems: $reverseDeliveryLineItems
+              ) {
+                reverseDelivery { id }
+                userErrors { code field message }
+              }
+            }
+            "#,
+            json!({
+                "reverseFulfillmentOrderId": first_rfo_id,
+                "reverseDeliveryLineItems": lines
+            }),
+        )
+    };
+
+    let missing = proxy.process_request(request(json!([{
+        "reverseFulfillmentOrderLineItemId": "gid://shopify/ReverseFulfillmentOrderLineItem/999999999999999",
+        "quantity": 1
+    }])));
+    assert_eq!(
+        missing.body["data"]["reverseDeliveryCreateWithShipping"]["userErrors"],
+        json!([{
+            "code": Value::Null,
+            "field": ["reverseDeliveryLineItems", "0", "reverseFulfillmentOrderLineItemId"],
+            "message": "must exist"
+        }])
+    );
+
+    let unrelated = proxy.process_request(request(json!([{
+        "reverseFulfillmentOrderLineItemId": second_lines[0]["id"],
+        "quantity": 1
+    }])));
+    assert_eq!(
+        unrelated.body["data"]["reverseDeliveryCreateWithShipping"]["userErrors"],
+        missing.body["data"]["reverseDeliveryCreateWithShipping"]["userErrors"]
+    );
+
+    let duplicate = proxy.process_request(request(json!([
+        {
+            "reverseFulfillmentOrderLineItemId": first_lines[0]["id"],
+            "quantity": 1
+        },
+        {
+            "reverseFulfillmentOrderLineItemId": first_lines[0]["id"],
+            "quantity": 1
+        }
+    ])));
+    assert_eq!(
+        duplicate.body["data"]["reverseDeliveryCreateWithShipping"]["userErrors"],
+        json!([{
+            "code": Value::Null,
+            "field": ["reverseDeliveryLineItems", "1", "quantity"],
+            "message": "cannot deliver more items than are returned"
+        }])
+    );
+
+    let over_quantity = proxy.process_request(request(json!([{
+        "reverseFulfillmentOrderLineItemId": first_lines[0]["id"],
+        "quantity": first_lines[0]["totalQuantity"].as_i64().unwrap() + 1
+    }])));
+    assert_eq!(
+        over_quantity.body["data"]["reverseDeliveryCreateWithShipping"]["userErrors"][0],
+        json!({
+            "code": Value::Null,
+            "field": ["reverseDeliveryLineItems", "0", "quantity"],
+            "message": "cannot deliver more items than are returned"
+        })
+    );
+
+    let wrong_type = proxy.process_request(request(json!([{
+        "reverseFulfillmentOrderLineItemId": "gid://shopify/Return/123",
+        "quantity": 1
+    }])));
+    assert_eq!(
+        wrong_type.body["errors"][0]["extensions"]["code"],
+        json!("RESOURCE_NOT_FOUND")
+    );
+    assert_eq!(state_snapshot(&proxy), state_before);
+    assert_eq!(log_snapshot(&proxy), log_before);
+}
+
+#[test]
+fn cold_reverse_logistics_mutations_query_hydrate_and_survive_downstream_reads() {
+    let fixture = reverse_logistics_validation_fixture();
+
+    let create_requests = Arc::new(Mutex::new(Vec::new()));
+    let mut create_proxy = recorded_reverse_logistics_proxy(Arc::clone(&create_requests));
+    let create = create_proxy.process_request(json_graphql_request(
+        fixture["reverseDeliveryCreate"]["query"].as_str().unwrap(),
+        fixture["reverseDeliveryCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        create.body["data"]["reverseDeliveryCreateWithShipping"]["userErrors"],
+        json!([])
+    );
+    let created_delivery =
+        create.body["data"]["reverseDeliveryCreateWithShipping"]["reverseDelivery"].clone();
+    assert_eq!(
+        created_delivery["reverseDeliveryLineItems"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    let created_delivery_id = created_delivery["id"].clone();
+    let rfo_id = fixture["reverseDeliveryCreate"]["variables"]["reverseFulfillmentOrderId"].clone();
+    let created_read = create_proxy.process_request(json_graphql_request(
+        r#"
+        query ReadColdCreatedReverseDelivery($deliveryId: ID!, $rfoId: ID!) {
+          reverseDelivery(id: $deliveryId) {
+            id
+            reverseFulfillmentOrder { id status }
+            reverseDeliveryLineItems(first: 5) {
+              nodes { id quantity reverseFulfillmentOrderLineItem { id totalQuantity } }
+            }
+          }
+          reverseFulfillmentOrder(id: $rfoId) {
+            id
+            lineItems(first: 5) { nodes { id totalQuantity } }
+            reverseDeliveries(first: 5) { nodes { id } }
+          }
+          node(id: $deliveryId) { ... on ReverseDelivery { id } }
+        }
+        "#,
+        json!({ "deliveryId": created_delivery_id, "rfoId": rfo_id }),
+    ));
+    assert_eq!(
+        created_read.body["data"]["reverseDelivery"]["reverseFulfillmentOrder"]["id"],
+        rfo_id
+    );
+    assert_eq!(
+        created_read.body["data"]["reverseFulfillmentOrder"]["reverseDeliveries"]["nodes"][0]["id"],
+        created_delivery_id
+    );
+    assert_eq!(created_read.body["data"]["node"]["id"], created_delivery_id);
+    assert_eq!(
+        log_snapshot(&create_proxy)["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        create_requests.lock().unwrap()[0]["operationName"],
+        json!("ReverseLogisticsRfoMutationHydrate")
+    );
+
+    let update_requests = Arc::new(Mutex::new(Vec::new()));
+    let mut update_proxy = recorded_reverse_logistics_proxy(Arc::clone(&update_requests));
+    let update = update_proxy.process_request(json_graphql_request(
+        fixture["reverseDeliveryUpdate"]["query"].as_str().unwrap(),
+        fixture["reverseDeliveryUpdate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        update.body["data"]["reverseDeliveryShippingUpdate"]["userErrors"],
+        json!([])
+    );
+    let authoritative_delivery_id =
+        fixture["reverseDeliveryUpdate"]["variables"]["reverseDeliveryId"].clone();
+    let updated_tracking = update_proxy.process_request(json_graphql_request(
+        r#"
+        query ReadColdUpdatedReverseDelivery($id: ID!) {
+          reverseDelivery(id: $id) {
+            id
+            deliverable {
+              ... on ReverseDeliveryShippingDeliverable { tracking { number url carrierName } }
+            }
+          }
+          node(id: $id) {
+            ... on ReverseDelivery {
+              id
+              deliverable {
+                ... on ReverseDeliveryShippingDeliverable { tracking { number url carrierName } }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "id": authoritative_delivery_id }),
+    ));
+    assert_eq!(
+        updated_tracking.body["data"]["reverseDelivery"]["deliverable"]["tracking"]["number"],
+        fixture["reverseLogistics"]["updatedTrackingInput"]["number"]
+    );
+    assert_eq!(
+        updated_tracking.body["data"]["node"],
+        updated_tracking.body["data"]["reverseDelivery"]
+    );
+    assert_eq!(
+        update_requests.lock().unwrap()[0]["operationName"],
+        json!("ReverseLogisticsDeliveryMutationHydrate")
+    );
+
+    let dispose_requests = Arc::new(Mutex::new(Vec::new()));
+    let mut dispose_proxy = recorded_reverse_logistics_proxy(Arc::clone(&dispose_requests));
+    let dispose = dispose_proxy.process_request(json_graphql_request(
+        fixture["reverseFulfillmentDispose"]["query"]
+            .as_str()
+            .unwrap(),
+        fixture["reverseFulfillmentDispose"]["variables"].clone(),
+    ));
+    assert_eq!(
+        dispose.body["data"]["reverseFulfillmentOrderDispose"]["userErrors"],
+        json!([])
+    );
+    let disposed_line = dispose.body["data"]["reverseFulfillmentOrderDispose"]
+        ["reverseFulfillmentOrderLineItems"][0]
+        .clone();
+    let disposed_line_id = disposed_line["id"].clone();
+    let disposed_location_id = fixture["reverseFulfillmentDispose"]["variables"]
+        ["dispositionInputs"][0]["locationId"]
+        .clone();
+    assert_eq!(
+        disposed_line["dispositions"][0]["location"]["id"],
+        disposed_location_id
+    );
+    let read_disposed_line = |proxy: &mut DraftProxy| {
+        proxy.process_request(json_graphql_request(
+            r#"
+            query ReadColdDisposedReverseLine($id: ID!) {
+              node(id: $id) {
+                ... on ReverseFulfillmentOrderLineItem {
+                  id
+                  totalQuantity
+                  dispositions { id type quantity location { id } }
+                }
+              }
+            }
+            "#,
+            json!({ "id": disposed_line_id }),
+        ))
+    };
+    let before_restore = read_disposed_line(&mut dispose_proxy);
+    assert_eq!(
+        before_restore.body["data"]["node"]["dispositions"][0]["location"]["id"],
+        disposed_location_id
+    );
+    restore_state_with(&mut dispose_proxy, |_| {});
+    let after_restore = read_disposed_line(&mut dispose_proxy);
+    assert_eq!(
+        after_restore.body["data"]["node"],
+        before_restore.body["data"]["node"]
+    );
+    let state_after_dispose = state_snapshot(&dispose_proxy);
+    let log_after_dispose = log_snapshot(&dispose_proxy);
+    let repeated_dispose = dispose_proxy.process_request(json_graphql_request(
+        fixture["reverseFulfillmentDispose"]["query"]
+            .as_str()
+            .unwrap(),
+        fixture["reverseFulfillmentDispose"]["variables"].clone(),
+    ));
+    assert_eq!(
+        repeated_dispose.body["data"]["reverseFulfillmentOrderDispose"]["userErrors"][0]["field"],
+        json!(["dispositionInputs", "0", "quantity"])
+    );
+    assert_eq!(state_snapshot(&dispose_proxy), state_after_dispose);
+    assert_eq!(log_snapshot(&dispose_proxy), log_after_dispose);
+    assert_eq!(
+        dispose_requests.lock().unwrap()[0]["operationName"],
+        json!("ReverseLogisticsDisposeMutationHydrate")
+    );
+
+    for requests in [&create_requests, &update_requests, &dispose_requests] {
+        assert!(requests
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|request| request["query"]
+                .as_str()
+                .is_some_and(|query| query.trim_start().starts_with("query "))));
+    }
+}
+
+#[test]
+fn reverse_logistics_mutations_stay_local_and_commit_replays_raw_requests_in_order() {
+    let fixture = reverse_logistics_validation_fixture();
+    let upstream_requests = Arc::new(Mutex::new(Vec::new()));
+    let replayed = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let replayed_for_transport = Arc::clone(&replayed);
+    let mut proxy = recorded_reverse_logistics_proxy(Arc::clone(&upstream_requests))
+        .with_commit_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("reverse-logistics replay body parses");
+            replayed_for_transport.lock().unwrap().push(body.clone());
+            let response_body = if body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("reverseDeliveryCreateWithShipping"))
+            {
+                json!({
+                    "data": {
+                        "reverseDeliveryCreateWithShipping": {
+                            "reverseDelivery": { "id": "gid://shopify/ReverseDelivery/commit-authoritative" },
+                            "userErrors": []
+                        }
+                    }
+                })
+            } else {
+                json!({ "data": {} })
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: response_body,
+            }
+        });
+
+    let create_query = fixture["reverseDeliveryCreate"]["query"].as_str().unwrap();
+    let create_variables = fixture["reverseDeliveryCreate"]["variables"].clone();
+    let create =
+        proxy.process_request(json_graphql_request(create_query, create_variables.clone()));
+    let created_delivery_id =
+        create.body["data"]["reverseDeliveryCreateWithShipping"]["reverseDelivery"]["id"].clone();
+    assert!(created_delivery_id.as_str().is_some());
+
+    let update_query = fixture["reverseDeliveryUpdate"]["query"].as_str().unwrap();
+    let mut update_variables = fixture["reverseDeliveryUpdate"]["variables"].clone();
+    update_variables["reverseDeliveryId"] = created_delivery_id;
+    let update =
+        proxy.process_request(json_graphql_request(update_query, update_variables.clone()));
+    assert_eq!(
+        update.body["data"]["reverseDeliveryShippingUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let dispose_query = fixture["reverseFulfillmentDispose"]["query"]
+        .as_str()
+        .unwrap();
+    let dispose_variables = fixture["reverseFulfillmentDispose"]["variables"].clone();
+    let dispose = proxy.process_request(json_graphql_request(
+        dispose_query,
+        dispose_variables.clone(),
+    ));
+    assert_eq!(
+        dispose.body["data"]["reverseFulfillmentOrderDispose"]["userErrors"],
+        json!([])
+    );
+
+    assert!(upstream_requests
+        .lock()
+        .unwrap()
+        .iter()
+        .all(|request| request["query"]
+            .as_str()
+            .is_some_and(|query| query.trim_start().starts_with("query "))));
+    let log = log_snapshot(&proxy);
+    assert_eq!(
+        log["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|entry| entry["interpreted"]["primaryRootField"].clone())
+            .collect::<Vec<_>>(),
+        vec![
+            json!("reverseDeliveryCreateWithShipping"),
+            json!("reverseDeliveryShippingUpdate"),
+            json!("reverseFulfillmentOrderDispose")
+        ]
+    );
+
+    let commit = proxy.process_request(request_with_body("POST", "/__meta/commit", ""));
+    assert_eq!(commit.status, 200);
+    assert_eq!(commit.body["committed"], json!(3));
+    let replayed = replayed.lock().unwrap();
+    assert_eq!(replayed.len(), 3);
+    assert_eq!(replayed[0]["query"], json!(create_query));
+    assert_eq!(replayed[0]["variables"], create_variables);
+    assert_eq!(replayed[1]["query"], json!(update_query));
+    assert_eq!(replayed[1]["variables"], update_variables);
+    assert_eq!(replayed[2]["query"], json!(dispose_query));
+    assert_eq!(replayed[2]["variables"], dispose_variables);
+}
+
+#[test]
+fn cold_reverse_logistics_validation_rejects_missing_delivery_line_and_location_atomically() {
+    let fixture = reverse_logistics_validation_fixture();
+
+    let requests = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = recorded_reverse_logistics_proxy(Arc::clone(&requests));
+    let state_before = state_snapshot(&proxy);
+    let log_before = log_snapshot(&proxy);
+    let missing_delivery = &fixture["reverseDeliveryUpdateValidation"]["missingReverseDelivery"];
+    let missing_delivery_response = proxy.process_request(json_graphql_request(
+        missing_delivery["query"].as_str().unwrap(),
+        missing_delivery["variables"].clone(),
+    ));
+    assert_eq!(
+        missing_delivery_response.body["data"]["reverseDeliveryShippingUpdate"]["userErrors"],
+        missing_delivery["response"]["payload"]["data"]["reverseDeliveryShippingUpdate"]
+            ["userErrors"]
+    );
+    assert_eq!(state_snapshot(&proxy), state_before);
+    assert_eq!(log_snapshot(&proxy), log_before);
+
+    let wrong_type_delivery =
+        &fixture["reverseDeliveryUpdateValidation"]["wrongTypeReverseDelivery"];
+    let wrong_type_delivery_response = proxy.process_request(json_graphql_request(
+        wrong_type_delivery["query"].as_str().unwrap(),
+        wrong_type_delivery["variables"].clone(),
+    ));
+    assert_eq!(
+        wrong_type_delivery_response.body["errors"][0]["extensions"]["code"],
+        json!("RESOURCE_NOT_FOUND")
+    );
+    assert_eq!(state_snapshot(&proxy), state_before);
+    assert_eq!(log_snapshot(&proxy), log_before);
+
+    let missing_line =
+        &fixture["reverseFulfillmentDisposeValidation"]["missingReverseFulfillmentOrderLine"];
+    let missing_line_response = proxy.process_request(json_graphql_request(
+        missing_line["query"].as_str().unwrap(),
+        missing_line["variables"].clone(),
+    ));
+    assert_eq!(
+        missing_line_response.body["data"]["reverseFulfillmentOrderDispose"]["userErrors"],
+        missing_line["response"]["payload"]["data"]["reverseFulfillmentOrderDispose"]["userErrors"]
+    );
+    assert_eq!(state_snapshot(&proxy), state_before);
+    assert_eq!(log_snapshot(&proxy), log_before);
+
+    let missing_location = &fixture["reverseFulfillmentDisposeValidation"]["missingLocation"];
+    let missing_location_response = proxy.process_request(json_graphql_request(
+        missing_location["query"].as_str().unwrap(),
+        missing_location["variables"].clone(),
+    ));
+    assert_eq!(
+        missing_location_response.body["data"]["reverseFulfillmentOrderDispose"]["userErrors"],
+        missing_location["response"]["payload"]["data"]["reverseFulfillmentOrderDispose"]
+            ["userErrors"]
+    );
+    assert_eq!(state_snapshot(&proxy), state_before);
+    assert_eq!(log_snapshot(&proxy), log_before);
+
+    let wrong_type_location = &fixture["reverseFulfillmentDisposeValidation"]["wrongTypeLocation"];
+    let wrong_type_response = proxy.process_request(json_graphql_request(
+        wrong_type_location["query"].as_str().unwrap(),
+        wrong_type_location["variables"].clone(),
+    ));
+    assert_eq!(
+        wrong_type_response.body["errors"][0]["extensions"]["code"],
+        json!("RESOURCE_NOT_FOUND")
+    );
+    assert_eq!(state_snapshot(&proxy), state_before);
+    assert_eq!(log_snapshot(&proxy), log_before);
+}
+
+#[test]
+fn reverse_fulfillment_dispose_rejects_duplicate_and_over_quantity_atomically() {
+    let mut proxy = snapshot_proxy().with_upstream_transport(|_| {
+        panic!("staged reverse-disposition validation must not hydrate upstream")
+    });
+    let (_rfo_id, lines) = stage_two_line_reverse_fulfillment_order(&mut proxy);
+    let location = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedReverseValidationLocation($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Reverse validation location",
+                "address": { "countryCode": "CA" }
+            }
+        }),
+    ));
+    let location_id = location.body["data"]["locationAdd"]["location"]["id"].clone();
+    let state_before = state_snapshot(&proxy);
+    let log_before = log_snapshot(&proxy);
+    let request = |inputs: Value| {
+        json_graphql_request(
+            r#"
+            mutation ValidateReverseDisposition(
+              $inputs: [ReverseFulfillmentOrderDisposeInput!]!
+            ) {
+              reverseFulfillmentOrderDispose(dispositionInputs: $inputs) {
+                reverseFulfillmentOrderLineItems { id }
+                userErrors { code field message }
+              }
+            }
+            "#,
+            json!({ "inputs": inputs }),
+        )
+    };
+
+    let duplicate = proxy.process_request(request(json!([
+        {
+            "reverseFulfillmentOrderLineItemId": lines[0]["id"],
+            "quantity": 1,
+            "dispositionType": "NOT_RESTOCKED",
+            "locationId": location_id
+        },
+        {
+            "reverseFulfillmentOrderLineItemId": lines[0]["id"],
+            "quantity": 1,
+            "dispositionType": "NOT_RESTOCKED",
+            "locationId": location_id
+        }
+    ])));
+    assert_eq!(
+        duplicate.body["data"]["reverseFulfillmentOrderDispose"]["userErrors"][0],
+        json!({
+            "code": "INVALID",
+            "field": ["dispositionInputs", "1", "quantity"],
+            "message": "Quantity is invalid."
+        })
+    );
+
+    let over_quantity = proxy.process_request(request(json!([{
+        "reverseFulfillmentOrderLineItemId": lines[0]["id"],
+        "quantity": lines[0]["totalQuantity"].as_i64().unwrap() + 1,
+        "dispositionType": "NOT_RESTOCKED",
+        "locationId": location_id
+    }])));
+    assert_eq!(
+        over_quantity.body["data"]["reverseFulfillmentOrderDispose"]["userErrors"][0]["field"],
+        json!(["dispositionInputs", "0", "quantity"])
+    );
+    assert_eq!(state_snapshot(&proxy), state_before);
+    assert_eq!(log_snapshot(&proxy), log_before);
+}
+
+#[test]
 fn return_create_and_request_reject_missing_reason_without_staging() {
     let fixture = return_reason_validation_fixture();
 
@@ -5423,6 +6244,287 @@ fn return_request_approval_and_decline_unknown_ids_use_not_found_shape() {
             "field": ["input", "id"],
             "message": "Return not found."
         }])
+    );
+}
+
+#[test]
+fn live_hybrid_return_close_hydrates_a_cold_existing_return_before_transition() {
+    let return_id = "gid://shopify/Return/7001";
+    let order_id = "gid://shopify/Order/7001";
+    let return_line_item_id = "gid://shopify/ReturnLineItem/7001";
+    let fulfillment_line_item_id = "gid://shopify/FulfillmentLineItem/7001";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let commit_calls = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured_commit_calls = Arc::clone(&commit_calls);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_clock(|| utc_time(1_704_240_000))
+        .with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream GraphQL body");
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                query.trim_start().starts_with("query"),
+                "cold return hydration must remain query-only: {query}"
+            );
+            captured_calls.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "return": {
+                            "id": return_id,
+                            "name": "#7001-R1",
+                            "status": "OPEN",
+                            "closedAt": null,
+                            "decline": null,
+                            "totalQuantity": 1,
+                            "refunds": { "nodes": [] },
+                            "order": {
+                                "id": order_id,
+                                "name": "#7001",
+                                "updatedAt": "2024-01-01T00:00:00Z"
+                            },
+                            "returnLineItems": {
+                                "nodes": [{
+                                    "id": return_line_item_id,
+                                    "quantity": 1,
+                                    "processableQuantity": 1,
+                                    "processedQuantity": 0,
+                                    "refundableQuantity": 1,
+                                    "refundedQuantity": 0,
+                                    "unprocessedQuantity": 1,
+                                    "returnReason": "OTHER",
+                                    "returnReasonNote": "cold return",
+                                    "fulfillmentLineItem": {
+                                        "id": fulfillment_line_item_id,
+                                        "quantity": 1,
+                                        "lineItem": {
+                                            "id": "gid://shopify/LineItem/7001",
+                                            "title": "Cold return line",
+                                            "variant": null
+                                        }
+                                    }
+                                }]
+                            },
+                            "returnShippingFees": [],
+                            "reverseFulfillmentOrders": { "nodes": [] }
+                        }
+                    }
+                }),
+            }
+        })
+        .with_commit_transport(move |request| {
+            captured_commit_calls.lock().unwrap().push(request);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "returnClose": { "userErrors": [] } } }),
+            }
+        });
+
+    let close = return_lifecycle_transition_for_test(&mut proxy, "returnClose", json!(return_id));
+
+    assert_eq!(close["userErrors"], json!([]));
+    assert_eq!(close["return"]["id"], json!(return_id));
+    assert_eq!(close["return"]["status"], json!("CLOSED"));
+    assert_eq!(close["return"]["closedAt"], json!("2024-01-03T00:00:00Z"));
+    let calls = upstream_calls.lock().unwrap();
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0]["variables"], json!({ "id": return_id }));
+    drop(calls);
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().map(Vec::len), Some(1));
+    assert_eq!(
+        log["entries"][0]["interpreted"]["primaryRootField"],
+        json!("returnClose")
+    );
+    assert!(log["entries"][0]["rawBody"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("ReturnCloseMissingReturnForErrorShape"));
+    let commit = proxy.process_request(request_with_body("POST", "/__meta/commit", ""));
+    assert_eq!(commit.status, 200);
+    assert_eq!(commit.body["committed"], json!(1));
+    let replayed = commit_calls.lock().unwrap();
+    assert_eq!(replayed.len(), 1);
+    assert!(replayed[0]
+        .body
+        .contains("ReturnCloseMissingReturnForErrorShape"));
+    drop(replayed);
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let restored = proxy.process_request(json_graphql_request(
+        r#"
+        query RestoredColdReturn($returnId: ID!, $orderId: ID!) {
+          return(id: $returnId) { id status closedAt }
+          order(id: $orderId) {
+            id
+            returnStatus
+            returns(first: 5) { nodes { id status closedAt } }
+          }
+        }
+        "#,
+        json!({ "returnId": return_id, "orderId": order_id }),
+    ));
+    assert_eq!(restored.body["data"]["return"]["status"], json!("CLOSED"));
+    assert_eq!(
+        restored.body["data"]["order"]["returns"]["nodes"][0]["id"],
+        json!(return_id)
+    );
+}
+
+#[test]
+fn live_hybrid_return_lifecycle_caches_confirmed_missing_without_collapsing_failures() {
+    let return_id = "gid://shopify/Return/7002";
+    let upstream_calls = Arc::new(AtomicUsize::new(0));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream GraphQL body");
+            assert_eq!(body["variables"], json!({ "id": return_id }));
+            captured_calls.fetch_add(1, Ordering::SeqCst);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "return": Value::Null } }),
+            }
+        });
+
+    let close = return_lifecycle_transition_for_test(&mut proxy, "returnClose", json!(return_id));
+    let cancel = return_lifecycle_transition_for_test(&mut proxy, "returnCancel", json!(return_id));
+    for payload in [close, cancel] {
+        assert_eq!(payload["return"], Value::Null);
+        assert_eq!(payload["userErrors"][0]["code"], json!("NOT_FOUND"));
+    }
+    assert_eq!(upstream_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+
+    let mut failing_proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|_request| Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": { "return": Value::Null },
+                "errors": [{
+                    "message": "Return hydration unavailable",
+                    "path": ["return"],
+                    "extensions": { "code": "INTERNAL_SERVER_ERROR" }
+                }]
+            }),
+        });
+    let failed = failing_proxy.process_request(json_graphql_request(
+        r#"
+        mutation ColdReturnCloseHydrationFailure($id: ID!) {
+          coldClose: returnClose(id: $id) {
+            return { id status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": return_id }),
+    ));
+    assert_eq!(failed.body["data"]["coldClose"], Value::Null);
+    assert_eq!(
+        failed.body["errors"][0]["message"],
+        json!("Return hydration unavailable")
+    );
+    assert_eq!(failed.body["errors"][0]["path"], json!(["coldClose"]));
+    assert_eq!(log_snapshot(&failing_proxy)["entries"], json!([]));
+}
+
+#[test]
+fn live_hybrid_return_process_validates_cold_line_relationships_before_staging() {
+    let return_id = "gid://shopify/Return/7003";
+    let return_line_item_id = "gid://shopify/ReturnLineItem/7003";
+    let wrong_line_item_id = "gid://shopify/ReturnLineItem/7999";
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_request| {
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "return": {
+                            "id": return_id,
+                            "name": "#7003-R1",
+                            "status": "OPEN",
+                            "closedAt": null,
+                            "decline": null,
+                            "totalQuantity": 1,
+                            "refunds": [],
+                            "order": {
+                                "id": "gid://shopify/Order/7003",
+                                "name": "#7003",
+                                "updatedAt": "2024-01-01T00:00:00Z"
+                            },
+                            "returnLineItems": {
+                                "nodes": [{
+                                    "id": return_line_item_id,
+                                    "quantity": 1,
+                                    "processableQuantity": 1,
+                                    "processedQuantity": 0,
+                                    "refundableQuantity": 1,
+                                    "refundedQuantity": 0,
+                                    "unprocessedQuantity": 1
+                                }]
+                            },
+                            "returnShippingFees": [],
+                            "reverseFulfillmentOrders": { "nodes": [] }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let invalid = return_process_for_test(&mut proxy, json!(return_id), json!(wrong_line_item_id));
+    assert_eq!(invalid["return"], Value::Null);
+    assert_eq!(
+        invalid["userErrors"],
+        json!([{
+            "field": ["input", "returnLineItems", "0", "id"],
+            "message": "Return line item was not found.",
+            "code": "NOT_FOUND"
+        }])
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+
+    let processed =
+        return_process_for_test(&mut proxy, json!(return_id), json!(return_line_item_id));
+    assert_eq!(processed["userErrors"], json!([]));
+    assert_eq!(processed["return"]["status"], json!("OPEN"));
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ColdProcessedReturnRead($id: ID!) {
+          return(id: $id) {
+            id
+            returnLineItems(first: 5) {
+              nodes { id processableQuantity processedQuantity unprocessedQuantity }
+            }
+          }
+        }
+        "#,
+        json!({ "id": return_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["return"]["returnLineItems"]["nodes"][0],
+        json!({
+            "id": return_line_item_id,
+            "processableQuantity": 0,
+            "processedQuantity": 1,
+            "unprocessedQuantity": 0
+        })
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().map(Vec::len),
+        Some(1)
     );
 }
 

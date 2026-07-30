@@ -1,0 +1,16 @@
+query LocalizationParentObservationDisjointRead($productId: ID!, $collectionId: ID!) {
+  product(id: $productId) {
+    id
+    status
+    createdAt
+    updatedAt
+    vendor
+    tags
+  }
+  collection(id: $collectionId) {
+    id
+    updatedAt
+    templateSuffix
+    sortOrder
+  }
+}
