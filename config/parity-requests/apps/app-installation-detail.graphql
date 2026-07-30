@@ -1,0 +1,26 @@
+#graphql
+  query AppInstallationDetail($id: ID!) {
+    appInstallation(id: $id) {
+      id
+      launchUrl
+      uninstallUrl
+      app {
+        id
+        apiKey
+        handle
+        title
+        developerName
+        embedded
+      }
+      accessScopes {
+        handle
+        description
+      }
+      activeSubscriptions {
+        id
+        name
+        status
+        test
+      }
+    }
+  }

@@ -1,0 +1,50 @@
+#graphql
+  query AppLookupShapes(
+    $id: ID!
+    $missingId: ID!
+    $handle: String!
+    $missingHandle: String!
+    $apiKey: String!
+    $missingApiKey: String!
+  ) {
+    appById: app(id: $id) {
+      id
+      apiKey
+      handle
+      title
+      developerName
+      embedded
+      previouslyInstalled
+      requestedAccessScopes {
+        handle
+        description
+      }
+    }
+    missingAppById: app(id: $missingId) {
+      id
+    }
+    appByHandle(handle: $handle) {
+      id
+      apiKey
+      handle
+      title
+      developerName
+      embedded
+      previouslyInstalled
+    }
+    missingAppByHandle: appByHandle(handle: $missingHandle) {
+      id
+    }
+    appByKey(apiKey: $apiKey) {
+      id
+      apiKey
+      handle
+      title
+      developerName
+      embedded
+      previouslyInstalled
+    }
+    missingAppByKey: appByKey(apiKey: $missingApiKey) {
+      id
+    }
+  }

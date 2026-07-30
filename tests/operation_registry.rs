@@ -269,8 +269,16 @@ fn default_registry_classifies_core_local_targets_without_runtime_io() {
     }
 
     let app = operation_capability(&registry, OperationType::Query, Some("app"));
-    assert_eq!(app.domain, CapabilityDomain::Unknown);
-    assert_eq!(app.execution, CapabilityExecution::Passthrough);
+    assert_eq!(app.domain, CapabilityDomain::Apps);
+    assert_eq!(app.execution, CapabilityExecution::OverlayRead);
+
+    let app_installations =
+        operation_capability(&registry, OperationType::Query, Some("appInstallations"));
+    assert_eq!(app_installations.domain, CapabilityDomain::Unknown);
+    assert_eq!(
+        app_installations.execution,
+        CapabilityExecution::Passthrough
+    );
 }
 
 #[test]

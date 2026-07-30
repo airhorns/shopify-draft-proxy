@@ -143,6 +143,26 @@ pub(in crate::proxy) fn request_app_gid(request: &Request) -> String {
     normalize_app_gid(&request_api_client_id(request))
 }
 
+pub(in crate::proxy) fn request_app_context_key(request: &Request) -> String {
+    request_header(request, API_CLIENT_ID_HEADER)
+        .map(|value| normalize_app_gid(&value))
+        .unwrap_or_else(|| "__default".to_string())
+}
+
+pub(in crate::proxy) fn request_has_explicit_app_context(request: &Request) -> bool {
+    [
+        API_CLIENT_ID_HEADER,
+        "x-shopify-draft-proxy-app-installation-id",
+        "x-shopify-draft-proxy-app-handle",
+        "x-shopify-draft-proxy-app-title",
+        "x-shopify-draft-proxy-app-api-key",
+        ACCESS_SCOPES_HEADER,
+        "x-shopify-draft-proxy-required-access-scopes",
+    ]
+    .iter()
+    .any(|header| request_header(request, header).is_some())
+}
+
 pub(in crate::proxy) fn app_id_from_installation(installation: &Value) -> Option<String> {
     installation
         .get("app")
@@ -181,6 +201,7 @@ pub(in crate::proxy) fn current_app_installation_from_request(request: &Request)
         .unwrap_or_else(|| "shopify-draft-proxy".to_string());
     let title = request_header(request, "x-shopify-draft-proxy-app-title")
         .unwrap_or_else(|| handle.clone());
+    let api_key = request_header(request, "x-shopify-draft-proxy-app-api-key");
     let access_scopes = request_access_scope_values(request).unwrap_or_else(|| {
         vec![
             access_scope_json("read_products", None),
@@ -196,7 +217,7 @@ pub(in crate::proxy) fn current_app_installation_from_request(request: &Request)
                 vec![access_scope_json("read_products", None)]
             }
         });
-    json!({
+    let mut installation = json!({
         "__typename": "AppInstallation",
         "__draftProxySource": if explicit_app_id.is_some() { "request" } else { "default" },
         "__draftProxyRequestAppId": app_id.clone(),
@@ -209,7 +230,11 @@ pub(in crate::proxy) fn current_app_installation_from_request(request: &Request)
             "title": title,
             "requestedAccessScopes": requested_access_scopes
         }
-    })
+    });
+    if let Some(api_key) = api_key {
+        installation["app"]["apiKey"] = json!(api_key);
+    }
+    installation
 }
 
 fn request_access_scope_values(request: &Request) -> Option<Vec<Value>> {

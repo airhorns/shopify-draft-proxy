@@ -67,6 +67,7 @@ fn app_installation_all_subscriptions_field(
     _request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
+    let app_id = invocation.parent.pointer("/app/id").and_then(Value::as_str);
     let records = if proxy.store.staged.app_subscriptions.is_empty() {
         connection_nodes(&invocation.parent["allSubscriptions"])
     } else {
@@ -75,6 +76,12 @@ fn app_installation_all_subscriptions_field(
             .staged
             .app_subscriptions
             .values()
+            .filter(|subscription| {
+                subscription
+                    .get("__draftProxyAppId")
+                    .and_then(Value::as_str)
+                    .is_none_or(|owner| Some(owner) == app_id)
+            })
             .cloned()
             .collect()
     };
@@ -90,6 +97,7 @@ fn app_installation_one_time_purchases_field(
     _request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
+    let app_id = invocation.parent.pointer("/app/id").and_then(Value::as_str);
     let records = if proxy.store.staged.app_one_time_purchases.is_empty() {
         connection_nodes(&invocation.parent["oneTimePurchases"])
     } else {
@@ -98,6 +106,12 @@ fn app_installation_one_time_purchases_field(
             .staged
             .app_one_time_purchases
             .values()
+            .filter(|purchase| {
+                purchase
+                    .get("__draftProxyAppId")
+                    .and_then(Value::as_str)
+                    .is_none_or(|owner| Some(owner) == app_id)
+            })
             .cloned()
             .collect()
     };
@@ -126,34 +140,18 @@ impl DraftProxy {
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
         let request = invocation.request;
-        let request_app_id = request_app_gid(request);
-        if self
-            .store
-            .staged
-            .uninstalled_app_ids
-            .contains(&request_app_id)
-            || self
-                .current_app_installation_app_id_for_request(&request_app_id)
-                .is_some()
-            || !self.store.staged.app_subscriptions.is_empty()
-            || !self.store.staged.app_one_time_purchases.is_empty()
-            || self
-                .store
-                .staged
-                .revoked_app_access_scopes
-                .get(&request_app_id)
-                .is_some_and(|scopes| !scopes.is_empty())
-            || self.config.read_mode == ReadMode::Snapshot
-        {
-            return ResolverOutcome::value(self.current_app_installation_root_value(request));
+        let has_local_overlay = self.app_graph_has_local_overlay();
+        if self.config.read_mode == ReadMode::LiveHybrid {
+            let result =
+                self.cached_or_forward_upstream_graphql_result(request, invocation.response_key);
+            if result.transport_succeeded {
+                self.observe_app_query_data(&invocation, &result.data);
+            }
+            if !has_local_overlay || !result.outcome.errors.is_empty() {
+                return result.outcome;
+            }
         }
-
-        let result =
-            self.cached_or_forward_upstream_graphql_result(request, invocation.response_key);
-        if result.transport_succeeded {
-            self.observe_current_app_installation_data(request, &result.data);
-        }
-        result.outcome
+        ResolverOutcome::value(self.current_app_installation_root_value(request))
     }
 }
 
