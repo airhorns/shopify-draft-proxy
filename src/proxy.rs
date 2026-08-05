@@ -798,7 +798,6 @@ struct StagedState {
     order_edit_existing_calculated_order: Option<Value>,
     order_edit_existing_calculated_order_id: Option<String>,
     order_edit_existing_session_order_id: Option<String>,
-    order_edit_money_bag_calculated_order_ids: BTreeMap<String, String>,
     order_edit_existing_mode: Option<String>,
     /// Catalog of product variants an order-edit `orderEditAddVariant` can
     /// resolve against (variant id -> {title, sku, price, currencyCode}). Seeded
