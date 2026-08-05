@@ -5070,7 +5070,28 @@ Practical rule:
 - recognize the plural `fulfillment_constraints` API type when resolving a
   Function for fulfillment-constraint rule lifecycle operations
 
-## 121. Discount prerequisite transport history is not validation authority
+## 121. Delivery customization Function handles require catalog metadata matching
+
+Live Admin GraphQL 2026-04 capture showed an asymmetric Function surface.
+`DeliveryCustomizationInput` accepts `functionHandle`, but `ShopifyFunction`
+does not expose a selectable `handle` field and `shopifyFunctions` does not
+accept a `handle:` argument on this schema. The current app's Function catalog
+does expose the extension handle as `title` and `description`. Shopify used that
+handle to distinguish a missing Function from a current-app Function with the
+wrong API type: the latter returned `FUNCTION_DOES_NOT_IMPLEMENT`, not
+`FUNCTION_NOT_FOUND`.
+
+Practical rule:
+
+- resolve delivery customization IDs with `shopifyFunction(id:)`
+- resolve handles from the complete current-app Function catalog using observed
+  handle metadata, with captured title/description matching where `handle` is
+  unavailable
+- verify app ownership before API type, so wrong-app references remain not found
+- classify only delivery-customization extension targets as eligible and never
+  accept an unverified caller-supplied Function reference
+
+## 122. Discount prerequisite transport history is not validation authority
 
 Captured discount scenarios establish the ordinary known branches: an exact
 `codeDiscountNodeByCode` result distinguishes a taken code from a null lookup;
@@ -5093,7 +5114,7 @@ Practical rule:
   logging the mutation; this transport-failure outcome is runtime safety
   behavior and must not be presented as captured Shopify parity
 
-## 122. Function lifecycle decisions need narrow authoritative evidence
+## 123. Function lifecycle decisions need narrow authoritative evidence
 
 Admin GraphQL 2026-04 capture with 25 active validations and one cart transform
 settled three preflight details that cannot be inferred from partial Function

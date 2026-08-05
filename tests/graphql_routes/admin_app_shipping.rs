@@ -87,20 +87,49 @@ fn create_bulk_metadata_product(proxy: &mut DraftProxy, title: &str) -> String {
 }
 
 fn delivery_customization_function_metadata(id: &str, handle: &str) -> Value {
+    delivery_customization_function_metadata_for_app(
+        id,
+        handle,
+        "DELIVERY_CUSTOMIZATION",
+        "347082227713",
+    )
+}
+
+fn delivery_customization_function_metadata_for_app(
+    id: &str,
+    handle: &str,
+    api_type: &str,
+    app_id: &str,
+) -> Value {
     json!({
         "__typename": "ShopifyFunction",
         "id": id,
         "title": handle,
         "handle": handle,
-        "apiType": "DELIVERY_CUSTOMIZATION",
-        "appKey": "347082227713",
+        "apiType": api_type,
+        "appKey": app_id,
         "app": {
             "__typename": "App",
-            "id": "gid://shopify/App/347082227713",
+            "id": format!("gid://shopify/App/{app_id}"),
             "title": "Delivery Customization App",
             "handle": "delivery-customization-app",
-            "apiKey": "347082227713"
+            "apiKey": app_id
         }
+    })
+}
+
+fn delivery_customization_upstream_record(id: &str, title: &str, enabled: bool) -> Value {
+    json!({
+        "__typename": "DeliveryCustomization",
+        "id": id,
+        "title": title,
+        "enabled": enabled,
+        "functionId": "delivery-valid",
+        "shopifyFunction": delivery_customization_function_metadata(
+            "delivery-valid",
+            "delivery-valid",
+        ),
+        "metafields": { "nodes": [] }
     })
 }
 
@@ -112,20 +141,21 @@ fn delivery_customization_function_proxy(
         let body: Value = serde_json::from_str(&request.body).unwrap();
         upstream_hits.lock().unwrap().push(body.clone());
         let response_body = match body.get("operationName").and_then(Value::as_str) {
+            Some("DeliveryCustomizationFunctionCatalogHydrate") => {
+                let nodes = functions.clone();
+                json!({ "data": { "shopifyFunctions": { "nodes": nodes } } })
+            }
             Some("FunctionHydrateByHandle") => {
                 let handle = body["variables"]["handle"].as_str().unwrap_or_default();
-                let api_type = body["variables"]["apiType"].as_str().unwrap_or_default();
                 let nodes = functions
                     .iter()
-                    .filter(|function| {
-                        function["handle"].as_str() == Some(handle)
-                            && function["apiType"].as_str() == Some(api_type)
-                    })
+                    .filter(|function| function["handle"].as_str() == Some(handle))
                     .cloned()
                     .collect::<Vec<_>>();
                 json!({ "data": { "shopifyFunctions": { "nodes": nodes } } })
             }
-            Some("FunctionHydrateById") => {
+            Some("FunctionHydrateById")
+            | Some("DeliveryCustomizationFunctionHydrateById") => {
                 let id = body["variables"]["id"].as_str().unwrap_or_default();
                 let function = functions
                     .iter()
@@ -133,6 +163,61 @@ fn delivery_customization_function_proxy(
                     .cloned()
                     .unwrap_or(Value::Null);
                 json!({ "data": { "shopifyFunction": function } })
+            }
+            Some("DeliveryCustomizationActiveCatalogHydrate") => {
+                json!({ "data": { "deliveryCustomizations": { "nodes": [], "pageInfo": { "hasNextPage": false, "endCursor": null } } } })
+            }
+            Some("DeliveryCustomizationLimitRead") => json!({
+                "data": {
+                    "deliveryCustomizations": {
+                        "nodes": [],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": null,
+                            "endCursor": null
+                        }
+                    }
+                }
+            }),
+            _ if body["query"]
+                .as_str()
+                .is_some_and(|query| {
+                    query.contains("DeliveryCustomizationRead")
+                        || query.contains("DeliveryCustomizationLimitRead")
+                }) =>
+            {
+                json!({
+                    "data": {
+                        "missing": null,
+                        "deliveryCustomization": null,
+                        "deliveryCustomizations": {
+                            "edges": [],
+                            "nodes": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        }
+                    }
+                })
+            }
+            _ if body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("DeliveryCustomizationPartialFunctionCatalog")) =>
+            {
+                let nodes = functions
+                    .iter()
+                    .map(|function| {
+                        json!({
+                            "id": function["id"],
+                            "apiType": function["apiType"]
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                json!({ "data": { "shopifyFunctions": { "nodes": nodes } } })
             }
             _ => json!({
                 "errors": [{
@@ -148,14 +233,553 @@ fn delivery_customization_function_proxy(
     })
 }
 
+fn delivery_customization_app_request(query: &str, variables: Value) -> Request {
+    let mut request = json_graphql_request(query, variables);
+    request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    request
+}
+
+#[test]
+fn delivery_customization_create_validates_function_identity_type_and_owner() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut payment_function = delivery_customization_function_metadata_for_app(
+        "payment-wrong-type",
+        "payment-wrong-type",
+        "PAYMENT_CUSTOMIZATION",
+        "347082227713",
+    );
+    payment_function.as_object_mut().unwrap().remove("handle");
+    let functions = vec![
+        delivery_customization_function_metadata("delivery-valid", "delivery-valid"),
+        delivery_customization_function_metadata_for_app(
+            "delivery-legacy",
+            "delivery-legacy",
+            "delivery_customization_legacy",
+            "347082227713",
+        ),
+        payment_function,
+        delivery_customization_function_metadata_for_app(
+            "foreign-delivery",
+            "foreign-delivery",
+            "DELIVERY_CUSTOMIZATION",
+            "other-app",
+        ),
+    ];
+    let mut proxy = delivery_customization_function_proxy(functions, Arc::clone(&upstream_hits));
+    let partial_catalog = proxy.process_request(delivery_customization_app_request(
+        "query DeliveryCustomizationPartialFunctionCatalog { shopifyFunctions(first: 100) { nodes { id apiType } } }",
+        json!({}),
+    ));
+    assert_eq!(
+        partial_catalog.body["data"]["shopifyFunctions"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        4
+    );
+    let mutation = r#"
+      mutation DeliveryCustomizationFunctionReference($input: DeliveryCustomizationInput!) {
+        deliveryCustomizationCreate(deliveryCustomization: $input) {
+          deliveryCustomization { id functionId }
+          userErrors { field code message }
+        }
+      }
+    "#;
+    let create = |proxy: &mut DraftProxy, field: &str, value: &str| {
+        proxy.process_request(delivery_customization_app_request(
+            mutation,
+            json!({
+                "input": {
+                    "title": format!("Function reference {field} {value}"),
+                    "enabled": false,
+                    (field): value,
+                    "metafields": []
+                }
+            }),
+        ))
+    };
+
+    let wrong_handle = create(&mut proxy, "functionHandle", "payment-wrong-type");
+    assert_eq!(
+        wrong_handle.body["data"]["deliveryCustomizationCreate"]["userErrors"],
+        json!([{
+            "field": ["deliveryCustomization", "functionHandle"],
+            "code": "FUNCTION_DOES_NOT_IMPLEMENT",
+            "message": "Unexpected Function API. The provided function must implement one of the following extension targets: [purchase.delivery-customization.run, cart.delivery-options.transform.run]."
+        }])
+    );
+
+    let missing = create(&mut proxy, "functionId", "missing-delivery");
+    assert_eq!(
+        missing.body["data"]["deliveryCustomizationCreate"]["userErrors"],
+        json!([{
+            "field": ["deliveryCustomization", "functionId"],
+            "code": "FUNCTION_NOT_FOUND",
+            "message": "Function missing-delivery not found. Ensure that it is released in the current app (347082227713), and that the app is installed."
+        }])
+    );
+
+    let wrong_type = create(&mut proxy, "functionId", "payment-wrong-type");
+    assert_eq!(
+        wrong_type.body["data"]["deliveryCustomizationCreate"]["userErrors"],
+        json!([{
+            "field": ["deliveryCustomization", "functionId"],
+            "code": "FUNCTION_DOES_NOT_IMPLEMENT",
+            "message": "Unexpected Function API. The provided function must implement one of the following extension targets: [purchase.delivery-customization.run, cart.delivery-options.transform.run]."
+        }])
+    );
+
+    let foreign = create(&mut proxy, "functionId", "foreign-delivery");
+    assert_eq!(
+        foreign.body["data"]["deliveryCustomizationCreate"]["userErrors"],
+        json!([{
+            "field": ["deliveryCustomization", "functionId"],
+            "code": "FUNCTION_NOT_FOUND",
+            "message": "Function foreign-delivery not found. Ensure that it is released in the current app (347082227713), and that the app is installed."
+        }])
+    );
+
+    let valid = create(&mut proxy, "functionId", "delivery-valid");
+    assert_eq!(
+        valid.body["data"]["deliveryCustomizationCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        valid.body["data"]["deliveryCustomizationCreate"]["deliveryCustomization"]["functionId"],
+        json!("delivery-valid")
+    );
+    let valid_legacy = create(&mut proxy, "functionHandle", "delivery-legacy");
+    assert_eq!(
+        valid_legacy.body["data"]["deliveryCustomizationCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        valid_legacy.body["data"]["deliveryCustomizationCreate"]["deliveryCustomization"]
+            ["functionId"],
+        json!("delivery-legacy")
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 2);
+    assert!(upstream_hits.lock().unwrap().iter().all(|body| {
+        body["query"]
+            .as_str()
+            .is_some_and(|query| query.trim_start().starts_with("query"))
+    }));
+}
+
+#[test]
+fn delivery_customization_reads_overlay_authoritative_records_and_round_trip_state() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_hits = Arc::clone(&upstream_hits);
+    let function = delivery_customization_function_metadata("delivery-valid", "delivery-valid");
+    let base_record = delivery_customization_upstream_record(
+        "gid://shopify/DeliveryCustomization/base",
+        "Authoritative base customization",
+        true,
+    );
+    let transport_function = function.clone();
+    let transport_base_record = base_record.clone();
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            captured_hits.lock().unwrap().push(body.clone());
+            let response_body = match body.get("operationName").and_then(Value::as_str) {
+                Some("DeliveryCustomizationFunctionHydrateById") => {
+                    json!({ "data": { "shopifyFunction": transport_function } })
+                }
+                Some("DeliveryCustomizationActiveCatalogHydrate") => json!({
+                    "data": {
+                        "deliveryCustomizations": {
+                            "nodes": [transport_base_record.clone()],
+                            "pageInfo": { "hasNextPage": false, "endCursor": null }
+                        }
+                    }
+                }),
+                _ if body["query"].as_str().is_some_and(|query| {
+                    query.contains("DeliveryCustomizationEffectiveCatalogRead")
+                }) =>
+                {
+                    json!({
+                        "data": {
+                            "deliveryCustomizations": {
+                                "nodes": [transport_base_record.clone()],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": "base-cursor",
+                                    "endCursor": "base-cursor"
+                                }
+                            }
+                        }
+                    })
+                }
+                _ => panic!("unexpected delivery customization upstream request: {body}"),
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: response_body,
+            }
+        });
+
+    let create = proxy.process_request(delivery_customization_app_request(
+        r#"
+        mutation DeliveryCustomizationOverlayCreate($input: DeliveryCustomizationInput!) {
+          deliveryCustomizationCreate(deliveryCustomization: $input) {
+            deliveryCustomization { id title enabled functionId }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Local overlay customization",
+                "enabled": false,
+                "functionId": "delivery-valid",
+                "metafields": []
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["deliveryCustomizationCreate"]["userErrors"],
+        json!([])
+    );
+    let staged_id = create.body["data"]["deliveryCustomizationCreate"]["deliveryCustomization"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(delivery_customization_app_request(
+        r#"
+        query DeliveryCustomizationEffectiveCatalogRead {
+          deliveryCustomizations(first: 10) {
+            nodes { id title enabled functionId }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["deliveryCustomizations"]["nodes"],
+        json!([
+            {
+                "id": staged_id,
+                "title": "Local overlay customization",
+                "enabled": false,
+                "functionId": "delivery-valid"
+            },
+            {
+                "id": "gid://shopify/DeliveryCustomization/base",
+                "title": "Authoritative base customization",
+                "enabled": true,
+                "functionId": "delivery-valid"
+            }
+        ])
+    );
+
+    let node = proxy.process_request(delivery_customization_app_request(
+        "query DeliveryCustomizationObservedNode($id: ID!) { node(id: $id) { ... on DeliveryCustomization { id title enabled functionId } } }",
+        json!({ "id": "gid://shopify/DeliveryCustomization/base" }),
+    ));
+    assert_eq!(
+        node.body["data"]["node"]["title"],
+        json!("Authoritative base customization")
+    );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert!(dump.body["state"]["baseState"]["deliveryCustomizations"]
+        ["gid://shopify/DeliveryCustomization/base"]
+        .is_object());
+    let mut restored = snapshot_proxy();
+    assert_eq!(
+        restored
+            .process_request(request_with_body(
+                "POST",
+                "/__meta/restore",
+                &dump.body.to_string()
+            ))
+            .status,
+        200
+    );
+    let restored_read = restored.process_request(json_graphql_request(
+        "query DeliveryCustomizationRestoredCatalog { deliveryCustomizations(first: 10) { nodes { id title } } }",
+        json!({}),
+    ));
+    assert_eq!(
+        restored_read.body["data"]["deliveryCustomizations"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert!(upstream_hits.lock().unwrap().iter().all(|body| {
+        body["query"]
+            .as_str()
+            .is_some_and(|query| query.trim_start().starts_with("query"))
+    }));
+}
+
+#[test]
+fn delivery_customization_mutation_first_hydrates_cold_targets_without_writes() {
+    let targets = BTreeMap::from([
+        (
+            "gid://shopify/DeliveryCustomization/update".to_string(),
+            delivery_customization_upstream_record(
+                "gid://shopify/DeliveryCustomization/update",
+                "Cold update target",
+                false,
+            ),
+        ),
+        (
+            "gid://shopify/DeliveryCustomization/activate".to_string(),
+            delivery_customization_upstream_record(
+                "gid://shopify/DeliveryCustomization/activate",
+                "Cold activation target",
+                false,
+            ),
+        ),
+        (
+            "gid://shopify/DeliveryCustomization/delete".to_string(),
+            delivery_customization_upstream_record(
+                "gid://shopify/DeliveryCustomization/delete",
+                "Cold delete target",
+                false,
+            ),
+        ),
+        (
+            "gid://shopify/DeliveryCustomization/partial".to_string(),
+            delivery_customization_upstream_record(
+                "gid://shopify/DeliveryCustomization/partial",
+                "Partially observed update target",
+                false,
+            ),
+        ),
+    ]);
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_hits = Arc::clone(&upstream_hits);
+    let transport_targets = targets.clone();
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            captured_hits.lock().unwrap().push(body.clone());
+            let response_body = match body.get("operationName").and_then(Value::as_str) {
+                Some("DeliveryCustomizationHydrateById") => {
+                    let id = body["variables"]["id"].as_str().unwrap();
+                    json!({ "data": { "deliveryCustomization": transport_targets.get(id).cloned().unwrap_or(Value::Null) } })
+                }
+                Some("DeliveryCustomizationActiveCatalogHydrate") => json!({
+                    "data": {
+                        "deliveryCustomizations": {
+                            "nodes": [],
+                            "pageInfo": { "hasNextPage": false, "endCursor": null }
+                        }
+                    }
+                }),
+                _ if body["query"]
+                    .as_str()
+                    .is_some_and(|query| query.contains("DeliveryCustomizationPartialTargetRead")) =>
+                {
+                    json!({
+                        "data": {
+                            "deliveryCustomization": {
+                                "__typename": "DeliveryCustomization",
+                                "id": "gid://shopify/DeliveryCustomization/partial",
+                                "title": "Partially observed update target"
+                            }
+                        }
+                    })
+                }
+                _ => panic!("supported mutation reached upstream transport: {body}"),
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: response_body,
+            }
+        },
+    );
+
+    let partial_read = proxy.process_request(delivery_customization_app_request(
+        "query DeliveryCustomizationPartialTargetRead($id: ID!) { deliveryCustomization(id: $id) { id title } }",
+        json!({ "id": "gid://shopify/DeliveryCustomization/partial" }),
+    ));
+    assert_eq!(
+        partial_read.body["data"]["deliveryCustomization"]["title"],
+        json!("Partially observed update target")
+    );
+
+    let update_document = r#"
+        mutation DeliveryCustomizationColdUpdate($id: ID!, $input: DeliveryCustomizationInput!) {
+          deliveryCustomizationUpdate(id: $id, deliveryCustomization: $input) {
+            deliveryCustomization { id title enabled }
+            userErrors { field code message }
+          }
+        }
+    "#;
+    let partial_update = proxy.process_request(delivery_customization_app_request(
+        update_document,
+        json!({
+            "id": "gid://shopify/DeliveryCustomization/partial",
+            "input": { "title": "Partially observed target updated" }
+        }),
+    ));
+    assert_eq!(
+        partial_update.body["data"]["deliveryCustomizationUpdate"]["deliveryCustomization"],
+        json!({
+            "id": "gid://shopify/DeliveryCustomization/partial",
+            "title": "Partially observed target updated",
+            "enabled": false
+        })
+    );
+
+    let update = proxy.process_request(delivery_customization_app_request(
+        update_document,
+        json!({
+            "id": "gid://shopify/DeliveryCustomization/update",
+            "input": { "title": "Cold target updated" }
+        }),
+    ));
+    assert_eq!(
+        update.body["data"]["deliveryCustomizationUpdate"]["deliveryCustomization"]["title"],
+        json!("Cold target updated")
+    );
+
+    let activation = proxy.process_request(delivery_customization_app_request(
+        r#"
+        mutation DeliveryCustomizationColdActivation($ids: [ID!]!, $enabled: Boolean!) {
+          deliveryCustomizationActivation(ids: $ids, enabled: $enabled) {
+            ids
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "ids": ["gid://shopify/DeliveryCustomization/activate"],
+            "enabled": true
+        }),
+    ));
+    assert_eq!(
+        activation.body["data"]["deliveryCustomizationActivation"],
+        json!({
+            "ids": ["gid://shopify/DeliveryCustomization/activate"],
+            "userErrors": []
+        })
+    );
+
+    let delete = proxy.process_request(delivery_customization_app_request(
+        r#"
+        mutation DeliveryCustomizationColdDelete($id: ID!) {
+          deliveryCustomizationDelete(id: $id) {
+            deletedId
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/DeliveryCustomization/delete" }),
+    ));
+    assert_eq!(
+        delete.body["data"]["deliveryCustomizationDelete"],
+        json!({
+            "deletedId": "gid://shopify/DeliveryCustomization/delete",
+            "userErrors": []
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 4);
+    assert_eq!(upstream_hits.lock().unwrap().len(), 6);
+    assert!(upstream_hits.lock().unwrap().iter().all(|body| {
+        body["query"]
+            .as_str()
+            .is_some_and(|query| query.trim_start().starts_with("query"))
+    }));
+}
+
+#[test]
+fn delivery_customization_active_limit_counts_authoritative_records() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_hits = Arc::clone(&upstream_hits);
+    let function = delivery_customization_function_metadata("delivery-valid", "delivery-valid");
+    let active_records = (0..25)
+        .map(|index| {
+            delivery_customization_upstream_record(
+                &format!("gid://shopify/DeliveryCustomization/base-{index}"),
+                &format!("Active base customization {index}"),
+                true,
+            )
+        })
+        .collect::<Vec<_>>();
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            captured_hits.lock().unwrap().push(body.clone());
+            let response_body = match body.get("operationName").and_then(Value::as_str) {
+                Some("DeliveryCustomizationFunctionHydrateById") => {
+                    json!({ "data": { "shopifyFunction": function } })
+                }
+                Some("DeliveryCustomizationActiveCatalogHydrate") => json!({
+                    "data": {
+                        "deliveryCustomizations": {
+                            "nodes": active_records,
+                            "pageInfo": { "hasNextPage": false, "endCursor": null }
+                        }
+                    }
+                }),
+                _ => panic!("supported mutation reached upstream transport: {body}"),
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: response_body,
+            }
+        });
+    let log_before = log_snapshot(&proxy);
+    let overflow = proxy.process_request(delivery_customization_app_request(
+        r#"
+        mutation DeliveryCustomizationAuthoritativeLimit($input: DeliveryCustomizationInput!) {
+          deliveryCustomizationCreate(deliveryCustomization: $input) {
+            deliveryCustomization { id }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Overflow authoritative catalog",
+                "enabled": true,
+                "functionId": "delivery-valid",
+                "metafields": []
+            }
+        }),
+    ));
+    assert_eq!(
+        overflow.body["data"]["deliveryCustomizationCreate"]["userErrors"],
+        json!([{
+            "field": ["deliveryCustomization", "enabled"],
+            "code": "MAXIMUM_ACTIVE_DELIVERY_CUSTOMIZATIONS",
+            "message": "Cannot have more than 25 active delivery customizations."
+        }])
+    );
+    assert_eq!(log_snapshot(&proxy), log_before);
+    assert_eq!(upstream_hits.lock().unwrap().len(), 2);
+}
+
 #[test]
 fn delivery_customization_lifecycle_reads_nodes_state_and_logs_are_local() {
     let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
     let mut proxy = delivery_customization_function_proxy(
-        vec![delivery_customization_function_metadata(
-            "gid://shopify/ShopifyFunction/delivery-a",
-            "delivery-a",
-        )],
+        vec![
+            delivery_customization_function_metadata(
+                "gid://shopify/ShopifyFunction/delivery-a",
+                "delivery-a",
+            ),
+            delivery_customization_function_metadata(
+                "gid://shopify/ShopifyFunction/delivery-b",
+                "delivery-b",
+            ),
+        ],
         Arc::clone(&upstream_hits),
     );
     let app_request = |query: &str, variables: Value| {
@@ -548,16 +1172,23 @@ fn delivery_customization_lifecycle_reads_nodes_state_and_logs_are_local() {
     ));
     assert_eq!(deleted_node.body["data"]["node"], Value::Null);
 
-    assert_eq!(
-        upstream_hits.lock().unwrap().len(),
-        1,
-        "local lifecycle should only hydrate ShopifyFunction metadata, never write upstream"
-    );
+    assert!(upstream_hits.lock().unwrap().iter().all(|body| {
+        body["query"]
+            .as_str()
+            .is_some_and(|query| query.trim_start().starts_with("query"))
+    }));
 }
 
 #[test]
 fn delivery_customization_active_limit_rejects_without_staging_or_logging() {
-    let mut proxy = snapshot_proxy();
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = delivery_customization_function_proxy(
+        vec![delivery_customization_function_metadata(
+            "delivery-limit",
+            "delivery-limit",
+        )],
+        Arc::clone(&upstream_hits),
+    );
     let create_query = r#"
       mutation DeliveryCustomizationLimit($input: DeliveryCustomizationInput!) {
         deliveryCustomizationCreate(deliveryCustomization: $input) {
@@ -568,13 +1199,13 @@ fn delivery_customization_active_limit_rejects_without_staging_or_logging() {
     "#;
 
     for index in 0..25 {
-        let create = proxy.process_request(json_graphql_request(
+        let create = proxy.process_request(delivery_customization_app_request(
             create_query,
             json!({
                 "input": {
                     "title": format!("Delivery customization {index}"),
                     "enabled": true,
-                    "functionId": "gid://shopify/ShopifyFunction/delivery-limit",
+                    "functionId": "delivery-limit",
                     "metafields": []
                 }
             }),
@@ -588,13 +1219,13 @@ fn delivery_customization_active_limit_rejects_without_staging_or_logging() {
     }
     let log_len_before = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
 
-    let overflow = proxy.process_request(json_graphql_request(
+    let overflow = proxy.process_request(delivery_customization_app_request(
         create_query,
         json!({
             "input": {
                 "title": "Overflow delivery customization",
                 "enabled": true,
-                "functionId": "gid://shopify/ShopifyFunction/delivery-limit",
+                "functionId": "delivery-limit",
                 "metafields": []
             }
         }),
@@ -617,7 +1248,7 @@ fn delivery_customization_active_limit_rejects_without_staging_or_logging() {
         log_len_before,
         "overflow validation must not append a mutation log entry"
     );
-    let missing_activation_at_limit = proxy.process_request(json_graphql_request(
+    let missing_activation_at_limit = proxy.process_request(delivery_customization_app_request(
         r#"
         mutation DeliveryCustomizationMissingActivationAtLimit($ids: [ID!]!) {
           deliveryCustomizationActivation(ids: $ids, enabled: true) {
@@ -649,13 +1280,13 @@ fn delivery_customization_active_limit_rejects_without_staging_or_logging() {
         "missing activation at the active limit must not append a mutation log entry"
     );
 
-    let create_disabled = proxy.process_request(json_graphql_request(
+    let create_disabled = proxy.process_request(delivery_customization_app_request(
         create_query,
         json!({
             "input": {
                 "title": "Disabled delivery customization",
                 "enabled": false,
-                "functionId": "gid://shopify/ShopifyFunction/delivery-limit",
+                "functionId": "delivery-limit",
                 "metafields": []
             }
         }),
@@ -666,7 +1297,7 @@ fn delivery_customization_active_limit_rejects_without_staging_or_logging() {
         .unwrap()
         .to_string();
     let log_len_with_disabled = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
-    let limit_activation = proxy.process_request(json_graphql_request(
+    let limit_activation = proxy.process_request(delivery_customization_app_request(
         r#"
         mutation DeliveryCustomizationLimitActivation($ids: [ID!]!) {
           deliveryCustomizationActivation(ids: $ids, enabled: true) {
@@ -695,7 +1326,7 @@ fn delivery_customization_active_limit_rejects_without_staging_or_logging() {
         log_len_with_disabled,
         "limit activation must not append a mutation log entry"
     );
-    let read = proxy.process_request(json_graphql_request(
+    let read = proxy.process_request(delivery_customization_app_request(
         r#"
         query DeliveryCustomizationLimitRead {
           deliveryCustomizations(first: 30, query: "enabled:true") {
@@ -713,6 +1344,11 @@ fn delivery_customization_active_limit_rejects_without_staging_or_logging() {
             .len(),
         25
     );
+    assert!(upstream_hits.lock().unwrap().iter().all(|body| {
+        body["query"]
+            .as_str()
+            .is_some_and(|query| query.trim_start().starts_with("query"))
+    }));
 }
 
 #[test]

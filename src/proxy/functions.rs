@@ -13,6 +13,12 @@ struct FunctionRootInput {
     field_selection: Vec<SelectedField>,
 }
 
+pub(in crate::proxy) enum DeliveryCustomizationFunctionResolution {
+    Resolved(Value),
+    NotFound,
+    WrongType,
+}
+
 const FUNCTION_ACTIVE_VALIDATION_LIMIT: usize = 25;
 
 enum FunctionTargetHydration {
@@ -43,6 +49,8 @@ pub(in crate::proxy) fn function_field_resolver_type_policies() -> Vec<FieldReso
 
 const FUNCTION_HYDRATE_BY_ID_QUERY: &str = "query FunctionHydrateById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    apiType\n    description\n    appKey\n    app {\n      __typename\n      id\n      title\n      apiKey\n    }\n  }\n}\n";
 const FUNCTION_HYDRATE_BY_HANDLE_QUERY: &str = "query FunctionHydrateByHandle($handle: String!) {\n  shopifyFunctions(first: 1, handle: $handle) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n";
+const DELIVERY_CUSTOMIZATION_FUNCTION_HYDRATE_BY_ID_QUERY: &str = "query DeliveryCustomizationFunctionHydrateById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    apiType\n    description\n    appKey\n    app { __typename id title handle apiKey }\n  }\n}\n";
+const DELIVERY_CUSTOMIZATION_FUNCTION_CATALOG_HYDRATE_QUERY: &str = "query DeliveryCustomizationFunctionCatalogHydrate {\n  shopifyFunctions(first: 100) {\n    nodes {\n      id\n      title\n      apiType\n      description\n      appKey\n      app { __typename id title handle apiKey }\n    }\n  }\n}\n";
 const FUNCTION_VALIDATION_DECISION_PREFLIGHT_QUERY: &str = r#"query FunctionValidationDecisionPreflight($after: String) {
   validations(first: 25, after: $after) {
     nodes {
@@ -766,6 +774,31 @@ impl DraftProxy {
             .cloned()
     }
 
+    fn delivery_customization_function_metadata_by_reference(
+        &self,
+        id: Option<&str>,
+        handle: Option<&str>,
+    ) -> Option<Value> {
+        if id.is_some() {
+            return self.function_metadata_by_id_or_handle(id, None);
+        }
+        let handle = handle?;
+        self.store
+            .base
+            .function_metadata_order
+            .iter()
+            .filter_map(|id| self.store.base.function_metadata.get(id))
+            .chain(
+                self.store
+                    .staged
+                    .function_metadata_order
+                    .iter()
+                    .filter_map(|id| self.store.staged.function_metadata.get(id)),
+            )
+            .find(|function| function_metadata_matches_handle(function, handle))
+            .cloned()
+    }
+
     fn resolve_function_metadata(
         &mut self,
         request: &Request,
@@ -856,6 +889,32 @@ impl DraftProxy {
         }
     }
 
+    fn stage_function_metadata_catalog(&mut self, data: &Value) {
+        let existing_order = self.store.base.function_metadata_order.clone();
+        let mut seen = BTreeSet::new();
+        let mut catalog_order = Vec::new();
+        for function in data["shopifyFunctions"]["nodes"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|function| normalized_function_metadata(function.clone()))
+        {
+            let Some(id) = function["id"].as_str().map(str::to_string) else {
+                continue;
+            };
+            if seen.insert(id.clone()) {
+                catalog_order.push(id);
+            }
+            self.stage_function_metadata(function);
+        }
+        for id in existing_order {
+            if seen.insert(id.clone()) {
+                catalog_order.push(id);
+            }
+        }
+        self.store.base.function_metadata_order = catalog_order;
+    }
+
     pub(in crate::proxy) fn resolve_payment_customization_function(
         &mut self,
         request: &Request,
@@ -872,6 +931,82 @@ impl DraftProxy {
         handle: Option<&str>,
     ) -> Option<Value> {
         self.resolve_function_metadata(request, id, handle, "DELIVERY_CUSTOMIZATION")
+    }
+
+    pub(in crate::proxy) fn resolve_delivery_customization_function_reference(
+        &mut self,
+        request: &Request,
+        id: Option<&str>,
+        handle: Option<&str>,
+    ) -> DeliveryCustomizationFunctionResolution {
+        let mut function = self.delivery_customization_function_metadata_by_reference(id, handle);
+        if function.is_none() && self.config.read_mode == ReadMode::LiveHybrid {
+            if let Some(id) = id {
+                function = self.hydrate_delivery_customization_function_by_id(request, id);
+            } else if handle.is_some() {
+                self.hydrate_delivery_customization_function_catalog(request);
+                function = self.delivery_customization_function_metadata_by_reference(None, handle);
+            }
+        }
+        let Some(function) = function else {
+            return DeliveryCustomizationFunctionResolution::NotFound;
+        };
+        if !function_belongs_to_request(&function, request) {
+            return DeliveryCustomizationFunctionResolution::NotFound;
+        }
+        if !function_matches_canonical_api_type(&function, "DELIVERY_CUSTOMIZATION") {
+            return DeliveryCustomizationFunctionResolution::WrongType;
+        }
+        DeliveryCustomizationFunctionResolution::Resolved(function)
+    }
+
+    fn hydrate_delivery_customization_function_by_id(
+        &mut self,
+        request: &Request,
+        id: &str,
+    ) -> Option<Value> {
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": DELIVERY_CUSTOMIZATION_FUNCTION_HYDRATE_BY_ID_QUERY,
+                "operationName": "DeliveryCustomizationFunctionHydrateById",
+                "variables": { "id": id }
+            }),
+        );
+        if response.status != 200 {
+            return None;
+        }
+        let function =
+            normalized_function_metadata(response.body["data"]["shopifyFunction"].clone())?;
+        self.stage_function_metadata(function.clone());
+        Some(function)
+    }
+
+    fn hydrate_delivery_customization_function_catalog(&mut self, request: &Request) {
+        if self
+            .store
+            .base
+            .delivery_customization_function_catalog_hydrated
+        {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": DELIVERY_CUSTOMIZATION_FUNCTION_CATALOG_HYDRATE_QUERY,
+                "operationName": "DeliveryCustomizationFunctionCatalogHydrate",
+                "variables": {}
+            }),
+        );
+        if response.status == 200
+            && response.body.get("errors").is_none()
+            && response.body["data"]["shopifyFunctions"]["nodes"].is_array()
+        {
+            self.stage_function_metadata_catalog(&response.body["data"]);
+            self.store
+                .base
+                .delivery_customization_function_catalog_hydrated = true;
+        }
     }
 
     pub(in crate::proxy) fn delivery_customization_record_matches_function_key(
@@ -2695,6 +2830,11 @@ fn canonical_function_api_type(api_type: &str) -> String {
         "DISCOUNT" | "discount" | "product_discounts" | "order_discounts"
         | "shipping_discounts" => "DISCOUNT".to_string(),
         "PAYMENT_CUSTOMIZATION" | "payment_customization" => "PAYMENT_CUSTOMIZATION".to_string(),
+        "DELIVERY_CUSTOMIZATION"
+        | "delivery_customization"
+        | "delivery_customization_legacy"
+        | "purchase.delivery-customization.run"
+        | "cart.delivery-options.transform.run" => "DELIVERY_CUSTOMIZATION".to_string(),
         other => other.to_string(),
     }
 }

@@ -1,0 +1,45 @@
+{
+  "scenarioId": "delivery-customization-function-reference-validation",
+  "operationNames": ["deliveryCustomizationCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/delivery-customization-function-reference-validation.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_app_shipping.rs"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/delivery-customization-function-reference-validation.graphql",
+    "variablesCapturePath": "$.operations.invalidReferences.variables",
+    "headers": {
+      "x-shopify-draft-proxy-api-client-id": "347082227713"
+    }
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "missing-function-id-error",
+        "capturePath": "$.operations.invalidReferences.response.data.missingId",
+        "proxyPath": "$.data.missingId"
+      },
+      {
+        "name": "wrong-type-function-id-error",
+        "capturePath": "$.operations.invalidReferences.response.data.wrongTypeId",
+        "proxyPath": "$.data.wrongTypeId"
+      },
+      {
+        "name": "missing-function-handle-error",
+        "capturePath": "$.operations.invalidReferences.response.data.missingHandle",
+        "proxyPath": "$.data.missingHandle"
+      },
+      {
+        "name": "wrong-type-function-handle-error",
+        "capturePath": "$.operations.invalidReferences.response.data.wrongTypeHandle",
+        "proxyPath": "$.data.wrongTypeHandle"
+      }
+    ]
+  },
+  "notes": "Executable invalid Function-reference parity. The live fixture also records the exact installed-app capability blocker for valid, wrong-app, cold-target, and active-limit delivery-customization capture."
+}

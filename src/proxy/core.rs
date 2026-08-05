@@ -701,6 +701,40 @@ impl DraftProxy {
             json!(self.store.base.metafield_definition_windows.clone());
         snapshot["stagedState"]["deletedMetafieldDefinitions"] =
             deleted_metafield_definitions_value;
+        if !self.store.base.delivery_customizations.records.is_empty() {
+            snapshot["baseState"]["deliveryCustomizations"] =
+                json!(self.store.base.delivery_customizations.records.clone());
+            snapshot["baseState"]["deliveryCustomizationOrder"] =
+                json!(self.store.base.delivery_customizations.order.clone());
+        }
+        if !self
+            .store
+            .base
+            .delivery_customization_complete_ids
+            .is_empty()
+        {
+            snapshot["baseState"]["deliveryCustomizationCompleteIds"] = json!(self
+                .store
+                .base
+                .delivery_customization_complete_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if self
+            .store
+            .base
+            .delivery_customization_active_catalog_hydrated
+        {
+            snapshot["baseState"]["deliveryCustomizationActiveCatalogHydrated"] = json!(true);
+        }
+        if self
+            .store
+            .base
+            .delivery_customization_function_catalog_hydrated
+        {
+            snapshot["baseState"]["deliveryCustomizationFunctionCatalogHydrated"] = json!(true);
+        }
         if !self.store.base.product_operations.is_empty()
             || !self
                 .store
@@ -2128,6 +2162,30 @@ impl DraftProxy {
             .base
             .delivery_profiles
             .replace_with_order(base_delivery_profiles, base_delivery_profile_order);
+        let base_delivery_customizations =
+            value_map_from_json(state["baseState"].get("deliveryCustomizations"));
+        let base_delivery_customization_order = state["baseState"]
+            .get("deliveryCustomizationOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| base_delivery_customizations.keys().cloned().collect());
+        self.store.base.delivery_customizations.replace_with_order(
+            base_delivery_customizations,
+            base_delivery_customization_order,
+        );
+        self.store.base.delivery_customization_complete_ids =
+            string_set_from_json(state["baseState"].get("deliveryCustomizationCompleteIds"));
+        self.store
+            .base
+            .delivery_customization_active_catalog_hydrated = state["baseState"]
+            ["deliveryCustomizationActiveCatalogHydrated"]
+            .as_bool()
+            .unwrap_or(false);
+        self.store
+            .base
+            .delivery_customization_function_catalog_hydrated = state["baseState"]
+            ["deliveryCustomizationFunctionCatalogHydrated"]
+            .as_bool()
+            .unwrap_or(false);
         let base_delivery_promise_providers =
             value_map_from_json(state["baseState"].get("deliveryPromiseProviders"));
         let base_delivery_promise_provider_order = state["baseState"]
