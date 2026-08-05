@@ -11,6 +11,7 @@ fn snapshot_proxy() -> DraftProxy {
         bulk_operation_run_mutation_max_input_file_size_bytes: None,
         port: 0,
         shopify_admin_origin: "https://shopify.com".to_string(),
+        shopify_store_domain: None,
         snapshot_path: None,
     })
 }

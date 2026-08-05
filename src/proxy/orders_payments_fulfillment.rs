@@ -905,6 +905,8 @@ const FULFILLMENT_EVENT_STATUS_VALUES: &[&str] = &[
 // The runtime document preserves the original leading newline and indentation.
 const DRAFT_ORDER_HYDRATE_QUERY: &str =
     include_str!("../runtime_graphql/orders/draft-order-hydrate.graphql.raw");
+const DRAFT_ORDER_ORIGINAL_HYDRATE_QUERY: &str =
+    include_str!("../runtime_graphql/orders/draft-order-original-hydrate.graphql.raw");
 // Order hydration for `orderEditBegin` operating on an order that was not
 // created locally in this scenario. Forwarded verbatim on a cold miss and
 // observed into staged state so the edit session is built from real line items,
@@ -924,6 +926,13 @@ const RETURN_FULFILLMENT_LINE_ITEMS_HYDRATE_QUERY: &str =
     include_str!("../runtime_graphql/orders/return-fulfillment-line-items-hydrate.graphql");
 const ORDER_HYDRATE_QUERY: &str =
     include_str!("../runtime_graphql/orders/order-hydrate-pageable.graphql.raw");
+// Compatibility query for captures recorded before pageable order hydration was
+// introduced. It is also a bounded query-only retry after a transient 5xx from
+// Shopify; GraphQL and authorization failures still fail closed.
+const ORDER_UPDATE_LEGACY_HYDRATE_QUERY: &str =
+    include_str!("../runtime_graphql/orders/order-update-legacy-hydrate.graphql.raw");
+const ORDER_UPDATE_ORIGINAL_HYDRATE_QUERY: &str =
+    include_str!("../runtime_graphql/orders/order-update-original-hydrate.graphql.raw");
 // These hydrate queries are forwarded verbatim to the backend; their exact text
 // must match the recorded `OrdersDraftOrder*Hydrate` cassette calls (compact
 // two-space layout, customer carries firstName/lastName) so the strict cassette

@@ -3991,6 +3991,7 @@ mod tests {
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
             port: 0,
             shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
             snapshot_path: None,
         })
         .with_upstream_transport(|_| panic!("metafield definition tests should stay local"))

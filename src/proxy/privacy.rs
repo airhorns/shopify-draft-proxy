@@ -132,6 +132,10 @@ impl DraftProxy {
             id.clone(),
             data_sale_opt_out_customer_defaults(&id, email, timestamp),
         );
+        self.store
+            .staged
+            .locally_created_customer_ids
+            .insert(id.clone());
         id
     }
 

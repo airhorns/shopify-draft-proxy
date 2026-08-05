@@ -391,6 +391,7 @@ impl DraftProxy {
         if fulfillment_service_callback_url_host_is_allowed(
             &host,
             &self.config.shopify_admin_origin,
+            self.config.shopify_store_domain.as_deref(),
         ) {
             None
         } else {

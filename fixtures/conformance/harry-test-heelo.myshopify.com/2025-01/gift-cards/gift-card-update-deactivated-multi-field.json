@@ -4,7 +4,7 @@
   "apiVersion": "2025-01",
   "notes": [
     "Captures live giftCardUpdate deactivated-card validation when multiple public blocked fields are supplied in the same input.",
-    "The public Admin API exposes giftCardUpdate.userErrors as generic UserError in 2025-01, so the live request records field/message and expected replay data adds the typed INVALID code.",
+    "The public Admin API exposes giftCardUpdate.userErrors as generic UserError in 2025-01; parity compares the recorded public field/message payload directly.",
     "Setup creates one disposable customer and one disposable gift card, deactivates the gift card, records two-field and three-field blocked-input updates, then deletes the setup customer."
   ],
   "proxyVariables": {
@@ -177,40 +177,6 @@
             }
           }
         }
-      }
-    }
-  },
-  "expected": {
-    "data": {
-      "expiresAndCustomer": {
-        "giftCard": null,
-        "userErrors": [
-          {
-            "field": ["input", "expiresOn"],
-            "message": "The gift card is deactivated.",
-            "code": "INVALID"
-          }
-        ]
-      },
-      "customerAndRecipient": {
-        "giftCard": null,
-        "userErrors": [
-          {
-            "field": ["input", "customerId"],
-            "message": "The gift card is deactivated.",
-            "code": "INVALID"
-          }
-        ]
-      },
-      "customerRecipientAndExpires": {
-        "giftCard": null,
-        "userErrors": [
-          {
-            "field": ["input", "expiresOn"],
-            "message": "The gift card is deactivated.",
-            "code": "INVALID"
-          }
-        ]
       }
     }
   },

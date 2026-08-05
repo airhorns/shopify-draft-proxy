@@ -1893,6 +1893,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-create-validation-branches.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-delete-typed-gid-roundtrip.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-update-validation-branches.json',
+      'config/parity-specs/media/media-file-update-validation-branches.json',
     ],
     cleanupBehavior:
       'Deletes created files when Shopify returns file IDs; local-runtime fixtures need no Shopify cleanup.',
@@ -3020,6 +3021,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/products/metafieldsSet-parity-plan.json',
       'config/parity-specs/products/metafieldsSet-invalid-compare-digest.json',
       'config/parity-specs/products/metafieldsSet-missing-namespace.json',
+      'config/parity-specs/products/metafieldsSet-missing-type.json',
+      'config/parity-specs/products/metafieldsSet-over-limit.json',
       'config/parity-specs/products/metafieldsSet-owner-expansion.json',
       'config/parity-specs/products/metafieldsSet-parity-plan.json',
       `${CAPTURE_ROOT}metafields-delete-parity.json`,
@@ -6011,6 +6014,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}market-localization-validation.json`,
       `${CAPTURE_ROOT}market-localizations-register-too-many-keys.json`,
       `${CAPTURE_ROOT}market-web-presence-delete-parity.json`,
+      'config/parity-specs/markets/web-presence-delete-local-staging.json',
       `${CAPTURE_ROOT}market-web-presence-validation.json`,
       `${CAPTURE_ROOT}price-list-create-dkk.json`,
       `${CAPTURE_ROOT}price-list-fixed-prices-by-product-update-parity.json`,
@@ -6856,6 +6860,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/marketing/marketing-engagement-currency-validation.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/marketing/marketing-engagement-lifecycle.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/marketing/marketing-native-activity-validation.json',
+      'config/parity-specs/marketing/marketing-native-activity-lifecycle.json',
+      'config/parity-requests/marketing/marketing-native-activity-lifecycle.graphql',
     ],
     cleanupBehavior: 'Uses synthetic external IDs; cleanup depends on the branch captured.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -14759,7 +14765,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'Creates two disposable customers plus active/deactivated gift cards, records validation branches, deactivates setup gift cards, and deletes setup customers.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
-      'The public Admin API exposes giftCardUpdate.userErrors as generic UserError in 2025-01, so the fixture records public field/message evidence and augments replay expectations with the internal typed code contract.',
+      'The public Admin API exposes giftCardUpdate.userErrors as generic UserError in 2025-01, so parity compares its recorded public field/message and top-level error payloads directly.',
   },
   {
     domain: 'gift-cards',
@@ -14801,7 +14807,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'Creates one disposable customer plus one gift card, deactivates the gift card, records multi-field validation branches, and deletes the setup customer.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
-      'The public Admin API exposes giftCardUpdate.userErrors as generic UserError in 2025-01, so the fixture records public field/message evidence and augments replay expectations with the internal typed code contract.',
+      'The public Admin API exposes giftCardUpdate.userErrors as generic UserError in 2025-01, so parity compares its recorded public field/message payload directly.',
   },
   {
     domain: 'gift-cards',
@@ -14820,7 +14826,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'Creates one disposable gift card with known editable fields, records no-op update branches, and deactivates the setup gift card.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
-      'The public Admin API exposes giftCardUpdate.userErrors as generic UserError in 2025-01, so the fixture records public field/message evidence and augments replay expectations with the internal typed code contract for the empty-input branch.',
+      'The public Admin API exposes giftCardUpdate.userErrors as generic UserError in 2025-01, so parity compares its recorded public field/message payload directly.',
   },
   {
     domain: 'gift-cards',
@@ -15571,6 +15577,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}customer-email-marketing-consent-update-parity.json`,
       `${CAPTURE_ROOT}customer-sms-marketing-consent-update-parity.json`,
+      'config/parity-specs/customers/email_consent_no_email_noop.json',
+      'config/parity-specs/customers/sms_consent_no_phone_errors.json',
       'config/parity-specs/customers/customerEmailMarketingConsentUpdate-disallowed-states-parity.json',
       'config/parity-specs/customers/customerEmailMarketingConsentUpdate-missing-opt-in-level.json',
       'config/parity-specs/customers/customerSmsMarketingConsentUpdate-disallowed-states-parity.json',

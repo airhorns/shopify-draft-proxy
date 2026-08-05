@@ -30,8 +30,6 @@ type SetupIds = {
   giftCards: string[];
 };
 
-type PayloadKind = 'create' | 'update';
-
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
   defaultApiVersion: '2026-04',
   exitOnMissing: true,
@@ -82,65 +80,6 @@ function assertNoTopLevelErrors(capture: CapturedRequest): void {
   if (capture.response.payload.errors) {
     throw new Error(`${capture.label} returned top-level errors: ${JSON.stringify(capture.response.payload.errors)}`);
   }
-}
-
-function firstTopLevelErrorMessage(payload: unknown, alias: string): string | null {
-  const errors = readPath(payload, ['errors']);
-  if (!Array.isArray(errors)) {
-    return null;
-  }
-
-  for (const error of errors) {
-    if (!isObject(error)) {
-      continue;
-    }
-    const pathValue = error['path'];
-    const message = error['message'];
-    if (Array.isArray(pathValue) && pathValue.includes(alias) && typeof message === 'string') {
-      return message;
-    }
-  }
-
-  return null;
-}
-
-function liveUserErrorMessage(liveData: unknown, alias: string): string | null {
-  const errors = readPath(liveData, [alias, 'userErrors']);
-  if (!Array.isArray(errors)) {
-    return null;
-  }
-  const first = errors[0];
-  if (!isObject(first)) {
-    return null;
-  }
-  const message = first['message'];
-  return typeof message === 'string' ? message : null;
-}
-
-function capturedMessage(capture: CapturedRequest, liveData: unknown, alias: string, fallback: string): string {
-  return (
-    liveUserErrorMessage(liveData, alias) ?? firstTopLevelErrorMessage(capture.response.payload, alias) ?? fallback
-  );
-}
-
-function errorPayload(kind: PayloadKind, field: string, code: string, message: string): Record<string, unknown> {
-  const userError =
-    kind === 'create'
-      ? {
-          field: ['input', 'recipientAttributes', field],
-          code,
-          message,
-        }
-      : {
-          field: ['input', 'recipientAttributes', field],
-          message,
-        };
-  const base = {
-    giftCard: null,
-    userErrors: [userError],
-  };
-
-  return kind === 'create' ? { ...base, giftCardCode: null } : base;
 }
 
 async function capture(
@@ -760,178 +699,6 @@ try {
     cleanup.push(await deleteCustomer(`cleanupCustomer:${id}`, id));
   }
 
-  const liveData = readPath(recipientValidation.response.payload, ['data']);
-  const expected = isObject(liveData)
-    ? {
-        data: {
-          createUnknownRecipient: errorPayload(
-            'create',
-            'id',
-            'RECIPIENT_NOT_FOUND',
-            capturedMessage(recipientValidation, liveData, 'createUnknownRecipient', 'Recipient could not be found'),
-          ),
-          createBlankPreferredName: errorPayload(
-            'create',
-            'preferredName',
-            'INVALID',
-            capturedMessage(recipientValidation, liveData, 'createBlankPreferredName', "Preferred name can't be blank"),
-          ),
-          createBlankMessage: errorPayload(
-            'create',
-            'message',
-            'INVALID',
-            capturedMessage(recipientValidation, liveData, 'createBlankMessage', "Message can't be blank"),
-          ),
-          createLongPreferredName: errorPayload(
-            'create',
-            'preferredName',
-            'TOO_LONG',
-            capturedMessage(
-              recipientValidation,
-              liveData,
-              'createLongPreferredName',
-              'preferredName is too long (maximum is 255)',
-            ),
-          ),
-          createLongMessage: errorPayload(
-            'create',
-            'message',
-            'TOO_LONG',
-            capturedMessage(recipientValidation, liveData, 'createLongMessage', 'message is too long (maximum is 200)'),
-          ),
-          createHtmlPreferredName: errorPayload(
-            'create',
-            'preferredName',
-            'INVALID',
-            capturedMessage(
-              recipientValidation,
-              liveData,
-              'createHtmlPreferredName',
-              'preferredName contains HTML tags',
-            ),
-          ),
-          createHtmlMessage: errorPayload(
-            'create',
-            'message',
-            'INVALID',
-            capturedMessage(recipientValidation, liveData, 'createHtmlMessage', 'message contains HTML tags'),
-          ),
-          createFutureSendAt: errorPayload(
-            'create',
-            'sendNotificationAt',
-            'INVALID',
-            capturedMessage(
-              recipientValidation,
-              liveData,
-              'createFutureSendAt',
-              'sendNotificationAt must be within 90 days from now',
-            ),
-          ),
-          createPastSendAt: errorPayload(
-            'create',
-            'sendNotificationAt',
-            'INVALID',
-            capturedMessage(
-              recipientValidation,
-              liveData,
-              'createPastSendAt',
-              'sendNotificationAt must be within 90 days from now',
-            ),
-          ),
-          createValidSendAt: {
-            giftCard: {
-              recipientAttributes: {
-                sendNotificationAt: proxyVariables.recipientValidation.validSendAt,
-              },
-            },
-            userErrors: [],
-          },
-          updateLongPreferredName: errorPayload(
-            'update',
-            'preferredName',
-            'TOO_LONG',
-            capturedMessage(
-              recipientValidation,
-              liveData,
-              'updateLongPreferredName',
-              'preferredName is too long (maximum is 255)',
-            ),
-          ),
-          updateUnknownRecipient: errorPayload(
-            'update',
-            'id',
-            'RECIPIENT_NOT_FOUND',
-            capturedMessage(recipientValidation, liveData, 'updateUnknownRecipient', 'Recipient could not be found'),
-          ),
-          updateBlankPreferredName: errorPayload(
-            'update',
-            'preferredName',
-            'INVALID',
-            capturedMessage(recipientValidation, liveData, 'updateBlankPreferredName', "Preferred name can't be blank"),
-          ),
-          updateBlankMessage: errorPayload(
-            'update',
-            'message',
-            'INVALID',
-            capturedMessage(recipientValidation, liveData, 'updateBlankMessage', "Message can't be blank"),
-          ),
-          updateLongMessage: errorPayload(
-            'update',
-            'message',
-            'TOO_LONG',
-            capturedMessage(recipientValidation, liveData, 'updateLongMessage', 'message is too long (maximum is 200)'),
-          ),
-          updateHtmlPreferredName: errorPayload(
-            'update',
-            'preferredName',
-            'INVALID',
-            capturedMessage(
-              recipientValidation,
-              liveData,
-              'updateHtmlPreferredName',
-              'preferredName contains HTML tags',
-            ),
-          ),
-          updateHtmlMessage: errorPayload(
-            'update',
-            'message',
-            'INVALID',
-            capturedMessage(recipientValidation, liveData, 'updateHtmlMessage', 'message contains HTML tags'),
-          ),
-          updatePastSendAt: errorPayload(
-            'update',
-            'sendNotificationAt',
-            'INVALID',
-            capturedMessage(
-              recipientValidation,
-              liveData,
-              'updatePastSendAt',
-              'sendNotificationAt must be within 90 days from now',
-            ),
-          ),
-          updateFutureSendAt: errorPayload(
-            'update',
-            'sendNotificationAt',
-            'INVALID',
-            capturedMessage(
-              recipientValidation,
-              liveData,
-              'updateFutureSendAt',
-              'sendNotificationAt must be within 90 days from now',
-            ),
-          ),
-          updateValidSendAt: {
-            giftCard: {
-              recipientAttributes: {
-                sendNotificationAt: proxyVariables.recipientValidation.validSendAt,
-              },
-            },
-            userErrors: [],
-          },
-        },
-      }
-    : { data: {} };
-
   await mkdir(outputDir, { recursive: true });
   await writeFile(
     outputPath,
@@ -955,7 +722,6 @@ try {
           createNoContactSentinelRecipient,
           recipientValidation,
         },
-        expected,
         cleanup,
         upstreamCalls,
       },

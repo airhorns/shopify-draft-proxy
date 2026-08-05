@@ -117,6 +117,7 @@ impl PyDraftProxy {
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
             port,
             shopify_admin_origin: shopify_admin_origin.to_string(),
+            shopify_store_domain: None,
             snapshot_path,
         };
         let callable = resolve_transport(py, transport)?;

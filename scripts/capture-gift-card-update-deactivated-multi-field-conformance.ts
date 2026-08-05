@@ -66,27 +66,6 @@ function assertNoTopLevelErrors(capture: CapturedRequest): void {
   }
 }
 
-function addUserErrorCode(payload: unknown, code: string): unknown {
-  if (!isObject(payload)) {
-    return payload;
-  }
-
-  const userErrors = payload['userErrors'];
-  if (!Array.isArray(userErrors)) {
-    return payload;
-  }
-
-  return {
-    ...payload,
-    userErrors: userErrors.map((error) => {
-      if (!isObject(error)) {
-        return error;
-      }
-      return { ...error, code };
-    }),
-  };
-}
-
 async function capture(
   label: string,
   query: string,
@@ -306,15 +285,6 @@ try {
     cleanup.push(await deleteCustomer(`cleanupCustomer:${id}`, id));
   }
 
-  const liveData = readPath(multiFieldUpdate.response.payload, ['data']);
-  const expected = isObject(liveData)
-    ? {
-        data: Object.fromEntries(
-          Object.entries(liveData).map(([key, value]) => [key, addUserErrorCode(value, 'INVALID')]),
-        ),
-      }
-    : { data: {} };
-
   await mkdir(outputDir, { recursive: true });
   await writeFile(
     outputPath,
@@ -325,7 +295,7 @@ try {
         apiVersion,
         notes: [
           'Captures live giftCardUpdate deactivated-card validation when multiple public blocked fields are supplied in the same input.',
-          'The public Admin API exposes giftCardUpdate.userErrors as generic UserError in 2025-01, so the live request records field/message and expected replay data adds the typed INVALID code.',
+          'The public Admin API exposes giftCardUpdate.userErrors as generic UserError in 2025-01, so parity compares the recorded public field/message payload directly.',
           'Setup creates one disposable customer and one disposable gift card, deactivates the gift card, records two-field and three-field blocked-input updates, then deletes the setup customer.',
         ],
         proxyVariables: {
@@ -335,7 +305,6 @@ try {
         operations: {
           multiFieldUpdate,
         },
-        expected,
         cleanup,
         upstreamCalls: [],
       },

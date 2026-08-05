@@ -17,10 +17,28 @@ fn discount_reference_evidence_key(expected_type: &str, id: &str) -> RequestCach
     RequestCacheKey::composite("discount-reference", &[expected_type, id])
 }
 
+fn discount_app_function_evidence_key(
+    id: Option<&str>,
+    handle: Option<&str>,
+) -> Option<RequestCacheKey> {
+    id.map(|id| RequestCacheKey::composite("discount-app-function", &["id", id]))
+        .or_else(|| {
+            handle.map(|handle| {
+                RequestCacheKey::composite("discount-app-function", &["handle", handle])
+            })
+        })
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum DiscountPrerequisiteState {
     Present,
     Absent,
+    Unresolved,
+}
+
+enum DiscountAppFunctionHydration {
+    Observed(Value),
+    Missing,
     Unresolved,
 }
 
@@ -296,6 +314,7 @@ struct DiscountMutationInput {
     response_key: String,
     location: SourceLocation,
     arguments: BTreeMap<String, ResolvedValue>,
+    automatic_bulk_delete_follows_code_bulk: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -341,6 +360,7 @@ impl DraftProxy {
             .collect::<Vec<_>>();
         self.hydrate_discount_item_refs_for_arguments(request, &fields);
         self.hydrate_discount_context_refs_for_arguments(request, &fields);
+        self.hydrate_discount_app_functions_for_arguments(request, &fields);
         self.execution_session
             .request_cache
             .mark_complete(discount_references_hydration_key());
@@ -378,6 +398,20 @@ impl DraftProxy {
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
         self.prepare_discount_mutation_references(invocation.request, &invocation.operation_roots);
+        let automatic_bulk_delete_follows_code_bulk = invocation.root_name
+            == "discountAutomaticBulkDelete"
+            && invocation
+                .operation_roots
+                .iter()
+                .take_while(|root| root.response_key != invocation.response_key)
+                .any(|root| {
+                    matches!(
+                        root.name.as_str(),
+                        "discountCodeBulkActivate"
+                            | "discountCodeBulkDeactivate"
+                            | "discountCodeBulkDelete"
+                    )
+                });
         let RootInvocation {
             response_key,
             root_name,
@@ -391,6 +425,7 @@ impl DraftProxy {
             response_key: response_key.to_string(),
             location: root_location,
             arguments: resolved_arguments_from_json(&arguments),
+            automatic_bulk_delete_follows_code_bulk,
         };
         self.discounts_mutation_outcome(request, &field)
     }
@@ -1218,6 +1253,53 @@ impl DraftProxy {
         self.observe_discount_context_refs_response(&response);
     }
 
+    /// Resolve every unambiguous app-discount Function identifier before the
+    /// first mutation field executes. Shopify evaluates a multi-root mutation
+    /// with one current-app context, and a later successful Function lookup can
+    /// be the only authoritative source for that identity. Preflighting the
+    /// shallow root arguments lets earlier not-found payloads use the same
+    /// observed app while the request cache prevents handler-time duplicate
+    /// reads.
+    fn hydrate_discount_app_functions_for_arguments(
+        &mut self,
+        request: &Request,
+        fields: &[DiscountMutationArguments<'_>],
+    ) {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return;
+        }
+        let mut seen = BTreeSet::new();
+        for field in fields {
+            let Some(input_arg) = discount_mutation_input_arg(field.name) else {
+                continue;
+            };
+            let Some(input) = discount_input(field.arguments, input_arg) else {
+                continue;
+            };
+            let function_id = resolved_non_blank_string_field(&input, "functionId");
+            let function_handle = resolved_non_blank_string_field(&input, "functionHandle");
+            if function_id.is_some() == function_handle.is_some() {
+                continue;
+            }
+            let identity = function_id
+                .as_ref()
+                .map(|id| ("id", id.as_str()))
+                .or_else(|| {
+                    function_handle
+                        .as_ref()
+                        .map(|handle| ("handle", handle.as_str()))
+                })
+                .expect("exactly one Function identifier should be present");
+            if seen.insert((identity.0, identity.1.to_string())) {
+                let _ = self.fetch_shopify_function(
+                    request,
+                    function_id.as_deref(),
+                    function_handle.as_deref(),
+                );
+            }
+        }
+    }
+
     fn observe_discount_context_refs_response(&mut self, response: &Response) {
         if !(200..300).contains(&response.status) {
             return;
@@ -1772,6 +1854,10 @@ impl DraftProxy {
             id,
             discount_hydrate_query_for_kind(discount_kind),
         )
+        .or_else(|| {
+            let legacy_query = legacy_discount_hydrate_query();
+            self.hydrate_discount_record_with_query(request, id, &legacy_query)
+        })
     }
 
     fn hydrate_discount_record_for_update(
@@ -1785,6 +1871,10 @@ impl DraftProxy {
             id,
             discount_hydrate_query_for_kind(discount_kind),
         )
+        .or_else(|| {
+            let legacy_query = legacy_discount_hydrate_query();
+            self.hydrate_discount_record_with_query(request, id, &legacy_query)
+        })
     }
 
     fn hydrate_discount_record_with_query(
@@ -1875,8 +1965,9 @@ impl DraftProxy {
     }
 
     /// Local staging for broad discount bulk activate / deactivate / delete roots.
-    /// The payload exposes a completed local `Job` because the in-memory state
-    /// transition has already happened; it does not represent upstream job state.
+    /// Shopify accepts a matching bulk selector as an asynchronous job even
+    /// though the proxy can apply its modeled state transition immediately.
+    /// A selector with no effective matches is a successful no-op with no job.
     fn discount_bulk_action(&mut self, field: &DiscountMutationInput) -> MutationFieldOutcome {
         let Some((kind, action)) = discount_bulk_root_action(&field.name) else {
             return MutationFieldOutcome::unlogged(json!({
@@ -1891,7 +1982,24 @@ impl DraftProxy {
             }));
         }
 
+        // Shopify coalesces the preceding code-discount bulk transitions in a
+        // mixed mutation and reports the later automatic delete as a successful
+        // no-job operation. Preserve that request-level behavior instead of
+        // staging a second independent job.
+        if field.automatic_bulk_delete_follows_code_bulk {
+            return MutationFieldOutcome::unlogged(json!({
+                "job": Value::Null,
+                "userErrors": []
+            }));
+        }
+
         let target_ids = self.discount_bulk_selector_ids(field, kind);
+        if target_ids.is_empty() && kind == "automatic" {
+            return MutationFieldOutcome::unlogged(json!({
+                "job": Value::Null,
+                "userErrors": []
+            }));
+        }
         for id in &target_ids {
             self.apply_discount_bulk_transition(id, action);
         }
@@ -1900,7 +2008,7 @@ impl DraftProxy {
         staged_ids.extend(target_ids);
         MutationFieldOutcome::staged(
             json!({
-                "job": { "id": job_id, "done": true, "query": Value::Null },
+                "job": { "id": job_id, "done": false, "query": Value::Null },
                 "userErrors": []
             }),
             LogDraft::staged(&field.name, "discounts", staged_ids),
@@ -2550,6 +2658,12 @@ impl DraftProxy {
                 function_handle.as_deref(),
             )
             .or_else(|| {
+                self.function_metadata_by_id_or_handle(
+                    function_id.as_deref(),
+                    function_handle.as_deref(),
+                )
+            })
+            .or_else(|| {
                 self.fetch_shopify_function(
                     request,
                     function_id.as_deref(),
@@ -2557,9 +2671,10 @@ impl DraftProxy {
                 )
             });
         let Some(function) = function else {
+            let current_app_id = self.current_app_api_client_id_for_request(request);
             return Err(user_error_with_extra_info([input_arg, field_name], &format!(
                     "Function {identifier} not found. Ensure that it is released in the current app ({}), and that the app is installed.",
-                    request_api_client_id(request)
+                    current_app_id
                 ), Some("INVALID"), Value::Null));
         };
         if !app_discount_function_api_type_is_supported(&function) {
@@ -2586,21 +2701,60 @@ impl DraftProxy {
     }
 
     fn fetch_shopify_function(
-        &self,
+        &mut self,
         request: &Request,
         id: Option<&str>,
         handle: Option<&str>,
     ) -> Option<Value> {
+        let evidence_key = discount_app_function_evidence_key(id, handle)?;
+        match self
+            .execution_session
+            .request_cache
+            .entity_state_for_key(&evidence_key)
+        {
+            Some(EntityEvidenceState::Observed) => {
+                return self.function_metadata_by_id_or_handle(id, handle);
+            }
+            Some(EntityEvidenceState::Missing) => return None,
+            Some(EntityEvidenceState::Requested) | None => {}
+        }
         if self.config.read_mode == ReadMode::Snapshot {
             return None;
         }
-        if let Some(id) = id {
-            return self.fetch_shopify_function_by_id(request, id);
+        self.execution_session
+            .request_cache
+            .mark_entity_key(evidence_key.clone(), EntityEvidenceState::Requested);
+        let result = if let Some(id) = id {
+            self.fetch_shopify_function_by_id(request, id)
+        } else if let Some(handle) = handle {
+            self.fetch_shopify_function_by_handle(request, handle)
+        } else {
+            DiscountAppFunctionHydration::Unresolved
+        };
+        match result {
+            DiscountAppFunctionHydration::Observed(function) => {
+                self.stage_function_metadata(function.clone());
+                self.observe_function_app_identity(request, &function);
+                self.execution_session
+                    .request_cache
+                    .mark_entity_key(evidence_key, EntityEvidenceState::Observed);
+                Some(function)
+            }
+            DiscountAppFunctionHydration::Missing => {
+                self.execution_session
+                    .request_cache
+                    .mark_entity_key(evidence_key, EntityEvidenceState::Missing);
+                None
+            }
+            DiscountAppFunctionHydration::Unresolved => None,
         }
-        handle.and_then(|handle| self.fetch_shopify_function_by_handle(request, handle))
     }
 
-    fn fetch_shopify_function_by_id(&self, request: &Request, id: &str) -> Option<Value> {
+    fn fetch_shopify_function_by_id(
+        &self,
+        request: &Request,
+        id: &str,
+    ) -> DiscountAppFunctionHydration {
         let response = self.upstream_post(
             request,
             json!({
@@ -2609,13 +2763,29 @@ impl DraftProxy {
             }),
         );
         if response.status != 200 {
-            return None;
+            return DiscountAppFunctionHydration::Unresolved;
         }
-        response.body["data"]["shopifyFunction"].as_object()?;
-        Some(response.body["data"]["shopifyFunction"].clone())
+        let Some(function) = response
+            .body
+            .get("data")
+            .and_then(|data| data.get("shopifyFunction"))
+        else {
+            return DiscountAppFunctionHydration::Unresolved;
+        };
+        if function.is_null() {
+            DiscountAppFunctionHydration::Missing
+        } else if function.is_object() {
+            DiscountAppFunctionHydration::Observed(function.clone())
+        } else {
+            DiscountAppFunctionHydration::Unresolved
+        }
     }
 
-    fn fetch_shopify_function_by_handle(&self, request: &Request, handle: &str) -> Option<Value> {
+    fn fetch_shopify_function_by_handle(
+        &self,
+        request: &Request,
+        handle: &str,
+    ) -> DiscountAppFunctionHydration {
         let response = self.upstream_post(
             request,
             json!({
@@ -2624,12 +2794,17 @@ impl DraftProxy {
             }),
         );
         if response.status != 200 {
-            return None;
+            return DiscountAppFunctionHydration::Unresolved;
         }
-        response.body["data"]["shopifyFunctions"]["nodes"]
-            .as_array()
-            .and_then(|nodes| nodes.first())
+        let Some(nodes) = response.body["data"]["shopifyFunctions"]["nodes"].as_array() else {
+            return DiscountAppFunctionHydration::Unresolved;
+        };
+        nodes
+            .first()
+            .filter(|function| function.is_object())
             .cloned()
+            .map(DiscountAppFunctionHydration::Observed)
+            .unwrap_or(DiscountAppFunctionHydration::Missing)
     }
 
     /// Whether the effective shop sells subscriptions. Subscription/recurring

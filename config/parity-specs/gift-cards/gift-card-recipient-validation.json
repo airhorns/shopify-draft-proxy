@@ -111,8 +111,8 @@
         }
       },
       {
-        "name": "recipient attribute validation branches",
-        "capturePath": "$.expected.data",
+        "name": "recipient attribute validation data branches",
+        "capturePath": "$.operations.recipientValidation.response.payload.data",
         "proxyPath": "$.data",
         "proxyRequest": {
           "documentPath": "config/parity-requests/gift-cards/gift-card-recipient-validation.graphql",
@@ -169,6 +169,55 @@
           "$.updateHtmlMessage",
           "$.updatePastSendAt",
           "$.updateFutureSendAt"
+        ]
+      },
+      {
+        "name": "recipient attribute validation top-level errors",
+        "capturePath": "$.operations.recipientValidation.response.payload.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-recipient-validation.graphql",
+          "variables": {
+            "activeId": {
+              "fromProxyResponse": "create setup gift card user errors",
+              "path": "$.data.giftCardCreate.giftCard.id"
+            },
+            "recipientId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "tooLongPreferredName": {
+              "fromCapturePath": "$.proxyVariables.recipientValidation.tooLongPreferredName"
+            },
+            "tooLongMessage": {
+              "fromCapturePath": "$.proxyVariables.recipientValidation.tooLongMessage"
+            },
+            "htmlPreferredName": {
+              "fromCapturePath": "$.proxyVariables.recipientValidation.htmlPreferredName"
+            },
+            "htmlMessage": {
+              "fromCapturePath": "$.proxyVariables.recipientValidation.htmlMessage"
+            },
+            "futureSendAt": {
+              "fromCapturePath": "$.proxyVariables.recipientValidation.futureSendAt"
+            },
+            "pastSendAt": {
+              "fromCapturePath": "$.proxyVariables.recipientValidation.pastSendAt"
+            },
+            "validSendAt": {
+              "fromCapturePath": "$.proxyVariables.recipientValidation.validSendAt"
+            },
+            "missingRecipientId": {
+              "fromCapturePath": "$.proxyVariables.recipientValidation.missingRecipientId"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$[*].locations",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The replay document is formatted independently from the exact recorder document, so GraphQL source locations differ while error count, order, message, code, and response path remain strict."
+          }
         ]
       }
     ]

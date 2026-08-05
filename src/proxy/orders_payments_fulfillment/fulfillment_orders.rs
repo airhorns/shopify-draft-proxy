@@ -248,6 +248,27 @@ pub(in crate::proxy) fn fulfillment_order_merge_payload_json(
     json!({ "fulfillmentOrderMerges": merges, "userErrors": user_errors })
 }
 
+pub(super) fn fulfillment_order_has_merge_prerequisites(order: &Value) -> bool {
+    order.get("status").and_then(Value::as_str).is_some()
+        && order
+            .pointer("/lineItems/nodes")
+            .and_then(Value::as_array)
+            .is_some_and(|lines| {
+                lines.iter().all(|line| {
+                    line.get("id").and_then(Value::as_str).is_some()
+                        && line.get("totalQuantity").and_then(Value::as_i64).is_some()
+                        && line
+                            .get("remainingQuantity")
+                            .and_then(Value::as_i64)
+                            .is_some()
+                        && line
+                            .pointer("/lineItem/id")
+                            .and_then(Value::as_str)
+                            .is_some()
+                })
+            })
+}
+
 pub(in crate::proxy) fn fulfillment_order_nodes(order: &Value) -> Option<&Vec<Value>> {
     order.get("fulfillmentOrders")?.get("nodes")?.as_array()
 }

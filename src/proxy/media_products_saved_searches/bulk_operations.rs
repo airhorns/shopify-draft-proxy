@@ -56,6 +56,8 @@ const BULK_OPERATION_RUN_MUTATION_MAX_CONNECTION_DEPTH: usize = 1;
 const SUPPORTED_PRODUCT_BULK_CHILD_CONNECTIONS: &[&str] =
     &["collections", "images", "media", "metafields", "variants"];
 const SUPPORTED_PRODUCT_VARIANT_BULK_CHILD_CONNECTIONS: &[&str] = &["media", "metafields"];
+const SUPPORTED_ORDER_BULK_CHILD_CONNECTIONS: &[&str] = &[];
+const SUPPORTED_DRAFT_ORDER_BULK_CHILD_CONNECTIONS: &[&str] = &[];
 
 #[derive(Clone, Copy)]
 struct BulkOperationRecordSpec<'a> {
@@ -135,6 +137,16 @@ impl DraftProxy {
         match field.name.as_str() {
             "products" => self.bulk_operation_products_result(field, api_version),
             "productVariants" => self.bulk_operation_product_variants_result(field, api_version),
+            "orders" => self.bulk_operation_order_domain_result(
+                self.store.effective_orders(),
+                field,
+                api_version,
+            ),
+            "draftOrders" => self.bulk_operation_order_domain_result(
+                self.store.effective_draft_orders(),
+                field,
+                api_version,
+            ),
             _ => BulkOperationRunQueryResult {
                 jsonl: String::new(),
                 root_object_count: 0,
@@ -153,6 +165,8 @@ impl DraftProxy {
         let (operation_name, root_name) = match field.name.as_str() {
             "products" => ("BulkProductsCatalogHydrate", "products"),
             "productVariants" => ("BulkProductVariantsCatalogHydrate", "productVariants"),
+            "orders" => ("BulkOrdersCatalogHydrate", "orders"),
+            "draftOrders" => ("BulkDraftOrdersCatalogHydrate", "draftOrders"),
             _ => return false,
         };
         let plan = bulk_catalog_hydration_plan(operation_name, root_name, field);
@@ -342,7 +356,40 @@ impl DraftProxy {
                     .observe_base_product_variant_json(node, product_id);
                 true
             }
+            "orders" => {
+                if node.get("id").and_then(Value::as_str).is_none() {
+                    return false;
+                }
+                self.store.observe_base_order(node.clone());
+                true
+            }
+            "draftOrders" => {
+                if node.get("id").and_then(Value::as_str).is_none() {
+                    return false;
+                }
+                self.store.observe_base_draft_order(node.clone());
+                true
+            }
             _ => false,
+        }
+    }
+
+    fn bulk_operation_order_domain_result(
+        &self,
+        records: Vec<Value>,
+        field: &RootFieldSelection,
+        api_version: crate::admin_graphql::AdminApiVersion,
+    ) -> BulkOperationRunQueryResult {
+        let root_object_count = records.len();
+        let node_selection = edge_node_selection(&field.selection);
+        let record_selection = bulk_jsonl_node_selection(&node_selection);
+        let rows = records
+            .into_iter()
+            .map(|record| bulk_project_value(&record, &record_selection, api_version))
+            .collect();
+        BulkOperationRunQueryResult {
+            jsonl: values_to_jsonl(rows),
+            root_object_count,
         }
     }
 
@@ -957,15 +1004,13 @@ impl DraftProxy {
             return ResolverOutcome::value(payload);
         }
 
-        // Shopify validates bulk queries against the Admin GraphQL schema, so the proxy
-        // accepts schema-valid roots beyond the ones it can synthesize JSONL for locally.
-        // Local synthesis is scoped to `products`/`productVariants`; every other accepted
-        // root must fail explicitly because starting a real upstream bulk operation before
-        // commit would violate the stage-locally mutation contract.
+        // Starting a real upstream bulk operation before commit would violate the
+        // stage-locally mutation contract. Only roots with a local JSONL projection are
+        // accepted here; live-hybrid mode may hydrate their read-side catalogs first.
         let root_name = bulk_query_root_field_name(&query_text);
         let locally_synthesized = matches!(
             root_name.as_deref(),
-            Some("products") | Some("productVariants")
+            Some("products") | Some("productVariants") | Some("orders") | Some("draftOrders")
         );
         if !locally_synthesized {
             let payload = json!({
@@ -990,18 +1035,36 @@ impl DraftProxy {
             .and_then(|document| document.root_fields.first())
             .is_some_and(|field| self.hydrate_bulk_query_catalog(request, field));
         if !catalog_hydrated {
-            let payload = json!({
-                "bulkOperation": null,
-                "userErrors": [user_error(
-                    ["query"],
-                    &format!(
-                        "Unable to hydrate a complete {} catalog for local bulk export.",
-                        bulk_catalog_resource_label(root_name.as_deref())
-                    ),
-                    Some("INVALID"),
-                )]
+            // Shopify accepts the run request before the asynchronous export
+            // worker reads the catalog. Preserve that lifecycle boundary: a
+            // transiently unavailable catalog leaves a locally staged CREATED
+            // operation with no artifact instead of changing the mutation into
+            // a synchronous validation failure.
+            let id = self.next_bulk_operation_gid();
+            let created_at = self.next_product_timestamp();
+            let operation = self.bulk_operation_record(BulkOperationRecordSpec {
+                id: &id,
+                status: "CREATED",
+                operation_type: "QUERY",
+                query: &query_text,
+                count: "0",
+                root_count: "0",
+                created_at: &created_at,
+                file_size: "0",
             });
-            return ResolverOutcome::value(payload);
+            self.store
+                .staged
+                .bulk_operations
+                .insert(id.clone(), operation.clone());
+            let payload = json!({
+                "bulkOperation": operation,
+                "userErrors": []
+            });
+            return ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
+                "bulkOperationRunQuery",
+                "bulk-operations",
+                vec![id],
+            ));
         }
 
         let id = self.next_bulk_operation_gid();
@@ -1724,6 +1787,7 @@ mod tests {
             unsupported_mutation_mode: None,
             port: 0,
             shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
             snapshot_path: None,
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
         })
@@ -1743,6 +1807,7 @@ mod tests {
             unsupported_mutation_mode: None,
             port: 0,
             shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
             snapshot_path: None,
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
         })
@@ -1844,7 +1909,7 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_non_product_bulk_query_never_calls_upstream() {
+    fn order_and_draft_order_bulk_queries_hydrate_reads_without_sending_mutations_upstream() {
         let upstream_calls = Arc::new(Mutex::new(Vec::new()));
         let calls_for_transport = Arc::clone(&upstream_calls);
         let mut proxy = DraftProxy::new(Config {
@@ -1852,49 +1917,111 @@ mod tests {
             unsupported_mutation_mode: None,
             port: 0,
             shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
             snapshot_path: None,
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
         })
         .with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body is JSON");
+            let operation_name = body["operationName"]
+                .as_str()
+                .expect("bulk catalog hydration operation name");
+            let query = body["query"]
+                .as_str()
+                .expect("bulk catalog hydration query");
+            assert!(query.starts_with("query Bulk"));
+            assert!(
+                !query.contains("bulkOperationRunQuery"),
+                "supported bulk export may only issue read-side catalog hydration"
+            );
             calls_for_transport.lock().unwrap().push(request);
+            let body = match operation_name {
+                "BulkOrdersCatalogHydrate" => json!({
+                    "data": {
+                        "orders": {
+                            "nodes": [{
+                                "id": "gid://shopify/Order/1",
+                                "name": "#1001"
+                            }],
+                            "pageInfo": { "hasNextPage": false, "endCursor": null }
+                        }
+                    }
+                }),
+                "BulkDraftOrdersCatalogHydrate" => json!({
+                    "data": {
+                        "draftOrders": {
+                            "nodes": [{
+                                "id": "gid://shopify/DraftOrder/2",
+                                "name": "#D2",
+                                "warnings": [{ "message": "Captured warning" }]
+                            }],
+                            "pageInfo": { "hasNextPage": false, "endCursor": null }
+                        }
+                    }
+                }),
+                other => panic!("unexpected bulk catalog hydration operation {other}"),
+            };
             Response {
-                status: 500,
+                status: 200,
                 headers: BTreeMap::new(),
-                body: json!({ "errors": [{ "message": "unexpected upstream call" }] }),
+                body,
             }
         });
 
-        let response = proxy.process_request(test_request(
-            r#"
-            mutation RejectUnmodeledBulkExport($query: String!) {
+        let run_document = r#"
+            mutation StageOrderDomainBulkExport($query: String!) {
               bulkOperationRunQuery(query: $query) {
                 bulkOperation { id status type }
                 userErrors { field message code }
               }
             }
-            "#,
-            json!({ "query": "{ orders { edges { node { id } } } }" }),
-        ));
+        "#;
+        let cases = [
+            (
+                "{ orders { edges { node { id name } } } }",
+                json!({ "id": "gid://shopify/Order/1", "name": "#1001" }),
+            ),
+            (
+                "{ draftOrders { edges { node { id name warnings { message } } } } }",
+                json!({
+                    "id": "gid://shopify/DraftOrder/2",
+                    "name": "#D2",
+                    "warnings": [{ "message": "Captured warning" }]
+                }),
+            ),
+        ];
 
-        assert_eq!(response.status, 200);
-        assert!(
-            upstream_calls.lock().unwrap().is_empty(),
-            "unsupported bulk query must not run a substitute mutation upstream"
-        );
-        assert_eq!(
-            response.body["data"]["bulkOperationRunQuery"]["bulkOperation"],
-            Value::Null
-        );
-        assert_eq!(
-            response.body["data"]["bulkOperationRunQuery"]["userErrors"],
-            json!([{
-                "field": ["query"],
-                "message": "Bulk query root `orders` is accepted by Shopify's schema-driven validator but is not yet supported by the local JSONL synthesizer.",
-                "code": null
-            }])
-        );
+        for (query, expected_row) in cases {
+            let response =
+                proxy.process_request(test_request(run_document, json!({ "query": query })));
+            assert_eq!(response.status, 200);
+            assert_eq!(
+                response.body["data"]["bulkOperationRunQuery"]["userErrors"],
+                json!([])
+            );
+            assert_eq!(
+                response.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["status"],
+                json!("CREATED")
+            );
+            let operation_id = response.body["data"]["bulkOperationRunQuery"]["bulkOperation"]
+                ["id"]
+                .as_str()
+                .expect("bulk operation id");
+            let artifact = proxy.process_request(bulk_artifact_request(operation_id));
+            assert_eq!(artifact.status, 200);
+            let rows = artifact
+                .body
+                .as_str()
+                .expect("bulk JSONL body")
+                .lines()
+                .map(|line| serde_json::from_str::<Value>(line).expect("valid bulk JSONL row"))
+                .collect::<Vec<_>>();
+            assert_eq!(rows, vec![expected_row]);
+        }
+
+        assert_eq!(upstream_calls.lock().unwrap().len(), 2);
         let log = proxy.process_request(meta_request("GET", "/__meta/log", ""));
-        assert_eq!(log.body["entries"], json!([]));
+        assert_eq!(log.body["entries"].as_array().unwrap().len(), 2);
     }
 
     fn instrumented_live_proxy() -> (DraftProxy, Arc<Mutex<Vec<Request>>>) {
@@ -1905,6 +2032,7 @@ mod tests {
             unsupported_mutation_mode: Some(UnsupportedMutationMode::Passthrough),
             port: 0,
             shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
             snapshot_path: None,
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
         })
@@ -1985,6 +2113,7 @@ mod tests {
             unsupported_mutation_mode: None,
             port: 3123,
             shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
             snapshot_path: None,
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
         });
@@ -2017,6 +2146,7 @@ mod tests {
             unsupported_mutation_mode: None,
             port: 0,
             shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
             snapshot_path: None,
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
         })
@@ -2068,6 +2198,7 @@ mod tests {
             unsupported_mutation_mode: None,
             port: 0,
             shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
             snapshot_path: None,
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
         })
@@ -2117,6 +2248,7 @@ mod tests {
             unsupported_mutation_mode: None,
             port: 0,
             shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
             snapshot_path: None,
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
         })
@@ -2230,6 +2362,7 @@ mod tests {
             unsupported_mutation_mode: None,
             port: 0,
             shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
             snapshot_path: None,
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
         })
@@ -2312,6 +2445,7 @@ mod tests {
             unsupported_mutation_mode: None,
             port: 0,
             shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
             snapshot_path: None,
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
         })
@@ -2403,6 +2537,7 @@ mod tests {
             unsupported_mutation_mode: None,
             port: 0,
             shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
             snapshot_path: None,
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
         })
@@ -2458,6 +2593,7 @@ mod tests {
             unsupported_mutation_mode: None,
             port: 0,
             shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
             snapshot_path: None,
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
         })
@@ -2545,6 +2681,7 @@ mod tests {
             unsupported_mutation_mode: None,
             port: 0,
             shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
             snapshot_path: None,
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
         })
@@ -2677,6 +2814,7 @@ mod tests {
             unsupported_mutation_mode: None,
             port: 0,
             shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
             snapshot_path: None,
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
         })
@@ -2845,6 +2983,7 @@ mod tests {
             unsupported_mutation_mode: None,
             port: 0,
             shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
             snapshot_path: None,
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
         })
@@ -3042,6 +3181,7 @@ mod tests {
             unsupported_mutation_mode: None,
             port: 0,
             shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
             snapshot_path: None,
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
         })
@@ -3190,12 +3330,13 @@ mod tests {
     }
 
     #[test]
-    fn products_bulk_query_refuses_to_publish_an_artifact_when_catalog_hydration_fails() {
+    fn products_bulk_query_stays_created_without_an_artifact_when_catalog_hydration_fails() {
         let mut proxy = DraftProxy::new(Config {
             read_mode: ReadMode::LiveHybrid,
             unsupported_mutation_mode: None,
             port: 0,
             shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
             snapshot_path: None,
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
         })
@@ -3222,18 +3363,12 @@ mod tests {
         ));
 
         assert_eq!(response.status, 200);
-        assert_eq!(
-            response.body["data"]["bulkOperationRunQuery"]["bulkOperation"],
-            Value::Null
-        );
-        assert_eq!(
-            response.body["data"]["bulkOperationRunQuery"]["userErrors"],
-            json!([{
-                "field": ["query"],
-                "message": "Unable to hydrate a complete product catalog for local bulk export.",
-                "code": "INVALID"
-            }])
-        );
+        let payload = &response.body["data"]["bulkOperationRunQuery"];
+        assert_eq!(payload["bulkOperation"]["status"], json!("CREATED"));
+        assert_eq!(payload["userErrors"], json!([]));
+        let operation_id = payload["bulkOperation"]["id"].as_str().unwrap();
+        let artifact = proxy.process_request(bulk_artifact_request(operation_id));
+        assert_eq!(artifact.status, 404);
     }
 
     #[test]
@@ -3253,6 +3388,7 @@ mod tests {
             unsupported_mutation_mode: None,
             port: 0,
             shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
             snapshot_path: None,
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
         })
@@ -3444,6 +3580,7 @@ mod tests {
             unsupported_mutation_mode: None,
             port: 0,
             shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
             snapshot_path: None,
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
         })
@@ -3542,6 +3679,7 @@ mod tests {
             unsupported_mutation_mode: None,
             port: 0,
             shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
             snapshot_path: None,
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
         })
@@ -3691,6 +3829,7 @@ mod tests {
             unsupported_mutation_mode: None,
             port: 0,
             shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
             snapshot_path: None,
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
         })
@@ -4179,13 +4318,6 @@ fn bulk_query_root_field_name(query_text: &str) -> Option<String> {
     document.root_fields.first().map(|field| field.name.clone())
 }
 
-fn bulk_catalog_resource_label(root_name: Option<&str>) -> &'static str {
-    match root_name {
-        Some("productVariants") => "product variant",
-        _ => "product",
-    }
-}
-
 #[derive(Default)]
 struct BulkProductSearchHydrationRequirements {
     product_fields: BTreeSet<&'static str>,
@@ -4391,7 +4523,7 @@ fn bulk_catalog_node_hydration_selection(
             rendered.push(connection.selection("$nestedFirst", "$nestedAfter"));
             nested_connections.push(connection);
         }
-    } else {
+    } else if root_name == "productVariants" {
         for field in &requirements.variant_fields {
             if rendered_names.insert((*field).to_string()) {
                 rendered.push((*field).to_string());
@@ -4550,6 +4682,8 @@ fn bulk_operation_run_query_local_support_user_errors(query_text: &str) -> Optio
             "product variant",
             SUPPORTED_PRODUCT_VARIANT_BULK_CHILD_CONNECTIONS,
         ),
+        "orders" => ("order", SUPPORTED_ORDER_BULK_CHILD_CONNECTIONS),
+        "draftOrders" => ("draft order", SUPPORTED_DRAFT_ORDER_BULK_CHILD_CONNECTIONS),
         _ => return None,
     };
 

@@ -98,9 +98,11 @@ translation-key/locale/market combination that exists in staged state. An empty
 other unmatched filters follow the same no-stage rule.
 For `handle` translations, normalization lowercases ASCII alphanumerics,
 collapses separators to single dashes, trims edge dashes, and uses a
-deterministic `localized-<hash>` fallback derived from the submitted value when
-normalization would otherwise be empty. The fallback avoids reusing a
-fixture-derived handle for unrelated non-ASCII or punctuation-only values.
+deterministic `localized-<hash>` fallback derived from non-ASCII input when
+normalization would otherwise be empty. Captured ASCII punctuation-only input
+uses Shopify's fixed
+`store-localization/generic-dynamic-content-translation` fallback; this rule is
+specific to translated handles and is not reused for staged market handles.
 For `translationsRegister` rows that violate multiple rules, captured Shopify
 behavior validates locale and market gates before translation-record value and
 digest validation, and market existence wins before locale enablement or

@@ -36,7 +36,30 @@ pub(in crate::proxy) fn localization_field_resolver_registrations() -> Vec<Field
             "marketLocalizations",
             market_localizable_resource_localizations_field,
         ),
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "MarketWebPresence",
+            "defaultLocale",
+            market_web_presence_default_locale_field,
+        ),
     ]
+}
+
+fn market_web_presence_default_locale_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    if let Some(default_locale) = invocation.parent.get("defaultLocale") {
+        return Ok(default_locale.clone());
+    }
+    let id = invocation
+        .parent
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let default_locale = proxy.market_web_presence_default_locale(id);
+    Ok(locale_record(&default_locale, true))
 }
 
 fn market_localizable_resource_localizations_field(
@@ -984,9 +1007,19 @@ impl DraftProxy {
                 ));
             }
             // 6. Shopify exposes definition-backed money metafields as a
-            // `value` market-localizable field, but rejects JSON money payloads
-            // during register with a resource-validation error.
-            if market_localizable_content_is_money_metafield(content_entry) {
+            // `value` market-localizable field. Region markets accept their
+            // localized currency payload, while a market without region
+            // context (`type: NONE`) cannot validate the money value.
+            if market_localizable_content_is_money_metafield(content_entry)
+                && self
+                    .store
+                    .staged
+                    .markets
+                    .get(&market_id)
+                    .and_then(|market| market.get("type"))
+                    .and_then(Value::as_str)
+                    != Some("REGION")
+            {
                 return LocalMutationResult::no_stage(selected_market_localization_error(
                     field,
                     vec!["marketLocalizations", &field_index, "value"],
@@ -1251,7 +1284,8 @@ impl DraftProxy {
                     user_errors.push(user_error(json!(["translations", field_index, "value"]), "Value fails validation on resource: [\"Handle is too long (maximum is 255 characters)\"]", Some("FAILS_RESOURCE_VALIDATION")));
                     continue;
                 }
-                translation["value"] = json!(normalize_localized_handle(original_value));
+                translation["value"] =
+                    json!(normalize_localized_translation_handle(original_value));
             }
             staged.push(translation);
         }

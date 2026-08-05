@@ -2586,6 +2586,7 @@ fn webhook_subscription_topic_coercion_uses_the_route_version_schema() {
         .is_some_and(|message| {
             message.starts_with("Expected \"INVENTORY_TRANSFERS_UPDATED\" to be one of: ")
                 && message.contains("SHOP_UPDATE")
+                && !message.contains("MACHINE_TRANSLATION_BATCH_COMPLETED")
                 && !message.contains("CUSTOMERS_WHATS_APP_MARKETING_CONSENT_UPDATE")
         }));
 

@@ -544,7 +544,7 @@ fn refund_amount_validation_field(input: &BTreeMap<String, ResolvedValue>) -> Va
 
 fn refund_amount_validation_money_text(amount: f64, currency_code: &str) -> String {
     let amount = format!("{amount:.2}");
-    if currency_code == "USD" {
+    if matches!(currency_code, "CAD" | "USD") {
         format!("${amount}")
     } else if currency_code.is_empty() {
         amount
@@ -553,8 +553,23 @@ fn refund_amount_validation_money_text(amount: f64, currency_code: &str) -> Stri
     }
 }
 
+#[cfg(test)]
+mod refund_amount_validation_money_text_tests {
+    use super::refund_amount_validation_money_text;
+
+    #[test]
+    fn formats_captured_dollar_and_non_dollar_currency_messages() {
+        assert_eq!(refund_amount_validation_money_text(25.0, "CAD"), "$25.00");
+        assert_eq!(refund_amount_validation_money_text(15.0, "USD"), "$15.00");
+        assert_eq!(
+            refund_amount_validation_money_text(10.0, "EUR"),
+            "10.00 EUR"
+        );
+    }
+}
+
 fn capture_authorized_amount_error_text(amount: f64) -> String {
-    format!("{:.2}", (amount * 100.0).round() / 100.0)
+    format_money_scalar_amount(amount)
 }
 
 pub(in crate::proxy) fn build_refund_line_items(
@@ -774,16 +789,29 @@ pub(in crate::proxy) fn payment_money_set_for_order_totals(
     if parent_amount_set.get("presentmentMoney").is_some() {
         let presentment_currency = money_currency(parent_amount_set, "presentmentMoney")
             .unwrap_or_else(|| shop_currency.clone());
+        let parent_shop_amount = money_amount(parent_amount_set, "shopMoney")
+            .and_then(|amount| amount.parse::<f64>().ok())
+            .unwrap_or(0.0);
+        let parent_presentment_amount = money_amount(parent_amount_set, "presentmentMoney")
+            .and_then(|amount| amount.parse::<f64>().ok())
+            .unwrap_or(parent_shop_amount);
+        let to_shop_amount = |presentment_amount: f64| {
+            if parent_presentment_amount.abs() > 0.000_001 {
+                presentment_amount * parent_shop_amount / parent_presentment_amount
+            } else {
+                presentment_amount
+            }
+        };
         (
             money_set_pair(
-                &format_money_amount(remaining_amount),
+                &format_money_amount(to_shop_amount(remaining_amount)),
                 &shop_currency,
                 &format_money_amount(remaining_amount),
                 &presentment_currency,
             ),
             money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency),
             money_set_pair(
-                &format_money_amount(received_amount),
+                &format_money_amount(to_shop_amount(received_amount)),
                 &shop_currency,
                 &format_money_amount(received_amount),
                 &presentment_currency,
@@ -897,7 +925,7 @@ pub(in crate::proxy) fn payment_order_record(
         "id": id,
         "displayFinancialStatus": display_financial_status,
         "capturable": capturable,
-        "totalCapturable": capturable_amount,
+        "totalCapturable": normalize_money_scalar_amount(capturable_amount),
         "totalCapturableSet": money_set(capturable_amount, currency_code),
         "totalOutstandingSet": money_set(outstanding_amount, currency_code),
         "totalReceivedSet": money_set(received_amount, currency_code),
@@ -1101,9 +1129,9 @@ fn mandate_payment_order_record(input: &MandatePaymentTransactionInput<'_>) -> V
         "AUTHORIZED"
     };
     let total_capturable = if input.auto_capture {
-        "0.0"
+        "0.00".to_string()
     } else {
-        input.amount
+        normalize_money_scalar_amount(input.amount)
     };
     let outstanding_amount = if input.auto_capture {
         "0.0"
@@ -1121,7 +1149,7 @@ fn mandate_payment_order_record(input: &MandatePaymentTransactionInput<'_>) -> V
         "displayFinancialStatus": display_financial_status,
         "capturable": !input.auto_capture,
         "totalCapturable": total_capturable,
-        "totalCapturableSet": money_set(total_capturable, input.currency_code),
+        "totalCapturableSet": money_set(&total_capturable, input.currency_code),
         "totalOutstandingSet": money_set(outstanding_amount, input.currency_code),
         "totalReceivedSet": money_set(received_amount, input.currency_code),
         "netPaymentSet": money_set(received_amount, input.currency_code),
@@ -2162,8 +2190,10 @@ impl DraftProxy {
                 &shop_currency_code,
             )
         });
-        let amount =
-            money_set_presentment_or_shop_amount(&amount_set).unwrap_or_else(|| "0.0".to_string());
+        let shop_amount =
+            money_amount(&amount_set, "shopMoney").unwrap_or_else(|| "0.0".to_string());
+        let presentment_amount = money_set_presentment_or_shop_amount(&amount_set)
+            .unwrap_or_else(|| shop_amount.clone());
         let transaction_id = self.next_order_transaction_id();
         let kind = resolved_string_field(&first_transaction, "kind")
             .unwrap_or_else(|| "AUTHORIZATION".to_string());
@@ -2182,11 +2212,11 @@ impl DraftProxy {
         );
         let (display_status, capturable_amount, outstanding_amount, received_amount) =
             if kind == "AUTHORIZATION" && status == "SUCCESS" {
-                ("AUTHORIZED", amount.as_str(), "0.0", "0.0")
+                ("AUTHORIZED", shop_amount.as_str(), "0.0", "0.0")
             } else if matches!(kind.as_str(), "CAPTURE" | "SALE") && status == "SUCCESS" {
-                ("PAID", "0.0", "0.0", amount.as_str())
+                ("PAID", "0.0", "0.0", shop_amount.as_str())
             } else {
-                ("PENDING", "0.0", amount.as_str(), "0.0")
+                ("PENDING", "0.0", shop_amount.as_str(), "0.0")
             };
         let payment_view = payment_order_record(
             &id,
@@ -2217,14 +2247,19 @@ impl DraftProxy {
         }
         if amount_set.get("presentmentMoney").is_some() {
             let captured_amount = if capturable_amount == "0.0" {
-                amount.as_str()
+                presentment_amount.as_str()
             } else {
                 "0.0"
+            };
+            let presentment_capturable_amount = if capturable_amount == "0.0" {
+                "0.0"
+            } else {
+                presentment_amount.as_str()
             };
             let (capturable_set, outstanding_set, received_set) =
                 payment_money_set_for_order_totals(
                     &amount_set,
-                    capturable_amount.parse::<f64>().unwrap_or(0.0),
+                    presentment_capturable_amount.parse::<f64>().unwrap_or(0.0),
                     captured_amount.parse::<f64>().unwrap_or(0.0),
                     &currency,
                 );
@@ -2287,7 +2322,7 @@ impl DraftProxy {
         }
         order["displayFinancialStatus"] = json!("PAID");
         order["capturable"] = json!(false);
-        order["totalCapturable"] = json!("0.0");
+        order["totalCapturable"] = json!("0.00");
         order["totalCapturableSet"] =
             zero_order_money_set_like(&outstanding_set, &order, &shop_currency_code);
         order["totalOutstandingSet"] =
@@ -2620,7 +2655,7 @@ impl DraftProxy {
             json!("PARTIALLY_PAID")
         };
         order["capturable"] = json!(remaining_amount > 0.000_001);
-        order["totalCapturable"] = json!(format_money_amount(remaining_amount));
+        order["totalCapturable"] = json!(format_money_scalar_amount(remaining_amount));
         order["totalCapturableSet"] = capturable_set;
         order["totalOutstandingSet"] = outstanding_set;
         order["totalReceivedSet"] = received_set.clone();
@@ -2709,7 +2744,7 @@ impl DraftProxy {
         );
         order["displayFinancialStatus"] = json!("VOIDED");
         order["capturable"] = json!(false);
-        order["totalCapturable"] = json!("0.0");
+        order["totalCapturable"] = json!("0.00");
         order["totalCapturableSet"] =
             zero_order_money_set_like(&amount_set, &order, &shop_currency_code);
         order["totalOutstandingSet"] = amount_set;

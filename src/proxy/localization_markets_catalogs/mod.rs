@@ -15,19 +15,53 @@ pub(in crate::proxy) struct MarketsRootInput {
     arguments: BTreeMap<String, ResolvedValue>,
 }
 
+fn selected_argument_at_path<'a>(
+    fields: &'a [SelectedField],
+    path: &[&str],
+    argument_name: &str,
+) -> Option<&'a ResolvedValue> {
+    let (field_name, remaining) = path.split_first()?;
+    fields
+        .iter()
+        .find(|field| field.name == *field_name)
+        .and_then(|field| {
+            if remaining.is_empty() {
+                field.arguments.get(argument_name)
+            } else {
+                selected_argument_at_path(&field.selection, remaining, argument_name)
+            }
+        })
+}
+
 pub(in crate::proxy) use self::localization::localization_field_resolver_registrations;
 pub(in crate::proxy) use self::markets::{
     markets_field_resolver_registrations, markets_field_resolver_type_policies,
 };
 pub(in crate::proxy) use self::web_presence_helpers::*;
 
-const BACKUP_REGION_AVAILABLE_HYDRATE_QUERY: &str = r#"query BackupRegionAvailableHydrate {
-  availableBackupRegions {
-    __typename
-    id
-    name
-    ... on MarketRegionCountry {
-      code
+const BACKUP_REGION_MARKETS_HYDRATE_QUERY: &str = r#"query BackupRegionMarketsHydrate($first: Int!, $regionsFirst: Int!) {
+  markets(first: $first) {
+    nodes {
+      id
+      name
+      handle
+      status
+      type
+      conditions {
+        conditionTypes
+        regionsCondition {
+          regions(first: $regionsFirst) {
+            nodes {
+              __typename
+              id
+              name
+              ... on MarketRegionCountry {
+                code
+              }
+            }
+          }
+        }
+      }
     }
   }
 }"#;
@@ -66,6 +100,64 @@ const FIXED_PRICE_BY_PRODUCT_PREFLIGHT_QUERY: &str = "query MarketsMutationPrefl
 /// real Shopify context before the supported mutation stays local.
 const QUANTITY_PRICING_RULES_PREFLIGHT_QUERY: &str = "query MarketsMutationPreflightHydrate($priceListId: ID!) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount quantityRules(first: 20) { edges { cursor node { minimum maximum increment isDefault originType productVariant { id } } } } prices(first: 20, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } quantityPriceBreaks(first: 20) { edges { cursor node { id minimumQuantity price { amount currencyCode } variant { id } } } } } } } } products(first: 10) { nodes { id title variants(first: 20) { nodes { id title sku } } } } }";
 
+/// `quantityRulesAdd`/`quantityRulesDelete` were captured with an older API
+/// version whose exact preflight document differs from quantity-pricing updates.
+/// Keep the document byte-for-byte identical so cassette replay exercises the
+/// same production read without falling through to a live Shopify request.
+const QUANTITY_RULES_PREFLIGHT_QUERY: &str = r#"
+query MarketsMutationPreflightHydrate($priceListId: ID!) {
+  priceList(id: $priceListId) {
+    __typename
+    id
+    name
+    currency
+    fixedPricesCount
+    quantityRules(first: 20) {
+      edges {
+        cursor
+        node {
+          minimum
+          maximum
+          increment
+          isDefault
+          originType
+          productVariant { id }
+        }
+      }
+    }
+    prices(first: 20) {
+      edges {
+        cursor
+        node {
+          price { amount currencyCode }
+          compareAtPrice { amount currencyCode }
+          originType
+          variant { id sku product { id title } }
+          quantityPriceBreaks(first: 20) {
+            edges {
+              cursor
+              node {
+                minimumQuantity
+                price { amount currencyCode }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  products(first: 10) {
+    nodes {
+      id
+      title
+      variants(first: 20) {
+        nodes { id title sku }
+      }
+    }
+  }
+}
+"#;
+
 const CATALOG_RELATION_PRICE_LIST_PREFLIGHT_QUERY: &str = "query CatalogRelationPriceListHydrate($id: ID!) { priceList(id: $id) { __typename id name currency parent { adjustment { type value } } catalog { id } } }";
 
 const CATALOG_RELATION_PUBLICATION_PREFLIGHT_QUERY: &str = "query CatalogRelationPublicationHydrate($id: ID!) { publication(id: $id) { __typename id name autoPublish } }";
@@ -75,6 +167,7 @@ const CATALOG_RELATION_PUBLICATION_PREFLIGHT_QUERY: &str = "query CatalogRelatio
 /// applying the local mutation. The cassette stores the exact request Shopify saw,
 /// so parity cannot hide behind a provenance descriptor string.
 const WEB_PRESENCE_PREFLIGHT_QUERY: &str = "query MarketsMutationPreflightHydrate($first: Int!) { shop { myshopifyDomain primaryDomain { id host url sslEnabled } domains { id host url sslEnabled } } webPresences(first: $first) { nodes { id subfolderSuffix domain { id host url sslEnabled } rootUrls { locale url } defaultLocale { locale name primary published } alternateLocales { locale name primary published } markets(first: 5) { nodes { id name handle status type } } } } }";
+const WEB_PRESENCE_LEGACY_PREFLIGHT_QUERY: &str = "query MarketsMutationPreflightHydrate($first: Int!) { webPresences(first: $first) { nodes { id subfolderSuffix domain { id host url sslEnabled } rootUrls { locale url } defaultLocale { locale name primary published } alternateLocales { locale name primary published } markets(first: 5) { nodes { id name handle status type } } } } }";
 const WEB_PRESENCE_PREFLIGHT_FIRST: i64 = 20;
 
 /// Market-localization mutations (`marketLocalizationsRegister`/`Remove`) hydrate the
@@ -659,7 +752,10 @@ fn web_presence_remove_locale(record: &mut Value, locale: &str) {
 
 /// The shop's authoritative myshopify domain, used as the host for synthesized
 /// web-presence root URLs when no custom domain is selected.
-fn web_presence_shop_domain(store: &Store) -> Option<String> {
+fn web_presence_shop_domain(
+    store: &Store,
+    configured_store_domain: Option<&str>,
+) -> Option<String> {
     let shop = store.effective_shop();
     if let Some(domain) = shop
         .get("myshopifyDomain")
@@ -669,7 +765,12 @@ fn web_presence_shop_domain(store: &Store) -> Option<String> {
     {
         return Some(domain.to_string());
     }
-    observed_web_presence_shop_domain(store)
+    observed_web_presence_shop_domain(store).or_else(|| {
+        configured_store_domain
+            .map(str::trim)
+            .filter(|domain| domain.ends_with(".myshopify.com"))
+            .map(str::to_ascii_lowercase)
+    })
 }
 
 fn observed_web_presence_shop_domain(store: &Store) -> Option<String> {
@@ -1039,13 +1140,18 @@ pub(in crate::proxy) fn market_region_country_from_node(
 }
 
 fn localization_product_translatable_content(product: &ProductRecord, locale: &str) -> Vec<Value> {
-    let mut content = vec![localization_content_entry(
-        "title",
-        &product.title,
-        locale,
-        "SINGLE_LINE_TEXT_FIELD",
-    )];
-    if !product.description_html.is_empty() {
+    let mut content = Vec::new();
+    if product_field_is_observed_or_staged(product, "title") {
+        content.push(localization_content_entry(
+            "title",
+            &product.title,
+            locale,
+            "SINGLE_LINE_TEXT_FIELD",
+        ));
+    }
+    if product_field_is_observed_or_staged(product, "descriptionHtml")
+        && !product.description_html.is_empty()
+    {
         content.push(localization_content_entry(
             "body_html",
             &product.description_html,
@@ -1053,19 +1159,23 @@ fn localization_product_translatable_content(product: &ProductRecord, locale: &s
             "HTML",
         ));
     }
-    content.push(localization_content_entry(
-        "handle",
-        &product.handle,
-        locale,
-        "URI",
-    ));
-    content.push(localization_content_entry(
-        "product_type",
-        &product.product_type,
-        locale,
-        "SINGLE_LINE_TEXT_FIELD",
-    ));
-    if !product.seo_title.is_empty() {
+    if product_field_is_observed_or_staged(product, "handle") {
+        content.push(localization_content_entry(
+            "handle",
+            &product.handle,
+            locale,
+            "URI",
+        ));
+    }
+    if product_field_is_observed_or_staged(product, "productType") {
+        content.push(localization_content_entry(
+            "product_type",
+            &product.product_type,
+            locale,
+            "SINGLE_LINE_TEXT_FIELD",
+        ));
+    }
+    if product_field_is_observed_or_staged(product, "seo") && !product.seo_title.is_empty() {
         content.push(localization_content_entry(
             "meta_title",
             &product.seo_title,
@@ -1073,7 +1183,7 @@ fn localization_product_translatable_content(product: &ProductRecord, locale: &s
             "MULTI_LINE_TEXT_FIELD",
         ));
     }
-    if !product.seo_description.is_empty() {
+    if product_field_is_observed_or_staged(product, "seo") && !product.seo_description.is_empty() {
         content.push(localization_content_entry(
             "meta_description",
             &product.seo_description,

@@ -801,6 +801,49 @@ fn function_metadata_proxy_with_hits(hits: Arc<Mutex<Vec<Value>>>) -> DraftProxy
                     .collect::<Vec<_>>();
                 json!({ "data": { "shopifyFunctions": { "nodes": nodes } } })
             }
+            _ if query.contains("ValidationTitleFallbackRead") => {
+                let function = test_function_metadata_by_id_or_handle(
+                    None,
+                    Some("conformance-validation"),
+                )
+                .expect("conformance validation Function metadata");
+                json!({
+                    "data": {
+                        "validation": null,
+                        "validations": {
+                            "nodes": [
+                                {
+                                    "id": "gid://shopify/Validation/live-fallback-1",
+                                    "title": "t:name",
+                                    "enabled": false,
+                                    "blockOnFailure": false,
+                                    "shopifyFunction": function.clone()
+                                },
+                                {
+                                    "id": "gid://shopify/Validation/live-fallback-2",
+                                    "title": "t:name",
+                                    "enabled": false,
+                                    "blockOnFailure": false,
+                                    "shopifyFunction": function.clone()
+                                },
+                                {
+                                    "id": "gid://shopify/Validation/live-empty-title",
+                                    "title": "",
+                                    "enabled": false,
+                                    "blockOnFailure": false,
+                                    "shopifyFunction": function
+                                }
+                            ],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "opaque-live-fallback-1",
+                                "endCursor": "opaque-live-empty-title"
+                            }
+                        }
+                    }
+                })
+            }
             _ => {
                 let caller = request
                     .headers
@@ -1519,7 +1562,7 @@ fn discount_broad_bulk_roots_stage_locally_without_runtime_upstream_forwarding()
         let response =
             proxy.process_request(json_graphql_request(&mutation, json!({ "ids": [id] })));
         assert_eq!(response.status, 200, "{root} returned {:?}", response.body);
-        assert_eq!(response.body["data"][root]["job"]["done"], json!(true));
+        assert_eq!(response.body["data"][root]["job"]["done"], json!(false));
         assert_eq!(response.body["data"][root]["userErrors"], json!([]));
     }
 
@@ -1586,6 +1629,62 @@ fn discount_broad_bulk_roots_stage_locally_without_runtime_upstream_forwarding()
 }
 
 #[test]
+fn discount_mixed_code_and_automatic_bulk_request_matches_captured_job_nullability() {
+    let mut proxy = snapshot_proxy();
+    let code_id = create_basic_code_discount(&mut proxy, "Mixed bulk code", "MIXED-BULK");
+    let automatic = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMixedBulkAutomatic($input: DiscountAutomaticBasicInput!) {
+          discountAutomaticBasicCreate(automaticBasicDiscount: $input) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "title": "Mixed bulk automatic",
+            "startsAt": "2026-06-01T00:00:00Z",
+            "context": { "all": "ALL" },
+            "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+        }}),
+    ));
+    let automatic_id = json_string(
+        &automatic.body["data"]["discountAutomaticBasicCreate"]["automaticDiscountNode"]["id"],
+        "mixed bulk automatic id",
+    );
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MixedCodeAndAutomaticBulk($codeIds: [ID!], $automaticIds: [ID!]) {
+          activate: discountCodeBulkActivate(ids: $codeIds) { job { done } userErrors { field message code } }
+          deactivate: discountCodeBulkDeactivate(ids: $codeIds) { job { done } userErrors { field message code } }
+          deleteCode: discountCodeBulkDelete(ids: $codeIds) { job { done } userErrors { field message code } }
+          deleteAutomatic: discountAutomaticBulkDelete(ids: $automaticIds) { job { done } userErrors { field message code } }
+        }
+        "#,
+        json!({ "codeIds": [code_id], "automaticIds": [automatic_id] }),
+    ));
+
+    assert_eq!(
+        response.body["data"]["activate"]["job"]["done"],
+        json!(false)
+    );
+    assert_eq!(
+        response.body["data"]["deactivate"]["job"]["done"],
+        json!(false)
+    );
+    assert_eq!(
+        response.body["data"]["deleteCode"]["job"]["done"],
+        json!(false)
+    );
+    assert_eq!(response.body["data"]["deleteAutomatic"]["job"], Value::Null);
+    assert_eq!(
+        response.body["data"]["deleteAutomatic"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
 fn discount_broad_bulk_selector_validation_matches_captured_shopify_branches() {
     let mut proxy = snapshot_proxy().with_upstream_transport(|request| {
         panic!(
@@ -1620,10 +1719,10 @@ fn discount_broad_bulk_selector_validation_matches_captured_shopify_branches() {
           codeDeleteClassField: discountCodeBulkDelete(search: $codeClassSearch) { userErrors { field message code extraInfo } }
           codeDeleteUnknownField: discountCodeBulkDelete(search: $unknownFieldSearch) { userErrors { field message code extraInfo } }
           automaticDeleteEmpty: discountAutomaticBulkDelete { userErrors { field message code extraInfo } }
-          automaticDeleteBlank: discountAutomaticBulkDelete(search: "") { userErrors { field message code extraInfo } }
+          automaticDeleteBlank: discountAutomaticBulkDelete(search: "") { job { done } userErrors { field message code extraInfo } }
           automaticDeleteTooMany: discountAutomaticBulkDelete(ids: $automaticIds, search: $search) { userErrors { field message code extraInfo } }
           automaticDeleteSavedSearch: discountAutomaticBulkDelete(savedSearchId: $savedSearchId) { userErrors { field message code extraInfo } }
-          automaticDeleteUnknownField: discountAutomaticBulkDelete(search: $unknownFieldSearch) { userErrors { field message code extraInfo } }
+          automaticDeleteUnknownField: discountAutomaticBulkDelete(search: $unknownFieldSearch) { job { done } userErrors { field message code extraInfo } }
         }
         "#,
         json!({
@@ -1707,6 +1806,7 @@ fn discount_broad_bulk_selector_validation_matches_captured_shopify_branches() {
         json!([{ "field": null, "message": "One of IDs, search argument or saved search ID is required.", "code": "MISSING_ARGUMENT", "extraInfo": null }])
     );
     assert_eq!(data["automaticDeleteBlank"]["userErrors"], json!([]));
+    assert_eq!(data["automaticDeleteBlank"]["job"], Value::Null);
     assert_eq!(
         data["automaticDeleteTooMany"]["userErrors"],
         json!([{ "field": null, "message": "Only one of IDs, search argument or saved search ID is allowed.", "code": "TOO_MANY_ARGUMENTS", "extraInfo": null }])
@@ -1716,6 +1816,7 @@ fn discount_broad_bulk_selector_validation_matches_captured_shopify_branches() {
         json!([{ "field": ["savedSearchId"], "message": "Invalid savedSearchId.", "code": "INVALID", "extraInfo": null }])
     );
     assert_eq!(data["automaticDeleteUnknownField"]["userErrors"], json!([]));
+    assert_eq!(data["automaticDeleteUnknownField"]["job"], Value::Null);
 }
 
 #[test]
@@ -6923,7 +7024,7 @@ fn functions_validation_create_title_fallback_uses_hydrated_function_title() {
         r#"
         query ValidationTitleFallbackRead($id: ID!) {
           validation(id: $id) { id title }
-          validations(first: 3) { nodes { title } }
+          validations(first: 3) { nodes { title shopifyFunction { id } } }
         }
         "#,
         json!({ "id": omitted_id }),
@@ -6936,9 +7037,18 @@ fn functions_validation_create_title_fallback_uses_hydrated_function_title() {
     assert_eq!(
         read.body["data"]["validations"]["nodes"],
         json!([
-            { "title": "Conformance Validation" },
-            { "title": "Conformance Validation" },
-            { "title": "" }
+            {
+                "title": "Conformance Validation",
+                "shopifyFunction": { "id": "gid://shopify/ShopifyFunction/conformance-validation" }
+            },
+            {
+                "title": "Conformance Validation",
+                "shopifyFunction": { "id": "gid://shopify/ShopifyFunction/conformance-validation" }
+            },
+            {
+                "title": "",
+                "shopifyFunction": { "id": "gid://shopify/ShopifyFunction/conformance-validation" }
+            }
         ])
     );
 }
@@ -11946,6 +12056,14 @@ fn functions_authoritative_preflight_failures_do_not_stage_or_claim_not_found() 
         "cart-unavailable-key",
         "cart-unavailable-app",
     );
+    let validation_function = function_metadata_record(
+        "gid://shopify/ShopifyFunction/validation-unavailable-preflight",
+        "Validation Unavailable Preflight",
+        "validation-unavailable-preflight",
+        "VALIDATION",
+        "validation-unavailable-key",
+        "validation-unavailable-app",
+    );
     let mut proxy = configured_proxy(
         ReadMode::LiveHybrid,
         Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
@@ -11954,7 +12072,14 @@ fn functions_authoritative_preflight_failures_do_not_stage_or_claim_not_found() 
         let body: Value = serde_json::from_str(&request.body).unwrap();
         let response_body = match body["operationName"].as_str() {
             Some("FunctionHydrateById") => {
-                json!({ "data": { "shopifyFunction": cart_function.clone() } })
+                let function = if body["variables"]["id"]
+                    == "gid://shopify/ShopifyFunction/validation-unavailable-preflight"
+                {
+                    validation_function.clone()
+                } else {
+                    cart_function.clone()
+                };
+                json!({ "data": { "shopifyFunction": function } })
             }
             _ => json!({ "errors": [{ "message": "authoritative preflight unavailable" }] }),
         };
@@ -11987,6 +12112,31 @@ fn functions_authoritative_preflight_failures_do_not_stage_or_claim_not_found() 
                 "field": null,
                 "message": "Unable to verify the authoritative Function lifecycle state.",
                 "code": null
+            }]
+        })
+    );
+
+    let mismatched_cart_transform = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CartTransformApiMismatchUnavailablePreflight {
+          cartTransformCreate(
+            functionId: "gid://shopify/ShopifyFunction/validation-unavailable-preflight"
+          ) {
+            cartTransform { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        mismatched_cart_transform.body["data"]["cartTransformCreate"],
+        json!({
+            "cartTransform": null,
+            "userErrors": [{
+                "field": ["functionId"],
+                "message": "Unexpected Function API. The provided function must implement one of the following extension targets: [purchase.cart-transform.run, cart.transform.run].",
+                "code": "FUNCTION_NOT_FOUND"
             }]
         })
     );
@@ -15173,8 +15323,12 @@ fn localization_source_observations_do_not_replace_canonical_product_or_collecti
         json!({ "productId": product_id, "collectionId": collection_id }),
     ));
     assert_eq!(
-        source_after_disjoint.body["data"]["productSource"]["translatableContent"][0],
-        json!({ "key": "title", "value": "Rich source product" })
+        source_after_disjoint.body["data"]["productSource"]["translatableContent"],
+        json!([
+            { "key": "title", "value": "Rich source product" },
+            { "key": "body_html", "value": "<p>Rich product body</p>" },
+            { "key": "handle", "value": "rich-source-product" }
+        ])
     );
     assert_eq!(
         source_after_disjoint.body["data"]["collectionSource"]["translatableContent"][0],
@@ -15655,6 +15809,82 @@ fn localization_shop_locale_update_disable_tail_helpers_cover_current_behavior()
         .unwrap()
         .iter()
         .any(|locale| locale["locale"] == json!("fr")));
+}
+
+#[test]
+fn localization_shop_locale_read_derives_default_locale_for_partial_observed_presence() {
+    let presence_id = "gid://shopify/MarketWebPresence/partial-observation";
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_request| {
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shopLocales": [{
+                            "locale": "en",
+                            "name": "English",
+                            "primary": true,
+                            "published": true,
+                            "marketWebPresences": [{
+                                "id": presence_id,
+                                "__typename": "MarketWebPresence"
+                            }]
+                        }]
+                    }
+                }),
+            }
+        });
+
+    let observed = proxy.process_request(json_graphql_request(
+        r#"query ObservePartialShopLocalePresence {
+          shopLocales {
+            locale
+            name
+            primary
+            published
+            marketWebPresences { id __typename }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(observed.status, 200);
+
+    let enabled = proxy.process_request(json_graphql_request(
+        r#"mutation EnableLocaleWithObservedPresence($id: ID!) {
+          shopLocaleEnable(locale: "fr", marketWebPresenceIds: [$id]) {
+            shopLocale { locale }
+            userErrors { field message }
+          }
+        }"#,
+        json!({"id": presence_id}),
+    ));
+    assert_eq!(
+        enabled.body["data"]["shopLocaleEnable"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query ReadShopLocalesAfterEnable {
+          shopLocales {
+            locale
+            marketWebPresences {
+              id
+              defaultLocale { locale }
+            }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(read.status, 200);
+    assert!(read.body.get("errors").is_none(), "{}", read.body);
+    let locales = read.body["data"]["shopLocales"].as_array().unwrap();
+    for locale in locales {
+        assert_eq!(
+            locale["marketWebPresences"][0]["defaultLocale"]["locale"],
+            json!("en")
+        );
+    }
 }
 
 #[test]
@@ -16154,6 +16384,150 @@ fn gift_card_live_hybrid_cold_reads_forward_upstream_without_local_overlay() {
             "initialValue": { "amount": "25.0", "currencyCode": "USD" },
             "balance": { "amount": "25.0", "currencyCode": "USD" }
         })
+    );
+}
+
+#[test]
+fn gift_card_count_does_not_reapply_delta_after_partial_connection_observes_staged_state() {
+    let upstream_id = "gid://shopify/GiftCard/777000111333";
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_request| {
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "cards": {
+                            "nodes": [{
+                                "id": upstream_id,
+                                "enabled": true,
+                                "lastCharacters": "1333",
+                                "balance": { "amount": "24.0", "currencyCode": "USD" }
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false
+                            }
+                        },
+                        "count": { "count": 1, "precision": "EXACT" }
+                    }
+                }),
+            }
+        });
+    restore_proxy_state(&mut proxy, |restored| {
+        let mut card = upstream_gift_card_fixture(upstream_id, "USD");
+        card["lastCharacters"] = json!("1333");
+        restored["state"]["baseState"]["giftCards"][upstream_id] = card;
+    });
+
+    let debit = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardPartialConnectionObservationSetup($id: ID!) {
+          giftCardDebit(
+            id: $id
+            debitInput: { debitAmount: { amount: "1.0", currencyCode: USD } }
+          ) {
+            giftCardDebitTransaction { giftCard { id } }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({ "id": upstream_id }),
+    ));
+    assert_eq!(debit.body["data"]["giftCardDebit"]["userErrors"], json!([]));
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"query GiftCardPartialConnectionObservation($query: String!) {
+          cards: giftCards(first: 2, query: $query, sortKey: ID) {
+            nodes { id enabled lastCharacters balance { amount currencyCode } }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+          count: giftCardsCount(query: $query) { count precision }
+        }"#,
+        json!({ "query": "id:777000111333 AND balance_status:partial" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["cards"]["nodes"]
+            .as_array()
+            .map(Vec::len),
+        Some(1)
+    );
+    assert_eq!(
+        response.body["data"]["count"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+}
+
+#[test]
+fn gift_card_connection_reconciles_unique_upstream_counterpart_by_code_suffix() {
+    let upstream_id = "gid://shopify/GiftCard/777000111444";
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            if request.body.contains("GiftCardCreateConfiguration") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "giftCardConfiguration": {
+                                "issueLimit": { "amount": "3000.0", "currencyCode": "USD" },
+                                "purchaseLimit": { "amount": "14000.0", "currencyCode": "USD" }
+                            }
+                        }
+                    }),
+                };
+            }
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "cards": {
+                            "nodes": [{
+                                "id": upstream_id,
+                                "templateSuffix": "birthday"
+                            }]
+                        }
+                    }
+                }),
+            }
+        });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardUniqueCounterpartSetup {
+          giftCardCreate(input: {
+            initialValue: "5.0"
+            code: "uniqueoverlayabcd"
+            templateSuffix: "birthday"
+          }) {
+            giftCard { id }
+            userErrors { field message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        create.body["data"]["giftCardCreate"]["userErrors"],
+        json!([])
+    );
+    let synthetic_id = create.body["data"]["giftCardCreate"]["giftCard"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"query GiftCardUniqueCounterpartRead($query: String!) {
+          cards: giftCards(first: 2, query: $query, sortKey: ID) {
+            nodes { id templateSuffix }
+          }
+        }"#,
+        json!({ "query": "ABCD" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["cards"]["nodes"],
+        json!([{ "id": synthetic_id, "templateSuffix": "birthday" }])
     );
 }
 
@@ -16744,6 +17118,64 @@ fn gift_card_transaction_mutations_hydrate_transactions_for_history_state() {
     );
 
     assert_gift_card_hydrate_includes_transactions(&hydrate_query, "gift-card credit");
+}
+
+#[test]
+fn gift_card_transaction_hydrate_retries_legacy_captured_document_after_server_error() {
+    let upstream_id = "gid://shopify/GiftCard/legacy-transaction-hydrate";
+    let captured_queries = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_for_proxy = Arc::clone(&captured_queries);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let query = gift_card_hydrate_query_from_body(&request.body);
+            captured_for_proxy.lock().unwrap().push(query.clone());
+            if query.contains("query GiftCardTransactionHydrate") {
+                return Response {
+                    status: 500,
+                    headers: Default::default(),
+                    body: json!({"errors": [{"message": "legacy cassette miss"}]}),
+                };
+            }
+            assert!(query.contains("query GiftCardHydrate"));
+            assert!(query.contains("transactions(first: 250)"));
+            if query.contains("pageInfo") {
+                return Response {
+                    status: 500,
+                    headers: Default::default(),
+                    body: json!({"errors": [{"message": "legacy cassette miss"}]}),
+                };
+            }
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "giftCard": upstream_gift_card_fixture(upstream_id, "USD"),
+                        "giftCardConfiguration": {
+                            "issueLimit": { "amount": "3000.0", "currencyCode": "USD" },
+                            "purchaseLimit": { "amount": "14000.0", "currencyCode": "USD" }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardCreditLegacyHydrate($id: ID!) {
+          giftCardCredit(id: $id, creditInput: { creditAmount: { amount: "2.00", currencyCode: USD } }) {
+            giftCardCreditTransaction { id amount { amount currencyCode } }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({ "id": upstream_id }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["giftCardCredit"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(captured_queries.lock().unwrap().len(), 3);
 }
 
 #[test]
@@ -17597,10 +18029,27 @@ fn gift_card_update_validation_rejects_deactivated_empty_missing_and_long_inputs
             "deactivatedExpiresOn": { "giftCard": null, "userErrors": [{ "field": ["input", "expiresOn"], "message": "The gift card is deactivated." }] },
             "emptyInput": { "giftCard": null, "userErrors": [{ "field": ["input"], "message": "At least one argument is required in the input." }] },
             "missingCustomer": { "giftCard": null, "userErrors": [{ "field": ["input", "customerId"], "message": "The customer could not be found." }] },
-            "longRecipientName": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "preferredName"], "message": "preferredName is too long (maximum is 255)" }] },
-            "longRecipientMessage": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "message"], "message": "message is too long (maximum is 200)" }] },
+            "longRecipientName": null,
+            "longRecipientMessage": null,
             "success": { "giftCard": { "id": "gid://shopify/GiftCard/har694-active", "note": "HAR-694 updated note", "updatedAt": "2024-01-01T00:00:01.000Z" }, "userErrors": [] }
         })
+    );
+    assert_eq!(
+        response.body["errors"],
+        json!([
+            {
+                "message": "preferredName is too long (maximum is 255)",
+                "locations": [{ "line": 5, "column": 11 }],
+                "path": ["longRecipientName"],
+                "extensions": { "code": "INVALID_FIELD_ARGUMENTS" }
+            },
+            {
+                "message": "message is too long (maximum is 200)",
+                "locations": [{ "line": 6, "column": 11 }],
+                "path": ["longRecipientMessage"],
+                "extensions": { "code": "INVALID_FIELD_ARGUMENTS" }
+            }
+        ])
     );
 }
 
@@ -18192,21 +18641,70 @@ fn gift_card_recipient_validation_rejects_length_html_and_send_at_bounds() {
     assert_eq!(
         response.body["data"],
         json!({
-            "createLongPreferredName": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "preferredName"], "code": "TOO_LONG", "message": "preferredName is too long (maximum is 255)" }], "giftCardCode": null },
-            "createLongMessage": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "message"], "code": "TOO_LONG", "message": "message is too long (maximum is 200)" }], "giftCardCode": null },
+            "createLongPreferredName": null,
+            "createLongMessage": null,
             "createHtmlPreferredName": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "preferredName"], "code": "INVALID", "message": "Preferred name cannot contain HTML tags" }], "giftCardCode": null },
             "createHtmlMessage": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "message"], "code": "INVALID", "message": "Message cannot contain HTML tags" }], "giftCardCode": null },
             "createFutureSendAt": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "sendNotificationAt"], "code": "INVALID", "message": "Send notification at must be within 90 days from now" }], "giftCardCode": null },
             "createPastSendAt": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "sendNotificationAt"], "code": "INVALID", "message": "Send notification at must be within 90 days from now" }], "giftCardCode": null },
             "createValidSendAt": { "giftCard": { "id": "gid://shopify/GiftCard/2?shopify-draft-proxy=synthetic", "recipientAttributes": { "sendNotificationAt": "2026-07-01T00:00:00Z" } }, "giftCardCode": "giftcard00000002", "userErrors": [] },
-            "updateLongPreferredName": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "preferredName"], "message": "preferredName is too long (maximum is 255)" }] },
-            "updateLongMessage": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "message"], "message": "message is too long (maximum is 200)" }] },
+            "updateLongPreferredName": null,
+            "updateLongMessage": null,
             "updateHtmlPreferredName": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "preferredName"], "message": "Preferred name cannot contain HTML tags" }] },
             "updateHtmlMessage": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "message"], "message": "Message cannot contain HTML tags" }] },
             "updatePastSendAt": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "sendNotificationAt"], "message": "Send notification at must be within 90 days from now" }] },
             "updateFutureSendAt": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "sendNotificationAt"], "message": "Send notification at must be within 90 days from now" }] },
             "updateValidSendAt": { "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", "recipientAttributes": { "sendNotificationAt": "2026-07-01T00:00:00Z" } }, "userErrors": [] }
         })
+    );
+    assert_eq!(response.body["errors"].as_array().map(Vec::len), Some(4));
+    assert_eq!(
+        response.body["errors"][0]["message"],
+        "preferredName is too long (maximum is 255)"
+    );
+    assert_eq!(
+        response.body["errors"][0]["extensions"]["code"],
+        "INVALID_FIELD_ARGUMENTS"
+    );
+    assert_eq!(
+        response.body["errors"][0]["path"],
+        json!(["createLongPreferredName"])
+    );
+    assert_eq!(
+        response.body["errors"][1]["message"],
+        "message is too long (maximum is 200)"
+    );
+    assert_eq!(
+        response.body["errors"][1]["extensions"]["code"],
+        "INVALID_FIELD_ARGUMENTS"
+    );
+    assert_eq!(
+        response.body["errors"][1]["path"],
+        json!(["createLongMessage"])
+    );
+    assert_eq!(
+        response.body["errors"][2]["message"],
+        "preferredName is too long (maximum is 255)"
+    );
+    assert_eq!(
+        response.body["errors"][2]["extensions"]["code"],
+        "INVALID_FIELD_ARGUMENTS"
+    );
+    assert_eq!(
+        response.body["errors"][2]["path"],
+        json!(["updateLongPreferredName"])
+    );
+    assert_eq!(
+        response.body["errors"][3]["message"],
+        "message is too long (maximum is 200)"
+    );
+    assert_eq!(
+        response.body["errors"][3]["extensions"]["code"],
+        "INVALID_FIELD_ARGUMENTS"
+    );
+    assert_eq!(
+        response.body["errors"][3]["path"],
+        json!(["updateLongMessage"])
     );
 }
 
@@ -21147,7 +21645,7 @@ fn discount_hydrate_carries_async_usage_counts() {
 }
 
 #[test]
-fn discount_activate_hydrates_full_upstream_code_basic_config() {
+fn discount_activate_retries_legacy_hydrate_and_preserves_full_upstream_code_basic_config() {
     let discount_id = "gid://shopify/DiscountCodeNode/4242101".to_string();
     let redeem_code_id = "gid://shopify/DiscountRedeemCode/4242102".to_string();
     let hits = Arc::new(Mutex::new(0usize));
@@ -21179,10 +21677,33 @@ fn discount_activate_hydrates_full_upstream_code_basic_config() {
             *hit_counter.lock().unwrap() += 1;
             assert_full_discount_config_hydrate_request(&request.body);
             assert_eq!(body["variables"]["id"], json!(expected_discount_id));
+            let query = body["query"]
+                .as_str()
+                .expect("discount hydrate should carry a query");
+            if query.contains("query DiscountCodeHydrate") {
+                assert_code_only_bounded_discount_hydrate_request(&body);
+                return Response {
+                    status: 500,
+                    headers: Default::default(),
+                    body: json!({ "errors": [{ "message": "No recorded response" }] }),
+                };
+            }
+            assert!(
+                query.contains("query DiscountHydrate")
+                    && query.contains("codeDiscountNode")
+                    && query.contains("automaticDiscountNode")
+                    && query.contains("first: 250"),
+                "legacy retry should use the exact combined historical hydrate shape, got: {query}"
+            );
             Response {
                 status: 200,
                 headers: Default::default(),
                 body: json!({
+                    "errors": [{
+                        "message": format!("Invalid id: {}", expected_discount_id),
+                        "extensions": { "code": "RESOURCE_NOT_FOUND" },
+                        "path": ["automaticNode"]
+                    }],
                     "data": {
                         "codeNode": {
                             "id": expected_discount_id.clone(),
@@ -21247,7 +21768,7 @@ fn discount_activate_hydrates_full_upstream_code_basic_config() {
         json!({ "id": discount_id.clone() }),
     ));
 
-    assert_eq!(*hits.lock().unwrap(), 1);
+    assert_eq!(*hits.lock().unwrap(), 2);
     assert_eq!(
         activated.body["data"]["discountCodeActivate"]["userErrors"],
         json!([])

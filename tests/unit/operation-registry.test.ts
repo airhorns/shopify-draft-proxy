@@ -221,7 +221,6 @@ describe('operation registry', () => {
       declaredUnimplemented: [
         'companyContactSendWelcomeEmail',
         'consentPolicyUpdate',
-        'customerPaymentMethodSendUpdateEmail',
         'deliverySettingUpdate',
         'disputeEvidenceUpdate',
         'menuCreate',
@@ -393,7 +392,6 @@ describe('operation registry', () => {
         'MarketingEvent',
         'MarketWebPresence',
         'Menu',
-        'Metafield',
         'MetafieldDefinition',
         'OnlineStoreTheme',
         'OrderAdjustment',

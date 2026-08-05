@@ -98,6 +98,7 @@ fn config_from_env() -> Config {
             .unwrap_or(3000),
         shopify_admin_origin: env_value(&["SHOPIFY_ADMIN_ORIGIN"])
             .unwrap_or_else(|| "https://shopify.com".to_string()),
+        shopify_store_domain: env_value(&["SHOPIFY_STORE_DOMAIN"]),
         snapshot_path: env_value(&["SNAPSHOT_PATH", "SHOPIFY_DRAFT_PROXY_SNAPSHOT_PATH"])
             .filter(|value| !value.is_empty()),
     }

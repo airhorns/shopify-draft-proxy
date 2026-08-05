@@ -193,7 +193,10 @@ the submitted money currency to the referenced price list's actual currency, and
 quantity-pricing / quantity-rules variant validation uses observed base/staged
 ProductVariant and fixed-price variant state when variant state is available;
 unknown IDs return the Shopify-like variant user error instead of being treated
-as successfully updated or deleted.
+as successfully updated or deleted. `quantityRulesAdd` validates duplicate
+variant inputs and numeric bounds before resolving the referenced price list,
+so those input errors remain authoritative even when the price list has not
+been observed locally.
 When a price list is attached to a `MarketCatalog`,
 `quantityPricingByVariantUpdate` rejects `quantityRulesToAdd` with
 `QUANTITY_RULE_ADD_CATALOG_CONTEXT_NOT_SUPPORTED` at the indexed rule input.

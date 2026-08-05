@@ -1820,7 +1820,7 @@ fn shopify_money_value_error(value: &Value) -> Option<String> {
         return Some("Value must be within +/-1000000000000000000.".to_string());
     }
     let Some(currency_code) = fields.get("currency_code").and_then(Value::as_str) else {
-        return Some("Value must have a currency code.".to_string());
+        return Some(metafield_json_object_message("money").to_string());
     };
     let currency_code = currency_code.trim();
     if currency_code.is_empty() {

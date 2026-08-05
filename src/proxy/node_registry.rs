@@ -432,7 +432,7 @@ impl DraftProxy {
         }
     }
 
-    fn observe_node_response_value(&mut self, node: &Value) {
+    pub(in crate::proxy) fn observe_node_response_value(&mut self, node: &Value) {
         let id = node.get("id").and_then(Value::as_str).unwrap_or_default();
         if shopify_gid_resource_type(id).is_some() {
             self.store
@@ -769,6 +769,11 @@ simple_loader!(
         "InventoryTransfer",
         "InventoryTransferLineItem",
     ]
+);
+simple_loader!(
+    load_metafield,
+    owner_metafield_node_value_by_id,
+    ["Metafield"]
 );
 simple_loader!(
     load_metaobject,

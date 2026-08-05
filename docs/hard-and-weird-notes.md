@@ -1062,7 +1062,7 @@ After the initial orders-domain creation scaffolding landed, the next easy mista
   - practical consequence: the narrow local `orderUpdate` runtime slice is no longer backed only by synthetic/local integration tests; it now has matching live payload + immediate read-after-write evidence for the same merchant-visible fields
 - a later local increment expanded known-order staging to the current `OrderInput` simple-update fields from Shopify docs:
   - `email`, `phone`, `poNumber`, `shippingAddress`, `customAttributes`, and order-scoped `metafields`
-  - downstream `order(id:)` reads expose the staged values, including `customer.email` when the input updates `email`
+  - downstream `order(id:)` reads expose the staged order values, but the 2026-04 `orderUpdate-snapshot-staging` capture proved that `Order.customer.email` does **not** follow an `Order.email` edit: `orderCreate` with only an email materializes a Customer, and the later order update preserves that Customer's original email/display name
   - `billingAddress` is intentionally not part of that local `orderUpdate` slice because the current `OrderInput` docs do not expose it
   - executable parity: `config/parity-specs/orders/orderUpdate-snapshot-staging.json` replays public `orderCreate -> orderUpdate -> order(id:) / orders / ordersCount` requests against the live 2026-04 fixture without seeding internal proxy state
   - expanded live parity is captured for `email`, `poNumber`, `note`, `tags`, `customAttributes`, `shippingAddress`, and order-scoped `metafields` in `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-update-parity.json`; `phone` remains runtime-test-backed because Shopify 2025-01 rejected it as an `OrderInput` field in that capture path
@@ -2685,7 +2685,15 @@ Live evidence refreshed on this host:
 - the catalog fixture now selects the same rich metadata fields so `collections` parity covers the captured null/empty shapes alongside nested product connection shape
 - Repeated title-only `collectionCreate` calls reserve generated handles using two suffix branches. A nonnumeric generated handle keeps its base and appends `-1`, while a generated handle ending in digits increments that trailing number in place (`...-41` becomes `...-42`). Collection handle reservation must include both observed catalog rows and collections already staged in the current proxy session.
 - HAR-594 live probes against Admin GraphQL 2025-01 accepted collection titles that looked reserved from older Rails model notes. `Frontpage`, `All`, `Types`, `Vendors`, `Products`, and `Collections` all created collections successfully with empty `userErrors`; `Frontpage` deduped to `frontpage-2` when the shop already had the homepage collection handle. Do not add local reserved-title rejection unless a newer capture proves the GraphQL mutation surface rejects it.
-- The same HAR-594 capture showed `collectionAddProducts` and `collectionRemoveProducts` against a smart collection return `collection/job: null` with an `id`-scoped user error using the wording `Can't manually add products to a smart collection` / `Can't manually remove products from a smart collection`. A successful `collectionAddProducts` payload can still show `productsCount.count: 0` while the selected `products.nodes` includes the added product; the immediate downstream `collection(id:)` read returns the recomputed non-zero `productsCount`.
+- Captured smart-collection membership behavior differs across the executable
+  versioned scenarios. The 2025-01 `collectionAddProducts` and
+  `collectionRemoveProducts` flow accepts both operations; remove returns a
+  pending async `Job`. The 2026-04 `collectionAddProductsV2` and
+  `collectionRemoveProducts` flow returns `job: null` with the captured
+  smart-collection wording. A successful `collectionAddProducts` payload can
+  still show `productsCount.count: 0` while the selected `products.nodes`
+  includes the added product; the immediate downstream `collection(id:)` read
+  returns the recomputed non-zero `productsCount`.
 - A refreshed 2025-01 capture shows re-adding an already-member product with `collectionAddProducts` returns the collection with the existing product connection and empty `userErrors`; duplicate membership is not a payload error.
 - Current 2026-04 public Admin GraphQL behavior for `collectionAddProductsV2` and `collectionRemoveProducts` is async-first: unknown `productIds` return a `Job` plus empty `userErrors`, not indexed `NOT_FOUND` user errors. The 251-item cap is enforced as a top-level `MAX_INPUT_SIZE_EXCEEDED` error on `["collectionAddProductsV2","productIds"]` or `["collectionRemoveProducts","productIds"]` with no `data` envelope. The mutation payload's inline job is still pending (`done: false`, `query: null`), but an immediate `job(id:)` readback for the same collection membership job returns `done: true` with `query.__typename: "QueryRoot"`.
 - Current 2026-04 public Admin GraphQL `collectionCreate(input.products)` rejects unknown product ids before creating a collection with `field: ["products", "<index>"]`, where the index is serialized as a string. For `ruleSet`, `collectionCreate` accepts an explicit empty `rules: []` list as a custom collection and returns `ruleSet: null`, but rejects an omitted `rules` key with `field: ["ruleSet", "rules"]` and `Rules cannot be an empty set`.
@@ -3794,7 +3802,7 @@ Practical rule:
 
 Admin GraphQL 2026-04 exposes `recipientAttributes.preferredName` for gift-card recipient display text. Internal-source wording may refer to `recipient_name` or `recipientName`, but the public input and field paths use `preferredName`.
 
-The same 2026-04 capture showed recipient-existence validation returns `RECIPIENT_NOT_FOUND` on `["input", "recipientAttributes", "id"]` with message `Recipient could not be found`, without the leading `The` or trailing period present in some internal references. Blank `preferredName` and `message` values return `INVALID` with the standard ActiveModel blank messages. A structurally invalid Customer GID such as `gid://shopify/Customer/no-contact-recipient` does not enter the recipient userError path at all; Admin GraphQL returns a top-level `RESOURCE_NOT_FOUND` error with message `Invalid id: <gid>` and a null root payload. The checked-in anchor is `config/parity-specs/gift-cards/gift-card-recipient-validation.json`.
+The same 2026-04 capture showed recipient-existence validation returns `RECIPIENT_NOT_FOUND` on `["input", "recipientAttributes", "id"]` with message `Recipient could not be found`, without the leading `The` or trailing period present in some internal references. Blank `preferredName` and `message` values return `INVALID` with the standard ActiveModel blank messages. Overlong `preferredName` and `message` values are different: both `giftCardCreate` and `giftCardUpdate` return top-level `INVALID_FIELD_ARGUMENTS` errors and null root payloads rather than payload `userErrors`. A structurally invalid Customer GID such as `gid://shopify/Customer/no-contact-recipient` does not enter the recipient userError path at all; Admin GraphQL returns a top-level `RESOURCE_NOT_FOUND` error with message `Invalid id: <gid>` and a null root payload. The checked-in anchor is `config/parity-specs/gift-cards/gift-card-recipient-validation.json`.
 
 Practical rule: model the public field paths and messages from the captured Admin API, and keep local recipient existence checks tied to the customer store rather than accepting arbitrary customer GIDs.
 
@@ -4008,10 +4016,13 @@ Observed behavior:
 - `single_line_text_field` product metafields and translatable metaobjects can
   still return empty `marketLocalizableContent`; a definition-backed `money`
   metafield exposed `marketLocalizableContent: [{ key: "value", ... }]`
-- registering a JSON money value for that exposed `value` key returned field
-  `["marketLocalizations", "0", "value"]`, message
-  `Market Localizable content is invalid`, and code
+- registering a JSON money value for that exposed `value` key against a draft
+  market with `type: NONE` returned field `["marketLocalizations", "0",
+"value"]`, message `Market Localizable content is invalid`, and code
   `FAILS_RESOURCE_VALIDATION`
+- separate captured International and Mexico `REGION` markets accepted CAD and
+  MXN JSON money values respectively, exposed them through immediate reads,
+  and returned the staged rows from targeted removals
 - remove with `marketLocalizationKeys: []` returned `marketLocalizations: null`
   and `userErrors: []`
 - remove with an unknown key or an unknown `marketIds` filter also returned
@@ -4020,8 +4031,9 @@ Observed behavior:
 
 Practical rule:
 
-- reject money-metafield market localization register attempts from observed
-  `marketLocalizableContent` instead of staging an invented translation
+- accept money-metafield market localization registration when the observed
+  target is a `REGION` market; reject it when the target lacks the region
+  context Shopify uses to validate the localized currency value
 - model `marketLocalizationsRemove` as a filter/removal operation after
   resource existence is established; do not invent resolver-level key or market
   validation errors for unmatched filters without newer live evidence
@@ -5132,3 +5144,80 @@ Practical rule:
 - fail these mutation preconditions closed when the required read is
   unavailable; an upstream transport error is not authoritative evidence that
   a limit is clear or that a target does not exist
+
+## 123. Customer invite BCC validation prefixes only the first listed value
+
+Admin GraphQL 2026-04 combines every submitted BCC entry into one
+`customerSendAccountInviteEmail` user-error message when any entry is invalid.
+The message prefixes the first listed value with the field label (`Bcc `), then
+joins later values without repeating that label. The captured two-entry shape
+is `Bcc bad is not a valid bcc address and ok@example.com is not a valid bcc
+address`, including the apparently valid second address.
+
+Practical rule:
+
+- preserve the submitted BCC order, prefix only the first rendered entry, and
+  include every submitted entry in the combined failure message
+- reject the invite before changing customer state or adding a replay entry
+
+## 124. B2B contact uniqueness is normalized across linked customers
+
+Admin GraphQL 2026-04 validates `CompanyContactInput` against the underlying
+Customer contact identity rather than comparing raw contact input strings. A
+locally formatted phone on the primary contact and its E.164 equivalent on a
+later contact collide, while email comparison is case-insensitive. The captured
+errors use `TAKEN` at `input.phone` / `input.email`; invalid nonblank phone input
+and malformed locale syntax use `INVALID`. Invalid email wording differs by
+operation: create says `Email is invalid`, while update says
+`Email address is invalid`.
+
+Practical rule:
+
+- persist nested company-create contact phones on the linked Customer in E.164
+  form, deriving country context from customer/company-location/shop state
+- exclude the current linked Customer during contact-update uniqueness checks
+- validate before allocating IDs or changing contact/customer state, and return
+  a null contact for every rejected create/update branch
+
+## 125. B2B contact deletion is blocked by purchasing-entity history
+
+Admin GraphQL 2026-04 rejected `companyContactDelete` after a draft order for
+the contact was completed into an order. The payload used
+`FAILED_TO_DELETE` at `companyContactId` with the message
+`Cannot delete a company contact with existing orders or draft orders.` The
+follow-up company and contact reads retained the same main contact and contact
+count.
+
+Practical rule:
+
+- inspect effective order and draft-order purchasing entities before deleting
+  a contact
+- return the captured error before applying contact, relationship, assignment,
+  or main-contact tombstones
+
+## 126. Quantity-rule shape validation precedes price-list resolution
+
+Admin GraphQL 2026-04 returned `quantityRulesAdd` duplicate-input and numeric
+bound errors for a captured price-list ID even when that price list was not yet
+present in local proxy state. The input errors therefore precede local
+price-list existence and variant relationship checks.
+
+Practical rule:
+
+- validate duplicate variant inputs and all rule bounds before resolving the
+  price list
+- keep rejected mutations state- and replay-log-neutral
+
+## 127. Webhook topic variable errors expose a narrower list than the SDL
+
+Admin GraphQL 2026-04's captured `WebhookSubscriptionTopic` variable-coercion
+error omits `MACHINE_TRANSLATION_BATCH_COMPLETED` from its allowed-value list,
+even though that value is present in the captured 2026-04 SDL. This is an error
+rendering contract, not evidence that the executable enum value should be
+removed.
+
+Practical rule:
+
+- omit `MACHINE_TRANSLATION_BATCH_COMPLETED` only when rendering the captured
+  2026-04 invalid-variable explanation
+- continue to derive enum acceptance from the versioned executable schema

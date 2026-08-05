@@ -556,6 +556,16 @@ fn quantity_rule_nodes(price_list: &Value) -> Vec<Value> {
         .unwrap_or_default()
 }
 
+pub(in crate::proxy) fn price_list_has_fixed_quantity_rule(
+    price_list: &Value,
+    variant_id: &str,
+) -> bool {
+    quantity_rule_nodes(price_list).iter().any(|node| {
+        quantity_rule_node_variant_id(node).as_deref() == Some(variant_id)
+            && node["originType"].as_str() == Some("FIXED")
+    })
+}
+
 fn quantity_rule_connection_from_nodes(nodes: Vec<Value>) -> Value {
     let cursors = nodes
         .iter()
@@ -925,6 +935,18 @@ fn quantity_price_break_node_minimum(node: &Value) -> Option<i64> {
     node["minimumQuantity"].as_i64()
 }
 
+pub(in crate::proxy) fn quantity_price_break_minimums_for_variant(
+    price_list: &Value,
+    variant_id: &str,
+) -> Vec<i64> {
+    price_edges(price_list)
+        .into_iter()
+        .filter(|edge| fixed_price_edge_variant_id(edge).as_deref() == Some(variant_id))
+        .flat_map(|edge| quantity_price_break_nodes(&edge))
+        .filter_map(|node| quantity_price_break_node_minimum(&node))
+        .collect()
+}
+
 pub(in crate::proxy) fn quantity_price_break_id_for_variant_minimum(
     price_list: &Value,
     variant_id: &str,
@@ -1277,12 +1299,14 @@ pub(in crate::proxy) fn read_fixed_price_update_inputs(
     }
 }
 
-/// The by-product preflight hydrate variables: a `priceListId`/`priceQuery`
-/// pulled from resolved root arguments plus the de-duplicated product ids
-/// referenced by `pricesToAdd` and `pricesToDeleteByProductIds`.
+/// The by-product preflight hydrate variables: a `priceListId` pulled from the
+/// resolved root arguments, the selected nested `priceList.prices(query:)`
+/// value, and the de-duplicated product ids referenced by `pricesToAdd` and
+/// `pricesToDeleteByProductIds`.
 pub(in crate::proxy) fn product_fixed_prices_preflight_variables(
     root_name: &str,
     arguments: &BTreeMap<String, ResolvedValue>,
+    selected_price_query: Option<&ResolvedValue>,
 ) -> Value {
     let mut price_list_id = None;
     let mut price_query = Value::Null;
@@ -1290,7 +1314,7 @@ pub(in crate::proxy) fn product_fixed_prices_preflight_variables(
 
     if root_name == "priceListFixedPricesByProductUpdate" {
         price_list_id = read_price_list_id(arguments);
-        if let Some(value) = arguments.get("priceQuery") {
+        if let Some(value) = selected_price_query {
             price_query = resolved_value_json(value);
         }
         for item in resolved_object_list(arguments, "pricesToAdd") {
@@ -1765,6 +1789,18 @@ pub(in crate::proxy) fn normalize_localized_handle(value: &str) -> String {
     }
 }
 
+pub(in crate::proxy) fn normalize_localized_translation_handle(value: &str) -> String {
+    if value.is_ascii()
+        && !value
+            .chars()
+            .any(|character| character.is_ascii_alphanumeric())
+    {
+        "store-localization/generic-dynamic-content-translation".to_string()
+    } else {
+        normalize_localized_handle(value)
+    }
+}
+
 fn localized_handle_hash_fallback(value: &str) -> String {
     let digest = Sha256::digest(value.as_bytes());
     let mut fallback = String::with_capacity("localized-".len() + 24);
@@ -1818,6 +1854,22 @@ mod tests {
             .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '-'));
         assert_eq!(japanese_market, normalize_localized_handle("日本"));
         assert_ne!(japanese_market, tokyo_market);
+    }
+
+    #[test]
+    fn normalize_localized_translation_handle_uses_captured_ascii_punctuation_fallback() {
+        assert_eq!(
+            normalize_localized_translation_handle("%%%"),
+            "store-localization/generic-dynamic-content-translation"
+        );
+        assert_eq!(
+            normalize_localized_translation_handle("Japan / Retail"),
+            "japan-retail"
+        );
+        assert_ne!(
+            normalize_localized_translation_handle("日本"),
+            "store-localization/generic-dynamic-content-translation"
+        );
     }
 
     // The `priceListFixedPricesByProductUpdate` validation suite is covered

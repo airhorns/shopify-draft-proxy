@@ -275,6 +275,7 @@ fn config_from_options(options: RHash) -> Result<Config, Error> {
         bulk_operation_run_mutation_max_input_file_size_bytes: Some(max_size),
         port,
         shopify_admin_origin,
+        shopify_store_domain: None,
         snapshot_path,
     })
 }

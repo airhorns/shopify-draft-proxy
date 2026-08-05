@@ -587,6 +587,7 @@ struct InventoryLocationLevelRecord {
     location_id: String,
     level_id: Option<String>,
     quantities: BTreeMap<String, i64>,
+    effective_order: usize,
 }
 
 fn inventory_level_location_for_view(
@@ -850,6 +851,49 @@ const INVENTORY_TRANSFER_HYDRATE_NODES_QUERY: &str = r#"#graphql
         id
         name
         isActive
+      }
+    }
+  }
+"#;
+
+// Quantity mutations only need the target item, its current levels, and the
+// locations attached to those levels. Keep this narrower document separate
+// from the richer lifecycle hydrate so existing quantity captures can replay
+// the exact bounded prerequisite query that was sent to Shopify.
+const INVENTORY_QUANTITY_REFERENCE_HYDRATE_NODES_QUERY: &str = r#"#graphql
+  query ProductsHydrateNodes($ids: [ID!]!) {
+    nodes(ids: $ids) {
+      __typename
+      id
+      ... on InventoryItem {
+        tracked
+        requiresShipping
+        measurement { weight { unit value } }
+        variant {
+          id
+          title
+          inventoryQuantity
+          selectedOptions { name value }
+          product {
+            id
+            title
+            handle
+            status
+            totalInventory
+            tracksInventory
+          }
+        }
+        inventoryLevels(first: 50) {
+          nodes {
+            id
+            location { id name }
+            quantities(names: ["available", "on_hand", "committed", "incoming", "reserved", "damaged", "quality_control", "safety_stock"]) {
+              name
+              quantity
+              updatedAt
+            }
+          }
+        }
       }
     }
   }
@@ -1205,7 +1249,11 @@ impl DraftProxy {
             && !self.inventory_item_is_tombstoned(id)
         {
             let had_overlay = self.inventory_item_has_staged_overlay(id);
-            if had_overlay && self.inventory_item_has_authoritative_base(id) {
+            if self.inventory_item_base_satisfies_requested_fields(
+                id,
+                &invocation.requested_field_paths,
+            ) || (had_overlay && self.inventory_item_has_authoritative_base(id))
+            {
                 return ResolverOutcome::value(if self.inventory_item_exists(id) {
                     self.inventory_item_canonical_value(id)
                 } else {
@@ -1216,6 +1264,7 @@ impl DraftProxy {
                 invocation.request,
                 invocation.response_key,
             );
+            self.observe_cached_upstream_product_operation_roots(&invocation.operation_roots);
             let mut outcome = result.outcome;
             if result.transport_succeeded && outcome.errors.is_empty() {
                 self.observe_inventory_item_node(&outcome.value);

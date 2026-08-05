@@ -5,13 +5,18 @@ impl DraftProxy {
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
-        self.quantity_pricing_rules_mutation_preflight(invocation.request, invocation.variables);
+        self.quantity_pricing_rules_mutation_preflight(
+            invocation.root_name,
+            invocation.request,
+            invocation.variables,
+        );
         let root_field = invocation.root_name;
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         let price_list_id = resolved_string_field(&arguments, "priceListId").unwrap_or_default();
         let (payload, staged_variant_ids) = if root_field == "quantityRulesDelete" {
             let variant_ids = list_string_field(&arguments, "variantIds");
-            let variant_errors = quantity_rules_delete_variant_errors(&self.store, &variant_ids);
+            let variant_errors =
+                quantity_rules_delete_variant_errors(&self.store, &price_list_id, &variant_ids);
             if !self
                 .store
                 .staged
@@ -38,8 +43,15 @@ impl DraftProxy {
             }
         } else {
             let quantity_rules = resolved_object_list_field(&arguments, "quantityRules");
-            let variant_errors = quantity_rules_add_variant_errors(&self.store, &quantity_rules);
-            if !self
+            let validation_errors = quantity_rules_add_validation_errors(&quantity_rules);
+            let variant_errors =
+                quantity_rules_add_variant_errors(&self.store, &price_list_id, &quantity_rules);
+            if let Some(errors) = validation_errors {
+                (
+                    json!({"quantityRules": [], "userErrors": errors}),
+                    Vec::new(),
+                )
+            } else if !self
                 .store
                 .staged
                 .price_lists
@@ -52,11 +64,6 @@ impl DraftProxy {
             } else if !variant_errors.is_empty() {
                 (
                     json!({"quantityRules": [], "userErrors": variant_errors}),
-                    Vec::new(),
-                )
-            } else if let Some(errors) = quantity_rules_add_validation_errors(&quantity_rules) {
-                (
-                    json!({"quantityRules": [], "userErrors": errors}),
                     Vec::new(),
                 )
             } else {
@@ -108,6 +115,7 @@ pub(in crate::proxy) fn quantity_rule_error(field: Vec<&str>, code: &str, messag
 
 fn quantity_rules_add_variant_errors(
     store: &Store,
+    price_list_id: &str,
     quantity_rules: &[BTreeMap<String, ResolvedValue>],
 ) -> Vec<Value> {
     let mut errors = Vec::new();
@@ -119,6 +127,24 @@ fn quantity_rules_add_variant_errors(
                 "PRODUCT_VARIANT_DOES_NOT_EXIST",
                 "Product variant ID does not exist.",
             ));
+            continue;
+        }
+        let maximum = resolved_int_field(rule, "maximum");
+        let exceeds_maximum = store
+            .staged
+            .price_lists
+            .get(price_list_id)
+            .into_iter()
+            .flat_map(|price_list| {
+                quantity_price_break_minimums_for_variant(price_list, &variant_id)
+            })
+            .any(|minimum| maximum.is_some_and(|maximum| minimum > maximum));
+        if exceeds_maximum {
+            errors.push(quantity_rule_error(
+                vec!["quantityRules", &index.to_string(), "maximum"],
+                "MAXIMUM_IS_LOWER_THAN_QUANTITY_PRICE_BREAK_MINIMUM",
+                "Maximum must be greater than or equal to all quantity price break minimums associated with this variant in the specified price list.",
+            ));
         }
     }
     errors
@@ -126,6 +152,7 @@ fn quantity_rules_add_variant_errors(
 
 pub(in crate::proxy) fn quantity_rules_delete_variant_errors(
     store: &Store,
+    price_list_id: &str,
     variant_ids: &[String],
 ) -> Vec<Value> {
     let mut errors = Vec::new();
@@ -135,6 +162,23 @@ pub(in crate::proxy) fn quantity_rules_delete_variant_errors(
                 vec!["variantIds", &index.to_string()],
                 "PRODUCT_VARIANT_DOES_NOT_EXIST",
                 "Product variant ID does not exist.",
+            ));
+        }
+    }
+    if !errors.is_empty() {
+        return errors;
+    }
+    for (index, variant_id) in variant_ids.iter().enumerate() {
+        if store
+            .staged
+            .price_lists
+            .get(price_list_id)
+            .is_some_and(|price_list| !price_list_has_fixed_quantity_rule(price_list, variant_id))
+        {
+            errors.push(quantity_rule_error(
+                vec!["variantIds", &index.to_string()],
+                "VARIANT_QUANTITY_RULE_DOES_NOT_EXIST",
+                "Quantity rule for variant associated with the price list provided does not exist.",
             ));
         }
     }

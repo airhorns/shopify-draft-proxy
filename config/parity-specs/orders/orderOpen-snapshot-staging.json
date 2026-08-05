@@ -9,7 +9,6 @@
     "variables": {
       "order": {
         "currency": "USD",
-        "email": "order-open-snapshot-staging@example.com",
         "lineItems": [
           {
             "title": "Snapshot open staging item",

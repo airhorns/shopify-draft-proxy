@@ -24,7 +24,7 @@
       },
       {
         "name": "giftCardUpdate no-op branches",
-        "capturePath": "$.expected.data",
+        "capturePath": "$.operations.noop.response.payload.data",
         "proxyPath": "$.data",
         "proxyRequest": {
           "documentPath": "config/parity-requests/gift-cards/gift-card-update-noop.graphql",

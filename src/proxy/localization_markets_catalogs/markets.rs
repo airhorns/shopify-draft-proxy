@@ -1,5 +1,82 @@
 use super::*;
 
+fn catalog_records_agree_on_observed_fields(staged: &Value, upstream: &Value) -> bool {
+    if staged.get("title").and_then(Value::as_str) != upstream.get("title").and_then(Value::as_str)
+    {
+        return false;
+    }
+    if catalog_context_driver(staged) != catalog_context_driver(upstream) {
+        return false;
+    }
+    if let Some(status) = upstream.get("status").filter(|value| !value.is_null()) {
+        if staged.get("status") != Some(status) {
+            return false;
+        }
+    }
+    let context_agrees = match catalog_context_driver(upstream) {
+        CatalogContextDriver::Market => catalog_market_ids(staged) == catalog_market_ids(upstream),
+        CatalogContextDriver::CompanyLocation => {
+            catalog_company_location_ids(staged) == catalog_company_location_ids(upstream)
+        }
+        CatalogContextDriver::Country => {
+            catalog_country_codes(staged) == catalog_country_codes(upstream)
+        }
+    };
+    context_agrees
+        && catalog_relation_records_agree(staged, upstream, "priceList", &["name", "currency"])
+        && catalog_relation_records_agree(
+            staged,
+            upstream,
+            "publication",
+            &["autoPublish", "supportsFuturePublishing"],
+        )
+}
+
+fn catalog_relation_records_agree(
+    staged: &Value,
+    upstream: &Value,
+    relation: &str,
+    observed_fields: &[&str],
+) -> bool {
+    let Some(observed) = upstream.get(relation) else {
+        return true;
+    };
+    if observed.is_null() {
+        return staged.get(relation).is_none_or(Value::is_null);
+    }
+    let Some(staged_relation) = staged.get(relation).filter(|value| value.is_object()) else {
+        return false;
+    };
+    observed_fields.iter().all(|field| {
+        observed
+            .get(*field)
+            .filter(|value| !value.is_null())
+            .is_none_or(|value| staged_relation.get(*field) == Some(value))
+    })
+}
+
+fn web_presence_records_share_routing_identity(staged: &Value, upstream: &Value) -> bool {
+    if let Some(suffix) = upstream.get("subfolderSuffix").and_then(Value::as_str) {
+        return staged.get("subfolderSuffix").and_then(Value::as_str) == Some(suffix);
+    }
+
+    let upstream_domain = upstream.get("domain").filter(|domain| domain.is_object());
+    let staged_domain = staged.get("domain").filter(|domain| domain.is_object());
+    match (upstream_domain, staged_domain) {
+        (Some(upstream_domain), Some(staged_domain)) => {
+            let upstream_id = upstream_domain.get("id").and_then(Value::as_str);
+            let staged_id = staged_domain.get("id").and_then(Value::as_str);
+            if upstream_id.is_some() && staged_id.is_some() {
+                return upstream_id == staged_id;
+            }
+            web_presence_domain_normalized_host(upstream_domain).is_some_and(|host| {
+                web_presence_domain_normalized_host(staged_domain).as_deref() == Some(&host)
+            })
+        }
+        _ => false,
+    }
+}
+
 pub(in crate::proxy) fn markets_field_resolver_registrations() -> Vec<FieldResolverRegistration> {
     let mut registrations = vec![
         FieldResolverRegistration::explicit(
@@ -289,7 +366,7 @@ fn markets_resolved_web_presences_field(
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
     Ok(connection_value_with_args(
-        proxy.store.staged.web_presences.values().cloned().collect(),
+        proxy.web_presence_connection_records(),
         &field_arguments(invocation),
         value_id_cursor,
     ))
@@ -481,8 +558,11 @@ impl DraftProxy {
             root_name,
             root_location,
             arguments,
+            field_selection,
             ..
         } = invocation;
+        let selected_price_query =
+            selected_argument_at_path(&field_selection, &["priceList", "prices"], "query");
         let field = MarketsRootInput {
             name: root_name.to_string(),
             response_key: response_key.to_string(),
@@ -503,7 +583,13 @@ impl DraftProxy {
                 | "priceListFixedPricesUpdate"
                 | "priceListFixedPricesDelete"
         ) {
-            return self.price_list_mutation_outcome(&field, request, query, variables);
+            return self.price_list_mutation_outcome(
+                &field,
+                request,
+                query,
+                variables,
+                selected_price_query,
+            );
         }
         if matches!(
             root_name,
@@ -579,16 +665,11 @@ impl DraftProxy {
                 arguments,
                 value_id_cursor,
             ),
-            "webPresences" => {
-                let records = self
-                    .store
-                    .staged
-                    .web_presences
-                    .values()
-                    .cloned()
-                    .collect::<Vec<_>>();
-                connection_value_with_args(records, arguments, value_id_cursor)
-            }
+            "webPresences" => connection_value_with_args(
+                self.web_presence_connection_records(),
+                arguments,
+                value_id_cursor,
+            ),
             "marketsResolvedValues" => self.markets_resolved_values_canonical_value(arguments),
             "marketLocalizableResource" => {
                 let resource_id =
@@ -822,10 +903,9 @@ impl DraftProxy {
             .map(|country_code| country_code.to_ascii_uppercase());
         match buyer_country {
             Some(country_code) => self.store.staged.markets.values().find(|market| {
-                market_record_enabled(market)
-                    && market_record_country_codes(market)
-                        .iter()
-                        .any(|code| code.eq_ignore_ascii_case(&country_code))
+                market_record_country_codes(market)
+                    .iter()
+                    .any(|code| code.eq_ignore_ascii_case(&country_code))
             }),
             None => self
                 .store
@@ -1405,43 +1485,22 @@ impl DraftProxy {
             .cloned()
     }
 
-    pub(in crate::proxy) fn hydrate_available_backup_regions_from_upstream(
+    pub(in crate::proxy) fn hydrate_backup_region_markets_from_upstream(
         &mut self,
         request: &Request,
     ) -> Response {
         let response = self.upstream_post(
             request,
             json!({
-                "query": BACKUP_REGION_AVAILABLE_HYDRATE_QUERY,
-                "operationName": "BackupRegionAvailableHydrate",
-                "variables": {}
+                "query": BACKUP_REGION_MARKETS_HYDRATE_QUERY,
+                "operationName": "BackupRegionMarketsHydrate",
+                "variables": { "first": 250, "regionsFirst": 250 }
             }),
         );
         if response.status < 400 {
-            self.hydrate_available_backup_regions_from_body(&response.body);
+            self.hydrate_markets_from_upstream(&response.body);
         }
         response
-    }
-
-    fn hydrate_available_backup_regions_from_body(&mut self, body: &Value) {
-        let Some(regions) = body
-            .pointer("/data/availableBackupRegions")
-            .and_then(Value::as_array)
-        else {
-            return;
-        };
-        for region in regions {
-            let Some(code) = region_code_from_node(region).map(|code| code.to_ascii_uppercase())
-            else {
-                continue;
-            };
-            if let Some(region) = market_region_country_from_node(region, &code) {
-                self.store
-                    .staged
-                    .available_backup_regions
-                    .insert(code, region);
-            }
-        }
     }
 
     /// True when any markets-domain record has been staged. Tracks local markets query state (minus the product check, since the Rust
@@ -1596,6 +1655,13 @@ impl DraftProxy {
             return false;
         }
         let family = markets_scope_family(key);
+        // A local create followed by delete leaves no staged web-presence row,
+        // but the live shop can still have unrelated baseline presences. Fetch
+        // the caller's bounded window once so the overlay does not confuse an
+        // empty local delta with an authoritative empty Shopify catalog.
+        if family == "webPresences" {
+            return true;
+        }
         !self.store.staged.markets_dirty_families.contains(family)
             || self.markets_family_has_records(family)
     }
@@ -1848,6 +1914,110 @@ impl DraftProxy {
         }
     }
 
+    fn staged_market_shadow_id(&self, upstream: &Value) -> Option<String> {
+        let upstream_handle = upstream.get("handle").and_then(Value::as_str);
+        let upstream_name = upstream.get("name").and_then(Value::as_str);
+        self.store
+            .staged
+            .markets
+            .iter()
+            .filter(|(id, _)| is_synthetic_gid(id))
+            .find_map(|(id, staged)| {
+                let staged_handle = staged.get("handle").and_then(Value::as_str)?;
+                let matches = upstream_handle.is_some_and(|handle| handle == staged_handle)
+                    || upstream_handle.is_none()
+                        && upstream_name.is_some_and(|name| {
+                            staged.get("name").and_then(Value::as_str) == Some(name)
+                                && staged_handle == normalize_localized_handle(name)
+                        });
+                matches.then(|| id.clone())
+            })
+    }
+
+    fn staged_catalog_shadow_id(&self, upstream: &Value) -> Option<String> {
+        let mut matching_ids = self
+            .store
+            .staged
+            .created_catalog_ids
+            .iter()
+            .filter(|id| is_synthetic_gid(id))
+            .filter_map(|id| {
+                let staged = self.store.staged.catalogs.get(id)?;
+                let mut resolved = staged.clone();
+                if let Some(price_list_id) = catalog_relation_id(staged, "priceListId", "priceList")
+                {
+                    if let Some(price_list) = self.store.staged.price_lists.get(&price_list_id) {
+                        resolved["priceList"] = price_list.clone();
+                    }
+                }
+                if let Some(publication_id) =
+                    catalog_relation_id(staged, "publicationId", "publication")
+                {
+                    if let Some(publication) = self.store.staged.publications.get(&publication_id) {
+                        resolved["publication"] = publication.clone();
+                    }
+                }
+                catalog_records_agree_on_observed_fields(&resolved, upstream).then(|| id.clone())
+            });
+        let matched = matching_ids.next()?;
+        matching_ids.next().is_none().then_some(matched)
+    }
+
+    fn staged_web_presence_shadow_ids(
+        &self,
+        upstream_records: &[Value],
+    ) -> BTreeMap<String, String> {
+        let mut proposals = BTreeSet::<(String, String)>::new();
+        for upstream in upstream_records {
+            let Some(upstream_id) = record_gid(upstream, "MarketWebPresence") else {
+                continue;
+            };
+            if is_synthetic_gid(&upstream_id) {
+                continue;
+            }
+            let matching_staged_ids = self
+                .store
+                .staged
+                .web_presences
+                .iter()
+                .filter(|(id, staged)| {
+                    is_synthetic_gid(id)
+                        && web_presence_records_share_routing_identity(staged, upstream)
+                })
+                .map(|(id, _)| id.clone())
+                .collect::<Vec<_>>();
+            if let [staged_id] = matching_staged_ids.as_slice() {
+                proposals.insert((upstream_id, staged_id.clone()));
+            }
+        }
+
+        let mut staged_proposal_counts = BTreeMap::<String, usize>::new();
+        for (_, staged_id) in &proposals {
+            *staged_proposal_counts.entry(staged_id.clone()).or_default() += 1;
+        }
+        proposals
+            .into_iter()
+            .filter(|(_, staged_id)| staged_proposal_counts.get(staged_id) == Some(&1))
+            .collect()
+    }
+
+    fn web_presence_connection_records(&self) -> Vec<Value> {
+        self.store
+            .staged
+            .web_presences
+            .iter()
+            .filter(|(id, _)| !is_synthetic_gid(id))
+            .chain(
+                self.store
+                    .staged
+                    .web_presences
+                    .iter()
+                    .filter(|(id, _)| is_synthetic_gid(id)),
+            )
+            .map(|(_, record)| record.clone())
+            .collect()
+    }
+
     /// Hydrate the staged markets stores from an upstream GraphQL response body,
     /// fed by captured upstream response hydration. Records are observed as a side effect of a cold read so later targets
     /// (read-after-write, catalog delete, market localization) resolve locally.
@@ -1885,6 +2055,21 @@ impl DraftProxy {
         for record in &market_records {
             if let Some(id) = record_gid(record, "Market") {
                 if !self.store.staged.deleted_market_ids.contains(&id) {
+                    if let Some(shadow_id) = self.staged_market_shadow_id(record) {
+                        let staged = self
+                            .store
+                            .staged
+                            .markets
+                            .get(&shadow_id)
+                            .cloned()
+                            .expect("the matching staged market still exists");
+                        self.store.staged.markets.remove(&id);
+                        self.store
+                            .staged
+                            .markets
+                            .insert(shadow_id, shallow_merged_object(record.clone(), staged));
+                        continue;
+                    }
                     let hydrated = self
                         .store
                         .staged
@@ -1909,6 +2094,21 @@ impl DraftProxy {
         }
         for record in &catalog_records {
             if let Some(id) = record_gid(record, "") {
+                if let Some(shadow_id) = self.staged_catalog_shadow_id(record) {
+                    let staged = self
+                        .store
+                        .staged
+                        .catalogs
+                        .get(&shadow_id)
+                        .cloned()
+                        .expect("the matching staged catalog still exists");
+                    self.store.staged.catalogs.remove(&id);
+                    self.store
+                        .staged
+                        .catalogs
+                        .insert(shadow_id, shallow_merged_object(record.clone(), staged));
+                    continue;
+                }
                 let hydrated = self
                     .store
                     .staged
@@ -1979,8 +2179,24 @@ impl DraftProxy {
                 })
                 .cloned(),
         );
+        let web_presence_shadow_ids = self.staged_web_presence_shadow_ids(&web_presence_records);
         for record in &web_presence_records {
             if let Some(id) = record_gid(record, "MarketWebPresence") {
+                if let Some(shadow_id) = web_presence_shadow_ids.get(&id) {
+                    let staged = self
+                        .store
+                        .staged
+                        .web_presences
+                        .get(shadow_id)
+                        .cloned()
+                        .expect("the matching staged web presence still exists");
+                    self.store.staged.web_presences.remove(&id);
+                    self.store.staged.web_presences.insert(
+                        shadow_id.clone(),
+                        shallow_merged_object(record.clone(), staged),
+                    );
+                    continue;
+                }
                 // A web presence can surface both as a full top-level node (with
                 // its `markets` connection) and as a sparse `{id}` pointer nested
                 // under `market.webPresences`. Keep the richer projection so a

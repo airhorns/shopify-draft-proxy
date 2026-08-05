@@ -6,6 +6,17 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-terms-create-missing-template-id.json"
   ],
+  "proxySetups": [
+    {
+      "name": "draft-order-create",
+      "captureResponsePath": "$.cases.updateMissingTemplateId.setup.draftOrderCreate.response",
+      "proxyRequest": {
+        "documentCapturePath": "$.cases.updateMissingTemplateId.setup.draftOrderCreate.query",
+        "variablesCapturePath": "$.cases.updateMissingTemplateId.setup.draftOrderCreate.variables",
+        "apiVersion": "2026-04"
+      }
+    }
+  ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/payments/payment-terms-update-missing-template-id-setup.graphql",
     "apiVersion": "2026-04",

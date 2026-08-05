@@ -153,6 +153,18 @@ const SHIPPING_FULFILLMENT_ORDER_DIRECT_MULTILINE_HYDRATE_QUERY: &str = r#"query
     }
   }"#;
 
+const SHIPPING_FULFILLMENT_ORDER_DIRECT_ASSIGNMENT_HYDRATE_QUERY: &str = r#"query ShippingFulfillmentOrderHydrate($id: ID!) {
+    fulfillmentOrder(id: $id) {
+      id status requestStatus assignmentStatus fulfillAt fulfillBy updatedAt
+      supportedActions { action }
+      assignedLocation { name location { id name } }
+      fulfillmentHolds { id handle reason reasonNotes displayReason heldByApp { id title } heldByRequestingApp }
+      merchantRequests(first: 10) { nodes { kind message requestOptions } }
+      lineItems(first: 20) { nodes { id totalQuantity remainingQuantity lineItem { id title quantity fulfillableQuantity } } }
+      order { id name displayFulfillmentStatus }
+    }
+  }"#;
+
 const SHIPPING_FULFILLMENT_ORDER_PICKUP_HYDRATE_QUERY: &str = r#"query ShippingFulfillmentOrderPickupHydrate($id: ID!) {
     fulfillmentOrder(id: $id) {
       id
@@ -243,6 +255,21 @@ impl DraftProxy {
         let arguments = resolved_arguments_from_json(&arguments);
         if root_name == "fulfillmentOrder" {
             let id = resolved_string_field(&arguments, "id").unwrap_or_default();
+            if self
+                .shipping_fulfillment_order_by_id(&id)
+                .is_some_and(|_| !self.shipping_fulfillment_order_needs_hydration(&id))
+            {
+                return ResolverOutcome::value(
+                    self.shipping_fulfillment_order_by_id(&id)
+                        .unwrap_or(Value::Null),
+                );
+            }
+            if let Some(value) = upstream_value {
+                if value.is_object() {
+                    self.stage_shipping_fulfillment_order_record(value.clone());
+                }
+                return ResolverOutcome::value(value);
+            }
             self.ensure_shipping_fulfillment_order_hydrated(request, &id);
             return ResolverOutcome::value(
                 self.shipping_fulfillment_order_by_id(&id)
@@ -1177,8 +1204,11 @@ impl DraftProxy {
             resolved_string_field(&arguments, "newLocationId").unwrap_or_default();
         let requested = fulfillment_order_line_item_quantities(&arguments);
         let timestamp = self.next_shipping_fulfillment_timestamp();
-        self.ensure_location_hydrated(&new_location_id, request);
-        let destination_location = self.shipping_move_destination_location(&new_location_id);
+        let mut destination_location = self.shipping_move_destination_location(&new_location_id);
+        if destination_location.is_none() {
+            self.ensure_location_hydrated(&new_location_id, request);
+            destination_location = self.shipping_move_destination_location(&new_location_id);
+        }
         let current_order = self
             .shipping_fulfillment_order_by_id(&id)
             .unwrap_or(Value::Null);
@@ -1747,6 +1777,7 @@ impl DraftProxy {
         for query in [
             SHIPPING_FULFILLMENT_ORDER_DIRECT_HYDRATE_QUERY,
             SHIPPING_FULFILLMENT_ORDER_DIRECT_MULTILINE_HYDRATE_QUERY,
+            SHIPPING_FULFILLMENT_ORDER_DIRECT_ASSIGNMENT_HYDRATE_QUERY,
             SHIPPING_FULFILLMENT_ORDER_RELEASE_HOLD_HYDRATE_QUERY,
         ] {
             let direct_response = self.upstream_post(
@@ -2015,18 +2046,9 @@ impl DraftProxy {
     }
 
     fn shipping_move_destination_location(&self, location_id: &str) -> Option<Value> {
-        self.store
-            .staged
-            .locations
-            .get(location_id)
-            .or_else(|| {
-                self.store
-                    .staged
-                    .fulfillment_service_locations
-                    .get(location_id)
-            })
-            .filter(|location| location["isActive"].as_bool().unwrap_or(true))
-            .cloned()
+        self.location_for_read(location_id).filter(|location| {
+            location["isActive"].as_bool().unwrap_or(true) && location["name"].as_str().is_some()
+        })
     }
 
     fn shipping_assigned_location(&self, location: &Value) -> Value {

@@ -49,6 +49,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   return {
     port: readPort(env['PORT']),
     shopifyAdminOrigin,
+    ...(env['SHOPIFY_STORE_DOMAIN'] ? { shopifyStoreDomain: env['SHOPIFY_STORE_DOMAIN'] } : {}),
     readMode: readMode(env['SHOPIFY_DRAFT_PROXY_READ_MODE']),
     unsupportedMutationMode: unsupportedMutationMode(env['SHOPIFY_DRAFT_PROXY_UNSUPPORTED_MUTATION_MODE']),
     ...(bulkOperationRunMutationMaxInputFileSizeBytes === undefined

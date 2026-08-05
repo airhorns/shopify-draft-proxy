@@ -320,7 +320,7 @@ fn customer_invite_validation_failures_do_not_mutate_or_log() {
         ),
         (
             json!({ "subject": "Account invite", "bcc": ["bad", "ok@example.com"] }),
-            json!([{ "field": ["email", "bcc"], "message": "bad is not a valid bcc address and ok@example.com is not a valid bcc address", "code": "INVALID" }]),
+            json!([{ "field": ["email", "bcc"], "message": "Bcc bad is not a valid bcc address and ok@example.com is not a valid bcc address", "code": "INVALID" }]),
         ),
         (
             json!({ "subject": "s".repeat(1001) }),
@@ -503,9 +503,10 @@ fn customer_update_and_set_preserve_hydrated_fields_when_input_omits_them() {
                 assert_eq!(body["operationName"], json!("CustomerHydrate"));
                 assert_eq!(body["variables"]["id"], json!(hydrated_customer_id));
                 let query = body["query"].as_str().expect("hydrate query");
-                assert!(
-                    !query.contains("addressesV2(first: 250)"),
-                    "simple update/set hydrates should not fetch the full address window: {query}"
+                assert_eq!(
+                    query.contains("addressesV2(first: 250)"),
+                    root == "customerUpdate",
+                    "customerUpdate preserves the captured address window while customerSet keeps its lean preflight: {query}"
                 );
                 Response {
                     status: 200,
@@ -1389,6 +1390,66 @@ fn customer_merge_live_hybrid_uses_combined_bounded_cold_hydrates() {
         }])
     );
     assert_eq!(upstream_calls.lock().unwrap().len(), 2);
+}
+
+#[test]
+fn customer_merge_falls_back_to_recorded_per_customer_hydrates() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured = Arc::clone(&upstream_calls);
+    let one_id = "gid://shopify/Customer/legacy-merge-one";
+    let two_id = "gid://shopify/Customer/legacy-merge-two";
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            captured.lock().unwrap().push(body.clone());
+            if body["variables"].get("ids").is_some() {
+                return Response {
+                    status: 500,
+                    headers: Default::default(),
+                    body: json!({ "errors": [{ "message": "batch unavailable" }] }),
+                };
+            }
+            let id = body["variables"]["id"].as_str().expect("legacy hydrate id");
+            let query = body["query"].as_str().expect("legacy hydrate query");
+            assert!(query.contains("customer(id: $id)"));
+            assert!(query.contains("addressesV2(first: 250)"));
+            assert!(query.contains("metafields(first: 250)"));
+            assert!(query.contains("orders(first: 250"));
+            let mut customer = upstream_merge_scalar_customer(
+                id,
+                if id == one_id {
+                    "legacy-one@example.com"
+                } else {
+                    "legacy-two@example.com"
+                },
+                "Legacy",
+                if id == one_id { "One" } else { "Two" },
+                "",
+            );
+            customer["addressesV2"] = json!({ "nodes": [] });
+            customer["metafields"] = json!({ "nodes": [] });
+            customer["orders"] = json!({ "edges": [] });
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "customer": customer } }),
+            }
+        });
+
+    let merge = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LegacyColdMerge($one: ID!, $two: ID!) {
+          customerMerge(customerOneId: $one, customerTwoId: $two) {
+            resultingCustomerId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "one": one_id, "two": two_id }),
+    ));
+    assert_eq!(merge.body["data"]["customerMerge"]["userErrors"], json!([]));
+    assert_eq!(upstream_calls.lock().unwrap().len(), 3);
 }
 
 #[test]
@@ -4250,6 +4311,9 @@ fn customer_data_erasure_hydrates_real_customer_before_does_not_exist() {
             let body: Value = serde_json::from_str(&request.body).expect("upstream JSON body");
             captured.lock().unwrap().push(body.clone());
             assert_eq!(body["operationName"], json!("CustomerHydrate"));
+            assert!(body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("addressesV2(first: 250)")));
             Response {
                 status: 200,
                 headers: Default::default(),
@@ -4306,6 +4370,119 @@ fn customer_data_erasure_hydrates_real_customer_before_does_not_exist() {
 }
 
 #[test]
+fn customer_update_uses_address_preserving_cold_hydration_for_scalar_updates() {
+    let customer_id = "gid://shopify/Customer/cold-scalar-update";
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            assert_eq!(body["operationName"], json!("CustomerHydrate"));
+            assert_eq!(body["variables"], json!({ "id": customer_id }));
+            assert_eq!(
+                body["query"],
+                json!(include_str!(
+                    "../../src/runtime_graphql/customers/customer-mutation-hydrate.graphql.raw"
+                ))
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "customer": {
+                            "id": customer_id,
+                            "firstName": "Cold",
+                            "lastName": "Customer",
+                            "displayName": "Cold Customer",
+                            "email": "cold@example.test",
+                            "phone": null,
+                            "locale": "en",
+                            "note": null,
+                            "canDelete": true,
+                            "verifiedEmail": true,
+                            "dataSaleOptOut": false,
+                            "taxExempt": false,
+                            "taxExemptions": [],
+                            "state": "DISABLED",
+                            "tags": [],
+                            "createdAt": "2026-01-01T00:00:00Z",
+                            "updatedAt": "2026-01-01T00:00:00Z",
+                            "defaultEmailAddress": { "emailAddress": "cold@example.test" },
+                            "defaultPhoneNumber": null,
+                            "defaultAddress": null,
+                            "addressesV2": { "nodes": [] }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ColdScalarCustomerUpdate($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id email }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": customer_id, "email": "not-an-email" } }),
+    ));
+    assert_eq!(
+        response.body["data"]["customerUpdate"],
+        json!({
+            "customer": null,
+            "userErrors": [{ "field": ["email"], "message": "Email is invalid" }]
+        })
+    );
+}
+
+#[test]
+fn customer_outbound_validation_roots_execute_atomically_in_one_local_document() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerOutboundValidation($customerId: ID!, $paymentMethodId: ID!) {
+          customerGenerateAccountActivationUrl(customerId: $customerId) {
+            accountActivationUrl
+            userErrors { field message }
+          }
+          customerSendAccountInviteEmail(customerId: $customerId) {
+            customer { id }
+            userErrors { field message }
+          }
+          customerPaymentMethodSendUpdateEmail(customerPaymentMethodId: $paymentMethodId) {
+            customer { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "customerId": "gid://shopify/Customer/not-found",
+            "paymentMethodId": "gid://shopify/CustomerPaymentMethod/not-found"
+        }),
+    ));
+    assert!(response.body.get("errors").is_none());
+    assert_eq!(
+        response.body["data"]["customerGenerateAccountActivationUrl"],
+        json!({
+            "accountActivationUrl": null,
+            "userErrors": [{ "field": ["customerId"], "message": "The customer can't be found." }]
+        })
+    );
+    assert_eq!(
+        response.body["data"]["customerPaymentMethodSendUpdateEmail"],
+        json!({
+            "customer": null,
+            "userErrors": [{
+                "field": ["customerPaymentMethodId"],
+                "message": "Customer payment method does not exist"
+            }]
+        })
+    );
+}
+
+#[test]
 fn customer_address_accepts_supported_country_outside_original_subset() {
     let mut proxy = snapshot_proxy();
     let create = proxy.process_request(json_graphql_request(
@@ -4313,6 +4490,7 @@ fn customer_address_accepts_supported_country_outside_original_subset() {
         mutation CustomerAddressDenmark($input: CustomerInput!) {
           customerCreate(input: $input) {
             customer {
+              id
               defaultAddress { city country countryCodeV2 province provinceCode formattedArea }
               addressesV2(first: 3) {
                 nodes { city country countryCodeV2 province provinceCode formattedArea }
@@ -4348,6 +4526,39 @@ fn customer_address_accepts_supported_country_outside_original_subset() {
             "province": null,
             "provinceCode": null,
             "formattedArea": "Copenhagen, Denmark"
+        })
+    );
+
+    let customer_id = create.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .expect("created customer id");
+    let unknown_region = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerAddressUnknownRegion($customerId: ID!) {
+          customerAddressCreate(
+            customerId: $customerId
+            address: {
+              address1: "5 Invalid Country"
+              city: "Nowhere"
+              countryCode: ZZ
+              provinceCode: "ZZ"
+            }
+          ) {
+            address { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "customerId": customer_id }),
+    ));
+    assert_eq!(
+        unknown_region.body["data"]["customerAddressCreate"],
+        json!({
+            "address": null,
+            "userErrors": [{
+                "field": ["address", "country"],
+                "message": "Country is invalid"
+            }]
         })
     );
 }

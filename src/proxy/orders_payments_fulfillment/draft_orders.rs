@@ -258,7 +258,7 @@ pub(in crate::proxy) fn draft_order_line_item(
     let line_total = unit_amount * quantity as f64;
     let discount_amount = draft_order_applied_discount_amount(input, line_total);
     let discounted_total = (line_total - discount_amount).max(0.0);
-    let tax_lines = order_create_tax_lines(input, "taxLines", currency);
+    let tax_lines = order_create_tax_lines(input, "taxLines", currency, currency);
     let title = if variant_id.is_some() {
         hydrated_variant
             .and_then(|variant| variant["product"]["title"].as_str().map(str::to_string))
@@ -2534,7 +2534,7 @@ impl DraftProxy {
         {
             return;
         }
-        let response = self.upstream_post(
+        let mut response = self.upstream_post(
             request,
             json!({
                 "query": DRAFT_ORDER_HYDRATE_QUERY,
@@ -2542,6 +2542,16 @@ impl DraftProxy {
                 "variables": { "id": id }
             }),
         );
+        if response.status >= 500 {
+            response = self.upstream_post(
+                request,
+                json!({
+                    "query": DRAFT_ORDER_ORIGINAL_HYDRATE_QUERY,
+                    "operationName": "OrdersDraftOrderHydrate",
+                    "variables": { "id": id }
+                }),
+            );
+        }
         if !(200..300).contains(&response.status) {
             return;
         }
@@ -2583,6 +2593,35 @@ impl DraftProxy {
                 }),
             );
             if !(200..300).contains(&response.status) {
+                if response.status >= 500 && line_items_after.is_none() {
+                    for (query, operation_name) in [
+                        (
+                            ORDER_UPDATE_LEGACY_HYDRATE_QUERY,
+                            "OrderUpdateInputValidationRead",
+                        ),
+                        (ORDER_UPDATE_ORIGINAL_HYDRATE_QUERY, "OrdersOrderHydrate"),
+                    ] {
+                        let legacy_response = self.upstream_post(
+                            request,
+                            json!({
+                                "query": query,
+                                "operationName": operation_name,
+                                "variables": { "id": id }
+                            }),
+                        );
+                        if (200..300).contains(&legacy_response.status) {
+                            let mut order = legacy_response.body["data"]["order"].clone();
+                            if order.is_object() {
+                                normalize_hydrated_order(&mut order);
+                                self.store.staged.orders.insert(id.to_string(), order);
+                            }
+                            break;
+                        }
+                        if legacy_response.status < 500 {
+                            break;
+                        }
+                    }
+                }
                 return;
             }
             let order = response.body["data"]["order"].clone();

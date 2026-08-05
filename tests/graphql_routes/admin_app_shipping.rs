@@ -7979,7 +7979,8 @@ fn fulfillment_service_callback_url_validation_matches_captured_shopify_behavior
         unsupported_mutation_mode: None,
         bulk_operation_run_mutation_max_input_file_size_bytes: None,
         port: 0,
-        shopify_admin_origin: "https://harry-test-heelo.myshopify.com".to_string(),
+        shopify_admin_origin: "http://127.0.0.1:40123".to_string(),
+        shopify_store_domain: Some("harry-test-heelo.myshopify.com".to_string()),
         snapshot_path: None,
     });
 

@@ -253,6 +253,7 @@ function envForConfig(config: AppConfig, port: number): NodeJS.ProcessEnv {
     ...process.env,
     PORT: String(port),
     SHOPIFY_ADMIN_ORIGIN: config.shopifyAdminOrigin,
+    ...(config.shopifyStoreDomain === undefined ? {} : { SHOPIFY_STORE_DOMAIN: config.shopifyStoreDomain }),
     READ_MODE: config.readMode,
     UNSUPPORTED_MUTATION_MODE: config.unsupportedMutationMode ?? 'passthrough',
     BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: String(

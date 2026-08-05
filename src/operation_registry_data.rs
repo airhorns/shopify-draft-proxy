@@ -203,7 +203,7 @@ pub(crate) fn default_registry_bindings() -> Vec<ExecutableRootRegistration> {
         entry!("customerSendAccountInviteEmail", Mutation, Customers, DraftProxy::customer_outbound_lifecycle_root, ["tests/graphql_routes/customers.rs"]),
         entry!("storeCreditAccountCredit", Mutation, Customers, DraftProxy::store_credit_account_mutation_root, []),
         entry!("storeCreditAccountDebit", Mutation, Customers, DraftProxy::store_credit_account_mutation_root, []),
-        unimplemented_entry!("customerPaymentMethodSendUpdateEmail", Mutation, Customers, []),
+        entry!("customerPaymentMethodSendUpdateEmail", Mutation, Customers, DraftProxy::customer_outbound_lifecycle_root, ["tests/graphql_routes/customers.rs"]),
         entry!("customerMerge", Mutation, Customers, DraftProxy::customer_merge_root, []),
         entry!("sellingPlanGroupCreate", Mutation, Products, DraftProxy::selling_plan_outcome, ["tests/graphql_routes/selling_plans.rs"]),
         entry!("sellingPlanGroupUpdate", Mutation, Products, DraftProxy::selling_plan_outcome, ["tests/graphql_routes/selling_plans.rs"]),

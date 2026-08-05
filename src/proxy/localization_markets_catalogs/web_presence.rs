@@ -16,7 +16,9 @@ impl DraftProxy {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return;
         }
-        let shop_domain_missing = web_presence_shop_domain(&self.store).is_none();
+        let shop_domain_missing =
+            web_presence_shop_domain(&self.store, self.config.shopify_store_domain.as_deref())
+                .is_none();
         let web_presence_baseline_unknown = self.store.staged.web_presences.is_empty()
             && !self
                 .store
@@ -26,7 +28,7 @@ impl DraftProxy {
         if !shop_domain_missing && !web_presence_baseline_unknown {
             return;
         }
-        self.run_markets_preflight(
+        let hydrated = self.run_markets_preflight(
             request,
             json!({
                 "query": WEB_PRESENCE_PREFLIGHT_QUERY,
@@ -35,6 +37,17 @@ impl DraftProxy {
             }),
             Self::stage_web_presence_preflight,
         );
+        if !hydrated {
+            self.run_markets_preflight(
+                request,
+                json!({
+                    "query": WEB_PRESENCE_LEGACY_PREFLIGHT_QUERY,
+                    "variables": { "first": WEB_PRESENCE_PREFLIGHT_FIRST },
+                    "operationName": "MarketsMutationPreflightHydrate",
+                }),
+                Self::stage_web_presence_preflight,
+            );
+        }
     }
 
     /// Stage the baseline `webPresences` a preflight returns. Records insert only
@@ -139,7 +152,8 @@ impl DraftProxy {
         }
         let id = self.next_proxy_synthetic_gid("MarketWebPresence");
         draft.id = id.clone();
-        let shop_domain = web_presence_shop_domain(&self.store);
+        let shop_domain =
+            web_presence_shop_domain(&self.store, self.config.shopify_store_domain.as_deref());
         if linked_domain.is_none() && shop_domain.is_none() {
             return web_presence_domain_context_unavailable_payload();
         }
@@ -193,7 +207,8 @@ impl DraftProxy {
         if !errors.is_empty() {
             return payload_error("webPresence", errors);
         }
-        let shop_domain = web_presence_shop_domain(&self.store);
+        let shop_domain =
+            web_presence_shop_domain(&self.store, self.config.shopify_store_domain.as_deref());
         if linked_domain.is_none() && shop_domain.is_none() {
             return web_presence_domain_context_unavailable_payload();
         }

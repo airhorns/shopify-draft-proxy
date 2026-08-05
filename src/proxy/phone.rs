@@ -103,6 +103,14 @@ pub(in crate::proxy) fn shop_country_code(shop: &Value) -> Option<&str> {
             shop.pointer("/shopAddress/countryCode")
                 .and_then(Value::as_str)
         })
+        .or_else(|| {
+            shop.pointer("/billingAddress/countryCodeV2")
+                .and_then(Value::as_str)
+        })
+        .or_else(|| {
+            shop.pointer("/billingAddress/countryCode")
+                .and_then(Value::as_str)
+        })
         .filter(|code| !code.trim().is_empty())
 }
 

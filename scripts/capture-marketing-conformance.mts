@@ -320,17 +320,6 @@ function buildNativeActivityValidationFixture({
       successPath:
         'The conformance app/store has read/write marketing scopes, but no deprecated MarketingActivityExtension is installed or discoverable through Admin GraphQL. Shopify returns `Could not find the marketing extension` for arbitrary extension IDs, and update probes outside extension context return ACCESS_DENIED, so live success-path capture is blocked until the conformance app includes a deprecated marketing activity app extension.',
     },
-    localRuntimeExpectations: {
-      updatedActivity: {
-        id: 'gid://shopify/MarketingActivity/1',
-        title: 'HAR-373 Native Activity Active',
-        status: 'ACTIVE',
-        statusLabel: 'Sending',
-        isExternal: false,
-        inMainWorkflowVersion: true,
-        marketingEvent: null,
-      },
-    },
   };
 }
 

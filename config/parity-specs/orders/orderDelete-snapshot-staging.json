@@ -91,51 +91,7 @@
         ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/orders/orderDelete-snapshot-staging-create.graphql",
-          "variables": {
-            "order": {
-              "email": "order-delete-local-fulfilled@example.com",
-              "note": "orderDelete snapshot staging local fulfilled setup",
-              "tags": ["order-delete-snapshot-staging", "conformance", "local-fulfilled"],
-              "test": true,
-              "currency": "USD",
-              "financialStatus": "PAID",
-              "fulfillmentStatus": "FULFILLED",
-              "lineItems": [
-                {
-                  "title": "Order delete local fulfilled setup",
-                  "quantity": 1,
-                  "priceSet": {
-                    "shopMoney": {
-                      "amount": "12.00",
-                      "currencyCode": "USD"
-                    }
-                  },
-                  "requiresShipping": false,
-                  "taxable": false,
-                  "sku": "order-delete-local-fulfilled"
-                }
-              ],
-              "transactions": [
-                {
-                  "kind": "SALE",
-                  "status": "SUCCESS",
-                  "gateway": "manual",
-                  "test": true,
-                  "amountSet": {
-                    "shopMoney": {
-                      "amount": "12.00",
-                      "currencyCode": "USD"
-                    }
-                  }
-                }
-              ]
-            },
-            "options": {
-              "inventoryBehaviour": "BYPASS",
-              "sendReceipt": false,
-              "sendFulfillmentReceipt": false
-            }
-          },
+          "variablesCapturePath": "$.operations.fulfilledSetupCreate.variables",
           "apiVersion": "2026-04"
         }
       },

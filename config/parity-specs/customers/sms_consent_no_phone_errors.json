@@ -13,7 +13,7 @@
       "input": {
         "firstName": "Hermes",
         "lastName": "ConsentEmailOnly",
-        "email": "hermes-consent-email-only-1777943566021@example.com"
+        "email": "hermes-consent-email-only-1782350410422@example.com"
       }
     }
   },
@@ -89,8 +89,8 @@
             "input": {
               "firstName": "Hermes",
               "lastName": "ConsentTransition",
-              "email": "hermes-consent-transition-1777943566021@example.com",
-              "phone": "+14156666021"
+              "email": "hermes-consent-transition-1782350410422@example.com",
+              "phone": "+14156660422"
             }
           }
         },

@@ -142,11 +142,13 @@ impl DraftProxy {
                     .backup_region_country_for_code(code)
                     .or_else(|| self.available_backup_region_for_code(code));
                 if region.is_none() && self.config.read_mode != ReadMode::Snapshot {
-                    let hydrate = self.hydrate_available_backup_regions_from_upstream(request);
+                    let hydrate = self.hydrate_backup_region_markets_from_upstream(request);
                     if backup_region_response_is_access_denied(&hydrate.body) {
                         return error_outcome(access_denied_error());
                     }
-                    region = self.available_backup_region_for_code(code);
+                    region = self
+                        .backup_region_country_for_code(code)
+                        .or_else(|| self.available_backup_region_for_code(code));
                 }
                 if region.is_none() {
                     if self.store.staged.backup_region.is_null()

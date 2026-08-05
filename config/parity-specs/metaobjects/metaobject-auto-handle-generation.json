@@ -36,17 +36,17 @@
         },
         "expectedDifferences": [
           {
-            "path": "$.id",
+            "path": "$.metaobject.id",
             "matcher": "shopify-gid:Metaobject",
             "reason": "The local proxy stages a synthetic metaobject ID while Shopify returns the captured live-store ID."
           },
           {
-            "path": "$.handle",
+            "path": "$.metaobject.handle",
             "matcher": "regex:^auto-handle-1782315778999-[a-z0-9]{8}$",
             "reason": "Shopify and the proxy both generate Core-shaped random handle suffixes; the concrete random value is volatile."
           },
           {
-            "path": "$.displayName",
+            "path": "$.metaobject.displayName",
             "matcher": "regex:^Auto Handle 1782315778999 #[A-Z0-9]{8}$",
             "reason": "Display-name fallback includes the generated random code, so parity validates the Core display-name shape instead of the concrete volatile code."
           }
@@ -64,17 +64,17 @@
         },
         "expectedDifferences": [
           {
-            "path": "$.id",
+            "path": "$.metaobject.id",
             "matcher": "shopify-gid:Metaobject",
             "reason": "The local proxy stages a synthetic metaobject ID while Shopify returns the captured live-store ID."
           },
           {
-            "path": "$.handle",
+            "path": "$.metaobject.handle",
             "matcher": "regex:^auto-handle-1782315778999-[a-z0-9]{8}$",
             "reason": "Shopify and the proxy both generate Core-shaped random handle suffixes; the concrete random value is volatile."
           },
           {
-            "path": "$.displayName",
+            "path": "$.metaobject.displayName",
             "matcher": "regex:^Auto Handle 1782315778999 #[A-Z0-9]{8}$",
             "reason": "Display-name fallback includes the generated random code, so parity validates the Core display-name shape instead of the concrete volatile code."
           }

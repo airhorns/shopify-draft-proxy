@@ -151,16 +151,6 @@ impl DraftProxy {
             );
         }
         if handle_customers
-            && invocation.root_name == "customersCount"
-            && self
-                .execution_session
-                .request_cache
-                .caller_response()
-                .is_none_or(|response| response.body["data"].get(invocation.response_key).is_none())
-        {
-            self.hydrate_customers_count_for_overlay_read(invocation.request);
-        }
-        if handle_customers
             && invocation
                 .requested_field_paths
                 .iter()
@@ -168,7 +158,38 @@ impl DraftProxy {
         {
             self.hydrate_shop_pricing_state_if_missing(invocation.request, true, false);
         }
-        let mut upstream_value = invocation.upstream_value;
+        // Query roots may be scheduled before a sibling warms the shared caller
+        // response, then wait on the instance mutex until that response exists.
+        // Re-read the request cache here instead of relying only on the value
+        // captured when the engine first entered this resolver.
+        let mut upstream_value = invocation.upstream_value.or_else(|| {
+            self.execution_session
+                .request_cache
+                .caller_data()
+                .and_then(|data| data.get(invocation.response_key))
+                .cloned()
+        });
+        if handle_customers
+            && invocation.root_name == "customersCount"
+            && upstream_value.is_none()
+            && self
+                .execution_session
+                .request_cache
+                .caller_response()
+                .is_none()
+        {
+            let upstream = self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
+            if upstream.errors.is_empty() {
+                upstream_value = Some(upstream.value);
+            }
+        }
+        if handle_customers && invocation.root_name == "customersCount" && upstream_value.is_none()
+        {
+            self.hydrate_customers_count_for_overlay_read(invocation.request);
+        }
         if upstream_value.is_none()
             && handle_customers
             && self.customer_overlay_needs_upstream_data(invocation.root_name, &arguments)
@@ -192,6 +213,7 @@ impl DraftProxy {
                 invocation.root_name,
                 &arguments,
                 upstream_value.as_ref(),
+                &invocation.operation_roots,
             )
         } else {
             self.store_credit_account_read_value(&arguments)

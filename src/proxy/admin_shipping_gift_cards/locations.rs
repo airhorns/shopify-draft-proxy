@@ -390,9 +390,23 @@ impl DraftProxy {
         request: &Request,
     ) -> ResolverOutcome<Value> {
         let location_id = resolved_string_field(arguments, "locationId").unwrap_or_default();
-        let location = self
-            .location_for_read(&location_id)
-            .or_else(|| self.hydrate_location_for_mutation(request, &location_id));
+        let observed_location = self.location_for_read(&location_id);
+        let local_location_is_authoritative =
+            self.store.staged.locations.contains_key(&location_id)
+                || self
+                    .store
+                    .staged
+                    .fulfillment_service_locations
+                    .contains_key(&location_id);
+        let location = if local_location_is_authoritative
+            || observed_location
+                .as_ref()
+                .is_some_and(location_has_delete_evidence)
+        {
+            observed_location
+        } else {
+            self.hydrate_location_for_mutation(request, &location_id)
+        };
         let errors = self.location_delete_errors(&location_id, location.as_ref());
         let deleted = errors.is_empty();
         let deleted_location_id = if deleted {
@@ -1146,17 +1160,26 @@ impl DraftProxy {
     }
 
     fn observe_base_locations_from_response(&mut self, body: &Value) {
-        let Some(nodes) = body
-            .pointer("/data/locations/nodes")
-            .and_then(Value::as_array)
-        else {
+        let Some(data) = body.get("data") else {
             return;
         };
+        self.observe_base_locations_from_data(data);
+    }
+
+    pub(in crate::proxy) fn observe_base_locations_from_data(&mut self, data: &Value) {
+        let Some(connection) = data.get("locations") else {
+            return;
+        };
+        let nodes = connection
+            .get("nodes")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_else(|| connection_nodes(connection));
         for node in nodes {
             let Some(id) = node.get("id").and_then(Value::as_str).map(str::to_string) else {
                 continue;
             };
-            let mut record = node.clone();
+            let mut record = node;
             if let Some(object) = record.as_object_mut() {
                 object
                     .entry("__typename".to_string())
@@ -1323,8 +1346,26 @@ impl DraftProxy {
     }
 
     fn locations_connection_value(&self, arguments: &BTreeMap<String, ResolvedValue>) -> Value {
+        let mut locations = self.locations_for_connection(arguments);
+        let preserve_observed_order = self.config.read_mode == ReadMode::LiveHybrid
+            && resolved_string_field(arguments, "sortKey")
+                .is_none_or(|sort_key| sort_key == "NAME")
+            && resolved_string_field(arguments, "query").is_none()
+            && self.store.staged.locations.iter().next().is_none()
+            && self.store.staged.observed_shipping_locations.is_empty()
+            && self.store.staged.fulfillment_service_locations.is_empty()
+            && locations
+                .iter()
+                .any(|location| location.get("name").is_none());
+        if preserve_observed_order {
+            if resolved_bool_field(arguments, "reverse").unwrap_or(false) {
+                locations.reverse();
+            }
+            let (records, page_info) = connection_window(&locations, arguments, value_id_cursor);
+            return typed_connection_value(&records, Value::clone, value_id_cursor, page_info);
+        }
         let result = staged_connection_query(
-            self.locations_for_connection(arguments),
+            locations,
             arguments,
             location_search_decision,
             location_staged_sort_key,
@@ -1809,6 +1850,19 @@ fn location_visible_in_connection(
         .and_then(Value::as_bool)
         .unwrap_or(false);
     (include_inactive || is_active) && (include_legacy || !is_legacy)
+}
+
+fn location_has_delete_evidence(location: &Value) -> bool {
+    [
+        "id",
+        "deletable",
+        "hasActiveInventory",
+        "hasUnfulfilledOrders",
+        "isActive",
+        "isFulfillmentService",
+    ]
+    .into_iter()
+    .all(|field| location.get(field).is_some())
 }
 
 pub(in crate::proxy) fn location_connection_value(
