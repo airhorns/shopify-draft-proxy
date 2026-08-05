@@ -66,60 +66,6 @@ function assertNoTopLevelErrors(capture: CapturedRequest): void {
   }
 }
 
-function addUserErrorCode(payload: unknown, code: string): unknown {
-  if (!isObject(payload)) {
-    return payload;
-  }
-
-  const userErrors = payload['userErrors'];
-  if (!Array.isArray(userErrors)) {
-    return payload;
-  }
-
-  return {
-    ...payload,
-    userErrors: userErrors.map((error) => {
-      if (!isObject(error)) {
-        return error;
-      }
-      return { ...error, code };
-    }),
-  };
-}
-
-function readTopLevelErrorMessageForPath(payload: unknown, path: string): string | null {
-  const errors = readPath(payload, ['errors']);
-  if (!Array.isArray(errors)) {
-    return null;
-  }
-
-  for (const error of errors) {
-    if (!isObject(error)) {
-      continue;
-    }
-    const errorPath = error['path'];
-    const message = error['message'];
-    if (Array.isArray(errorPath) && errorPath.length === 1 && errorPath[0] === path && typeof message === 'string') {
-      return message;
-    }
-  }
-
-  return null;
-}
-
-function recipientLengthExpected(field: 'preferredName' | 'message', message: string): Record<string, unknown> {
-  return {
-    giftCard: null,
-    userErrors: [
-      {
-        field: ['input', 'recipientAttributes', field],
-        code: 'TOO_LONG',
-        message,
-      },
-    ],
-  };
-}
-
 async function capture(
   label: string,
   query: string,
@@ -421,26 +367,6 @@ try {
     cleanup.push(await deleteCustomer(`cleanupCustomer:${id}`, id));
   }
 
-  const liveData = readPath(updateValidation.response.payload, ['data']);
-  const preferredNameMessage =
-    readTopLevelErrorMessageForPath(updateValidation.response.payload, 'longRecipientName') ??
-    'preferredName is too long (maximum is 255)';
-  const recipientMessage =
-    readTopLevelErrorMessageForPath(updateValidation.response.payload, 'longRecipientMessage') ??
-    'message is too long (maximum is 200)';
-  const expected = isObject(liveData)
-    ? {
-        data: {
-          deactivatedExpiresOn: addUserErrorCode(liveData['deactivatedExpiresOn'], 'INVALID'),
-          emptyInput: addUserErrorCode(liveData['emptyInput'], 'INVALID'),
-          missingCustomer: addUserErrorCode(liveData['missingCustomer'], 'CUSTOMER_NOT_FOUND'),
-          longRecipientName: recipientLengthExpected('preferredName', preferredNameMessage),
-          longRecipientMessage: recipientLengthExpected('message', recipientMessage),
-          success: liveData['success'],
-        },
-      }
-    : { data: {} };
-
   await mkdir(outputDir, { recursive: true });
   await writeFile(
     outputPath,
@@ -451,7 +377,7 @@ try {
         apiVersion,
         notes: [
           'HAR-694 captures live giftCardUpdate validation branches for deactivated-card protected fields, missing update arguments, missing changed customerId, recipient text length, and success.',
-          'The public Admin API exposes giftCardUpdate.userErrors as generic UserError in 2025-01, so the live request records field/message only; expected replay data adds the typed code values required by the internal GiftCardErrorCode contract.',
+          'The public Admin API exposes giftCardUpdate.userErrors as generic UserError in 2025-01, so parity compares the recorded public field/message payload and top-level recipient-length errors directly.',
           'Setup creates disposable Customer A/B plus active/deactivated gift cards; cleanup deactivates setup gift cards and deletes setup customers.',
         ],
         proxyVariables: {
@@ -461,7 +387,6 @@ try {
         operations: {
           updateValidation,
         },
-        expected,
         cleanup,
         upstreamCalls: [],
       },

@@ -960,6 +960,19 @@ const B2B_BULK_ACTION_LIMIT_REACHED_MESSAGE: &str =
     "Exceeded max input size of 50. Consider using BulkOperation.";
 const B2B_SHOP_COUNTRY_HYDRATE_QUERY: &str =
     "query B2BShopCountryHydrate { shop { shopAddress { countryCodeV2 countryCode } } }";
+// This is the exact ordinary Admin GraphQL document recorded by the location
+// input normalization capture. Besides proving the input fields available in
+// that API version, it provides the shop country and primary locale that
+// Shopify uses when normalizing otherwise country-less location input.
+const B2B_LOCATION_INPUT_CONTEXT_HYDRATE_QUERY: &str = r#"#graphql
+  query B2BLocationInputNormalizationSchema {
+    locationType: __type(name: "CompanyLocation") { fields { name } }
+    locationInputType: __type(name: "CompanyLocationInput") { inputFields { name } }
+    locationUpdateInputType: __type(name: "CompanyLocationUpdateInput") { inputFields { name } }
+    shop { billingAddress { countryCodeV2 } }
+    shopLocales { locale primary published }
+  }
+"#;
 const B2B_MUTATION_NODE_BATCH_SIZE: usize = 250;
 const B2B_COMPANY_LOCATION_HYDRATE_QUERY: &str = r#"
 query B2BCompanyLocationHydrate($id: ID!) {
@@ -1826,7 +1839,7 @@ impl DraftProxy {
 
         match operation_type {
             OperationType::Mutation => {
-                self.hydrate_b2b_shop_country_for_contact_phone_if_missing(request, field);
+                self.hydrate_b2b_shop_country_for_phone_if_missing(request, field);
                 let handler = b2b_company_mutation_handler(&field.name)?;
                 let (payload, status, staged_ids) = handler(self, field);
                 Some(b2b_resolver_outcome(
@@ -2559,6 +2572,28 @@ impl DraftProxy {
                     resolved_string_field(&contact_input, "lastName"),
                 )
             });
+            let contact_phone = resolved_string_field(&contact_input, "phone");
+            let contact_phone_country_code = resolved_object_field(&input, "companyLocation")
+                .as_ref()
+                .and_then(b2b_location_input_country_code);
+            let normalized_phone = contact_phone.as_deref().and_then(|phone| {
+                (!phone.trim().is_empty())
+                    .then(|| {
+                        self.b2b_normalized_contact_phone(
+                            phone,
+                            None,
+                            contact_phone_country_code.as_deref(),
+                        )
+                    })
+                    .flatten()
+            });
+            if let Some(customer_id) = customer_id.as_deref() {
+                if let Some(customer) = self.store.staged.customers.get_mut(customer_id) {
+                    customer["phone"] = normalized_phone.map(Value::String).unwrap_or(Value::Null);
+                    customer["defaultPhoneNumber"] =
+                        b2b_default_phone_number_value(customer["phone"].as_str());
+                }
+            }
             let contact = json!({
                 "id": contact_id,
                 "title": resolved_string_field(&contact_input, "title").map(Value::String).unwrap_or(Value::Null),
@@ -2968,12 +3003,35 @@ impl DraftProxy {
                 )],
             ));
         }
-        for key in ["title", "locale", "firstName", "lastName"] {
+        let customer_id = contact["customerId"].as_str().map(str::to_string);
+        let current_customer = customer_id
+            .as_deref()
+            .and_then(|customer_id| self.b2b_effective_customer(customer_id));
+        let company_phone_country_code = contact["companyId"]
+            .as_str()
+            .and_then(|company_id| self.b2b_company_phone_country_code(company_id));
+        let errors = self.b2b_company_contact_mutation_input_errors(
+            &input,
+            &["input"],
+            customer_id.as_deref(),
+            current_customer.as_ref(),
+            company_phone_country_code.as_deref(),
+            false,
+        );
+        if !errors.is_empty() {
+            return failed_payload_outcome(b2b_company_contact_payload(None, errors));
+        }
+        for key in ["title", "firstName", "lastName"] {
             if input.contains_key(key) {
                 contact[key] = resolved_string_field(&input, key)
                     .map(Value::String)
                     .unwrap_or(Value::Null);
             }
+        }
+        if input.contains_key("locale") {
+            contact["locale"] = resolved_string_field(&input, "locale")
+                .map(Value::String)
+                .unwrap_or(Value::Null);
         }
         // A company contact's identity (name, email, phone) lives on its underlying
         // Customer record, which reads back as companyContact.customer — so a contact
@@ -2983,7 +3041,7 @@ impl DraftProxy {
             .iter()
             .any(|key| input.contains_key(*key));
         if updates_customer {
-            let Some(customer_id) = contact["customerId"].as_str().map(str::to_string) else {
+            let Some(customer_id) = customer_id else {
                 self.store
                     .staged
                     .b2b_contacts
@@ -2995,8 +3053,6 @@ impl DraftProxy {
                 );
             };
             if let Some(mut customer) = self.b2b_effective_customer(&customer_id) {
-                let phone_country_code = self.b2b_customer_phone_country_code(Some(&customer));
-                let existing_phone = customer["phone"].as_str().map(str::to_string);
                 for key in ["firstName", "lastName", "email", "phone"] {
                     if input.contains_key(key) {
                         let raw = resolved_string_field(&input, key);
@@ -3004,15 +3060,15 @@ impl DraftProxy {
                         // supplied "(650) 555-0101" reads back as "+16505550101".
                         let value = if key == "phone" {
                             raw.as_deref().and_then(|phone| {
-                                b2b_normalize_phone(phone, phone_country_code.as_deref()).or_else(
-                                    || {
-                                        normalize_phone_with_existing_e164_context(
+                                (!phone.trim().is_empty())
+                                    .then(|| {
+                                        self.b2b_normalized_contact_phone(
                                             phone,
-                                            existing_phone.as_deref(),
-                                            false,
+                                            Some(&customer),
+                                            company_phone_country_code.as_deref(),
                                         )
-                                    },
-                                )
+                                    })
+                                    .flatten()
                             })
                         } else {
                             raw
@@ -3073,7 +3129,15 @@ impl DraftProxy {
                 )],
             ));
         }
-        let errors = b2b_contact_create_input_errors(&input, &["input"]);
+        let company_phone_country_code = self.b2b_company_phone_country_code(&company_id);
+        let errors = self.b2b_company_contact_mutation_input_errors(
+            &input,
+            &["input"],
+            None,
+            None,
+            company_phone_country_code.as_deref(),
+            true,
+        );
         if !errors.is_empty() {
             return failed_payload_outcome(b2b_company_contact_payload(None, errors));
         }
@@ -3083,23 +3147,26 @@ impl DraftProxy {
         let last = resolved_string_field(&input, "lastName");
         let title = resolved_string_field(&input, "title");
         let phone = resolved_string_field(&input, "phone");
-        let phone_country_code = self.b2b_customer_phone_country_code(None);
-        let customer_id = resolved_string_field(&input, "email").map(|email| {
-            let id = self.b2b_provision_contact_customer(&email, first.clone(), last.clone());
-            // Carry the supplied phone onto the freshly-provisioned customer so it
-            // reads back as companyContact.customer.phone. Shopify stores customer
-            // phone numbers in E.164, so "(650) 555-0101" reads back "+16505550101".
-            if let Some(phone) = phone.clone() {
-                if let Some(customer) = self.store.staged.customers.get_mut(&id) {
-                    customer["phone"] = b2b_normalize_phone(&phone, phone_country_code.as_deref())
-                        .map(Value::String)
-                        .unwrap_or(Value::Null);
-                    customer["defaultPhoneNumber"] =
-                        b2b_default_phone_number_value(customer["phone"].as_str());
-                }
-            }
-            id
+        let customer_id = resolved_string_field(&input, "email")
+            .map(|email| self.b2b_provision_contact_customer(&email, first.clone(), last.clone()));
+        let normalized_phone = phone.as_deref().and_then(|phone| {
+            (!phone.trim().is_empty())
+                .then(|| {
+                    self.b2b_normalized_contact_phone(
+                        phone,
+                        None,
+                        company_phone_country_code.as_deref(),
+                    )
+                })
+                .flatten()
         });
+        if let Some(customer_id) = customer_id.as_deref() {
+            if let Some(customer) = self.store.staged.customers.get_mut(customer_id) {
+                customer["phone"] = normalized_phone.map(Value::String).unwrap_or(Value::Null);
+                customer["defaultPhoneNumber"] =
+                    b2b_default_phone_number_value(customer["phone"].as_str());
+            }
+        }
         let contact = json!({
             "id": contact_id,
             "companyId": company_id,
@@ -3137,6 +3204,16 @@ impl DraftProxy {
             return failed_payload_outcome(json!({
                 "deletedCompanyContactId": Value::Null,
                 "userErrors": [b2b_not_found(["companyContactId"], "The company contact doesn't exist.")]
+            }));
+        }
+        if self.b2b_company_contact_has_order_blocker(&contact_id) {
+            return failed_payload_outcome(json!({
+                "deletedCompanyContactId": Value::Null,
+                "userErrors": [user_error(
+                    ["companyContactId"],
+                    "Cannot delete a company contact with existing orders or draft orders.",
+                    Some("FAILED_TO_DELETE"),
+                )]
             }));
         }
         self.b2b_delete_company_contact(&contact_id);
@@ -3699,6 +3776,22 @@ impl DraftProxy {
                 .b2b_company_location_ids(company_id)
                 .iter()
                 .any(|location_id| self.b2b_location_has_store_credit_balance(location_id))
+    }
+
+    fn b2b_company_contact_has_order_blocker(&self, contact_id: &str) -> bool {
+        self.b2b_matching_order_records(|order| {
+            b2b_record_references_company_contact(order, contact_id)
+        })
+        .into_iter()
+        .next()
+        .is_some()
+            || self
+                .b2b_matching_draft_order_records(|draft_order| {
+                    b2b_record_references_company_contact(draft_order, contact_id)
+                })
+                .into_iter()
+                .next()
+                .is_some()
     }
 
     /// Known location ids observed or staged directly on the company record.
@@ -5792,31 +5885,172 @@ impl DraftProxy {
             .or_else(|| shop_country_code(&self.store.base.shop).map(str::to_string))
     }
 
-    fn b2b_customer_phone_country_code(&self, customer: Option<&Value>) -> Option<String> {
-        customer
+    fn b2b_normalized_contact_phone(
+        &self,
+        phone: &str,
+        current_customer: Option<&Value>,
+        company_country_code: Option<&str>,
+    ) -> Option<String> {
+        let country_code = current_customer
             .and_then(b2b_customer_record_country_code)
             .map(str::to_string)
             .or_else(|| shop_country_code(&self.store.base.shop).map(str::to_string))
+            .or_else(|| company_country_code.map(str::to_string));
+        b2b_normalize_phone(phone, country_code.as_deref()).or_else(|| {
+            current_customer.and_then(|customer| {
+                normalize_phone_with_existing_e164_context(phone, customer["phone"].as_str(), false)
+            })
+        })
     }
 
-    fn hydrate_b2b_shop_country_for_contact_phone_if_missing(
+    fn b2b_company_phone_country_code(&self, company_id: &str) -> Option<String> {
+        b2b_json_id_list(&self.b2b_effective_company(company_id)?, "locationIds")
+            .into_iter()
+            .find_map(|location_id| {
+                self.b2b_effective_location(&location_id)
+                    .as_ref()
+                    .and_then(b2b_location_record_country_code)
+            })
+    }
+
+    fn b2b_other_effective_customer_matches(
+        &self,
+        current_customer_id: Option<&str>,
+        mut predicate: impl FnMut(&Value) -> bool,
+    ) -> bool {
+        let mut seen = BTreeSet::new();
+        self.store
+            .base
+            .b2b_customers
+            .order
+            .iter()
+            .chain(self.store.staged.customers.order.iter())
+            .any(|customer_id| {
+                seen.insert(customer_id.as_str())
+                    && current_customer_id != Some(customer_id.as_str())
+                    && self
+                        .b2b_effective_customer(customer_id)
+                        .is_some_and(|customer| predicate(&customer))
+            })
+    }
+
+    fn b2b_company_contact_mutation_input_errors(
+        &self,
+        input: &BTreeMap<String, ResolvedValue>,
+        prefix: &[&str],
+        current_customer_id: Option<&str>,
+        current_customer: Option<&Value>,
+        company_country_code: Option<&str>,
+        require_email: bool,
+    ) -> Vec<Value> {
+        let mut errors = b2b_company_contact_scalar_input_errors(
+            input,
+            prefix,
+            require_email,
+            if require_email {
+                "Email is invalid"
+            } else {
+                "Email address is invalid"
+            },
+        );
+        if require_email && resolved_string_field(input, "email").is_none() {
+            return errors;
+        }
+
+        let field_path = |name: &str| -> Vec<String> {
+            prefix
+                .iter()
+                .map(|part| part.to_string())
+                .chain(std::iter::once(name.to_string()))
+                .collect()
+        };
+        let normalized_phone = resolved_string_field(input, "phone").and_then(|phone| {
+            if phone.trim().is_empty() {
+                None
+            } else {
+                self.b2b_normalized_contact_phone(&phone, current_customer, company_country_code)
+            }
+        });
+        if resolved_string_field(input, "phone")
+            .is_some_and(|phone| !phone.trim().is_empty() && normalized_phone.is_none())
+        {
+            errors.push(user_error(
+                json!(field_path("phone")),
+                "Phone is invalid",
+                Some("INVALID"),
+            ));
+        }
+        if resolved_string_field(input, "locale")
+            .is_some_and(|locale| normalize_shopify_locale(&locale).is_none())
+        {
+            errors.push(user_error(
+                json!(field_path("locale")),
+                "Invalid locale format.",
+                Some("INVALID"),
+            ));
+        }
+        if let Some(email) = resolved_string_field(input, "email")
+            .filter(|email| shopify_email_is_valid(email, EmailValidationMode::Basic))
+        {
+            let normalized_email = email.trim().to_ascii_lowercase();
+            if self.b2b_other_effective_customer_matches(current_customer_id, |customer| {
+                customer["email"]
+                    .as_str()
+                    .is_some_and(|existing| existing.trim().eq_ignore_ascii_case(&normalized_email))
+            }) {
+                errors.push(user_error(
+                    json!(field_path("email")),
+                    "Email address has already been taken.",
+                    Some("TAKEN"),
+                ));
+            }
+        }
+        if let Some(normalized_phone) = normalized_phone {
+            if self.b2b_other_effective_customer_matches(current_customer_id, |customer| {
+                let Some(existing) = customer["phone"].as_str() else {
+                    return false;
+                };
+                self.b2b_normalized_contact_phone(existing, Some(customer), company_country_code)
+                    .unwrap_or_else(|| existing.to_string())
+                    == normalized_phone
+            }) {
+                errors.push(user_error(
+                    json!(field_path("phone")),
+                    "Phone number has already been taken.",
+                    Some("TAKEN"),
+                ));
+            }
+        }
+        errors
+    }
+
+    fn hydrate_b2b_shop_country_for_phone_if_missing(
         &mut self,
         request: &Request,
         field: &B2bRootInput,
     ) {
         if self.config.read_mode == ReadMode::Snapshot
             || shop_country_code(&self.store.base.shop).is_some()
-            || !b2b_field_contact_phone_needs_shop_country(field)
+            || !b2b_field_phone_needs_shop_country(field)
         {
             return;
         }
-        let response = self.upstream_post(
+        let mut response = self.upstream_post(
             request,
             json!({
                 "query": B2B_SHOP_COUNTRY_HYDRATE_QUERY,
                 "variables": {}
             }),
         );
+        if !(200..300).contains(&response.status) {
+            response = self.upstream_post(
+                request,
+                json!({
+                    "query": B2B_LOCATION_INPUT_CONTEXT_HYDRATE_QUERY,
+                    "variables": {}
+                }),
+            );
+        }
         if !(200..300).contains(&response.status) {
             return;
         }
@@ -5826,6 +6060,24 @@ impl DraftProxy {
         {
             self.store.base.shop =
                 shallow_merged_object(self.store.base.shop.clone(), shop.clone());
+        }
+        if let Some(primary_locale) = response.body["data"]["shopLocales"]
+            .as_array()
+            .and_then(|locales| {
+                locales
+                    .iter()
+                    .find(|locale| locale.get("primary").and_then(Value::as_bool) == Some(true))
+            })
+            .and_then(|locale| locale.get("locale").and_then(Value::as_str))
+        {
+            self.store.base.shop_locales.insert(
+                primary_locale.to_string(),
+                json!({
+                    "locale": primary_locale,
+                    "primary": true,
+                    "published": true
+                }),
+            );
         }
     }
 }
@@ -6201,16 +6453,21 @@ fn b2b_default_phone_number_value(phone: Option<&str>) -> Value {
     }
 }
 
-fn b2b_field_contact_phone_needs_shop_country(field: &B2bRootInput) -> bool {
-    let contact_input = match field.name.as_str() {
+fn b2b_field_phone_needs_shop_country(field: &B2bRootInput) -> bool {
+    let phone_input = match field.name.as_str() {
         "companyContactCreate" | "companyContactUpdate" => {
             resolved_object_field(&field.arguments, "input")
         }
-        "companyCreate" => resolved_object_field(&field.arguments, "input")
-            .and_then(|input| resolved_object_field(&input, "companyContact")),
+        "companyCreate" => resolved_object_field(&field.arguments, "input").and_then(|input| {
+            resolved_object_field(&input, "companyContact")
+                .or_else(|| resolved_object_field(&input, "companyLocation"))
+        }),
+        "companyLocationCreate" | "companyLocationUpdate" => {
+            resolved_object_field(&field.arguments, "input")
+        }
         _ => None,
     };
-    contact_input
+    phone_input
         .as_ref()
         .and_then(|input| resolved_string_field(input, "phone"))
         .is_some_and(|phone| b2b_phone_needs_country_context(&phone))
@@ -6449,12 +6706,15 @@ fn b2b_not_found(field: impl Into<UserErrorField>, message: &str) -> Value {
     user_error(field, message, Some("RESOURCE_NOT_FOUND"))
 }
 
-/// Validates a `companyContactCreate` input: a name carrying HTML, a name that
-/// exceeds Shopify's 255-character limit, a missing email, or an invalid email
-/// each produces a Shopify-shaped user error. Title values are stored verbatim.
-fn b2b_contact_create_input_errors(
+/// Validates the scalar fields shared by `companyContactCreate` and
+/// `companyContactUpdate`. Create requires an email-backed customer reference;
+/// update validates email only when it is supplied. Title values are stored
+/// verbatim.
+fn b2b_company_contact_scalar_input_errors(
     input: &BTreeMap<String, ResolvedValue>,
     prefix: &[&str],
+    require_email: bool,
+    invalid_email_message: &str,
 ) -> Vec<Value> {
     let mut errors = Vec::new();
     let field_path = |name: &str| -> Vec<String> {
@@ -6482,7 +6742,7 @@ fn b2b_contact_create_input_errors(
             }
         }
     }
-    if resolved_string_field(input, "email").is_none() {
+    if require_email && resolved_string_field(input, "email").is_none() {
         errors.push(b2b_missing_contact_customer_reference_error(
             prefix.to_vec(),
         ));
@@ -6492,7 +6752,7 @@ fn b2b_contact_create_input_errors(
         if !shopify_email_is_valid(&email, EmailValidationMode::Basic) {
             errors.push(user_error(
                 json!(field_path("email")),
-                "Email is invalid",
+                invalid_email_message,
                 Some("INVALID"),
             ));
         }
@@ -6529,6 +6789,15 @@ fn b2b_record_references_company_location(record: &Value, location_id: &str) -> 
         location_id,
         B2B_COMPANY_LOCATION_ID_FIELDS,
         B2B_COMPANY_LOCATION_OBJECT_FIELDS,
+    )
+}
+
+fn b2b_record_references_company_contact(record: &Value, contact_id: &str) -> bool {
+    b2b_record_references(
+        record,
+        contact_id,
+        B2B_COMPANY_CONTACT_ID_FIELDS,
+        B2B_COMPANY_CONTACT_OBJECT_FIELDS,
     )
 }
 
@@ -6581,6 +6850,8 @@ const B2B_COMPANY_ID_FIELDS: &[&str] = &["companyId"];
 const B2B_COMPANY_OBJECT_FIELDS: &[&str] = &["company"];
 const B2B_COMPANY_LOCATION_ID_FIELDS: &[&str] = &["companyLocationId"];
 const B2B_COMPANY_LOCATION_OBJECT_FIELDS: &[&str] = &["location", "companyLocation"];
+const B2B_COMPANY_CONTACT_ID_FIELDS: &[&str] = &["companyContactId"];
+const B2B_COMPANY_CONTACT_OBJECT_FIELDS: &[&str] = &["contact", "companyContact"];
 
 /// Recursively searches a value for a resource id, matching configured direct id
 /// fields, configured nested object `id` fields, or the bare id as a string.

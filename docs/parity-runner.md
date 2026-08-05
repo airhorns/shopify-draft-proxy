@@ -100,6 +100,31 @@ app or capture script would use:
 - let operation handlers issue the upstream reads they genuinely need, then
   record those reads under `upstreamCalls` with `pnpm parity:record`.
 
+When a registered capture already stores the exact setup request document,
+variables, and response, list it in `proxySetups` before `proxyRequest`:
+
+```jsonc
+{
+  "proxySetups": [
+    {
+      "name": "member-product-create",
+      "captureResponsePath": "$.captures[0].response",
+      "proxyRequest": {
+        "documentCapturePath": "$.captures[0].request.query",
+        "variablesCapturePath": "$.captures[0].request.variables",
+      },
+    },
+  ],
+}
+```
+
+The runner executes each setup through the ordinary GraphQL route and binds
+the captured Shopify GIDs in its response to the synthetic GIDs allocated by
+the proxy. Later request variables are rewritten through those bindings. A
+`proxySetups` entry is valid only for an interaction already recorded by the
+scenario's registered live capture; it is not permission to invent equivalent
+setup traffic or source setup responses from proxy output.
+
 Do **not** hand-synthesize cassette entries from checked-in responses, local
 proxy output, generated/snapshot data, or guessed payloads. If an older fixture
 cannot be replayed against current live Shopify, either re-record it with
@@ -290,20 +315,16 @@ corepack pnpm parity -- <scenario-id>
 # Run one spec file.
 corepack pnpm parity -- --spec config/parity-specs/products/product-empty-state-read.json
 
-# Write the complete pass/failure set without making known mismatches fail the process.
-corepack pnpm parity:run -- --output-json .parity/current/parity-results.json --allow-failures
+# Write the complete pass/failure set. The command still exits nonzero when any spec fails.
+corepack pnpm parity:run -- --output-json .parity/current/parity-results.json
 ```
 
 The parity CLI discovers every spec and treats any runner error or comparison
-mismatch as a hard failure unless `--allow-failures` is explicit. That option
-suppresses only the final nonzero status for scenario mismatches; malformed
-specs, runner exceptions, and cassette infrastructure failures still fail.
+mismatch as a hard failure. There is no mode that permits known failures.
 `--output-json` records every selected, passed, and failed spec plus the failure
-details. Main CI publishes that document, and pull requests reject failing specs
-or comparison targets absent from the main baseline. The guard also rejects a
-result that omits any baseline spec, so removing a scenario cannot masquerade as
-a fix. A spec without a valid `upstreamCalls` cassette does not run in a degraded
-mode; it fails until the capture is repaired.
+details before the process exits nonzero, which keeps local diagnosis available
+without weakening the gate. A spec without a valid `upstreamCalls` cassette does
+not run in a degraded mode; it fails until the capture is repaired.
 
 The request version comes from an explicit target override, the live capture's
 `apiVersion`, or its versioned fixture path. If none exists, the shared Admin
@@ -377,6 +398,12 @@ The recorder boots an in-memory `DraftProxy` in live-hybrid mode against real
 Shopify, plays the spec's primary and targets through it, intercepts every
 upstream call the operation handlers issue, and writes the result into the
 capture file's `upstreamCalls` field.
+
+Targets normally rewrite captured Shopify GIDs to the corresponding synthetic
+IDs allocated by earlier public setup requests. A target that deliberately
+proves cold hydration of the captured resource may set
+`"rewriteGidAliases": false`; pair it with `"preserveProxyState": true` when
+that probe must not become part of the scenario's main staged lifecycle.
 
 When a newly required read is a prerequisite for a later request, the first
 recording pass can fail safely before the proxy produces an ID needed by that

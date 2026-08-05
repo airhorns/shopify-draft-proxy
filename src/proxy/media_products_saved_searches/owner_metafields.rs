@@ -1850,6 +1850,22 @@ impl DraftProxy {
             .map(|metafield| self.owner_metafield_with_effective_definition(owner_id, metafield))
     }
 
+    pub(in crate::proxy) fn owner_metafield_node_value_by_id(&self, id: &str) -> Option<Value> {
+        self.store
+            .staged
+            .owner_metafields
+            .iter()
+            .find_map(|(owner_id, metafields)| {
+                let metafield = metafields
+                    .iter()
+                    .find(|metafield| metafield.get("id").and_then(Value::as_str) == Some(id))?;
+                let namespace = metafield.get("namespace").and_then(Value::as_str)?;
+                let key = metafield.get("key").and_then(Value::as_str)?;
+                self.owner_metafield(owner_id, namespace, key)
+                    .filter(|metafield| metafield.get("id").and_then(Value::as_str) == Some(id))
+            })
+    }
+
     fn owner_metafield_resolution(
         &self,
         owner_id: &str,
@@ -2078,6 +2094,14 @@ impl DraftProxy {
             .collect::<Vec<_>>();
         if let Some(keys) = keys {
             records.sort_by_key(|metafield| owner_metafield_key_position(metafield, keys));
+        } else if shopify_gid_resource_type(owner_id) == Some("Product") {
+            // Product metafield connections are id-ordered by Shopify. Mutation
+            // hydration can observe an older base metafield before appending a
+            // lower-id staged update, so normalize this owner type before cursor
+            // windowing rather than leaking observation order.
+            records.sort_by_key(|metafield| {
+                resource_id_tail_sort_value(metafield.get("id").and_then(Value::as_str))
+            });
         }
         records
     }
@@ -2807,6 +2831,7 @@ mod tests {
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
             port: 0,
             shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
             snapshot_path: None,
         })
         .with_upstream_transport(move |request| {
@@ -2856,6 +2881,7 @@ mod tests {
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
             port: 0,
             shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
             snapshot_path: None,
         })
         .with_upstream_transport(move |request| {
@@ -3059,6 +3085,7 @@ mod tests {
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
             port: 0,
             shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
             snapshot_path: None,
         })
         .with_upstream_transport(move |request| {
@@ -3314,6 +3341,7 @@ mod tests {
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
             port: 0,
             shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
             snapshot_path: None,
         })
         .with_upstream_transport(move |request| {

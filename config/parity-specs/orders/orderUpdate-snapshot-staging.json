@@ -19,6 +19,9 @@
     "variablesCapturePath": "$.operations.create.variables",
     "apiVersion": "2026-04"
   },
+  "proxyConfig": {
+    "readMode": "snapshot"
+  },
   "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
     "mode": "strict-json",

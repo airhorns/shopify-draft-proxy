@@ -12,7 +12,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-702 captures Shopify fileUpdate validation branches for non-ready files, non-image source/filename updates, filename extension mismatches, typed-GID mismatches, and a successful READY alt update that preserves status. The public 2026-04 schema does not expose FileUpdateInput.revertToVersionId, so the source plus revertToVersionId branch is encoded from the internal HAR-702 evidence and executable local behavior rather than a live public-schema mutation response. The proxy hydrates the captured READY image/external-video records from cassette reads before staging supported local updates.",
+  "notes": "Captures Shopify fileUpdate validation branches for non-ready files, non-image source/filename updates, filename extension mismatches, typed-GID mismatches, and a successful READY alt update that preserves status. The proxy hydrates the captured READY image/external-video records from cassette reads before staging supported local updates.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -73,16 +73,6 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/media/media-file-update-validation-branches-update.graphql",
           "variablesCapturePath": "$.branches.missingReferences.variables",
-          "apiVersion": "2026-04"
-        }
-      },
-      {
-        "name": "source-and-revert-version-conflict",
-        "capturePath": "$.branches.sourceAndVersion.response.data.fileUpdate",
-        "proxyPath": "$.data.fileUpdate",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/media/media-file-update-validation-branches-update.graphql",
-          "variablesCapturePath": "$.branches.sourceAndVersion.variables",
           "apiVersion": "2026-04"
         }
       },

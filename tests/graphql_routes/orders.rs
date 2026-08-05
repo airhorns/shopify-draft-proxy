@@ -6261,7 +6261,7 @@ fn live_hybrid_return_close_hydrates_a_cold_existing_return_before_transition() 
         .with_clock(|| utc_time(1_704_240_000))
         .with_upstream_transport(move |request| {
             let body: Value = serde_json::from_str(&request.body).expect("upstream GraphQL body");
-            let query = body["query"].as_str().unwrap_or_default();
+            let query = body["query"].as_str().unwrap_or_default().to_string();
             assert!(
                 query.trim_start().starts_with("query"),
                 "cold return hydration must remain query-only: {query}"
@@ -9764,6 +9764,88 @@ fn order_update_and_mark_as_paid_plain_user_errors_omit_codes() {
 }
 
 #[test]
+fn order_create_email_materializes_customer_preserved_by_order_update() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateOrderCustomer($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              email
+              poNumber
+              customer { id email displayName }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "before@example.test",
+                "currency": "USD",
+                "lineItems": [{
+                    "title": "Implicit customer line",
+                    "quantity": 1,
+                    "priceSet": {
+                        "shopMoney": { "amount": "1.00", "currencyCode": "USD" }
+                    }
+                }]
+            }
+        }),
+    ));
+
+    assert_eq!(create.status, 200);
+    assert!(create.body.get("errors").is_none(), "{}", create.body);
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let order = &create.body["data"]["orderCreate"]["order"];
+    let order_id = order["id"].as_str().expect("created order id").to_string();
+    let customer_id = order["customer"]["id"]
+        .as_str()
+        .expect("implicit customer id")
+        .to_string();
+    assert_eq!(order["email"], json!("before@example.test"));
+    assert_eq!(order["poNumber"], Value::Null);
+    assert_eq!(order["customer"]["email"], json!("before@example.test"));
+    assert_eq!(
+        order["customer"]["displayName"],
+        json!("before@example.test")
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateOrderContactEmail($input: OrderInput!) {
+          orderUpdate(input: $input) {
+            order {
+              id
+              email
+              customer { id email displayName }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": order_id,
+                "email": "after@example.test"
+            }
+        }),
+    ));
+
+    assert_eq!(update.status, 200);
+    assert_eq!(update.body["data"]["orderUpdate"]["userErrors"], json!([]));
+    let updated = &update.body["data"]["orderUpdate"]["order"];
+    assert_eq!(updated["email"], json!("after@example.test"));
+    assert_eq!(updated["customer"]["id"], json!(customer_id));
+    assert_eq!(updated["customer"]["email"], json!("before@example.test"));
+    assert_eq!(
+        updated["customer"]["displayName"],
+        json!("before@example.test")
+    );
+}
+
+#[test]
 fn order_update_live_hybrid_hydration_miss_does_not_forward_mutation() {
     let upstream_calls = Arc::new(Mutex::new(Vec::new()));
     let mut proxy = configured_proxy(
@@ -9812,6 +9894,278 @@ fn order_update_live_hybrid_hydration_miss_does_not_forward_mutation() {
     let calls = upstream_calls.lock().expect("upstream calls");
     assert_eq!(calls.len(), 1);
     assert!(calls[0].contains("query OrdersOrderHydrate"));
+}
+
+#[test]
+fn order_update_live_hybrid_retries_legacy_query_after_pageable_hydrate_cassette_miss() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport({
+        let upstream_calls = Arc::clone(&upstream_calls);
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream GraphQL body");
+            let query = body["query"].as_str().unwrap_or_default().to_string();
+            assert!(
+                query.trim_start().starts_with("query"),
+                "orderUpdate must hydrate by query only, got upstream body: {}",
+                request.body
+            );
+            upstream_calls.lock().expect("upstream calls").push(body);
+            if query.contains("query OrdersOrderHydrate") {
+                return Response {
+                    status: 500,
+                    headers: Default::default(),
+                    body: json!({ "errors": [{ "message": "pageable hydrate cassette miss" }] }),
+                };
+            }
+            assert!(query.contains("query OrderUpdateInputValidationRead"));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "order": {
+                            "id": "gid://shopify/Order/8882366284082",
+                            "name": "#1640",
+                            "updatedAt": "2026-06-30T13:24:58Z",
+                            "email": "order-update@example.test",
+                            "phone": Value::Null,
+                            "poNumber": Value::Null,
+                            "note": "before update",
+                            "tags": [],
+                            "customer": Value::Null,
+                            "customAttributes": [],
+                            "shippingAddress": Value::Null,
+                            "gift": Value::Null,
+                            "metafields": { "nodes": [] }
+                        }
+                    }
+                }),
+            }
+        }
+    });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateLegacyHydratedOrder($input: OrderInput!) {
+          orderUpdate(input: $input) {
+            order { id name note }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": "gid://shopify/Order/8882366284082",
+                "note": "after update"
+            }
+        }),
+    ));
+
+    assert_eq!(update.status, 200);
+    assert_eq!(update.body["data"]["orderUpdate"]["userErrors"], json!([]));
+    assert_eq!(
+        update.body["data"]["orderUpdate"]["order"],
+        json!({
+            "id": "gid://shopify/Order/8882366284082",
+            "name": "#1640",
+            "note": "after update"
+        })
+    );
+    let calls = upstream_calls.lock().expect("upstream calls");
+    assert_eq!(calls.len(), 2);
+    assert_eq!(
+        calls[0]["variables"],
+        json!({
+            "id": "gid://shopify/Order/8882366284082",
+            "lineItemsAfter": Value::Null
+        })
+    );
+    assert_eq!(
+        calls[1]["variables"],
+        json!({ "id": "gid://shopify/Order/8882366284082" })
+    );
+}
+
+#[test]
+fn order_update_live_hybrid_retries_original_order_hydrate_after_legacy_cassette_misses() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport({
+        let upstream_calls = Arc::clone(&upstream_calls);
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream GraphQL body");
+            let query = body["query"].as_str().unwrap_or_default().to_string();
+            assert!(
+                query.trim_start().starts_with("query"),
+                "orderUpdate must hydrate by query only, got upstream body: {}",
+                request.body
+            );
+            upstream_calls.lock().expect("upstream calls").push(body);
+            if query.contains("$lineItemsAfter")
+                || query.contains("query OrderUpdateInputValidationRead")
+            {
+                return Response {
+                    status: 500,
+                    headers: Default::default(),
+                    body: json!({ "errors": [{ "message": "hydrate cassette miss" }] }),
+                };
+            }
+            assert!(query.contains("query OrdersOrderHydrate($id: ID!)"));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "order": {
+                            "id": "gid://shopify/Order/6830627356905",
+                            "name": "#1323",
+                            "email": "before@example.test",
+                            "note": "before update",
+                            "tags": [],
+                            "customAttributes": [],
+                            "customer": Value::Null,
+                            "billingAddress": Value::Null,
+                            "shippingAddress": Value::Null,
+                            "currencyCode": "CAD",
+                            "presentmentCurrencyCode": "CAD",
+                            "displayFinancialStatus": "PAID",
+                            "displayFulfillmentStatus": "UNFULFILLED",
+                            "currentTotalPriceSet": {
+                                "shopMoney": { "amount": "1.00", "currencyCode": "CAD" }
+                            },
+                            "totalPriceSet": {
+                                "shopMoney": { "amount": "1.00", "currencyCode": "CAD" }
+                            },
+                            "totalTaxSet": {
+                                "shopMoney": { "amount": "0.00", "currencyCode": "CAD" }
+                            },
+                            "totalDiscountsSet": {
+                                "shopMoney": { "amount": "0.00", "currencyCode": "CAD" }
+                            },
+                            "discountCodes": [],
+                            "lineItems": { "nodes": [] }
+                        }
+                    }
+                }),
+            }
+        }
+    });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateOriginallyHydratedOrder($input: OrderInput!) {
+          orderUpdate(input: $input) {
+            order { id name note tags }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": "gid://shopify/Order/6830627356905",
+                "note": "after update",
+                "tags": ["updated"]
+            }
+        }),
+    ));
+
+    assert_eq!(update.status, 200);
+    assert_eq!(update.body["data"]["orderUpdate"]["userErrors"], json!([]));
+    assert_eq!(
+        update.body["data"]["orderUpdate"]["order"],
+        json!({
+            "id": "gid://shopify/Order/6830627356905",
+            "name": "#1323",
+            "note": "after update",
+            "tags": ["updated"]
+        })
+    );
+    let calls = upstream_calls.lock().expect("upstream calls");
+    assert_eq!(calls.len(), 3);
+    assert!(calls[0]["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("$lineItemsAfter"));
+    assert!(calls[1]["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("query OrderUpdateInputValidationRead"));
+    assert!(calls[2]["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("query OrdersOrderHydrate($id: ID!)"));
+}
+
+#[test]
+fn draft_order_update_live_hybrid_retries_original_hydrate_after_cassette_miss() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-order-update-parity.json"
+    ))
+    .unwrap();
+    let recorded_query = fixture["upstreamCalls"][0]["query"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let hydrate_response = fixture["upstreamCalls"][0]["response"]["body"].clone();
+    let upstream_calls = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport({
+        let upstream_calls = Arc::clone(&upstream_calls);
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream GraphQL body");
+            let query = body["query"].as_str().unwrap_or_default().to_string();
+            assert!(
+                query.trim_start().starts_with("query"),
+                "draftOrderUpdate must hydrate by query only, got upstream body: {}",
+                request.body
+            );
+            upstream_calls.lock().expect("upstream calls").push(body);
+            if query.contains("lineItemsSubtotalPrice") {
+                Response {
+                    status: 500,
+                    headers: Default::default(),
+                    body: json!({ "errors": [{ "message": "current hydrate cassette miss" }] }),
+                }
+            } else {
+                assert_eq!(query, recorded_query);
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: hydrate_response.clone(),
+                }
+            }
+        }
+    });
+
+    let update = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/draftOrderUpdate-parity-plan.graphql"),
+        fixture["variables"].clone(),
+    ));
+
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["draftOrderUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["draftOrderUpdate"]["draftOrder"]["id"],
+        fixture["variables"]["id"]
+    );
+    assert_eq!(
+        update.body["data"]["draftOrderUpdate"]["draftOrder"]["email"],
+        fixture["variables"]["input"]["email"]
+    );
+    assert_eq!(upstream_calls.lock().expect("upstream calls").len(), 2);
 }
 
 #[test]
@@ -15023,6 +15377,94 @@ fn payment_terms_order_create_computes_totals_from_line_prices() {
 }
 
 #[test]
+fn order_create_preserves_shop_and_presentment_payment_amounts() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreatePresentmentOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              subtotalPriceSet {
+                shopMoney { amount currencyCode }
+                presentmentMoney { amount currencyCode }
+              }
+              currentTotalPriceSet {
+                shopMoney { amount currencyCode }
+                presentmentMoney { amount currencyCode }
+              }
+              totalOutstandingSet {
+                shopMoney { amount currencyCode }
+                presentmentMoney { amount currencyCode }
+              }
+              totalReceivedSet {
+                shopMoney { amount currencyCode }
+                presentmentMoney { amount currencyCode }
+              }
+              transactions {
+                kind
+                status
+                amountSet {
+                  shopMoney { amount currencyCode }
+                  presentmentMoney { amount currencyCode }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "presentment-order@example.test",
+                "currency": "CAD",
+                "presentmentCurrency": "USD",
+                "lineItems": [{
+                    "title": "Presentment line",
+                    "quantity": 1,
+                    "priceSet": {
+                        "shopMoney": { "amount": "10.00", "currencyCode": "CAD" },
+                        "presentmentMoney": { "amount": "7.00", "currencyCode": "USD" }
+                    }
+                }],
+                "transactions": [{
+                    "kind": "SALE",
+                    "status": "SUCCESS",
+                    "gateway": "manual",
+                    "amountSet": {
+                        "shopMoney": { "amount": "10.00", "currencyCode": "CAD" },
+                        "presentmentMoney": { "amount": "7.00", "currencyCode": "USD" }
+                    }
+                }]
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    let order = &response.body["data"]["orderCreate"]["order"];
+    let total = json!({
+        "shopMoney": { "amount": "10.0", "currencyCode": "CAD" },
+        "presentmentMoney": { "amount": "7.0", "currencyCode": "USD" }
+    });
+    assert_eq!(order["subtotalPriceSet"], total);
+    assert_eq!(order["currentTotalPriceSet"], total);
+    assert_eq!(order["totalReceivedSet"], total);
+    assert_eq!(
+        order["totalOutstandingSet"],
+        json!({
+            "shopMoney": { "amount": "0.0", "currencyCode": "CAD" },
+            "presentmentMoney": { "amount": "0.0", "currencyCode": "USD" }
+        })
+    );
+    assert_eq!(order["transactions"][0]["kind"], json!("SALE"));
+    assert_eq!(order["transactions"][0]["status"], json!("SUCCESS"));
+    assert_eq!(order["transactions"][0]["amountSet"], total);
+}
+
+#[test]
 fn payment_terms_due_state_recomputes_from_the_proxy_clock() {
     let clock = Arc::new(Mutex::new(utc_time(1_783_080_000)));
     let mut proxy = snapshot_proxy_with_clock(Arc::clone(&clock));
@@ -16574,7 +17016,7 @@ fn payment_transaction_cold_hydration_capture_matches_warm_public_read_execution
         let downstream = read_order_payment_projection(&mut proxy, json!(order_id));
         assert_eq!(downstream["displayFinancialStatus"], json!("PAID"));
         assert_eq!(downstream["capturable"], json!(false));
-        assert_eq!(downstream["totalCapturable"], json!("0.0"));
+        assert_eq!(downstream["totalCapturable"], json!("0.00"));
         assert_eq!(
             downstream["totalOutstandingSet"]["shopMoney"]["amount"],
             json!("0.0")
@@ -16758,7 +17200,7 @@ fn payment_transaction_cold_hydration_void_matches_warm_public_read_execution() 
         let downstream = read_order_payment_projection(&mut proxy, json!(order_id));
         assert_eq!(downstream["displayFinancialStatus"], json!("VOIDED"));
         assert_eq!(downstream["capturable"], json!(false));
-        assert_eq!(downstream["totalCapturable"], json!("0.0"));
+        assert_eq!(downstream["totalCapturable"], json!("0.00"));
         assert_eq!(
             downstream["totalOutstandingSet"]["shopMoney"]["amount"],
             json!("25.0")
@@ -17035,7 +17477,7 @@ fn order_payment_transactions_stage_capture_void_and_downstream_reads() {
         first_captured_order["displayFinancialStatus"],
         json!("PARTIALLY_PAID")
     );
-    assert_eq!(first_captured_order["totalCapturable"], json!("15.0"));
+    assert_eq!(first_captured_order["totalCapturable"], json!("15.00"));
 
     let final_capture = capture_proxy.process_request(json_graphql_request(
         &current_order_capture_document(include_str!("../../config/parity-requests/orders/order-payment-capture-local-staging.graphql")),
@@ -18338,7 +18780,7 @@ fn order_payment_create_preserves_empty_payment_view_without_transactions() {
         projected_order["currentTotalPriceSet"]["shopMoney"],
         json!({ "amount": "26.5", "currencyCode": "USD" })
     );
-    assert_eq!(projected_order["totalCapturable"], json!("0.0"));
+    assert_eq!(projected_order["totalCapturable"], json!("0.00"));
     assert_eq!(
         projected_order["totalCapturableSet"]["shopMoney"],
         json!({ "amount": "0.0", "currencyCode": "USD" })

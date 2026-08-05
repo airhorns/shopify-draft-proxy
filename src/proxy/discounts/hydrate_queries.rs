@@ -25,6 +25,29 @@ pub(super) fn discount_hydrate_query_for_kind(discount_kind: &str) -> &'static s
     }
 }
 
+/// Compatibility document for captures recorded before discount hydration was
+/// split into bounded kind-specific reads. Keep the bounded query as the normal
+/// path; this exact combined shape is only retried when that path cannot return
+/// a record, so older authoritative cassettes remain replayable without making
+/// ordinary live-store hydration unbounded.
+pub(super) fn legacy_discount_hydrate_query() -> String {
+    const CODE_PREFIX: &str = "#graphql\n  query DiscountCodeHydrate($id: ID!) {\n";
+    const AUTOMATIC_PREFIX: &str = "#graphql\n  query DiscountAutomaticHydrate($id: ID!) {\n";
+    const QUERY_SUFFIX: &str = "  }\n";
+
+    let code_body = DISCOUNT_CODE_HYDRATE_QUERY
+        .strip_prefix(CODE_PREFIX)
+        .and_then(|query| query.strip_suffix(QUERY_SUFFIX))
+        .expect("code discount hydrate query should retain its canonical wrapper");
+    let automatic_body = DISCOUNT_AUTOMATIC_HYDRATE_QUERY
+        .strip_prefix(AUTOMATIC_PREFIX)
+        .and_then(|query| query.strip_suffix(QUERY_SUFFIX))
+        .expect("automatic discount hydrate query should retain its canonical wrapper");
+
+    format!("#graphql\n  query DiscountHydrate($id: ID!) {{\n{code_body}{automatic_body}  }}\n")
+        .replace("first: 10", "first: 250")
+}
+
 const DISCOUNT_CODE_HYDRATE_QUERY: &str = r#"#graphql
   query DiscountCodeHydrate($id: ID!) {
     codeNode: codeDiscountNode(id: $id) {

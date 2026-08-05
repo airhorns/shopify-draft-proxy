@@ -15,7 +15,6 @@ mutation ProductVariantRelationshipBulkUpdateValidationProductCreate($product: P
     userErrors {
       field
       message
-      code
     }
   }
 }

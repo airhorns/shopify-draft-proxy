@@ -5,7 +5,7 @@
   "notes": [
     "HAR-766 captures live giftCardUpdate no-op behavior for note, expiresOn, and templateSuffix inputs whose values already equal the current gift card.",
     "Shopify accepts present editable keys even when the values do not change, touches updatedAt, and still rejects an input object with no editable keys.",
-    "The public Admin API exposes giftCardUpdate.userErrors as generic UserError in 2025-01, so the live request records field/message only; expected replay data adds the typed code for the empty-input branch.",
+    "The public Admin API exposes giftCardUpdate.userErrors as generic UserError in 2025-01; parity compares the recorded public field/message payload directly.",
     "Setup creates one disposable gift card with known editable fields; cleanup deactivates the setup gift card."
   ],
   "proxyVariables": {
@@ -127,44 +127,6 @@
             }
           }
         }
-      }
-    }
-  },
-  "expected": {
-    "data": {
-      "noteNoop": {
-        "giftCard": {
-          "id": "gid://shopify/GiftCard/654853603634",
-          "note": "HAR-766 no-op current note",
-          "updatedAt": "2026-05-05T21:43:30Z"
-        },
-        "userErrors": []
-      },
-      "expiresNoop": {
-        "giftCard": {
-          "id": "gid://shopify/GiftCard/654853603634",
-          "expiresOn": "2030-01-01",
-          "updatedAt": "2026-05-05T21:43:30Z"
-        },
-        "userErrors": []
-      },
-      "templateNoop": {
-        "giftCard": {
-          "id": "gid://shopify/GiftCard/654853603634",
-          "templateSuffix": "birthday",
-          "updatedAt": "2026-05-05T21:43:30Z"
-        },
-        "userErrors": []
-      },
-      "emptyInput": {
-        "giftCard": null,
-        "userErrors": [
-          {
-            "field": ["input"],
-            "message": "At least one argument is required in the input.",
-            "code": "INVALID"
-          }
-        ]
       }
     }
   },

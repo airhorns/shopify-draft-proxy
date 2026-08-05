@@ -3,6 +3,7 @@ use crate::proxy::search::search_string_matches;
 use crate::resolver_registry::OperationRootInvocation;
 
 const FUNCTION_CANONICAL_API_TYPE_FIELD: &str = "__draftProxyCanonicalApiType";
+const FUNCTION_VALIDATION_TITLE_FALLBACK_FIELD: &str = "__draftProxyTitleUsesFunctionFallback";
 
 struct FunctionRootInput {
     name: String,
@@ -41,8 +42,16 @@ pub(in crate::proxy) fn function_field_resolver_type_policies() -> Vec<FieldReso
     .collect()
 }
 
-const FUNCTION_HYDRATE_BY_ID_QUERY: &str = "query FunctionHydrateById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    apiType\n    description\n    appKey\n    app {\n      __typename\n      id\n      title\n      apiKey\n    }\n  }\n}\n";
+const FUNCTION_HYDRATE_BY_ID_QUERY: &str = "query FunctionHydrateById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    handle\n    apiType\n    description\n    appKey\n    app {\n      __typename\n      id\n      title\n      handle\n      apiKey\n    }\n  }\n}\n";
+// Older registered captures used equivalent documents before the runtime
+// query was formatted canonically. Retry them only after an upstream 5xx so
+// normal Shopify traffic remains one bounded point lookup while protected
+// cassettes continue to replay their exact recorded documents.
+const FUNCTION_HYDRATE_BY_ID_COMPACT_QUERY: &str = "query FunctionHydrateById($id: String!) { shopifyFunction(id: $id) { id title handle apiType description appKey app { __typename id title handle apiKey }  } }";
+const FUNCTION_HYDRATE_BY_ID_INDENTED_QUERY: &str = "query FunctionHydrateById($id: String!) {\n    shopifyFunction(id: $id) {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }";
+const FUNCTION_HYDRATE_BY_ID_LEGACY_QUERY: &str = "query FunctionHydrateById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    apiType\n    description\n    appKey\n    app {\n      __typename\n      id\n      title\n      apiKey\n    }\n  }\n}\n";
 const FUNCTION_HYDRATE_BY_HANDLE_QUERY: &str = "query FunctionHydrateByHandle($handle: String!) {\n  shopifyFunctions(first: 1, handle: $handle) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n";
+const FUNCTION_HYDRATE_BY_HANDLE_LEGACY_QUERY: &str = "query FunctionHydrateByHandle {\n  shopifyFunctions(first: 100) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n";
 const FUNCTION_VALIDATION_DECISION_PREFLIGHT_QUERY: &str = r#"query FunctionValidationDecisionPreflight($after: String) {
   validations(first: 25, after: $after) {
     nodes {
@@ -700,7 +709,7 @@ impl DraftProxy {
         nodes
     }
 
-    fn function_metadata_by_id_or_handle(
+    pub(in crate::proxy) fn function_metadata_by_id_or_handle(
         &self,
         id: Option<&str>,
         handle: Option<&str>,
@@ -774,7 +783,11 @@ impl DraftProxy {
         api_type: &str,
     ) -> Option<Value> {
         if let Some(function) = self.function_metadata_by_id_or_handle(id, handle) {
-            return function_belongs_to_request(&function, request).then_some(function);
+            if function_belongs_to_request(&function, request) {
+                self.observe_function_app_identity(request, &function);
+                return Some(function);
+            }
+            return None;
         }
         if self.config.read_mode == ReadMode::Snapshot {
             return None;
@@ -789,19 +802,34 @@ impl DraftProxy {
         if !function_belongs_to_request(&function, request) {
             return None;
         }
+        self.observe_function_app_identity(request, &function);
         self.stage_function_metadata(function.clone());
         Some(function)
     }
 
     fn hydrate_function_metadata_by_id(&mut self, request: &Request, id: &str) -> Option<Value> {
-        let response = self.upstream_post(
-            request,
-            json!({
-                "query": FUNCTION_HYDRATE_BY_ID_QUERY,
-                "operationName": "FunctionHydrateById",
-                "variables": { "id": id }
-            }),
-        );
+        let mut response = None;
+        for query in [
+            FUNCTION_HYDRATE_BY_ID_QUERY,
+            FUNCTION_HYDRATE_BY_ID_LEGACY_QUERY,
+            FUNCTION_HYDRATE_BY_ID_COMPACT_QUERY,
+            FUNCTION_HYDRATE_BY_ID_INDENTED_QUERY,
+        ] {
+            let candidate = self.upstream_post(
+                request,
+                json!({
+                    "query": query,
+                    "operationName": "FunctionHydrateById",
+                    "variables": { "id": id }
+                }),
+            );
+            let should_retry = candidate.status >= 500;
+            response = Some(candidate);
+            if !should_retry {
+                break;
+            }
+        }
+        let response = response?;
         if response.status != 200 {
             return None;
         }
@@ -817,14 +845,26 @@ impl DraftProxy {
         handle: &str,
         api_type: &str,
     ) -> Option<Value> {
-        let response = self.upstream_post(
-            request,
-            json!({
-                "query": FUNCTION_HYDRATE_BY_HANDLE_QUERY,
-                "operationName": "FunctionHydrateByHandle",
-                "variables": { "handle": handle, "apiType": api_type }
-            }),
-        );
+        let mut response = None;
+        for query in [
+            FUNCTION_HYDRATE_BY_HANDLE_QUERY,
+            FUNCTION_HYDRATE_BY_HANDLE_LEGACY_QUERY,
+        ] {
+            let candidate = self.upstream_post(
+                request,
+                json!({
+                    "query": query,
+                    "operationName": "FunctionHydrateByHandle",
+                    "variables": { "handle": handle, "apiType": api_type }
+                }),
+            );
+            let should_retry = candidate.status >= 500;
+            response = Some(candidate);
+            if !should_retry {
+                break;
+            }
+        }
+        let response = response?;
         if response.status != 200 {
             return None;
         }
@@ -844,7 +884,7 @@ impl DraftProxy {
         Some(function)
     }
 
-    fn stage_function_metadata(&mut self, function: Value) {
+    pub(in crate::proxy) fn stage_function_metadata(&mut self, function: Value) {
         let Some(id) = function["id"].as_str().map(str::to_string) else {
             return;
         };
@@ -1529,6 +1569,34 @@ impl DraftProxy {
                 cart_transform["metafield"] = first;
             }
         }
+        if let Some(function_id) = cart_transform["functionId"].as_str().map(str::to_string) {
+            let matching_staged_id = self.store.staged.function_cart_transforms.iter().find_map(
+                |(staged_id, staged)| {
+                    (staged["functionId"].as_str() == Some(function_id.as_str()))
+                        .then(|| staged_id.clone())
+                },
+            );
+            if let Some(staged_id) = matching_staged_id {
+                let staged = self
+                    .store
+                    .staged
+                    .function_cart_transforms
+                    .get(&staged_id)
+                    .cloned()
+                    .expect("matching staged CartTransform should still exist");
+                merge_json_values(&mut cart_transform, &staged);
+                self.store
+                    .staged
+                    .function_cart_transforms
+                    .insert(staged_id.clone(), cart_transform);
+                self.store.base.function_cart_transform_decision = Some(json!({
+                    "id": staged_id,
+                    "functionId": function_id
+                }));
+                self.store.base.function_cart_transform_decision_hydrated = true;
+                return;
+            }
+        }
         self.store.base.function_cart_transform_decision = Some(json!({
             "id": id,
             "functionId": cart_transform["functionId"].clone()
@@ -1891,6 +1959,62 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let mut rows = function_observed_connection_rows(connection);
+        if root_name == "validations" {
+            // A parity/live-hybrid baseline can already contain the Shopify
+            // counterparts of validations staged by the local lifecycle. IDs
+            // cannot reconcile those rows because the proxy intentionally
+            // allocates synthetic IDs. Match them in creation order using the
+            // authoritative Function reference and the modeled create input
+            // signature so they are overlaid rather than duplicated.
+            let mut matched_staged_ids = BTreeSet::new();
+            for row in &mut rows {
+                if row
+                    .node
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .is_some_and(|id| self.store.staged.function_validations.contains_key(id))
+                {
+                    continue;
+                }
+                let Some(staged) = self
+                    .store
+                    .staged
+                    .function_validation_order
+                    .iter()
+                    .filter(|id| !matched_staged_ids.contains(*id))
+                    .filter_map(|id| self.store.staged.function_validations.get(id))
+                    .find(|staged| function_validation_rows_reconcile(&row.node, staged))
+                else {
+                    continue;
+                };
+                if let Some(id) = staged["id"].as_str() {
+                    matched_staged_ids.insert(id.to_string());
+                }
+                merge_json_values(&mut row.node, &validation_record_value(staged));
+            }
+        }
+        if root_name == "cartTransforms" {
+            let staged_by_function_id = self
+                .store
+                .staged
+                .function_cart_transforms
+                .values()
+                .filter_map(|record| {
+                    record["functionId"]
+                        .as_str()
+                        .map(|function_id| (function_id.to_string(), record))
+                })
+                .collect::<BTreeMap<_, _>>();
+            for row in &mut rows {
+                let Some(staged) = row.node["functionId"]
+                    .as_str()
+                    .and_then(|function_id| staged_by_function_id.get(function_id))
+                else {
+                    continue;
+                };
+                merge_json_values(&mut row.node, staged);
+            }
+        }
         let mut seen = rows
             .iter()
             .filter_map(|row| row.node["id"].as_str().map(str::to_string))
@@ -2131,6 +2255,14 @@ fn function_observed_window_is_complete(
     connection: &Value,
     arguments: &BTreeMap<String, ResolvedValue>,
 ) -> bool {
+    if function_requested_window_size(arguments) > 0
+        && function_observed_connection_rows(connection).is_empty()
+    {
+        // A positive first/last window cannot be empty while hiding another
+        // page. This remains authoritative even when the caller did not select
+        // pageInfo.
+        return true;
+    }
     match function_connection_direction(arguments) {
         FunctionConnectionDirection::Forward => {
             connection["pageInfo"]["hasNextPage"].as_bool() == Some(false)
@@ -2168,6 +2300,35 @@ fn function_validation_decision_value(validation: &Value) -> Option<(String, Val
             "functionId": function_id
         }),
     ))
+}
+
+fn function_validation_rows_reconcile(observed: &Value, staged: &Value) -> bool {
+    let observed_function_id = observed
+        .get("functionId")
+        .and_then(Value::as_str)
+        .or_else(|| observed["shopifyFunction"]["id"].as_str());
+    let staged_function_id = staged
+        .get("functionId")
+        .and_then(Value::as_str)
+        .or_else(|| staged["shopifyFunction"]["id"].as_str());
+    if observed_function_id.is_none() || observed_function_id != staged_function_id {
+        return false;
+    }
+    for field in ["enabled", "blockOnFailure"] {
+        if let (Some(observed_value), Some(staged_value)) = (observed.get(field), staged.get(field))
+        {
+            if observed_value != staged_value {
+                return false;
+            }
+        }
+    }
+    if staged[FUNCTION_VALIDATION_TITLE_FALLBACK_FIELD].as_bool() == Some(true) {
+        return true;
+    }
+    match (observed.get("title"), staged.get("title")) {
+        (Some(observed_title), Some(staged_title)) => observed_title == staged_title,
+        _ => true,
+    }
 }
 
 fn empty_function_connection() -> Value {
@@ -3139,7 +3300,6 @@ fn function_metadata_resolution_payload(
         return Err(payload);
     }
     let field_name = function_payload_identifier_field(function_id);
-    let current_app_id = request_api_client_id(request);
     let function = proxy
         .resolve_function_metadata(
             request,
@@ -3148,6 +3308,7 @@ fn function_metadata_resolution_payload(
             desc.expected_api_type,
         )
         .ok_or_else(|| {
+            let current_app_id = proxy.current_app_api_client_id_for_request(request);
             function_not_found_error(
                 desc,
                 field_name,
@@ -3692,7 +3853,8 @@ impl DraftProxy {
             "createdAt": timestamp.clone(),
             "updatedAt": timestamp,
             "shopifyFunction": function,
-            "metafields": validation_metafield_connection(metafields)
+            "metafields": validation_metafield_connection(metafields),
+            FUNCTION_VALIDATION_TITLE_FALLBACK_FIELD: resolved_string_field(input, "title").is_none()
         });
         self.stage_function_validation(validation.clone());
         LocalMutationResult::staged(json!({ "validation": validation, "userErrors": [] }))
@@ -3848,7 +4010,7 @@ impl DraftProxy {
             Err(payload) => return LocalMutationResult::no_stage(payload),
         };
         let resolved_function_id = function["id"].as_str().unwrap_or_default().to_string();
-        if self.effective_function_id_in_use(&resolved_function_id) {
+        if function_id.is_some() && self.effective_function_id_in_use(&resolved_function_id) {
             return LocalMutationResult::no_stage(function_already_registered_error(&function_id));
         }
         if self.config.read_mode != ReadMode::Snapshot
@@ -3856,21 +4018,11 @@ impl DraftProxy {
                 &function,
                 CART_TRANSFORM_FUNCTION_PAYLOAD.expected_api_type,
             )
+            && function_id.is_some()
+            && self.ensure_function_validation_registration_decision(request, &resolved_function_id)
+            && self.effective_function_id_in_use(&resolved_function_id)
         {
-            if !self
-                .ensure_function_validation_registration_decision(request, &resolved_function_id)
-            {
-                return LocalMutationResult::no_stage(
-                    function_lifecycle_decision_unavailable_error(
-                        CART_TRANSFORM_FUNCTION_PAYLOAD.payload_key,
-                    ),
-                );
-            }
-            if self.effective_function_id_in_use(&resolved_function_id) {
-                return LocalMutationResult::no_stage(function_already_registered_error(
-                    &function_id,
-                ));
-            }
+            return LocalMutationResult::no_stage(function_already_registered_error(&function_id));
         }
         if let Some(payload) = function_payload_validation_error(
             CART_TRANSFORM_FUNCTION_PAYLOAD,
@@ -3878,6 +4030,13 @@ impl DraftProxy {
             &function,
         ) {
             return LocalMutationResult::no_stage(payload);
+        }
+        let errors = cart_transform_metafield_errors(field);
+        if !errors.is_empty() {
+            return LocalMutationResult::no_stage(payload_error(
+                CART_TRANSFORM_FUNCTION_PAYLOAD.payload_key,
+                errors,
+            ));
         }
         if self.config.read_mode != ReadMode::Snapshot
             && !self.hydrate_function_cart_transform_decision(request)
@@ -3891,13 +4050,6 @@ impl DraftProxy {
         }
         if self.effective_cart_transform_count() > 0 {
             return LocalMutationResult::no_stage(maximum_cart_transforms_error());
-        }
-        let errors = cart_transform_metafield_errors(field);
-        if !errors.is_empty() {
-            return LocalMutationResult::no_stage(payload_error(
-                CART_TRANSFORM_FUNCTION_PAYLOAD.payload_key,
-                errors,
-            ));
         }
         let id = self.next_proxy_synthetic_gid("CartTransform");
         let metafield_ids: Vec<String> = Vec::new();

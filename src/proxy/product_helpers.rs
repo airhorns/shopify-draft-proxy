@@ -1034,6 +1034,126 @@ fn catalog_search_predicate_requires_full_catalog(predicate: &str) -> bool {
 }
 
 impl DraftProxy {
+    pub(in crate::proxy) fn observe_cached_upstream_product_operation_roots(
+        &mut self,
+        operation_roots: &[OperationRootInvocation],
+    ) {
+        let caller_data = self
+            .execution_session
+            .request_cache
+            .caller_data()
+            .cloned()
+            .unwrap_or(Value::Null);
+        for root in operation_roots {
+            if let Some(value) = caller_data.get(&root.response_key) {
+                self.observe_upstream_product_root_value(&root.name, value);
+            }
+        }
+    }
+
+    fn cached_or_forward_upstream_product_root_outcome(
+        &mut self,
+        invocation: &RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let outcome = self
+            .cached_or_forward_upstream_root_outcome(invocation.request, invocation.response_key);
+        self.observe_cached_upstream_product_operation_roots(&invocation.operation_roots);
+        outcome
+    }
+
+    pub(in crate::proxy) fn observe_upstream_product_root_value(
+        &mut self,
+        root_name: &str,
+        value: &Value,
+    ) {
+        match root_name {
+            "product" | "productByIdentifier" => self.observe_upstream_product_value(value),
+            "products" => {
+                for product in connection_nodes(value) {
+                    self.observe_upstream_product_value(&product);
+                }
+            }
+            "productVariant" => self.observe_upstream_product_variant_value(value, None),
+            "productVariants" => {
+                for variant in connection_nodes(value) {
+                    self.observe_upstream_product_variant_value(&variant, None);
+                }
+            }
+            "inventoryItem" => self.observe_inventory_item_node(value),
+            "inventoryItems" => self.observe_inventory_items_connection(value),
+            "inventoryLevel" => self.observe_inventory_level_node(value),
+            "node" => self.observe_node_response_value(value),
+            "nodes" => {
+                for node in value.as_array().into_iter().flatten() {
+                    self.observe_node_response_value(node);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn observe_upstream_product_value(&mut self, value: &Value) {
+        let Some(product_id) = value.get("id").and_then(Value::as_str) else {
+            return;
+        };
+        self.store.observe_base_product_json(value);
+        self.stage_observed_owner_metafields(product_id, value);
+        if let Some(connection) = value.get("variants") {
+            for mut row in observed_connection_rows(connection) {
+                if let (Some(cursor), Some(variant)) = (row.cursor, row.node.as_object_mut()) {
+                    variant.insert(PRODUCT_VARIANT_EDGE_CURSOR_FIELD.to_string(), json!(cursor));
+                }
+                self.observe_upstream_product_variant_value(&row.node, Some((product_id, value)));
+            }
+        }
+    }
+
+    fn observe_upstream_product_variant_value(
+        &mut self,
+        value: &Value,
+        product_hint: Option<(&str, &Value)>,
+    ) {
+        if let Some(variant_id) = value.get("id").and_then(Value::as_str) {
+            self.stage_observed_owner_metafields(variant_id, value);
+        }
+        let product_id = value
+            .pointer("/product/id")
+            .and_then(Value::as_str)
+            .or_else(|| product_hint.map(|(product_id, _)| product_id))
+            .or_else(|| {
+                value
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .and_then(|id| self.store.product_variant_by_id(id))
+                    .map(|variant| variant.product_id.as_str())
+            })
+            .map(str::to_string);
+        if let Some(product) = value.get("product") {
+            self.store.observe_base_product_json(product);
+        }
+        if let Some(inventory_item) = value.get("inventoryItem") {
+            let mut observed_item = inventory_item.clone();
+            let mut observed_variant = value.clone();
+            if observed_variant.get("product").is_none() {
+                if let Some((product_id, product)) = product_hint {
+                    let mut parent = product.clone();
+                    if let Some(parent) = parent.as_object_mut() {
+                        parent.insert("id".to_string(), json!(product_id));
+                        parent.remove("variants");
+                    }
+                    observed_variant["product"] = parent;
+                } else if let Some(product_id) = product_id.as_deref() {
+                    observed_variant["product"] = json!({ "id": product_id });
+                }
+            }
+            observed_item["variant"] = observed_variant;
+            self.observe_inventory_item_node(&observed_item);
+        } else if let Some(product_id) = product_id.as_deref() {
+            self.store
+                .observe_base_product_variant_json(value, product_id);
+        }
+    }
+
     pub(in crate::proxy) fn product_query_is_upstream_authoritative(
         &self,
         context: &AdminOperationContext<'_>,
@@ -1095,7 +1215,13 @@ impl DraftProxy {
             "products" | "productsCount" => !self.product_catalog_overlay_active(),
             "product" => {
                 let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                if self.has_deleted_media_files() && !id.is_empty() {
+                if product_selections_include_names(&field.selection, &["onlineStorePreviewUrl"]) {
+                    // Shopify signs preview URLs and may rotate them as the
+                    // product changes. A baseline observation is useful for
+                    // later staged writes, but it is not an authoritative
+                    // cache for this live-only field.
+                    true
+                } else if self.has_deleted_media_files() && !id.is_empty() {
                     // fileDelete keeps an authoritative file tombstone. Route a
                     // cold singular owner through the local callback so it can
                     // hydrate every media/variant page and apply that tombstone
@@ -1573,10 +1699,7 @@ impl DraftProxy {
             || (self.config.read_mode == ReadMode::LiveHybrid
                 && !self.product_catalog_overlay_active())
         {
-            return self.cached_or_forward_upstream_root_outcome(
-                invocation.request,
-                invocation.response_key,
-            );
+            return self.cached_or_forward_upstream_product_root_outcome(&invocation);
         }
         let arguments = invocation
             .arguments
@@ -1586,20 +1709,14 @@ impl DraftProxy {
         self.hydrate_product_saved_search_for_arguments(invocation.request, &arguments);
         let arguments = self.product_arguments_with_saved_search_query(&arguments);
         if Self::product_arguments_need_upstream_catalog_search(&arguments) {
-            return self.cached_or_forward_upstream_root_outcome(
-                invocation.request,
-                invocation.response_key,
-            );
+            return self.cached_or_forward_upstream_product_root_outcome(&invocation);
         }
         if self.config.read_mode == ReadMode::LiveHybrid {
             return self
                 .live_hybrid_product_count_value(invocation.request, &arguments)
                 .map(ResolverOutcome::value)
                 .unwrap_or_else(|| {
-                    self.cached_or_forward_upstream_root_outcome(
-                        invocation.request,
-                        invocation.response_key,
-                    )
+                    self.cached_or_forward_upstream_product_root_outcome(&invocation)
                 });
         }
         let count = staged_connection_query(
@@ -1621,10 +1738,7 @@ impl DraftProxy {
             || (self.config.read_mode == ReadMode::LiveHybrid
                 && !self.product_catalog_overlay_active())
         {
-            return self.cached_or_forward_upstream_root_outcome(
-                invocation.request,
-                invocation.response_key,
-            );
+            return self.cached_or_forward_upstream_product_root_outcome(&invocation);
         }
         let arguments = invocation
             .arguments
@@ -1634,20 +1748,14 @@ impl DraftProxy {
         self.hydrate_product_saved_search_for_arguments(invocation.request, &arguments);
         let arguments = self.product_arguments_with_saved_search_query(&arguments);
         if Self::product_arguments_need_upstream_catalog_search(&arguments) {
-            return self.cached_or_forward_upstream_root_outcome(
-                invocation.request,
-                invocation.response_key,
-            );
+            return self.cached_or_forward_upstream_product_root_outcome(&invocation);
         }
         if self.config.read_mode == ReadMode::LiveHybrid {
             return self
                 .product_catalog_window_value(invocation.request, &arguments)
                 .map(ResolverOutcome::value)
                 .unwrap_or_else(|| {
-                    self.cached_or_forward_upstream_root_outcome(
-                        invocation.request,
-                        invocation.response_key,
-                    )
+                    self.cached_or_forward_upstream_product_root_outcome(&invocation)
                 });
         }
         ResolverOutcome::value(staged_connection_value_with_args(
@@ -1682,10 +1790,7 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Live
             || (self.config.read_mode == ReadMode::LiveHybrid && !has_local_answer)
         {
-            return self.cached_or_forward_upstream_root_outcome(
-                invocation.request,
-                invocation.response_key,
-            );
+            return self.cached_or_forward_upstream_product_root_outcome(&invocation);
         }
         ResolverOutcome::value(
             product
@@ -1741,10 +1846,7 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Live
             || (self.config.read_mode == ReadMode::LiveHybrid && !has_local_answer)
         {
-            return self.cached_or_forward_upstream_root_outcome(
-                invocation.request,
-                invocation.response_key,
-            );
+            return self.cached_or_forward_upstream_product_root_outcome(&invocation);
         }
         let value = if self.store.product_variants.staged.is_tombstoned(id) || owner_known_missing {
             Value::Null
@@ -1812,10 +1914,7 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Live
             || (self.config.read_mode == ReadMode::LiveHybrid && !has_local_answer)
         {
-            return self.cached_or_forward_upstream_root_outcome(
-                invocation.request,
-                invocation.response_key,
-            );
+            return self.cached_or_forward_upstream_product_root_outcome(&invocation);
         }
         let value = if self.store.product_is_tombstoned(id) || owner_known_missing {
             Value::Null
@@ -2626,6 +2725,7 @@ pub(in crate::proxy) const PRODUCT_MUTATION_PREFLIGHT_HYDRATE_QUERY: &str =
 const PRODUCT_OBSERVED_FIELDS_FIELD: &str = "__shopifyDraftProxyObservedFields";
 const PRODUCT_COMPLETE_RELATIONSHIPS_FIELD: &str = "__shopifyDraftProxyCompleteRelationships";
 const PRODUCT_STAGED_FIELDS_FIELD: &str = "__shopifyDraftProxyStagedFields";
+const PRODUCT_VARIANT_EDGE_CURSOR_FIELD: &str = "__shopifyDraftProxyEdgeCursor";
 pub(in crate::proxy) const PRODUCT_MUTATION_HYDRATION_COMPLETE_FIELD: &str =
     "__shopifyDraftProxyMutationHydrationComplete";
 const PRODUCT_MUTATION_REQUIRED_FIELDS: &[&str] = &[
@@ -2874,6 +2974,15 @@ fn product_staged_fields(product: &ProductRecord) -> BTreeSet<String> {
     product_metadata_set(product, PRODUCT_STAGED_FIELDS_FIELD).unwrap_or_default()
 }
 
+pub(in crate::proxy) fn product_field_is_observed_or_staged(
+    product: &ProductRecord,
+    field: &str,
+) -> bool {
+    product_observed_fields(product).is_none_or(|fields| {
+        fields.contains(field) || product_staged_fields(product).contains(field)
+    })
+}
+
 pub(in crate::proxy) fn mark_product_staged_fields(product: &mut ProductRecord, fields: &[&str]) {
     let mut staged_fields = product_staged_fields(product);
     staged_fields.extend(fields.iter().map(|field| (*field).to_string()));
@@ -3038,6 +3147,32 @@ pub(in crate::proxy) fn set_product_publication_entries(
         "publishedAt".to_string(),
         published_at.map(Value::String).unwrap_or(Value::Null),
     );
+    let visible_entries = if product.status == "ACTIVE" {
+        entries.as_slice()
+    } else {
+        &[]
+    };
+    for (field, typename) in [
+        ("resourcePublications", "ResourcePublication"),
+        ("resourcePublicationsV2", "ResourcePublicationV2"),
+    ] {
+        let Some(mut connection) = product.extra_fields.get(field).cloned() else {
+            continue;
+        };
+        let Some(connection_object) = connection.as_object_mut() else {
+            continue;
+        };
+        connection_object.insert(
+            "nodes".to_string(),
+            Value::Array(
+                visible_entries
+                    .iter()
+                    .map(|entry| canonical_resource_publication_node(product, entry, typename))
+                    .collect(),
+            ),
+        );
+        product.extra_fields.insert(field.to_string(), connection);
+    }
 }
 
 pub(in crate::proxy) fn product_is_published_on_publication(
@@ -3160,10 +3295,7 @@ impl DraftProxy {
             }
         };
         let Some(payload) = payload else {
-            return self.cached_or_forward_upstream_root_outcome(
-                invocation.request,
-                invocation.response_key,
-            );
+            return self.cached_or_forward_upstream_product_root_outcome(&invocation);
         };
         let has_errors = ["userErrors", "mediaUserErrors"].iter().any(|key| {
             payload
@@ -4262,7 +4394,13 @@ fn product_variant_connection_with_fallback_value(
                 .map(product_variant_state_json),
         );
     }
-    connection_value_with_args(nodes, arguments, value_id_cursor)
+    connection_value_with_args(nodes, arguments, |variant| {
+        variant
+            .get(PRODUCT_VARIANT_EDGE_CURSOR_FIELD)
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .unwrap_or_else(|| value_id_cursor(variant))
+    })
 }
 
 fn sorted_product_variant_records_for_connection(

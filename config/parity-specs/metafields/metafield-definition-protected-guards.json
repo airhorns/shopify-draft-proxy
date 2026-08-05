@@ -69,7 +69,10 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/metafields/metafield-definition-app-namespace-create.graphql",
           "apiVersion": "2026-04",
-          "variablesCapturePath": "$.appReserved.definitionCreate.request.variables"
+          "variablesCapturePath": "$.appReserved.definitionCreate.request.variables",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
         },
         "expectedDifferences": [
           {
@@ -86,7 +89,10 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/metafields/metafield-definition-update-delete-preconditions-metafields-set.graphql",
           "apiVersion": "2026-04",
-          "variablesCapturePath": "$.appReserved.metafieldsSet.request.variables"
+          "variablesCapturePath": "$.appReserved.metafieldsSet.request.variables",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
         },
         "expectedDifferences": [
           {
@@ -103,7 +109,10 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/metafields/metafield-definition-protected-guards-delete-no-flag.graphql",
           "apiVersion": "2026-04",
-          "variablesCapturePath": "$.appReserved.deleteNoFlag.request.variables"
+          "variablesCapturePath": "$.appReserved.deleteNoFlag.request.variables",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
         }
       },
       {
@@ -113,7 +122,10 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/metafields/metafield-definition-protected-guards-read.graphql",
           "apiVersion": "2026-04",
-          "variablesCapturePath": "$.appReserved.readAfterGuard.request.variables"
+          "variablesCapturePath": "$.appReserved.readAfterGuard.request.variables",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
         }
       },
       {
@@ -123,7 +135,10 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/metafields/metafield-definition-protected-guards-delete-with-flag.graphql",
           "apiVersion": "2026-04",
-          "variablesCapturePath": "$.appReserved.deleteWithFlag.request.variables"
+          "variablesCapturePath": "$.appReserved.deleteWithFlag.request.variables",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
         }
       }
     ]

@@ -274,7 +274,7 @@ The Python package is not a second proxy implementation and does not spawn the R
 - `src/operation_registry.rs` is the executable source of truth for operation metadata. TypeScript tooling loads the same metadata through the Rust `operation-registry-json` exporter instead of maintaining a second checked-in JSON registry.
 - Complete version-scoped Admin GraphQL SDL lives at `config/admin-graphql/<api-version>/schema.graphql`, with the shared inventory/default in `config/admin-graphql/manifest.json`. `scripts/capture-admin-graphql-schema.mts` records and normalizes SDL from Shopify introspection, and both runtime execution and schema-aware tooling consume those sources.
 - Parity requests use the API version declared by their live capture (or its fixture path) unless a target explicitly overrides `apiVersion`; an unsupported declared/path version is an error rather than a silent schema substitution. Captures with no version evidence use the manifest default (`2026-07`).
-- Full parity can emit a machine-readable result document. Main-branch CI publishes it as a baseline; pull requests reject new failing specs, new failing targets inside known-red specs, and missing baseline scenarios while still reporting known failures and fixes.
+- Full parity can emit a machine-readable result document for local diagnosis. CI runs every discovered spec as a hard gate; any failing recorded scenario fails the build.
 
 ## State model
 

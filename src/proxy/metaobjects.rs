@@ -226,6 +226,7 @@ impl DraftProxy {
 const STANDARD_METAOBJECT_TEMPLATES_FIXTURE: &str = include_str!(
     "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/standard-metaobject-templates.json"
 );
+const METAOBJECT_HYDRATE_BY_ID_QUERY: &str = "query MetaobjectHydrateById($id: ID!) { metaobject(id: $id) { id handle type displayName createdAt updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } definition { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } } }";
 
 static STANDARD_METAOBJECT_TEMPLATE_CATALOG: OnceLock<Value> = OnceLock::new();
 
@@ -723,6 +724,23 @@ fn metaobject_definition_is_reserved_type(meta_type: &str) -> bool {
 
 fn metaobject_definition_is_app_reserved_type(meta_type: &str) -> bool {
     meta_type.starts_with("app--")
+}
+
+fn metaobject_definition_update_is_immutable(definition: &Value) -> bool {
+    definition
+        .get("appConfigManaged")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+        || definition
+            .get("standardTemplate")
+            .is_some_and(|template| !template.is_null())
+        || definition
+            .get("type")
+            .and_then(Value::as_str)
+            .is_some_and(|meta_type| {
+                metaobject_definition_is_reserved_type(meta_type)
+                    || standard_metaobject_definition_template(meta_type).is_some()
+            })
 }
 
 fn metaobject_definition_field_limit() -> usize {
@@ -3202,25 +3220,14 @@ impl DraftProxy {
             || !self.store.staged.deleted_metaobject_types.is_empty()
     }
 
-    /// Decides whether a metaobject mutation request should be staged locally or
-    /// forwarded upstream. Create/Delete and definition Create/Delete are always
-    /// emulated locally. Update/Upsert/DefinitionUpdate are emulated locally only
-    /// when their target already exists in local staged state (i.e. it was created
-    /// in this scenario): a backend that staged the resource locally also expects
-    /// the proxy to mutate it locally. When the target lives upstream (seeded or
-    /// live-captured records the proxy never created), the request is forwarded so
-    /// the real backend response is used instead of a synthetic one.
+    /// Decides whether a metaobject mutation request should be staged locally.
+    /// `metaobjectUpdate` owns query-only hydration for cold targets, so it must
+    /// always enter the local handler: forwarding a registered mutation would leak
+    /// the write before commit and bypass captured not-found behavior.
     fn metaobject_mutation_is_local(&self, field: &MetaobjectRootInput) -> bool {
         match field.name.as_str() {
-            "metaobjectUpdate" => resolved_string_field(&field.arguments, "id")
-                .map(|id| self.metaobject_staged_key_by_id(&id).is_some())
-                .unwrap_or(false),
-            "metaobjectUpsert" => match resolved_object_field(&field.arguments, "handle") {
-                Some(handle) => resolved_string_field(&handle, "type")
-                    .map(|meta_type| self.metaobject_definition_by_type(&meta_type).is_some())
-                    .unwrap_or(false),
-                _ => false,
-            },
+            "metaobjectUpdate" => true,
+            "metaobjectUpsert" => true,
             "metaobjectDefinitionUpdate" => resolved_string_field(&field.arguments, "id")
                 .map(|id| self.metaobject_definition_staged_key_by_id(&id).is_some())
                 .unwrap_or(false),
@@ -3713,7 +3720,8 @@ impl DraftProxy {
         let response = self.upstream_post(
             request,
             json!({
-                "query": "query MetaobjectHydrateById($id: ID!) { node(id: $id) { __typename } metaobject(id: $id) { id handle type displayName createdAt updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } titleField: field(key: \"title\") { key type value jsonValue definition { key name required type { name category } } } } }",
+                "operationName": "MetaobjectHydrateById",
+                "query": METAOBJECT_HYDRATE_BY_ID_QUERY,
                 "variables": {"id": id}
             }),
         );
@@ -4420,6 +4428,30 @@ impl DraftProxy {
             metaobject_display_name(&definition, &input_values, &handle_display_source);
         let publishable_status =
             metaobject_updated_publishable_status(&input, &definition, &existing);
+        let online_store_template_suffix = metaobject_online_store_template_suffix_input(&input)
+            .or_else(|| metaobject_existing_online_store_template_suffix(&existing))
+            .unwrap_or(Value::Null);
+        let publishable_unchanged = !definition["capabilities"]["publishable"]["enabled"]
+            .as_bool()
+            .unwrap_or(false)
+            || existing["capabilities"]["publishable"]["status"].as_str()
+                == Some(publishable_status.as_str());
+        let online_store_unchanged = !definition["capabilities"]["onlineStore"]["enabled"]
+            .as_bool()
+            .unwrap_or(false)
+            || metaobject_existing_online_store_template_suffix(&existing).unwrap_or(Value::Null)
+                == online_store_template_suffix;
+        if existing_handle == next_handle
+            && metaobject_existing_field_values(&existing) == input_values
+            && existing.get("displayName").and_then(Value::as_str) == Some(display_name.as_str())
+            && publishable_unchanged
+            && online_store_unchanged
+        {
+            return self.metaobject_payload_canonical_value(json!({
+                "metaobject": existing,
+                "userErrors": []
+            }));
+        }
         // `_with_options` nulls the publishable capability when the definition has it
         // disabled (e.g. after a schema change turned it off), matching how Shopify
         // reads back entries whose definition no longer exposes the capability.
@@ -4434,9 +4466,7 @@ impl DraftProxy {
                 created_at,
                 display_name: &display_name,
                 publishable_status: &publishable_status,
-                online_store_template_suffix: metaobject_online_store_template_suffix_input(&input)
-                    .or_else(|| metaobject_existing_online_store_template_suffix(&existing))
-                    .unwrap_or(Value::Null),
+                online_store_template_suffix,
                 updated_at: &updated_at,
             },
         );
@@ -4887,6 +4917,16 @@ impl DraftProxy {
                 "userErrors": []
             }));
         };
+        if metaobject_definition_update_is_immutable(&definition) {
+            return json!({
+                "metaobjectDefinition": null,
+                "userErrors": [metaobject_field_error(
+                    vec!["definition"],
+                    "Standard metaobject definitions can't be updated",
+                    "IMMUTABLE",
+                )]
+            });
+        }
         let meta_type = definition
             .get("type")
             .and_then(Value::as_str)
@@ -5500,6 +5540,7 @@ mod tests {
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
             port: 0,
             shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
             snapshot_path: None,
         })
         .with_upstream_transport(|_| panic!("metaobject definition tests should stay local"))
@@ -5598,6 +5639,7 @@ mod tests {
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
             port: 0,
             shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
             snapshot_path: None,
         })
         .with_upstream_transport(move |_| {
@@ -5655,6 +5697,7 @@ mod tests {
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
             port: 0,
             shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
             snapshot_path: None,
         })
         .with_upstream_transport(move |request| {
@@ -5737,6 +5780,196 @@ mod tests {
             json!("Legacy entry")
         );
         assert_eq!(calls.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn live_hybrid_metaobject_update_hydrates_unknown_id_without_forwarding_the_write() {
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let observed_calls = Arc::clone(&calls);
+        let mut proxy = DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
+            snapshot_path: None,
+        })
+        .with_upstream_transport(move |request| {
+            let request_body: Value = serde_json::from_str(&request.body).unwrap();
+            observed_calls.lock().unwrap().push(request_body.clone());
+            assert_eq!(
+                request_body["operationName"],
+                json!("MetaobjectHydrateById")
+            );
+            assert!(request_body["query"]
+                .as_str()
+                .is_some_and(|query| query.trim_start().starts_with("query ")));
+            Response {
+                status: 200,
+                headers: BTreeMap::new(),
+                body: json!({ "data": { "metaobject": null } }),
+            }
+        });
+
+        let response = proxy.process_request(graphql_request(
+            r#"
+                mutation UpdateUnknownMetaobject(
+                  $id: ID!
+                  $metaobject: MetaobjectUpdateInput!
+                ) {
+                  metaobjectUpdate(id: $id, metaobject: $metaobject) {
+                    metaobject { id }
+                    userErrors { field message code elementKey elementIndex }
+                  }
+                }
+            "#,
+            json!({
+                "id": "gid://shopify/Metaobject/999999",
+                "metaobject": { "fields": [{ "key": "title", "value": "Nope" }] }
+            }),
+        ));
+
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["metaobjectUpdate"],
+            json!({
+                "metaobject": null,
+                "userErrors": [{
+                    "field": ["id"],
+                    "message": "Record not found",
+                    "code": "RECORD_NOT_FOUND",
+                    "elementKey": null,
+                    "elementIndex": null
+                }]
+            })
+        );
+        assert_eq!(calls.lock().unwrap().len(), 1);
+        assert!(proxy.store.staged.metaobjects.is_empty());
+        assert!(proxy.log_entries.is_empty());
+    }
+
+    #[test]
+    fn live_hybrid_metaobject_upsert_hydrates_cold_definition_without_forwarding_the_write() {
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let observed_calls = Arc::clone(&calls);
+        let mut proxy = DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
+            snapshot_path: None,
+        })
+        .with_upstream_transport(move |request| {
+            let request_body: Value = serde_json::from_str(&request.body).unwrap();
+            let query = request_body["query"].as_str().unwrap_or_default();
+            observed_calls.lock().unwrap().push(request_body.clone());
+            assert!(query.trim_start().starts_with("query "));
+            if query.contains("MetaobjectHydrateByHandle") {
+                return Response {
+                    status: 200,
+                    headers: BTreeMap::new(),
+                    body: json!({ "data": { "metaobjectByHandle": null } }),
+                };
+            }
+            assert!(query.contains("MetaobjectDefinitionHydrateByType"));
+            Response {
+                status: 200,
+                headers: BTreeMap::new(),
+                body: json!({
+                    "data": {
+                        "metaobjectDefinitionByType": {
+                            "id": "gid://shopify/MetaobjectDefinition/9",
+                            "type": "cold_upsert_type",
+                            "name": "Cold upsert",
+                            "description": null,
+                            "displayNameKey": "title",
+                            "access": { "admin": "PUBLIC_READ_WRITE", "storefront": "NONE" },
+                            "capabilities": {
+                                "publishable": { "enabled": false },
+                                "translatable": { "enabled": false },
+                                "renderable": { "enabled": false },
+                                "onlineStore": { "enabled": false }
+                            },
+                            "fieldDefinitions": [{
+                                "key": "title",
+                                "name": "Title",
+                                "description": null,
+                                "required": true,
+                                "type": { "name": "single_line_text_field", "category": "TEXT" },
+                                "validations": []
+                            }],
+                            "hasThumbnailField": false,
+                            "metaobjectsCount": 0,
+                            "standardTemplate": null,
+                            "createdAt": "2026-01-01T00:00:00Z",
+                            "updatedAt": "2026-01-01T00:00:00Z"
+                        }
+                    }
+                }),
+            }
+        });
+
+        let response = proxy.process_request(graphql_request(
+            r#"
+                mutation UpsertColdMetaobject(
+                  $handle: MetaobjectHandleInput!
+                  $metaobject: MetaobjectUpsertInput!
+                ) {
+                  metaobjectUpsert(handle: $handle, metaobject: $metaobject) {
+                    metaobject { id type handle displayName updatedAt fields { key value } }
+                    userErrors { field message code elementKey elementIndex }
+                  }
+                }
+            "#,
+            json!({
+                "handle": { "type": "cold_upsert_type", "handle": "cold-upsert" },
+                "metaobject": { "fields": [{ "key": "title", "value": "Cold Upsert" }] }
+            }),
+        ));
+
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["metaobjectUpsert"]["userErrors"],
+            json!([])
+        );
+        assert_eq!(
+            response.body["data"]["metaobjectUpsert"]["metaobject"]["handle"],
+            json!("cold-upsert")
+        );
+        assert_eq!(
+            response.body["data"]["metaobjectUpsert"]["metaobject"]["displayName"],
+            json!("Cold Upsert")
+        );
+        assert_eq!(calls.lock().unwrap().len(), 2);
+        assert_eq!(proxy.log_entries.len(), 1);
+
+        let created = response.body["data"]["metaobjectUpsert"]["metaobject"].clone();
+        let repeated = proxy.process_request(graphql_request(
+            r#"
+                mutation RepeatColdMetaobjectUpsert(
+                  $handle: MetaobjectHandleInput!
+                  $metaobject: MetaobjectUpsertInput!
+                ) {
+                  metaobjectUpsert(handle: $handle, metaobject: $metaobject) {
+                    metaobject { id type handle displayName updatedAt fields { key value } }
+                    userErrors { field message code elementKey elementIndex }
+                  }
+                }
+            "#,
+            json!({
+                "handle": { "type": "cold_upsert_type", "handle": "cold-upsert" },
+                "metaobject": { "fields": [{ "key": "title", "value": "Cold Upsert" }] }
+            }),
+        ));
+        assert_eq!(
+            repeated.body["data"]["metaobjectUpsert"]["metaobject"],
+            created
+        );
+        assert_eq!(calls.lock().unwrap().len(), 2);
+        assert_eq!(proxy.log_entries.len(), 1);
     }
 
     #[test]

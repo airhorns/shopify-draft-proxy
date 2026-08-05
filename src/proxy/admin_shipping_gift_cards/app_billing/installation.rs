@@ -63,6 +63,38 @@ impl DraftProxy {
             .insert(request_app_gid(request), app_id.to_string());
     }
 
+    pub(in crate::proxy) fn observe_function_app_identity(
+        &mut self,
+        request: &Request,
+        function: &Value,
+    ) {
+        let Some(app) = function.get("app").filter(|app| app.is_object()) else {
+            return;
+        };
+        let Some(app_id) = app.get("id").and_then(Value::as_str) else {
+            return;
+        };
+        self.observe_app(app);
+        self.remember_current_app_request_context(request, app_id);
+    }
+
+    pub(in crate::proxy) fn current_app_api_client_id_for_request(
+        &self,
+        request: &Request,
+    ) -> String {
+        let request_app_id = request_app_gid(request);
+        self.current_app_installation_app_id_for_request(&request_app_id)
+            .or_else(|| {
+                self.store
+                    .base
+                    .current_app_ids_by_request_context
+                    .get(&request_app_context_key(request))
+                    .cloned()
+            })
+            .map(|app_id| resource_id_tail(&app_id).to_string())
+            .unwrap_or_else(|| request_api_client_id(request))
+    }
+
     fn observe_app(&mut self, observed: &Value) {
         let Some(app_id) = observed
             .get("id")

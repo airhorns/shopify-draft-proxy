@@ -45,6 +45,7 @@ pub(super) fn configured_proxy_with_bulk_mutation_max(
         bulk_operation_run_mutation_max_input_file_size_bytes,
         port: 0,
         shopify_admin_origin: "https://shopify.com".to_string(),
+        shopify_store_domain: None,
         snapshot_path: None,
     })
 }

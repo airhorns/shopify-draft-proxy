@@ -132,6 +132,23 @@ pub(in crate::proxy) fn format_money_amount(amount: f64) -> String {
     normalize_money_amount(&format!("{rounded:.2}"))
 }
 
+/// Formats Shopify's legacy `Money` scalar, which preserves two fractional
+/// digits even though `MoneyV2.amount` uses the minimal-decimal representation.
+pub(in crate::proxy) fn format_money_scalar_amount(amount: f64) -> String {
+    let mut rounded = (amount * 100.0).round() / 100.0;
+    if rounded == 0.0 {
+        rounded = 0.0;
+    }
+    format!("{rounded:.2}")
+}
+
+pub(in crate::proxy) fn normalize_money_scalar_amount(amount: &str) -> String {
+    amount
+        .parse::<f64>()
+        .map(format_money_scalar_amount)
+        .unwrap_or_else(|_| amount.to_string())
+}
+
 pub(in crate::proxy) fn shopify_decimal_text(value: &str) -> String {
     let Ok(parsed) = value.parse::<f64>() else {
         return value.to_string();

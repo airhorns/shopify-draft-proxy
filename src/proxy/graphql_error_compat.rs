@@ -1246,9 +1246,10 @@ fn variable_named_value_problems(
         return problems;
     }
 
-    if let (Some(values), ResolvedValue::String(value)) =
-        (admin_graphql::enum_values(version, named_type), value)
-    {
+    if let (Some(values), ResolvedValue::String(value)) = (
+        shopify_variable_error_enum_values(version, named_type),
+        value,
+    ) {
         if !values.iter().any(|candidate| candidate == value) {
             return vec![variable_problem_value_path(
                 path,
@@ -1257,6 +1258,17 @@ fn variable_named_value_problems(
         }
     }
     Vec::new()
+}
+
+fn shopify_variable_error_enum_values(
+    version: AdminApiVersion,
+    named_type: &str,
+) -> Option<Vec<String>> {
+    let mut values = admin_graphql::enum_values(version, named_type)?;
+    if version == AdminApiVersion::V2026_04 && named_type == "WebhookSubscriptionTopic" {
+        values.retain(|value| value != "MACHINE_TRANSLATION_BATCH_COMPLETED");
+    }
+    Some(values)
 }
 
 fn shopify_input_literal_error(
@@ -1382,6 +1394,18 @@ fn shopify_input_literal_error(
         let (owner_kind, owner_name, location) = if semantic_path.len() == 1 {
             ("Field", field.name.clone(), field.location)
         } else {
+            let location = if semantic_path.len() == 2 {
+                inline_argument_value_location(query, field, semantic_path[0])
+            } else {
+                inline_input_field_value_location(
+                    query,
+                    field.location,
+                    semantic_path.len() as i32 - 1,
+                    semantic_path[semantic_path.len() - 2],
+                )
+                .or_else(|| inline_argument_value_location(query, field, semantic_path[0]))
+            }
+            .unwrap_or(field.location);
             (
                 "InputObject",
                 admin_graphql::input_owner_at_path(
@@ -1390,7 +1414,7 @@ fn shopify_input_literal_error(
                     &field.name,
                     &semantic_path,
                 )?,
-                inline_argument_value_location(query, field, path[0]).unwrap_or(field.location),
+                location,
             )
         };
         let argument_name = semantic_path.last()?;

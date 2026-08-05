@@ -158,6 +158,12 @@ Local staged mutations:
 - Shipping refunds staged through `refundCreate(input.shipping)` are retained on the refund record and rolled into downstream `Order.totalRefundedShippingSet`; the broader refund amount still follows the captured transaction total / line-item plus shipping fallback behavior.
 - Order shipping-line tax lines contribute to total tax calculations for staged `orderCreate`, and staged shipping lines remain visible through downstream `Order.shippingLines` reads.
 - Direct `orderCreate` line items preserve expanded staged field data for `properties`/`customAttributes`, shipping/taxable flags, gift-card/internal fulfillment/weight fields, vendor/product linkage, canonical `priceSet`, and line-level applied discounts. Locally created order display names allocate from a session-owned monotonic order-number counter that advances past existing staged/hydrated order names, so deletes do not cause later local order numbers to be reused. The live 2025-01 `order-create-line-item-fields` parity slice strictly covers the publicly selectable subset (`customAttributes`, `requiresShipping`, `taxable`, `vendor`, `product`, `originalUnitPriceSet`, empty `discountAllocations`) through the mutation payload and immediate downstream `order(id:)` read; focused runtime tests cover internal/offline-import fields that are not selectable in the current public Admin schema.
+- Captured `orderCreate` requests that supply an email without `customerId`
+  materialize a local Customer and attach it to the order. A later
+  `orderUpdate.email` changes the order contact email but preserves the attached
+  Customer's original email and display name, matching mutation and downstream
+  `order(id:)` reads. The implicit customer and its order relationship live in
+  the shared customer graph rather than a mutation-only response object.
 - Direct `orderCreate` with variant-backed lines stages a local order and uses
   the same normalized product/inventory graph as `inventoryItem`,
   `inventoryLevel`, product-variant, and downstream order reads. Before a

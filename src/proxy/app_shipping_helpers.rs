@@ -90,19 +90,29 @@ pub(in crate::proxy) fn fulfillment_service_name_whitespace_errors(name: &str) -
 pub(in crate::proxy) fn fulfillment_service_callback_url_host_is_allowed(
     host: &str,
     shopify_admin_origin: &str,
+    shopify_store_domain: Option<&str>,
 ) -> bool {
     let normalized_host = host.to_ascii_lowercase();
     normalized_host == "mock.shop"
         || normalized_host.ends_with(".mock.shop")
-        || fulfillment_service_shop_origin_host(shopify_admin_origin)
+        || fulfillment_service_shop_origin_host(shopify_admin_origin, shopify_store_domain)
             .is_some_and(|origin_host| normalized_host == origin_host)
 }
 
-fn fulfillment_service_shop_origin_host(shopify_admin_origin: &str) -> Option<String> {
-    url::Url::parse(shopify_admin_origin)
-        .ok()
-        .and_then(|url| url.host_str().map(str::to_ascii_lowercase))
-        .filter(|host| host.ends_with(".myshopify.com"))
+fn fulfillment_service_shop_origin_host(
+    shopify_admin_origin: &str,
+    shopify_store_domain: Option<&str>,
+) -> Option<String> {
+    shopify_store_domain
+        .map(str::trim)
+        .filter(|domain| domain.ends_with(".myshopify.com"))
+        .map(str::to_ascii_lowercase)
+        .or_else(|| {
+            url::Url::parse(shopify_admin_origin)
+                .ok()
+                .and_then(|url| url.host_str().map(str::to_ascii_lowercase))
+                .filter(|host| host.ends_with(".myshopify.com"))
+        })
 }
 
 pub(in crate::proxy) fn delegate_access_token_destroy_user_error(

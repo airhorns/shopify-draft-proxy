@@ -99,9 +99,36 @@ impl DraftProxy {
         let publish = root_field == "publishablePublish"
             || root_field == "publishablePublishToCurrentChannel";
         let mut hydrated_publishable = None;
+        let has_pre_hydration_input_errors = !self
+            .publishable_publication_input_errors(arguments.get("input"), to_current)
+            .is_empty();
+
+        // The combined publishable/shop hydrate is the authoritative cold
+        // existence read for these mutations. It must not depend on callers
+        // selecting `shop`, `title`, or `handle`: aggregate-only Product
+        // selections still need the resource to be resolved before validation.
+        // Falling through to `publishable_resource_exists` first would issue a
+        // different product/collection hydrate and discard the captured
+        // publishable payload that this mutation is designed to consume.
+        let cold_supported_publishable = matches!(
+            shopify_gid_resource_type(&resource_id),
+            Some("Product" | "Collection")
+        ) && !has_pre_hydration_input_errors
+            && self
+                .publishable_resource_canonical_value(&resource_id)
+                .is_null()
+            && !self
+                .store
+                .staged
+                .resource_publications
+                .contains_key(&resource_id);
+        if cold_supported_publishable {
+            hydrated_publishable = self.hydrate_publishable_payload_shop(&resource_id, request);
+        }
 
         if requests_shop
             && (self.store.base.publication_count.is_none() || !self.shop_has_observed_identity())
+            && hydrated_publishable.is_none()
         {
             hydrated_publishable = self.hydrate_publishable_payload_shop(&resource_id, request);
         }
@@ -109,9 +136,9 @@ impl DraftProxy {
             && is_shopify_gid_of_type(&resource_id, "Collection")
             && self.store.collection_by_id(&resource_id).is_none()
         {
-            hydrated_publishable = self
-                .hydrate_publishable_payload_shop(&resource_id, request)
-                .or(hydrated_publishable);
+            if hydrated_publishable.is_none() {
+                hydrated_publishable = self.hydrate_publishable_payload_shop(&resource_id, request);
+            }
             if self.store.collection_by_id(&resource_id).is_none() {
                 self.hydrate_publishable_resource(&resource_id, request);
             }
@@ -152,7 +179,11 @@ impl DraftProxy {
         } else {
             None
         };
-        if resource_exists && to_current && current_channel_id.is_none() {
+        if resource_exists
+            && to_current
+            && self.store.staged.current_channel_publication_resolved
+            && current_channel_id.is_none()
+        {
             user_errors.push(user_error_omit_code(
                 ["id"],
                 "Channel does not exist",

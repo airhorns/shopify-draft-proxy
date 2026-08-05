@@ -19,12 +19,12 @@ import {
   recordedCallMatchesRequest,
   formatRecordedCallMismatch,
   stableJson,
+  validateRecordedUpstreamCalls,
 } from './parity-cassette.js';
 import { DEFAULT_ADMIN_API_VERSION, EXECUTABLE_ADMIN_API_VERSIONS } from './support/shopify/api-version.js';
 
 type CliArgs = {
   all: boolean;
-  allowFailures: boolean;
   debug: boolean;
   dryRun: boolean;
   outputJsonPath?: string;
@@ -52,6 +52,12 @@ type ProxyUploadSpec = {
   headers?: Record<string, string>;
 };
 
+type ProxySetupSpec = {
+  name: string;
+  captureResponsePath: string;
+  proxyRequest: ProxyRequestSpec;
+};
+
 type ProxyHttpRequestSpec = {
   method?: string;
   path: unknown;
@@ -74,6 +80,8 @@ type ComparisonTarget = {
   excludedPaths?: string[];
   expectedDifferences?: ExpectedDifference[];
   preserveProxyState?: boolean;
+  rewriteGidAliases?: boolean;
+  preferTargetFallback?: boolean;
 };
 
 type ExpectedDifference = {
@@ -89,6 +97,7 @@ type ParitySpec = {
   proxyConfig?: {
     readMode?: ReadMode;
   };
+  proxySetups?: ProxySetupSpec[];
   proxyRequest?: ProxyRequestSpec;
   comparison?: {
     expectedDifferences?: ExpectedDifference[];
@@ -103,13 +112,104 @@ type ProxyContext = {
 
 type ProxyResponse = { status: number; body: unknown };
 
+function capturedSchemaProbeCall(capture: Record<string, unknown>): RecordedUpstreamCall[] {
+  const probe = capture['schemaProbe'];
+  if (typeof probe !== 'object' || probe === null) return [];
+  const request = (probe as Record<string, unknown>)['request'];
+  const response = (probe as Record<string, unknown>)['response'];
+  if (typeof request !== 'object' || request === null || typeof response !== 'object' || response === null) return [];
+  const requestRecord = request as Record<string, unknown>;
+  const responseRecord = response as Record<string, unknown>;
+  if (typeof requestRecord['query'] !== 'string') return [];
+
+  const body = Object.fromEntries(
+    Object.entries(responseRecord).filter(([key]) => key !== 'status' && key !== 'headers'),
+  );
+  const call: RecordedUpstreamCall = {
+    query: requestRecord['query'],
+    variables: requestRecord['variables'] ?? {},
+    response: {
+      status: typeof responseRecord['status'] === 'number' ? responseRecord['status'] : 200,
+      body,
+    },
+  };
+  return validateRecordedUpstreamCalls([call]).length === 0 ? [call] : [];
+}
+
+function capturedUpstreamCalls(capture: Record<string, unknown>): RecordedUpstreamCall[] {
+  const calls = Array.isArray(capture['upstreamCalls']) ? (capture['upstreamCalls'] as RecordedUpstreamCall[]) : [];
+  return [...calls, ...capturedSchemaProbeCall(capture)];
+}
+
 export type ParityGidAliasBindings = {
   expectedToActual: Map<string, string>;
   actualToExpected: Map<string, string>;
+  fixedIdentities: Set<string>;
 };
 
 export function createParityGidAliasBindings(): ParityGidAliasBindings {
-  return { expectedToActual: new Map(), actualToExpected: new Map() };
+  return { expectedToActual: new Map(), actualToExpected: new Map(), fixedIdentities: new Set() };
+}
+
+function bindGidAlias(expected: string, actual: string, bindings: ParityGidAliasBindings): void {
+  if (shopifyGidType(expected) !== shopifyGidType(actual)) return;
+  if (expected === actual) {
+    if (!bindings.expectedToActual.has(expected) && !bindings.actualToExpected.has(actual)) {
+      bindings.fixedIdentities.add(expected);
+    }
+    return;
+  }
+  if (bindings.fixedIdentities.has(expected) || bindings.fixedIdentities.has(actual)) return;
+  const boundActual = bindings.expectedToActual.get(expected);
+  const boundExpected = bindings.actualToExpected.get(actual);
+  if (
+    (boundActual !== undefined && boundActual !== actual) ||
+    (boundExpected !== undefined && boundExpected !== expected)
+  ) {
+    return;
+  }
+  bindings.expectedToActual.set(expected, actual);
+  bindings.actualToExpected.set(actual, expected);
+}
+
+export function bindCorrespondingGidAliases(
+  expected: unknown,
+  actual: unknown,
+  bindings: ParityGidAliasBindings,
+): void {
+  if (typeof expected === 'string' && typeof actual === 'string') {
+    if (shopifyGidType(expected) !== undefined && shopifyGidType(actual) !== undefined) {
+      bindGidAlias(expected, actual, bindings);
+    }
+    return;
+  }
+  if (Array.isArray(expected) && Array.isArray(actual)) {
+    const count = Math.min(expected.length, actual.length);
+    for (let index = 0; index < count; index += 1) {
+      bindCorrespondingGidAliases(expected[index], actual[index], bindings);
+    }
+    return;
+  }
+  if (!isPlainObject(expected) || !isPlainObject(actual)) return;
+  for (const key of Object.keys(expected)) {
+    if (Object.hasOwn(actual, key)) bindCorrespondingGidAliases(expected[key], actual[key], bindings);
+  }
+}
+
+export function rewriteBoundGidAliases(value: unknown, bindings: ParityGidAliasBindings): unknown {
+  if (typeof value === 'string') return bindings.expectedToActual.get(value) ?? value;
+  if (Array.isArray(value)) return value.map((entry) => rewriteBoundGidAliases(entry, bindings));
+  if (!isPlainObject(value)) return value;
+  return Object.fromEntries(
+    Object.entries(value).map(([key, entry]) => [key, rewriteBoundGidAliases(entry, bindings)]),
+  );
+}
+
+function rewriteBoundGidAliasesInString(value: string, bindings: ParityGidAliasBindings): string {
+  let rewritten = value;
+  const aliases = [...bindings.expectedToActual.entries()].sort(([left], [right]) => right.length - left.length);
+  for (const [expected, actual] of aliases) rewritten = rewritten.replaceAll(expected, actual);
+  return rewritten;
 }
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -118,14 +218,6 @@ const paritySpecRoot = path.join(repoRoot, 'config', 'parity-specs');
 const defaultAdminApiVersion = DEFAULT_ADMIN_API_VERSION;
 const executableAdminApiVersions = new Set(EXECUTABLE_ADMIN_API_VERSIONS);
 const defaultReadMode: ReadMode = 'live-hybrid';
-const productsHydrateNodesObservationPath = path.join(
-  repoRoot,
-  'config',
-  'parity-requests',
-  'products',
-  'products-hydrate-nodes-observation.graphql',
-);
-const productDomainGidPattern = /gid:\/\/shopify\/(?:Product|ProductVariant|Collection)\/[A-Za-z0-9?=._:-]+/gu;
 
 function log(message: string): void {
   process.stdout.write(`${message}\n`);
@@ -135,10 +227,9 @@ function logError(message: string): void {
   process.stderr.write(`${message}\n`);
 }
 
-function parseArgs(argv: string[]): CliArgs {
+export function parseArgs(argv: string[]): CliArgs {
   const args: CliArgs = {
     all: false,
-    allowFailures: false,
     debug: false,
     dryRun: false,
     scenarioIds: [],
@@ -148,7 +239,6 @@ function parseArgs(argv: string[]): CliArgs {
     const arg = argv[index] ?? '';
     if (arg === '--') continue;
     if (arg === '--all') args.all = true;
-    else if (arg === '--allow-failures') args.allowFailures = true;
     else if (arg === '--debug') args.debug = true;
     else if (arg === '--dry-run') args.dryRun = true;
     else if (arg === '--output-json') {
@@ -184,11 +274,20 @@ async function readJsonFile<T>(filePath: string): Promise<T> {
 }
 
 export function scenarioClockFromCapture(capture: Record<string, unknown>): string | undefined {
-  const runIds = new Set<number>();
+  const captureEpochs = new Set<number>();
   let hasLifecycleTimestamp = false;
   const pending: unknown[] = [capture];
   while (pending.length > 0) {
     const candidate = pending.pop();
+    if (typeof candidate === 'string') {
+      if (candidate.startsWith('gid://shopify/')) continue;
+      for (const match of candidate.matchAll(/(?:^|\D)(\d{13})(?!\d)/gu)) {
+        const epochMilliseconds = Number(match[1]);
+        const year = new Date(epochMilliseconds).getUTCFullYear();
+        if (year >= 2020 && year <= 2100) captureEpochs.add(epochMilliseconds);
+      }
+      continue;
+    }
     if (Array.isArray(candidate)) {
       pending.push(...candidate);
       continue;
@@ -200,17 +299,17 @@ export function scenarioClockFromCapture(capture: Record<string, unknown>): stri
         if (/^\d{13}$/u.test(raw)) {
           const epochMilliseconds = Number(raw);
           const year = new Date(epochMilliseconds).getUTCFullYear();
-          if (year >= 2020 && year <= 2100) runIds.add(epochMilliseconds);
+          if (year >= 2020 && year <= 2100) captureEpochs.add(epochMilliseconds);
         }
       }
-      if ((key === 'startsAt' || key === 'endsAt') && isIsoTimestamp(value)) {
+      if ((key === 'startsAt' || key === 'endsAt' || key === 'reserveInventoryUntil') && isIsoTimestamp(value)) {
         hasLifecycleTimestamp = true;
       }
       pending.push(value);
     }
   }
-  if (!hasLifecycleTimestamp || runIds.size !== 1) return undefined;
-  return new Date([...runIds][0] as number).toISOString();
+  if (!hasLifecycleTimestamp || captureEpochs.size !== 1) return undefined;
+  return new Date([...captureEpochs][0] as number).toISOString();
 }
 
 async function findSpecForScenario(scenarioId: string): Promise<string> {
@@ -333,98 +432,6 @@ function deepClone<T>(value: T): T {
   return value === undefined ? value : (JSON.parse(JSON.stringify(value)) as T);
 }
 
-function productDomainResourceType(id: string): 'Product' | 'ProductVariant' | 'Collection' | null {
-  if (id.startsWith('gid://shopify/ProductVariant/')) return 'ProductVariant';
-  if (id.startsWith('gid://shopify/Product/')) return 'Product';
-  if (id.startsWith('gid://shopify/Collection/')) return 'Collection';
-  return null;
-}
-
-function collectProductDomainGids(value: unknown, ids = new Set<string>()): Set<string> {
-  if (typeof value === 'string') {
-    for (const match of value.matchAll(productDomainGidPattern)) ids.add(match[0] ?? '');
-    ids.delete('');
-    return ids;
-  }
-  if (Array.isArray(value)) {
-    for (const entry of value) collectProductDomainGids(entry, ids);
-    return ids;
-  }
-  if (typeof value === 'object' && value !== null) {
-    for (const entry of Object.values(value)) collectProductDomainGids(entry, ids);
-  }
-  return ids;
-}
-
-function productSummaryForVariant(product: Record<string, unknown>): Record<string, unknown> | null {
-  const id = product['id'];
-  if (typeof id !== 'string') return null;
-  const summary: Record<string, unknown> = { id };
-  for (const key of ['title', 'handle', 'status', 'totalInventory', 'tracksInventory', 'createdAt', 'updatedAt']) {
-    if (product[key] !== undefined) summary[key] = product[key];
-  }
-  return summary;
-}
-
-function collectProductDomainSetupNodes(
-  value: unknown,
-  nodes: Map<string, Record<string, unknown>>,
-  parentProduct: Record<string, unknown> | null = null,
-): void {
-  if (Array.isArray(value)) {
-    for (const entry of value) collectProductDomainSetupNodes(entry, nodes, parentProduct);
-    return;
-  }
-  if (typeof value !== 'object' || value === null) return;
-
-  const object = value as Record<string, unknown>;
-  const id = typeof object['id'] === 'string' ? object['id'] : null;
-  const resourceType = id ? productDomainResourceType(id) : null;
-  let nestedProduct = parentProduct;
-  if (id && resourceType) {
-    const node = deepClone(object);
-    if (resourceType === 'Product') nestedProduct = productSummaryForVariant(node) ?? parentProduct;
-    if (resourceType === 'ProductVariant' && node['product'] === undefined && parentProduct) {
-      node['product'] = parentProduct;
-    }
-    nodes.set(id, node);
-  }
-
-  for (const entry of Object.values(object)) collectProductDomainSetupNodes(entry, nodes, nestedProduct);
-}
-
-function capturedSetupProductDomainNodes(capture: Record<string, unknown>): Map<string, Record<string, unknown>> {
-  const nodes = new Map<string, Record<string, unknown>>();
-  const setup = capture['setup'];
-  const setupEntries = Array.isArray(setup)
-    ? setup
-    : typeof setup === 'object' && setup !== null
-      ? Object.values(setup)
-      : [];
-  for (const entry of setupEntries) {
-    if (typeof entry !== 'object' || entry === null) continue;
-    const payload = normalizedCapturePayload((entry as Record<string, unknown>)['response'] ?? entry);
-    collectProductDomainSetupNodes(payload, nodes);
-  }
-  const preconditionRead = capture['preconditionRead'];
-  if (preconditionRead !== undefined) {
-    collectProductDomainSetupNodes(normalizedCapturePayload(preconditionRead), nodes);
-  }
-  return nodes;
-}
-
-function requestNeedsCapturedProductDomainHydration(request: LoadedProxyRequest): boolean {
-  if (!/\bmetafieldsSet\b/u.test(request.query)) return false;
-  const metafields = request.variables['metafields'];
-  if (!Array.isArray(metafields)) return false;
-  return metafields.some((metafield) => {
-    if (typeof metafield !== 'object' || metafield === null) return false;
-    if (Object.hasOwn(metafield, 'compareDigest')) return true;
-    const type = (metafield as Record<string, unknown>)['type'];
-    return typeof type === 'string' && type.includes('reference') && collectProductDomainGids(metafield).size > 0;
-  });
-}
-
 function deletePathParts(cursor: unknown, parts: string[]): void {
   if (parts.length === 0 || cursor === undefined || cursor === null) return;
   const [head, ...rest] = parts;
@@ -518,82 +525,6 @@ function resolveSpecialVariables(
     );
   }
   return value;
-}
-
-function collectHydratableInventoryIds(value: unknown, ids = new Set<string>()): Set<string> {
-  if (Array.isArray(value)) {
-    for (const entry of value) collectHydratableInventoryIds(entry, ids);
-    return ids;
-  }
-  if (typeof value !== 'object' || value === null) return ids;
-  for (const [key, entry] of Object.entries(value)) {
-    if (
-      typeof entry === 'string' &&
-      (key === 'inventoryItemId' || key === 'id' || key === 'inventoryLevelId') &&
-      (entry.startsWith('gid://shopify/InventoryItem/') || entry.startsWith('gid://shopify/InventoryLevel/'))
-    ) {
-      ids.add(entry);
-    }
-    collectHydratableInventoryIds(entry, ids);
-  }
-  return ids;
-}
-
-async function hydrateInventoryNodes(
-  proxy: DraftProxy,
-  request: {
-    variables: Record<string, unknown>;
-    headers: Record<string, string>;
-    path: string;
-    apiSurface: ApiSurface;
-  },
-): Promise<void> {
-  const ids = [...collectHydratableInventoryIds(request.variables)].sort();
-  if (ids.length === 0) return;
-  await sendProxyRequest(proxy, {
-    path: request.path,
-    apiSurface: request.apiSurface,
-    headers: request.headers,
-    query:
-      'query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on InventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } } } } ... on InventoryLevel { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } item { id tracked requiresShipping variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } } } } } } }',
-    variables: { ids },
-  });
-}
-
-async function hydrateCapturedProductDomainNodes(
-  proxy: DraftProxy,
-  cassette: CassetteServer,
-  capture: Record<string, unknown>,
-  request: LoadedProxyRequest,
-): Promise<void> {
-  if (!requestNeedsCapturedProductDomainHydration(request)) return;
-  const setupNodes = capturedSetupProductDomainNodes(capture);
-  if (setupNodes.size === 0) return;
-  const ids = [...collectProductDomainGids(request.variables)]
-    .filter((id) => setupNodes.has(id))
-    .filter((id, index, all) => all.indexOf(id) === index)
-    .sort();
-  if (ids.length === 0) return;
-  const query = await readFile(productsHydrateNodesObservationPath, 'utf8');
-  const hydrateRequest: LoadedProxyRequest = {
-    path: request.path,
-    apiSurface: request.apiSurface,
-    headers: request.headers,
-    query,
-    variables: { ids },
-  };
-  cassette.setFallbackResponse(
-    {
-      status: 200,
-      body: {
-        data: {
-          nodes: ids.map((id) => setupNodes.get(id) ?? null),
-        },
-      },
-    },
-    hydrateRequest,
-  );
-  await sendProxyRequest(proxy, hydrateRequest);
 }
 
 function proxyGraphqlPath(request: ProxyRequestSpec | undefined, defaultApiVersion = defaultAdminApiVersion): string {
@@ -711,7 +642,11 @@ export function defaultApiVersionForCapture(capturePath: string, capture: Record
 type CassetteServer = {
   origin: string;
   setCalls: (calls: RecordedUpstreamCall[]) => void;
-  setFallbackResponse: (response: ProxyResponse | null, request?: LoadedProxyRequest | null) => void;
+  setFallbackResponse: (
+    response: ProxyResponse | null,
+    request?: LoadedProxyRequest | null,
+    preferFallback?: boolean,
+  ) => void;
   consumed: () => number;
   expected: () => number;
   close: () => Promise<void>;
@@ -720,6 +655,7 @@ type CassetteServer = {
 async function startCassetteServer(): Promise<CassetteServer> {
   let calls: RecordedUpstreamCall[] = [];
   let fallbackResponse: { response: ProxyResponse; call: RecordedUpstreamCall } | null = null;
+  let preferFallback = false;
   let fallbackCount = 0;
   const consumedCalls = new Set<number>();
   const server = createServer((request: IncomingMessage, response: ServerResponse) => {
@@ -742,6 +678,17 @@ async function startCassetteServer(): Promise<CassetteServer> {
       };
       const inferredApiSurface = apiSurfaceFromGraphqlPath(requestPath);
       if (inferredApiSurface !== null) outgoingRequest.apiSurface = inferredApiSurface;
+      if (
+        preferFallback &&
+        fallbackResponse !== null &&
+        recordedCallMatchesRequest(fallbackResponse.call, outgoingRequest)
+      ) {
+        fallbackCount += 1;
+        response.statusCode = fallbackResponse.response.status;
+        response.setHeader('content-type', 'application/json');
+        response.end(JSON.stringify(fallbackResponse.response.body));
+        return;
+      }
       const matchedIndex = calls.findIndex(
         (call, callIndex) => !consumedCalls.has(callIndex) && recordedCallMatchesRequest(call, outgoingRequest),
       );
@@ -784,10 +731,16 @@ async function startCassetteServer(): Promise<CassetteServer> {
     setCalls: (nextCalls: RecordedUpstreamCall[]) => {
       calls = nextCalls;
       fallbackResponse = null;
+      preferFallback = false;
       fallbackCount = 0;
       consumedCalls.clear();
     },
-    setFallbackResponse: (response: ProxyResponse | null, request?: LoadedProxyRequest | null) => {
+    setFallbackResponse: (
+      response: ProxyResponse | null,
+      request?: LoadedProxyRequest | null,
+      nextPreferFallback = false,
+    ) => {
+      preferFallback = nextPreferFallback;
       fallbackResponse =
         response && request
           ? {
@@ -912,7 +865,7 @@ function normalizeForTarget(value: unknown, target: ComparisonTarget): unknown {
   return applyExcludedPaths(selectPaths(comparable, target.selectedPaths), target.excludedPaths);
 }
 
-function captureResponseForTarget(capture: unknown, target: ComparisonTarget): ProxyResponse | null {
+export function captureResponseForTarget(capture: unknown, target: ComparisonTarget): ProxyResponse | null {
   for (const payloadPrefix of ['.result.body', '.response.body']) {
     const payloadIndex = target.capturePath.indexOf(payloadPrefix);
     if (payloadIndex === -1) continue;
@@ -942,6 +895,10 @@ function captureResponseForTarget(capture: unknown, target: ComparisonTarget): P
     const status = getPath(capture, `${responsePath}.status`);
     return { status: typeof status === 'number' ? status : 200, body: response };
   }
+  if (target.capturePath.endsWith('.data')) {
+    const data = getPath(capture, target.capturePath);
+    if (data !== undefined) return { status: 200, body: { data } };
+  }
   return null;
 }
 
@@ -953,7 +910,26 @@ function normalizedCapturePayload(value: unknown): unknown {
   return object;
 }
 
-function captureResponseForRequest(capture: unknown, request: LoadedProxyRequest): ProxyResponse | null {
+function capturedProxyResponse(value: unknown): ProxyResponse | null {
+  const body = normalizedCapturePayload(value);
+  if (body === null) return null;
+  const status =
+    typeof value === 'object' && value !== null && typeof (value as Record<string, unknown>)['status'] === 'number'
+      ? ((value as Record<string, unknown>)['status'] as number)
+      : 200;
+  return { status, body };
+}
+
+function capturedRequestMatches(entry: Record<string, unknown>, request: LoadedProxyRequest): boolean {
+  return (
+    typeof entry['query'] === 'string' &&
+    (entry['query'] as string).trimEnd() === request.query.trimEnd() &&
+    stableJson(entry['variables'] ?? {}) === stableJson(request.variables ?? {}) &&
+    (!('operationName' in entry) || (entry['operationName'] ?? null) === (request.operationName ?? null))
+  );
+}
+
+export function captureResponseForRequest(capture: unknown, request: LoadedProxyRequest): ProxyResponse | null {
   const pending: unknown[] = [capture];
   while (pending.length > 0) {
     const candidate = pending.pop();
@@ -963,14 +939,16 @@ function captureResponseForRequest(capture: unknown, request: LoadedProxyRequest
     }
     if (typeof candidate !== 'object' || candidate === null) continue;
     const entry = candidate as Record<string, unknown>;
-    if (
-      typeof entry['query'] === 'string' &&
-      (entry['query'] as string).trimEnd() === request.query.trimEnd() &&
-      stableJson(entry['variables'] ?? {}) === stableJson(request.variables ?? {}) &&
-      (!('operationName' in entry) || (entry['operationName'] ?? null) === (request.operationName ?? null))
-    ) {
-      const response = normalizedCapturePayload(entry['response'] ?? entry['result']);
-      if (response !== null) return { status: 200, body: response };
+    if (capturedRequestMatches(entry, request)) {
+      const response = capturedProxyResponse(entry['response'] ?? entry['result']);
+      if (response !== null) return response;
+    }
+    const nestedRequest = entry['request'];
+    if (typeof nestedRequest === 'object' && nestedRequest !== null && !Array.isArray(nestedRequest)) {
+      if (capturedRequestMatches(nestedRequest as Record<string, unknown>, request)) {
+        const response = capturedProxyResponse(entry['response'] ?? entry['result']);
+        if (response !== null) return response;
+      }
     }
     for (const value of Object.values(entry)) pending.push(value);
   }
@@ -1072,6 +1050,21 @@ export function diffValues(
   basePath = '$',
   gidAliases = createParityGidAliasBindings(),
 ): string[] {
+  if (
+    typeof capture === 'string' &&
+    typeof proxy === 'string' &&
+    rewriteBoundGidAliasesInString(capture, gidAliases) === proxy
+  ) {
+    return [];
+  }
+  if (
+    typeof capture === 'string' &&
+    typeof proxy === 'string' &&
+    gidAliases.expectedToActual.get(capture) === proxy &&
+    gidAliases.actualToExpected.get(proxy) === capture
+  ) {
+    return [];
+  }
   const rule = rules.find((candidate) => ruleMatchesPath(candidate.path, basePath));
   if (rule && matchesRule(proxy, rule, gidAliases)) return [];
   if (Object.is(capture, proxy)) return [];
@@ -1105,7 +1098,7 @@ async function runSpec(
   if (!capturePath) return [`${relativeSpecPath}: spec has no liveCaptureFiles[0]`];
   const capture = await readJsonFile<Record<string, unknown>>(path.resolve(repoRoot, capturePath));
   const defaultApiVersion = defaultApiVersionForCapture(capturePath, capture);
-  const upstreamCalls = (capture['upstreamCalls'] ?? []) as RecordedUpstreamCall[];
+  const upstreamCalls = capturedUpstreamCalls(capture);
   cassette.setCalls(upstreamCalls);
   proxy.restoreState(cleanState);
   await proxy.processRequest({ method: 'POST', path: '/__meta/reset' });
@@ -1115,8 +1108,44 @@ async function runSpec(
   let previousResponse: ProxyResponse | null = null;
   const namedResponses = new Map<string, ProxyResponse>();
   try {
+    for (const setup of spec.proxySetups ?? []) {
+      const setupRequest = await loadRequest(
+        setup.proxyRequest,
+        capture,
+        null,
+        previousResponse,
+        namedResponses,
+        defaultApiVersion,
+      );
+      if (setupRequest === null) throw new Error(`${setup.name}: proxy setup did not resolve to a request`);
+      setupRequest.variables = rewriteBoundGidAliases(setupRequest.variables, gidAliases) as Record<string, unknown>;
+      const capturedSetupSource = getPath(capture, setup.captureResponsePath);
+      const capturedSetupProxyResponse = capturedProxyResponse(capturedSetupSource);
+      if (capturedSetupProxyResponse === null) {
+        throw new Error(`${setup.name}: captureResponsePath did not resolve to a captured GraphQL response`);
+      }
+      // A captured setup query may be an ordinary passthrough read. Replaying its
+      // exact recorded request/response pair as the temporary fallback lets that
+      // read enter the proxy through the public GraphQL route without duplicating
+      // it into `upstreamCalls` or importing its result into private state.
+      cassette.setFallbackResponse(capturedSetupProxyResponse, setupRequest, true);
+      const setupResponse = await sendProxyRequest(proxy, setupRequest);
+      const capturedSetupResponse = capturedSetupProxyResponse.body;
+      bindCorrespondingGidAliases(capturedSetupResponse, setupResponse.body, gidAliases);
+      namedResponses.set(setup.name, setupResponse);
+      previousResponse = setupResponse;
+      if (debug) {
+        log(
+          `[parity-debug] ${relativeSpecPath} [setup:${setup.name}] proxy response ${JSON.stringify(setupResponse.body).slice(0, 1000)}`,
+        );
+      }
+    }
     const primaryRequest = await loadRequest(spec.proxyRequest, capture, null, null, namedResponses, defaultApiVersion);
     if (primaryRequest !== null) {
+      primaryRequest.variables = rewriteBoundGidAliases(primaryRequest.variables, gidAliases) as Record<
+        string,
+        unknown
+      >;
       const primaryFallbackTarget =
         spec.comparison?.targets?.find(
           (target) =>
@@ -1129,27 +1158,37 @@ async function runSpec(
       const primaryFallbackResponse =
         captureResponseForRequest(capture, primaryRequest) ??
         (primaryFallbackTarget ? captureResponseForTarget(capture, primaryFallbackTarget) : null);
-      await hydrateCapturedProductDomainNodes(proxy, cassette, capture, primaryRequest);
       cassette.setFallbackResponse(primaryFallbackResponse, primaryRequest);
-      await hydrateInventoryNodes(proxy, primaryRequest);
       primaryResponse = await sendProxyRequest(proxy, primaryRequest);
       previousResponse = primaryResponse;
+      if (primaryFallbackResponse !== null) {
+        bindCorrespondingGidAliases(primaryFallbackResponse.body, primaryResponse.body, gidAliases);
+      }
       if (debug) {
         log(
           `[parity-debug] ${relativeSpecPath} [primary] proxy response ${JSON.stringify(primaryResponse.body).slice(0, 1000)}`,
         );
+        if (gidAliases.expectedToActual.size > 0) {
+          log(
+            `[parity-debug] ${relativeSpecPath} [primary] gid aliases ${JSON.stringify(Object.fromEntries(gidAliases.expectedToActual))}`,
+          );
+        }
       }
     }
     let mainState = proxy.dumpState('1970-01-01T00:00:00.000Z');
 
     for (const target of spec.comparison?.targets ?? []) {
       let proxySource: unknown;
+      let targetResponseForAliases: ProxyResponse | null = null;
       if (target.isolatedProxy) {
         cassette.setCalls(upstreamCalls);
         await proxy.processRequest({ method: 'POST', path: '/__meta/reset' });
         primaryResponse = null;
         previousResponse = null;
         namedResponses.clear();
+        gidAliases.expectedToActual.clear();
+        gidAliases.actualToExpected.clear();
+        gidAliases.fixedIdentities.clear();
       } else if (target.preserveProxyState !== true) {
         proxy.restoreState(mainState);
       }
@@ -1175,10 +1214,21 @@ async function runSpec(
           defaultApiVersion,
         );
         if (request === null) throw new Error(`${target.name}: target proxyRequest did not resolve to a request`);
-        await hydrateCapturedProductDomainNodes(proxy, cassette, capture, request);
-        cassette.setFallbackResponse(captureResponseForTarget(capture, target), request);
-        await hydrateInventoryNodes(proxy, request);
+        if (target.rewriteGidAliases !== false) {
+          request.variables = rewriteBoundGidAliases(request.variables, gidAliases) as Record<string, unknown>;
+        }
+        if (debug && gidAliases.expectedToActual.size > 0) {
+          log(
+            `[parity-debug] ${relativeSpecPath} [${target.name}] aliased variables ${JSON.stringify(request.variables).slice(0, 1000)}`,
+          );
+        }
+        cassette.setFallbackResponse(
+          captureResponseForTarget(capture, target),
+          request,
+          target.preferTargetFallback === true,
+        );
         const targetResponse = await sendProxyRequest(proxy, request);
+        targetResponseForAliases = targetResponse;
         if (!target.isolatedProxy && target.preserveProxyState !== true) {
           mainState = proxy.dumpState('1970-01-01T00:00:00.000Z');
         }
@@ -1217,6 +1267,12 @@ async function runSpec(
           previousResponse = primaryResponse;
         }
       }
+      if (targetResponseForAliases !== null) {
+        const capturedTargetResponse = captureResponseForTarget(capture, target);
+        if (capturedTargetResponse !== null) {
+          bindCorrespondingGidAliases(capturedTargetResponse.body, targetResponseForAliases.body, gidAliases);
+        }
+      }
       const captureValue = normalizeForTarget(getPath(capture, target.capturePath), target);
       const proxyPath = target.proxyPath ?? target.proxyStatePath ?? target.proxyLogPath ?? '$';
       const proxyValue = normalizeForTarget(getPath(proxySource, proxyPath), target);
@@ -1235,7 +1291,12 @@ async function runSpec(
   return failures;
 }
 
-function createProxyContext(readMode: ReadMode, shopifyAdminOrigin: string, fixedNow?: string): ProxyContext {
+function createProxyContext(
+  readMode: ReadMode,
+  shopifyAdminOrigin: string,
+  fixedNow?: string,
+  shopifyStoreDomain?: string,
+): ProxyContext {
   const envName = 'SHOPIFY_DRAFT_PROXY_FIXED_NOW';
   const previousFixedNow = process.env[envName];
   if (fixedNow === undefined) delete process.env[envName];
@@ -1246,6 +1307,7 @@ function createProxyContext(readMode: ReadMode, shopifyAdminOrigin: string, fixe
       readMode,
       unsupportedMutationMode: 'passthrough',
       shopifyAdminOrigin,
+      ...(shopifyStoreDomain === undefined ? {} : { shopifyStoreDomain }),
       port: 0,
     });
   } finally {
@@ -1261,16 +1323,12 @@ async function main(): Promise<void> {
     args = parseArgs(process.argv.slice(2));
   } catch (error) {
     logError((error as Error).message);
-    logError(
-      'Usage: pnpm parity <scenario-id> | --spec <path> | --all [--debug] [--dry-run] [--output-json <path>] [--allow-failures]',
-    );
+    logError('Usage: pnpm parity <scenario-id> | --spec <path> | --all [--debug] [--dry-run] [--output-json <path>]');
     process.exit(2);
     return;
   }
   if (!args.all && args.scenarioIds.length === 0 && args.specPaths.length === 0) {
-    logError(
-      'Usage: pnpm parity <scenario-id> | --spec <path> | --all [--debug] [--dry-run] [--output-json <path>] [--allow-failures]',
-    );
+    logError('Usage: pnpm parity <scenario-id> | --spec <path> | --all [--debug] [--dry-run] [--output-json <path>]');
     process.exit(2);
     return;
   }
@@ -1280,12 +1338,13 @@ async function main(): Promise<void> {
   if (args.dryRun) return;
 
   const cassette = await startCassetteServer();
-  const proxyContexts = new Map<ReadMode, ProxyContext>();
-  function proxyContextFor(readMode: ReadMode): ProxyContext {
-    const existing = proxyContexts.get(readMode);
+  const proxyContexts = new Map<string, ProxyContext>();
+  function proxyContextFor(readMode: ReadMode, shopifyStoreDomain?: string): ProxyContext {
+    const key = `${readMode}\0${shopifyStoreDomain ?? ''}`;
+    const existing = proxyContexts.get(key);
     if (existing) return existing;
-    const context = createProxyContext(readMode, cassette.origin);
-    proxyContexts.set(readMode, context);
+    const context = createProxyContext(readMode, cassette.origin, undefined, shopifyStoreDomain);
+    proxyContexts.set(key, context);
     return context;
   }
 
@@ -1300,10 +1359,16 @@ async function main(): Promise<void> {
         capturePath === undefined
           ? undefined
           : await readJsonFile<Record<string, unknown>>(path.resolve(repoRoot, capturePath));
+      const shopifyStoreDomain =
+        typeof capture?.['storeDomain'] === 'string' && capture['storeDomain'].trim() !== ''
+          ? capture['storeDomain']
+          : undefined;
       const fixedNow = capture === undefined ? undefined : scenarioClockFromCapture(capture);
       const temporaryContext =
-        fixedNow === undefined ? undefined : createProxyContext(readMode, cassette.origin, fixedNow);
-      const { proxy, cleanState } = temporaryContext ?? proxyContextFor(readMode);
+        fixedNow === undefined
+          ? undefined
+          : createProxyContext(readMode, cassette.origin, fixedNow, shopifyStoreDomain);
+      const { proxy, cleanState } = temporaryContext ?? proxyContextFor(readMode, shopifyStoreDomain);
       let errors: string[];
       try {
         errors = await runSpec(specPath, args.debug, proxy, cassette, cleanState);
@@ -1344,7 +1409,7 @@ async function main(): Promise<void> {
   if (failedSpecs.length > 0) {
     logError(`[parity] ${failedSpecs.length}/${specPaths.length} spec(s) failed`);
   }
-  if (failedSpecs.length > 0 && !args.allowFailures) {
+  if (failedSpecs.length > 0) {
     process.exit(1);
   }
 }

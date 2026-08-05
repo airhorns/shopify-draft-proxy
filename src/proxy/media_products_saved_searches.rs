@@ -21,7 +21,8 @@ const TAGGABLE_DRAFT_ORDER_HYDRATE_QUERY: &str =
 const TAGGABLE_CUSTOMER_HYDRATE_QUERY: &str =
     include_str!("../runtime_graphql/customers/taggable-customer-hydrate.graphql.raw");
 const TAGGABLE_ARTICLE_HYDRATE_QUERY: &str = "query TagsArticleHydrate($id: ID!) {\n  article(id: $id) {\n    __typename\n    id\n    title\n    handle\n    tags\n    createdAt\n    updatedAt\n    blog { id }\n  }\n}";
-const TAGGABLE_PRODUCT_HYDRATE_QUERY: &str = "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      availablePublicationsCount { count precision }\n      resourcePublicationsCount { count precision }\n      resourcePublicationsV2(first: 10) { nodes { publication { id } publishDate isPublished } }\n      publications(first: 10) { nodes { isPublished publishDate product { id } } }\n    }\n  }\n}";
+const TAGGABLE_PRODUCT_HYDRATE_QUERY: &str = "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      resourcePublicationsV2(first: 10) { nodes { publication { id } publishDate isPublished } }\n    }\n  }\n}";
+const PRODUCT_PUBLICATION_HYDRATE_QUERY: &str = "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      availablePublicationsCount { count precision }\n      resourcePublicationsCount { count precision }\n      resourcePublicationsV2(first: 10) { nodes { publication { id } publishDate isPublished } }\n      publications(first: 10) { nodes { isPublished publishDate product { id } } }\n    }\n  }\n}";
 const PRODUCT_VARIANTS_BULK_CREATE_INVENTORY_QUANTITIES_LIMIT: usize = 50_000;
 const PRODUCT_VARIANTS_BULK_CREATE_DEFAULT_LOCATION_LIMIT: usize = 200;
 
@@ -2134,7 +2135,7 @@ impl DraftProxy {
         let Some(mut product) = self
             .store
             .product_staged_or_base(id)
-            .or_else(|| self.hydrate_product_for_tags(id, request))
+            .or_else(|| self.hydrate_product_with_publication_state(id, request))
         else {
             return ResolverOutcome::value(product_change_status_payload_value(
                 None,
@@ -2187,9 +2188,14 @@ impl DraftProxy {
                     request,
                 );
             }
-            return ResolverOutcome::error(format!(
-                "Local tag mutation support is not implemented for {resource_type}"
-            ));
+            return ResolverOutcome::value(Value::Null).with_errors(vec![
+                crate::admin_graphql::RootFieldError {
+                    message: "invalid id".to_string(),
+                    extensions: BTreeMap::from([("code".to_string(), json!("RESOURCE_NOT_FOUND"))]),
+                    path: Some(Vec::new()),
+                    locations: Vec::new(),
+                },
+            ]);
         }
 
         let Some(mut product) = self
@@ -2231,25 +2237,62 @@ impl DraftProxy {
         if id.is_empty() || self.config.read_mode == ReadMode::Snapshot {
             return None;
         }
+        let variables = json!({ "ids": [id] });
         let response = self.upstream_post(
             request,
             json!({
                 "query": TAGGABLE_PRODUCT_HYDRATE_QUERY,
+                "variables": variables.clone()
+            }),
+        );
+        if (200..300).contains(&response.status) {
+            return product_record_from_hydrate_body(&response.body);
+        }
+
+        let legacy_response = self.upstream_post(
+            request,
+            json!({
+                "query": PRODUCT_PUBLICATION_HYDRATE_QUERY,
+                "variables": variables
+            }),
+        );
+        if !(200..300).contains(&legacy_response.status) {
+            return None;
+        }
+        product_record_from_hydrate_body(&legacy_response.body)
+    }
+
+    fn hydrate_product_with_publication_state(
+        &self,
+        id: &str,
+        request: &Request,
+    ) -> Option<ProductRecord> {
+        self.hydrate_product_with_document(id, request, PRODUCT_PUBLICATION_HYDRATE_QUERY)
+            .or_else(|| {
+                self.hydrate_product_with_document(id, request, TAGGABLE_PRODUCT_HYDRATE_QUERY)
+            })
+    }
+
+    fn hydrate_product_with_document(
+        &self,
+        id: &str,
+        request: &Request,
+        document: &str,
+    ) -> Option<ProductRecord> {
+        if id.is_empty() || self.config.read_mode == ReadMode::Snapshot {
+            return None;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": document,
                 "variables": { "ids": [id] }
             }),
         );
         if !(200..300).contains(&response.status) {
             return None;
         }
-        let record = response.body["data"]["nodes"]
-            .as_array()
-            .and_then(|nodes| nodes.first())
-            .cloned()
-            .unwrap_or(Value::Null);
-        if record.is_null() {
-            return None;
-        }
-        Some(product_record_from_hydrated_json(&record))
+        product_record_from_hydrate_body(&response.body)
     }
 
     fn taggable_resource_tags_outcome(
@@ -2411,7 +2454,7 @@ impl DraftProxy {
             .as_ref()
             .is_none_or(|product| !product_publication_state_known(product));
         let hydrated_product = needs_publication_hydration
-            .then(|| self.hydrate_product_for_tags(&product_id, request))
+            .then(|| self.hydrate_product_with_publication_state(&product_id, request))
             .flatten();
         let mut product = hydrated_product.or(local_product).unwrap_or_else(|| {
             let timestamp = default_product_timestamp();
@@ -2563,6 +2606,7 @@ impl DraftProxy {
                 Some(id)
                     if root_field == "productPublish"
                         && enforce_known_publication_state
+                        && product.status == "ACTIVE"
                         && product_is_published_on_publication(product, id) =>
                 {
                     errors.push(user_error_omit_code(
@@ -2650,6 +2694,13 @@ fn remove_exact_taggable_tags(existing: Vec<String>, removals: Vec<String>) -> V
         .into_iter()
         .filter(|tag| !remove_tags.contains(tag))
         .collect()
+}
+
+fn product_record_from_hydrate_body(body: &Value) -> Option<ProductRecord> {
+    let record = body["data"]["nodes"]
+        .as_array()
+        .and_then(|nodes| nodes.first())?;
+    (!record.is_null()).then(|| product_record_from_hydrated_json(record))
 }
 
 fn product_record_from_hydrated_json(record: &Value) -> ProductRecord {
@@ -2793,6 +2844,7 @@ mod tests {
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
             port: 0,
             shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
             snapshot_path: None,
         })
         .with_base_products(vec![seed_product("gid://shopify/Product/1")])

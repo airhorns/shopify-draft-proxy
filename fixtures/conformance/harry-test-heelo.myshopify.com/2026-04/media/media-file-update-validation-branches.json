@@ -362,32 +362,6 @@
         }
       }
     },
-    "sourceAndVersion": {
-      "variables": {
-        "files": [
-          {
-            "id": "gid://shopify/MediaImage/43679049449778",
-            "originalSource": "https://placehold.co/600x400.png",
-            "revertToVersionId": "gid://shopify/FileVersion/9"
-          }
-        ]
-      },
-      "response": {
-        "data": {
-          "fileUpdate": {
-            "files": [],
-            "userErrors": [
-              {
-                "field": ["files", "0"],
-                "message": "Specify either a source or revertToVersionId, not both.",
-                "code": "CANNOT_SPECIFY_SOURCE_AND_VERSION_ID"
-              }
-            ]
-          }
-        },
-        "notes": "Current public Admin GraphQL 2026-04 schema does not expose FileUpdateInput.revertToVersionId, so this branch is encoded from the internal HAR-702 evidence and executable local proxy behavior rather than a live public-schema mutation response."
-      }
-    },
     "wrongType": {
       "variables": {
         "files": [

@@ -11,6 +11,9 @@
     "variablesCapturePath": "$.operations.firstCreate.variables",
     "apiVersion": "2025-01"
   },
+  "proxyConfig": {
+    "readMode": "snapshot"
+  },
   "comparisonMode": "captured-vs-proxy-request",
   "notes": "Live 2025-01 Shopify capture for two disposable orderCreate mutations with external authorization transactions and a unique tag, followed by ordersCount exact/limit reads. The replay stages both orderCreate calls locally through public GraphQL, then proves the count is derived from staged state and the payment projection uses the submitted gateway/amount instead of fixed manual/$25 values.",
   "comparison": {

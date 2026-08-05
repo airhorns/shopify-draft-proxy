@@ -112,6 +112,13 @@ export const parityProxyRequestSpecSchema = z.strictObject({
 });
 export type ProxyRequestSpec = z.infer<typeof parityProxyRequestSpecSchema>;
 
+export const parityProxySetupSpecSchema = z.strictObject({
+  name: z.string().min(1),
+  captureResponsePath: z.string().min(1),
+  proxyRequest: parityProxyRequestSpecSchema,
+});
+export type ProxySetupSpec = z.infer<typeof parityProxySetupSpecSchema>;
+
 export const recordedUpstreamCallSchema = z
   .object({
     method: z.string().min(1).optional(),
@@ -192,6 +199,8 @@ export const comparisonTargetSchema = z.strictObject({
   excludedPaths: z.array(z.string()).optional(),
   expectedDifferences: z.array(expectedDifferenceSchema).optional(),
   preserveProxyState: z.boolean().optional(),
+  rewriteGidAliases: z.boolean().optional(),
+  preferTargetFallback: z.boolean().optional(),
 });
 export type ComparisonTarget = z.infer<typeof comparisonTargetSchema>;
 
@@ -223,6 +232,7 @@ export const paritySpecSchema = z
     assertionKinds: z.array(z.string()).optional(),
     comparisonMode: parityComparisonModeSchema.optional(),
     proxyConfig: parityProxyConfigSchema.optional(),
+    proxySetups: z.array(parityProxySetupSpecSchema).optional(),
     proxyRequest: parityProxyRequestSpecSchema.optional(),
     comparison: comparisonContractSchema.optional(),
     liveCaptureFiles: z.array(z.string()).optional(),

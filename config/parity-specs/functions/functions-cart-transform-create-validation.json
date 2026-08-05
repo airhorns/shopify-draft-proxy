@@ -15,6 +15,9 @@
   "proxyRequest": {
     "documentPath": "config/parity-requests/functions/functions-cart-transform-create-validation-unknown-id.graphql",
     "variablesCapturePath": "$.cartTransformCreateUnknownId.variables",
+    "headers": {
+      "x-shopify-draft-proxy-api-client-id": "347082227713"
+    },
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
@@ -34,6 +37,9 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/functions/functions-cart-transform-create-validation-read.graphql",
           "variablesCapturePath": "$.cartTransformsAfterUnknownId.variables",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          },
           "apiVersion": "2026-04"
         }
       },
@@ -44,6 +50,9 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/functions/functions-cart-transform-create-validation-unknown-handle.graphql",
           "variablesCapturePath": "$.cartTransformCreateUnknownHandle.variables",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          },
           "apiVersion": "2026-04"
         }
       },
@@ -54,6 +63,9 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/functions/functions-cart-transform-create-validation-read.graphql",
           "variablesCapturePath": "$.cartTransformsAfterUnknownHandle.variables",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          },
           "apiVersion": "2026-04"
         }
       },
@@ -64,6 +76,9 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/functions/functions-cart-transform-create-validation-setup.graphql",
           "variablesCapturePath": "$.cartTransformCreateSetup.variables",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          },
           "apiVersion": "2026-04"
         },
         "expectedDifferences": [
@@ -81,6 +96,9 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/functions/functions-cart-transform-create-validation-conflict.graphql",
           "variablesCapturePath": "$.cartTransformCreateConflict.variables",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          },
           "apiVersion": "2026-04"
         }
       },
@@ -91,6 +109,9 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/functions/functions-cart-transform-create-validation-both.graphql",
           "variablesCapturePath": "$.cartTransformCreateBoth.variables",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          },
           "apiVersion": "2026-04"
         }
       },
@@ -101,6 +122,9 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/functions/functions-cart-transform-create-validation-read.graphql",
           "variablesCapturePath": "$.cartTransformsAfterValidation.variables",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          },
           "apiVersion": "2026-04"
         },
         "expectedDifferences": [

@@ -222,6 +222,7 @@ pub(in crate::proxy) struct AdminRequestDisposition {
     pub has_local_root: bool,
     pub has_passthrough_root: bool,
     pub direct_full_query_passthrough: bool,
+    pub observe_upstream_products: bool,
     pub observe_upstream_shop: bool,
 }
 
@@ -252,7 +253,8 @@ impl DraftProxy {
         let has_local_root = context.has_local_root();
         let has_passthrough_root = context.has_passthrough_root();
         let shop_passthrough = self.shop_query_is_upstream_authoritative(context);
-        let direct_full_query_passthrough = self.product_query_is_upstream_authoritative(context)
+        let product_passthrough = self.product_query_is_upstream_authoritative(context);
+        let direct_full_query_passthrough = product_passthrough
             || shop_passthrough
             || self.events_query_is_upstream_authoritative(context)
             || self.delivery_settings_query_is_upstream_authoritative(context)
@@ -261,6 +263,7 @@ impl DraftProxy {
             has_local_root,
             has_passthrough_root,
             direct_full_query_passthrough,
+            observe_upstream_products: product_passthrough,
             observe_upstream_shop: shop_passthrough,
         }
     }

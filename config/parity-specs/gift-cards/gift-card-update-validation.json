@@ -72,8 +72,17 @@
       },
       {
         "name": "giftCardUpdate validation branches",
-        "capturePath": "$.expected.data",
-        "proxyPath": "$.data",
+        "capturePath": "$.operations.updateValidation.response.payload",
+        "proxyPath": "$",
+        "selectedPaths": [
+          "$.data",
+          "$.errors[0].message",
+          "$.errors[0].extensions.code",
+          "$.errors[0].path",
+          "$.errors[1].message",
+          "$.errors[1].extensions.code",
+          "$.errors[1].path"
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/gift-cards/gift-card-update-validation.graphql",
           "variables": {
@@ -97,12 +106,12 @@
         },
         "expectedDifferences": [
           {
-            "path": "$.success.giftCard.id",
+            "path": "$.data.success.giftCard.id",
             "matcher": "shopify-gid:GiftCard",
             "reason": "The proxy stages giftCardUpdate locally against a synthetic GiftCard GID."
           },
           {
-            "path": "$.success.giftCard.updatedAt",
+            "path": "$.data.success.giftCard.updatedAt",
             "matcher": "iso-timestamp",
             "reason": "The proxy uses deterministic synthetic timestamps instead of Shopify's live clock."
           }

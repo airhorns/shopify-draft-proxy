@@ -228,6 +228,8 @@ const CUSTOMER_CUSTOM_ID_LOOKUP_QUERY: &str =
 // matching request documents for exact cassette replay.
 const CUSTOMER_MERGE_HYDRATE_QUERY: &str =
     include_str!("../../runtime_graphql/customers/customer-merge-hydrate.graphql.raw");
+const CUSTOMER_MERGE_LEGACY_HYDRATE_QUERY: &str =
+    include_str!("../../runtime_graphql/customers/customer-merge-legacy-hydrate.graphql.raw");
 const CUSTOMER_MERGE_ATTACHED_HYDRATE_QUERY: &str =
     include_str!("../../runtime_graphql/customers/customer-merge-attached-hydrate.graphql.raw");
 const CUSTOMER_DELETE_SHOP_HYDRATE_QUERY: &str =
@@ -339,12 +341,15 @@ impl DraftProxy {
         root_name: &str,
         arguments: &BTreeMap<String, ResolvedValue>,
         upstream_value: Option<&Value>,
+        operation_roots: &[OperationRootInvocation],
     ) -> Value {
         match root_name {
             "customer" => self.customer_read_value(arguments, upstream_value),
             "customerByIdentifier" => self.customer_by_identifier_value(arguments, upstream_value),
             "customers" => self.customers_list_value(request, arguments, upstream_value),
-            "customersCount" => self.customers_count_read_value(request, arguments, upstream_value),
+            "customersCount" => {
+                self.customers_count_read_value(request, arguments, upstream_value, operation_roots)
+            }
             "customerMergeJobStatus" => self.customer_merge_job_status_value(arguments),
             "job" => self.customer_merge_job_node_value(arguments),
             _ => Value::Null,
@@ -384,6 +389,7 @@ impl DraftProxy {
         request: &Request,
         arguments: &BTreeMap<String, ResolvedValue>,
         upstream_value: Option<&Value>,
+        operation_roots: &[OperationRootInvocation],
     ) -> Value {
         // Count deltas must see sibling customer roots from the shared upstream
         // preflight. A staged customer already present in an aliased connection
@@ -415,7 +421,9 @@ impl DraftProxy {
 
             if base_count.is_some() {
                 for id in &self.store.staged.customers.tombstones {
-                    if base_matching_ids.contains(id) {
+                    if base_matching_ids.contains(id)
+                        && !self.caller_response_confirms_customer_missing(operation_roots, id)
+                    {
                         count = count.saturating_sub(1);
                     }
                 }
@@ -455,7 +463,9 @@ impl DraftProxy {
 
         let mut delta = 0isize;
         for id in &self.store.staged.customers.tombstones {
-            if !self.store.staged.locally_created_customer_ids.contains(id) {
+            if !self.store.staged.locally_created_customer_ids.contains(id)
+                && !self.caller_response_confirms_customer_missing(operation_roots, id)
+            {
                 delta -= 1;
             }
         }
@@ -475,6 +485,21 @@ impl DraftProxy {
         }
 
         count_object(self.customers_count_value())
+    }
+
+    fn caller_response_confirms_customer_missing(
+        &self,
+        operation_roots: &[OperationRootInvocation],
+        customer_id: &str,
+    ) -> bool {
+        let Some(data) = self.execution_session.request_cache.caller_data() else {
+            return false;
+        };
+        operation_roots.iter().any(|root| {
+            root.name == "customer"
+                && root.arguments.get("id").and_then(Value::as_str) == Some(customer_id)
+                && data.get(&root.response_key).is_some_and(Value::is_null)
+        })
     }
 
     /// `customerMergeJobStatus(jobId:)` read: project the requested selection over
@@ -1538,6 +1563,34 @@ impl DraftProxy {
         ))
     }
 
+    pub(in crate::proxy) fn stage_order_created_customer(&mut self, email: &str) -> String {
+        let id = self.next_synthetic_gid("Customer");
+        let timestamp = self.next_product_timestamp();
+        let normalized = NormalizedCustomerInput {
+            email: Some(Some(email.to_string())),
+            ..Default::default()
+        };
+        let mut customer = customer_record_from_parts(
+            &id,
+            None,
+            &normalized,
+            &timestamp,
+            &self.localization_primary_locale(),
+            true,
+        );
+        apply_customer_order_summary_defaults(
+            &mut customer,
+            self.store.observed_shop_currency_code().as_deref(),
+        );
+        customer["storeCreditAccounts"] = connection_json_with_empty_edges(Vec::new());
+        self.store.staged.customers.insert(id.clone(), customer);
+        self.store
+            .staged
+            .locally_created_customer_ids
+            .insert(id.clone());
+        id
+    }
+
     pub(crate) fn customer_lifecycle_mutation_root(
         &mut self,
         invocation: RootInvocation<'_>,
@@ -1726,9 +1779,7 @@ impl DraftProxy {
             "customerCreate" => {
                 self.customer_create_payload(invocation.request, arguments, invocation.response_key)
             }
-            "customerUpdate" => {
-                self.customer_update_payload(invocation.request, arguments, hydrate_addresses)
-            }
+            "customerUpdate" => self.customer_update_payload(invocation.request, arguments),
             "customerDelete" => self.customer_delete_payload(
                 invocation.request,
                 arguments,
@@ -1872,7 +1923,6 @@ impl DraftProxy {
         &mut self,
         request: &Request,
         arguments: &BTreeMap<String, ResolvedValue>,
-        hydrate_addresses: bool,
     ) -> (Value, Vec<String>, Vec<Value>) {
         let input = resolved_object_field(arguments, "input").unwrap_or_default();
         let inline_consent_errors = customer_update_inline_consent_errors(&input);
@@ -1887,9 +1937,11 @@ impl DraftProxy {
             );
         }
         let id = resolved_string_field(&input, "id").unwrap_or_default();
-        let hydrate_addresses = input.contains_key("addresses") || hydrate_addresses;
-        let Some(existing) = self.customer_existing_for_update(request, &id, hydrate_addresses)
-        else {
+        // A cold update must preserve the complete public mailing-address state
+        // even when the mutation changes only scalar fields. The captured
+        // CustomerHydrate lifecycle query is the authoritative preflight for
+        // that merge-over-existing behavior.
+        let Some(existing) = self.customer_existing_for_update(request, &id, true) else {
             return (
                 customer_payload(
                     Value::Null,
@@ -1922,9 +1974,15 @@ impl DraftProxy {
     ) -> (Value, Vec<String>, Vec<Value>) {
         let input = resolved_object_field(arguments, "input").unwrap_or_default();
         let id = resolved_string_field(&input, "id").unwrap_or_default();
-        let existing_customer = (!id.is_empty())
+        let mut existing_customer = (!id.is_empty())
             .then(|| self.customer_existing_for_update(request, &id, false))
             .flatten();
+        if existing_customer.is_none() && !id.is_empty() {
+            // Older captured delete lifecycles used the address-preserving
+            // CustomerHydrate projection. Retry that bounded superset when the
+            // lean existence/canDelete probe cannot resolve the customer.
+            existing_customer = self.customer_existing_for_update(request, &id, true);
+        }
         self.hydrate_customer_delete_shop_if_requested(
             request,
             requests_shop,
@@ -2621,8 +2679,12 @@ impl DraftProxy {
             .or_else(|| self.hydrate_customer_for_mutation(request, id, hydrate_addresses))
     }
 
-    pub(super) fn customer_exists_for_mutation(&mut self, request: &Request, id: &str) -> bool {
-        self.customer_existing_for_update(request, id, false)
+    pub(super) fn customer_exists_with_addresses_for_mutation(
+        &mut self,
+        request: &Request,
+        id: &str,
+    ) -> bool {
+        self.customer_existing_for_update(request, id, true)
             .is_some()
     }
 
@@ -2633,9 +2695,9 @@ impl DraftProxy {
         &mut self,
         request: &Request,
         ids: &[String],
-    ) -> Vec<String> {
+    ) -> (Vec<String>, BTreeSet<String>) {
         if self.config.read_mode == ReadMode::Snapshot {
-            return Vec::new();
+            return (Vec::new(), BTreeSet::new());
         }
         let ids_to_hydrate = ids
             .iter()
@@ -2647,7 +2709,7 @@ impl DraftProxy {
             .cloned()
             .collect::<Vec<_>>();
         if ids_to_hydrate.is_empty() {
-            return Vec::new();
+            return (Vec::new(), BTreeSet::new());
         }
         let response = self.upstream_post(
             request,
@@ -2657,31 +2719,61 @@ impl DraftProxy {
                 "variables": { "ids": ids_to_hydrate },
             }),
         );
-        if !(200..300).contains(&response.status) {
-            return Vec::new();
+        if (200..300).contains(&response.status) {
+            let requested = ids_to_hydrate.iter().cloned().collect::<BTreeSet<_>>();
+            if let Some(nodes) = response.body["data"]["nodes"].as_array() {
+                let mut hydrated = Vec::new();
+                for customer in nodes {
+                    if customer.is_null() {
+                        continue;
+                    }
+                    let Some(id) = customer.get("id").and_then(Value::as_str) else {
+                        continue;
+                    };
+                    if !requested.contains(id) {
+                        continue;
+                    }
+                    self.store.staged.customers.stage(
+                        id.to_string(),
+                        normalize_hydrated_customer_record(customer.clone()),
+                    );
+                    hydrated.push(id.to_string());
+                }
+                return (hydrated, BTreeSet::new());
+            }
         }
-        let requested = ids_to_hydrate.into_iter().collect::<BTreeSet<_>>();
+
+        // Older captures predate the combined nodes preflight and record one
+        // richer customer query per merge input. Retain that bounded two-ID
+        // fallback for upstreams that cannot serve the batch query; its response
+        // already contains the attached-resource windows used by the merge.
         let mut hydrated = Vec::new();
-        let Some(nodes) = response.body["data"]["nodes"].as_array() else {
-            return hydrated;
-        };
-        for customer in nodes {
-            if customer.is_null() {
+        let mut attached_hydrated = BTreeSet::new();
+        for requested_id in ids_to_hydrate {
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": CUSTOMER_MERGE_LEGACY_HYDRATE_QUERY,
+                    "operationName": "CustomerMergeHydrate",
+                    "variables": { "id": requested_id },
+                }),
+            );
+            if !(200..300).contains(&response.status) {
                 continue;
             }
-            let Some(id) = customer.get("id").and_then(Value::as_str) else {
-                continue;
-            };
-            if !requested.contains(id) {
+            let customer = &response.body["data"]["customer"];
+            if customer.get("id").and_then(Value::as_str) != Some(requested_id.as_str()) {
                 continue;
             }
             self.store.staged.customers.stage(
-                id.to_string(),
+                requested_id.clone(),
                 normalize_hydrated_customer_record(customer.clone()),
             );
-            hydrated.push(id.to_string());
+            self.stage_customer_merge_attached_resources(&requested_id, customer);
+            hydrated.push(requested_id.clone());
+            attached_hydrated.insert(requested_id);
         }
-        hydrated
+        (hydrated, attached_hydrated)
     }
 
     /// Fetch the attached resources needed to apply the successful
@@ -3251,7 +3343,11 @@ fn customer_invite_email_user_errors(arguments: &BTreeMap<String, ResolvedValue>
     {
         let message = bcc
             .iter()
-            .map(|address| format!("{address} is not a valid bcc address"))
+            .enumerate()
+            .map(|(index, address)| {
+                let field_prefix = if index == 0 { "Bcc " } else { "" };
+                format!("{field_prefix}{address} is not a valid bcc address")
+            })
             .collect::<Vec<_>>()
             .join(" and ");
         return Some(user_error(["email", "bcc"], &message, Some("INVALID")));

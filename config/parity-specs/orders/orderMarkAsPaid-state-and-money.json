@@ -29,7 +29,7 @@
         ],
         "expectedDifferences": [
           {
-            "path": "$[0].id",
+            "path": "$.order.transactions[0].id",
             "matcher": "shopify-gid:OrderTransaction",
             "reason": "The proxy generates a synthetic local transaction ID."
           }
@@ -47,7 +47,7 @@
         ],
         "expectedDifferences": [
           {
-            "path": "$[0].id",
+            "path": "$.order.transactions[0].id",
             "matcher": "shopify-gid:OrderTransaction",
             "reason": "The proxy reuses its synthetic local transaction ID after the first staged payment."
           }
@@ -71,7 +71,7 @@
         ],
         "expectedDifferences": [
           {
-            "path": "$[0].id",
+            "path": "$.order.transactions[0].id",
             "matcher": "shopify-gid:OrderTransaction",
             "reason": "The proxy generates a synthetic local transaction ID."
           }

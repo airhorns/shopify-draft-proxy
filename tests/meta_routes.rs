@@ -30,6 +30,7 @@ fn snapshot_proxy() -> DraftProxy {
         bulk_operation_run_mutation_max_input_file_size_bytes: None,
         port: 0,
         shopify_admin_origin: "https://shopify.com".to_string(),
+        shopify_store_domain: None,
         snapshot_path: None,
     })
 }
@@ -278,6 +279,7 @@ fn draft_proxy_route_and_snapshot_helpers_match_current_behavior() {
         bulk_operation_run_mutation_max_input_file_size_bytes: Some(104_857_600),
         port: 4001,
         shopify_admin_origin: "https://example.myshopify.com".to_string(),
+        shopify_store_domain: None,
         snapshot_path: Some("/tmp/snap.json".to_string()),
     });
     assert_eq!(
@@ -661,6 +663,7 @@ fn mixed_supported_unsupported_mutation_is_rejected_without_writes() {
         bulk_operation_run_mutation_max_input_file_size_bytes: None,
         port: 0,
         shopify_admin_origin: "https://shopify.com".to_string(),
+        shopify_store_domain: None,
         snapshot_path: None,
     })
     .with_base_products(vec![base_product()])

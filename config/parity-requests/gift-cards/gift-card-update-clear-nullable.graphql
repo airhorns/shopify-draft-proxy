@@ -9,7 +9,6 @@ mutation GiftCardUpdateClearNullable($id: ID!) {
     }
     userErrors {
       field
-      code
       message
     }
   }
@@ -23,7 +22,6 @@ mutation GiftCardUpdateClearNullable($id: ID!) {
     }
     userErrors {
       field
-      code
       message
     }
   }
@@ -37,7 +35,6 @@ mutation GiftCardUpdateClearNullable($id: ID!) {
     }
     userErrors {
       field
-      code
       message
     }
   }

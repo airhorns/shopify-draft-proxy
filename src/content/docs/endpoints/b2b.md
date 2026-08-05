@@ -156,7 +156,11 @@ location tombstones suppress their assignment children during effective reads,
 so deletes do not need to enumerate unrelated assignment pages. Local-format contact
 phone input normalizes through the shop country observed from local state or a
 LiveHybrid query-only shop-country hydrate; if no country context is available,
-the proxy does not assume a default calling code. Deleting or removing the
+the proxy also uses the staged company's location country and does not assume a
+default calling code. Contact create/update rejects unparseable nonblank phone
+input, invalid locale syntax, case-insensitive duplicate email addresses, and
+duplicate phones after E.164 normalization. Rejected inputs return a null
+contact without changing contact/customer state. Deleting or removing the
 current main contact clears the company's `mainContact`. `companyContactCreate`
 stores `title` verbatim, including HTML, but rejects HTML in `firstName` or
 `lastName` with generic `INVALID_INPUT` at `["input"]`. It requires an
@@ -164,11 +168,16 @@ email-backed customer reference; omitting `input.email` returns `INVALID` at
 `["input"]` without staging a contact or customer. The nested
 `companyCreate(input.companyContact)` path applies contact validation under
 `["input", "companyContact"]` before staging any company, location, role,
-contact, or assignment rows. Company contacts preserve explicit `title` input
-and otherwise store `title: null`, including nested create. Contact locale is
-explicit input when supplied; otherwise contact-create paths use the shop's
-primary locale, and `companyAssignCustomerAsContact` uses the assigned customer's
-locale before falling back to the shop primary locale.
+contact, or assignment rows, and persists its normalized phone on the linked
+customer. Company contacts preserve explicit `title` input and otherwise store
+`title: null`, including nested create. Contact locale is validated explicit
+input when supplied; otherwise contact-create paths use the shop's primary
+locale, and `companyAssignCustomerAsContact` uses the assigned customer's locale
+before falling back to the shop primary locale.
+`companyContactDelete` rejects a contact referenced by an effective order or
+draft order with `FAILED_TO_DELETE` at `["companyContactId"]`. The rejection is
+atomic: it preserves the contact, its role assignments, the company's contact
+count, and the current `mainContact` relationship.
 
 In LiveHybrid mode, `companyAssignCustomerAsContact` resolves an unknown
 persisted company and customer through narrow query-only reads before applying

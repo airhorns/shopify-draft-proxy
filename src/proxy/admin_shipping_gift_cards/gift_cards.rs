@@ -181,6 +181,16 @@ const GIFT_CARD_HYDRATE_TRANSACTIONS: &str = r#"        transactions(first: 250)
           }
         }
 "#;
+const GIFT_CARD_HYDRATE_LEGACY_TRANSACTIONS: &str = r#"        transactions(first: 250) {
+          nodes {
+            __typename
+            id
+            note
+            processedAt
+            amount { amount currencyCode }
+          }
+        }
+"#;
 const GIFT_CARD_HYDRATE_QUERY_SUFFIX: &str = r#"      }
       giftCardConfiguration {
         issueLimit { amount currencyCode }
@@ -253,6 +263,20 @@ fn gift_card_hydrate_operation_name(include_transactions: bool) -> &'static str 
     } else {
         GIFT_CARD_NARROW_HYDRATE_OPERATION_NAME
     }
+}
+
+fn gift_card_legacy_transaction_hydrate_query() -> String {
+    let mut query = String::from(GIFT_CARD_HYDRATE_QUERY_PREFIX);
+    query.push_str(GIFT_CARD_HYDRATE_LEGACY_TRANSACTIONS);
+    query.push_str(GIFT_CARD_HYDRATE_QUERY_SUFFIX);
+    query
+}
+
+fn gift_card_original_transaction_hydrate_query() -> String {
+    let mut query = String::from(GIFT_CARD_HYDRATE_QUERY_PREFIX);
+    query.push_str(GIFT_CARD_HYDRATE_TRANSACTIONS);
+    query.push_str(GIFT_CARD_HYDRATE_QUERY_SUFFIX);
+    query
 }
 
 #[derive(Clone, Copy)]
@@ -436,6 +460,9 @@ impl DraftProxy {
         request: &Request,
     ) -> ResolverOutcome<Value> {
         let mut staged_ids = Vec::new();
+        if let Some(error) = gift_card_recipient_length_error(field) {
+            return graphql_error_outcome(vec![error], &field.response_key);
+        }
         if matches!(field.name.as_str(), "giftCardCreate" | "giftCardUpdate")
             && self
                 .gift_card_assignment_errors(
@@ -536,14 +563,14 @@ impl DraftProxy {
         let Some(id) = value.get("id").and_then(Value::as_str) else {
             return;
         };
-        if !gift_card_read_value_has_model_fields(value) {
-            return;
+        if let Some(existing) = self.store.base.gift_cards.get_mut(id) {
+            merge_json_values(existing, value);
+        } else if gift_card_read_value_has_model_fields(value) {
+            self.store
+                .base
+                .gift_cards
+                .insert(id.to_string(), value.clone());
         }
-        self.store
-            .base
-            .gift_cards
-            .entry(id.to_string())
-            .or_insert_with(|| value.clone());
     }
 
     fn observe_gift_card_connection_value(&mut self, value: &Value) {
@@ -629,12 +656,24 @@ impl DraftProxy {
             return;
         }
         let query = resolved_string_field(arguments, "query").unwrap_or_default();
+        let upstream_counterparts = gift_card_upstream_creation_counterparts(
+            connection,
+            &self.store.staged.gift_cards,
+            &query,
+        );
         let mut seen_ids = BTreeSet::new();
         if let Some(nodes) = connection.get_mut("nodes").and_then(Value::as_array_mut) {
             nodes.retain_mut(|node| {
                 let Some(id) = node.get("id").and_then(Value::as_str).map(str::to_string) else {
                     return true;
                 };
+                if let Some(synthetic_id) = upstream_counterparts.get(&id) {
+                    if let Some(card) = self.store.staged.gift_cards.get(synthetic_id) {
+                        *node = card.clone();
+                        seen_ids.insert(synthetic_id.clone());
+                        return true;
+                    }
+                }
                 if let Some(card) = self.store.staged.gift_cards.get(&id) {
                     if gift_card_matches_search_query(card, &query) {
                         *node = gift_card_merge_seeded_transactions_if_missing(card.clone(), node);
@@ -658,6 +697,13 @@ impl DraftProxy {
                 else {
                     return true;
                 };
+                if let Some(synthetic_id) = upstream_counterparts.get(&id) {
+                    if let Some(card) = self.store.staged.gift_cards.get(synthetic_id) {
+                        edge["node"] = card.clone();
+                        seen_ids.insert(synthetic_id.clone());
+                        return true;
+                    }
+                }
                 if let Some(card) = self.store.staged.gift_cards.get(&id) {
                     if gift_card_matches_search_query(card, &query) {
                         edge["node"] = gift_card_merge_seeded_transactions_if_missing(
@@ -1284,7 +1330,7 @@ impl DraftProxy {
             return None;
         }
         let query = gift_card_hydrate_query(include_transactions);
-        let response = self.upstream_post(
+        let mut response = self.upstream_post(
             request,
             json!({
                 "query": query,
@@ -1292,6 +1338,22 @@ impl DraftProxy {
                 "variables": { "id": id },
             }),
         );
+        for compatibility_query in [
+            gift_card_original_transaction_hydrate_query(),
+            gift_card_legacy_transaction_hydrate_query(),
+        ] {
+            if response.status < 500 {
+                break;
+            }
+            response = self.upstream_post(
+                request,
+                json!({
+                    "query": compatibility_query,
+                    "operationName": GIFT_CARD_NARROW_HYDRATE_OPERATION_NAME,
+                    "variables": { "id": id },
+                }),
+            );
+        }
         if !(200..300).contains(&response.status) {
             return None;
         }
@@ -1890,6 +1952,99 @@ fn gift_card_matches_search_query(card: &Value, query: &str) -> bool {
         .all(|term| gift_card_matches_search_term(card, term))
 }
 
+fn gift_card_upstream_creation_counterparts(
+    connection: &Value,
+    staged_cards: &BTreeMap<String, Value>,
+    query: &str,
+) -> BTreeMap<String, String> {
+    let mut upstream_by_id = BTreeMap::<String, &Value>::new();
+    if let Some(nodes) = connection.get("nodes").and_then(Value::as_array) {
+        for node in nodes {
+            if let Some(id) = node.get("id").and_then(Value::as_str) {
+                upstream_by_id.entry(id.to_string()).or_insert(node);
+            }
+        }
+    }
+    if let Some(edges) = connection.get("edges").and_then(Value::as_array) {
+        for node in edges.iter().filter_map(|edge| edge.get("node")) {
+            if let Some(id) = node.get("id").and_then(Value::as_str) {
+                upstream_by_id.entry(id.to_string()).or_insert(node);
+            }
+        }
+    }
+
+    let mut proposals = Vec::<(String, String)>::new();
+    for (synthetic_id, staged) in staged_cards {
+        if !is_synthetic_gid(synthetic_id)
+            || !gift_card_matches_search_query(staged, query)
+            || !gift_card_query_uses_exact_code_suffix(staged, query)
+        {
+            continue;
+        }
+        let matching_upstream = upstream_by_id
+            .iter()
+            .filter(|(upstream_id, upstream)| {
+                !is_synthetic_gid(upstream_id)
+                    && gift_card_records_agree_on_observed_fields(staged, upstream)
+            })
+            .map(|(upstream_id, _)| upstream_id.clone())
+            .collect::<Vec<_>>();
+        if let [upstream_id] = matching_upstream.as_slice() {
+            proposals.push((upstream_id.clone(), synthetic_id.clone()));
+        }
+    }
+
+    let mut proposal_counts = BTreeMap::<String, usize>::new();
+    for (upstream_id, _) in &proposals {
+        *proposal_counts.entry(upstream_id.clone()).or_default() += 1;
+    }
+    proposals
+        .into_iter()
+        .filter(|(upstream_id, _)| proposal_counts.get(upstream_id) == Some(&1))
+        .collect()
+}
+
+fn gift_card_query_uses_exact_code_suffix(card: &Value, query: &str) -> bool {
+    let Some(last_characters) = card.get("lastCharacters").and_then(Value::as_str) else {
+        return false;
+    };
+    gift_card_search_terms(query).iter().any(|term| {
+        !term.contains(':')
+            && term
+                .trim()
+                .trim_matches('"')
+                .trim_matches('\'')
+                .eq_ignore_ascii_case(last_characters)
+    })
+}
+
+fn gift_card_records_agree_on_observed_fields(staged: &Value, upstream: &Value) -> bool {
+    let mut compared = false;
+    for field in [
+        "lastCharacters",
+        "enabled",
+        "templateSuffix",
+        "note",
+        "expiresOn",
+        "initialValue",
+        "balance",
+        "customer",
+        "recipientAttributes",
+    ] {
+        let Some(upstream_value) = upstream.get(field) else {
+            continue;
+        };
+        let Some(staged_value) = staged.get(field) else {
+            continue;
+        };
+        compared = true;
+        if upstream_value != staged_value {
+            return false;
+        }
+    }
+    compared
+}
+
 fn gift_card_search_decision(card: &Value, query: Option<&str>) -> StagedSearchDecision {
     StagedSearchDecision::from_bool(gift_card_matches_search_query(
         card,
@@ -2257,6 +2412,33 @@ fn gift_card_invalid_recipient_id_error(field: &GiftCardMutationInput) -> Option
             "column": field.location.column
         }],
         "extensions": { "code": "RESOURCE_NOT_FOUND" },
+        "path": [field.response_key.clone()]
+    }))
+}
+
+fn gift_card_recipient_length_error(field: &GiftCardMutationInput) -> Option<Value> {
+    if !matches!(field.name.as_str(), "giftCardCreate" | "giftCardUpdate") {
+        return None;
+    }
+    let input = resolved_object_field(&field.arguments, "input")?;
+    let recipient = resolved_object_field(&input, "recipientAttributes")?;
+    let message = if resolved_string_field(&recipient, "preferredName")
+        .is_some_and(|value| value.len() > 255)
+    {
+        "preferredName is too long (maximum is 255)"
+    } else if resolved_string_field(&recipient, "message").is_some_and(|value| value.len() > 200) {
+        "message is too long (maximum is 200)"
+    } else {
+        return None;
+    };
+
+    Some(json!({
+        "message": message,
+        "locations": [{
+            "line": field.location.line,
+            "column": field.location.column
+        }],
+        "extensions": { "code": "INVALID_FIELD_ARGUMENTS" },
         "path": [field.response_key.clone()]
     }))
 }

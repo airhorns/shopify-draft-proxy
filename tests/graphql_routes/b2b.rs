@@ -4745,6 +4745,203 @@ fn b2b_contact_validation_and_bulk_delete_use_shopify_field_paths() {
 }
 
 #[test]
+fn b2b_contact_input_normalization_rejects_invalid_and_duplicate_values_atomically() {
+    let mut proxy = snapshot_proxy();
+    let company = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BContactNormalizationCompany($input: CompanyCreateInput!) {
+          companyCreate(input: $input) {
+            company {
+              id
+              mainContact { customer { phone } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "company": { "name": "Contact Normalization Co" },
+                "companyContact": {
+                    "firstName": "Primary",
+                    "lastName": "Buyer",
+                    "email": "primary@example.com",
+                    "phone": "(415) 555-0100"
+                },
+                "companyLocation": {
+                    "name": "Contact Normalization HQ",
+                    "billingAddress": { "countryCode": "CA" }
+                }
+            }
+        }),
+    ));
+    assert_eq!(company.status, 200);
+    assert_eq!(
+        company.body["data"]["companyCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        company.body["data"]["companyCreate"]["company"]["mainContact"]["customer"]["phone"],
+        json!("+14155550100")
+    );
+    let company_id = company.body["data"]["companyCreate"]["company"]["id"].clone();
+
+    let create_document = r#"
+      mutation B2BContactNormalizationCreate($companyId: ID!, $input: CompanyContactInput!) {
+        companyContactCreate(companyId: $companyId, input: $input) {
+          companyContact { id }
+          userErrors { field message code }
+        }
+      }
+    "#;
+    let rejected_create_cases = [
+        (
+            json!({
+                "firstName": "Duplicate",
+                "lastName": "Phone",
+                "email": "duplicate-phone@example.com",
+                "phone": "+14155550100"
+            }),
+            json!({
+                "field": ["input", "phone"],
+                "message": "Phone number has already been taken.",
+                "code": "TAKEN"
+            }),
+        ),
+        (
+            json!({
+                "firstName": "Duplicate",
+                "lastName": "Email",
+                "email": "PRIMARY@EXAMPLE.COM",
+                "phone": "+14155550101"
+            }),
+            json!({
+                "field": ["input", "email"],
+                "message": "Email address has already been taken.",
+                "code": "TAKEN"
+            }),
+        ),
+        (
+            json!({
+                "firstName": "Invalid",
+                "lastName": "Phone",
+                "email": "invalid-phone@example.com",
+                "phone": "not-a-phone"
+            }),
+            json!({
+                "field": ["input", "phone"],
+                "message": "Phone is invalid",
+                "code": "INVALID"
+            }),
+        ),
+        (
+            json!({
+                "firstName": "Invalid",
+                "lastName": "Locale",
+                "email": "invalid-locale@example.com",
+                "locale": "not_a_locale"
+            }),
+            json!({
+                "field": ["input", "locale"],
+                "message": "Invalid locale format.",
+                "code": "INVALID"
+            }),
+        ),
+    ];
+
+    for (input, expected_error) in rejected_create_cases {
+        let state_before = state_snapshot(&proxy);
+        let rejected = proxy.process_request(json_graphql_request(
+            create_document,
+            json!({ "companyId": company_id, "input": input }),
+        ));
+        assert_eq!(rejected.status, 200);
+        assert_eq!(
+            rejected.body["data"]["companyContactCreate"],
+            json!({
+                "companyContact": Value::Null,
+                "userErrors": [expected_error]
+            })
+        );
+        assert_eq!(state_snapshot(&proxy), state_before);
+    }
+
+    let second = proxy.process_request(json_graphql_request(
+        create_document,
+        json!({
+            "companyId": company_id,
+            "input": {
+                "firstName": "Second",
+                "lastName": "Buyer",
+                "email": "second@example.com",
+                "phone": "(650) 555-0102"
+            }
+        }),
+    ));
+    assert_eq!(
+        second.body["data"]["companyContactCreate"]["userErrors"],
+        json!([])
+    );
+    let second_contact_id =
+        second.body["data"]["companyContactCreate"]["companyContact"]["id"].clone();
+
+    let update_document = r#"
+      mutation B2BContactNormalizationUpdate(
+        $companyContactId: ID!
+        $input: CompanyContactInput!
+      ) {
+        companyContactUpdate(companyContactId: $companyContactId, input: $input) {
+          companyContact { id }
+          userErrors { field message code }
+        }
+      }
+    "#;
+    let rejected_update_cases = [
+        (
+            json!({ "email": "stillbad@" }),
+            json!({
+                "field": ["input", "email"],
+                "message": "Email address is invalid",
+                "code": "INVALID"
+            }),
+        ),
+        (
+            json!({ "email": "primary@example.com" }),
+            json!({
+                "field": ["input", "email"],
+                "message": "Email address has already been taken.",
+                "code": "TAKEN"
+            }),
+        ),
+        (
+            json!({ "phone": "(415) 555-0100" }),
+            json!({
+                "field": ["input", "phone"],
+                "message": "Phone number has already been taken.",
+                "code": "TAKEN"
+            }),
+        ),
+    ];
+
+    for (input, expected_error) in rejected_update_cases {
+        let state_before = state_snapshot(&proxy);
+        let rejected = proxy.process_request(json_graphql_request(
+            update_document,
+            json!({ "companyContactId": second_contact_id, "input": input }),
+        ));
+        assert_eq!(rejected.status, 200);
+        assert_eq!(
+            rejected.body["data"]["companyContactUpdate"],
+            json!({
+                "companyContact": Value::Null,
+                "userErrors": [expected_error]
+            })
+        );
+        assert_eq!(state_snapshot(&proxy), state_before);
+    }
+}
+
+#[test]
 fn b2b_company_contact_create_without_email_rejects_and_stages_nothing() {
     let mut proxy = snapshot_proxy();
     let company_id = create_b2b_company(&mut proxy, "Missing Email Contact Co");
@@ -6075,6 +6272,53 @@ fn b2b_company_location_aggregate_currency_uses_location_country_for_draft_order
     assert_eq!(
         read.body["data"]["companyLocation"]["ordersCount"],
         json!({ "count": 1, "precision": "EXACT" })
+    );
+
+    let delete_contact = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BAggregatesContactDelete($companyContactId: ID!) {
+          companyContactDelete(companyContactId: $companyContactId) {
+            deletedCompanyContactId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "companyContactId": contact_id }),
+    ));
+    assert_eq!(delete_contact.status, 200);
+    assert_eq!(
+        delete_contact.body["data"]["companyContactDelete"],
+        json!({
+            "deletedCompanyContactId": Value::Null,
+            "userErrors": [{
+                "field": ["companyContactId"],
+                "message": "Cannot delete a company contact with existing orders or draft orders.",
+                "code": "FAILED_TO_DELETE"
+            }]
+        })
+    );
+
+    let retained_contact = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BAggregatesContactDeleteRead($companyId: ID!, $companyContactId: ID!) {
+          company(id: $companyId) {
+            contactsCount { count }
+            mainContact { id isMainContact }
+          }
+          companyContact(id: $companyContactId) { id isMainContact }
+        }
+        "#,
+        json!({ "companyId": company_id, "companyContactId": contact_id }),
+    ));
+    assert_eq!(
+        retained_contact.body["data"],
+        json!({
+            "company": {
+                "contactsCount": { "count": 1 },
+                "mainContact": { "id": contact_id, "isMainContact": true }
+            },
+            "companyContact": { "id": contact_id, "isMainContact": true }
+        })
     );
 }
 

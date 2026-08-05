@@ -297,6 +297,8 @@
       },
       {
         "name": "cold-reverse-fulfillment-dispose-payload",
+        "preserveProxyState": true,
+        "rewriteGidAliases": false,
         "capturePath": "$.reverseFulfillmentDispose.response.payload.data.reverseFulfillmentOrderDispose",
         "proxyPath": "$.data.reverseFulfillmentOrderDispose",
         "proxyRequest": {
@@ -306,6 +308,8 @@
       },
       {
         "name": "cold-reverse-delivery-create-payload",
+        "preserveProxyState": true,
+        "rewriteGidAliases": false,
         "capturePath": "$.reverseDeliveryCreate.response.payload.data.reverseDeliveryCreateWithShipping",
         "proxyPath": "$.data.reverseDeliveryCreateWithShipping",
         "proxyRequest": {
@@ -315,6 +319,8 @@
       },
       {
         "name": "cold-reverse-delivery-update-payload",
+        "preserveProxyState": true,
+        "rewriteGidAliases": false,
         "capturePath": "$.reverseDeliveryUpdate.response.payload.data.reverseDeliveryShippingUpdate",
         "proxyPath": "$.data.reverseDeliveryShippingUpdate",
         "proxyRequest": {

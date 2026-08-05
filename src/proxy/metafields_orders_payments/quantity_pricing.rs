@@ -5,7 +5,11 @@ impl DraftProxy {
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
-        self.quantity_pricing_rules_mutation_preflight(invocation.request, invocation.variables);
+        self.quantity_pricing_rules_mutation_preflight(
+            invocation.root_name,
+            invocation.request,
+            invocation.variables,
+        );
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         let input = resolved_object_field(&arguments, "input").unwrap_or_default();
         let price_list_id = resolved_string_field(&arguments, "priceListId").unwrap_or_default();

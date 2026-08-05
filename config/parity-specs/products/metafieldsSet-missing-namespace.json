@@ -8,7 +8,10 @@
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/metafieldsSet-parity-plan-no-compare-digest.graphql",
-    "variablesCapturePath": "$.mutation.variables"
+    "variablesCapturePath": "$.mutation.variables",
+    "headers": {
+      "x-shopify-draft-proxy-api-client-id": "347082227713"
+    }
   },
   "comparisonMode": "captured-vs-proxy-request",
   "notes": "Missing namespace on MetafieldsSetInput is not an error in the captured Shopify branch; Shopify stores the metafield under the installed app namespace. This non-CAS scenario intentionally omits compareDigest from the selected payload; CAS token behavior is covered by the dedicated compareDigest scenarios.",

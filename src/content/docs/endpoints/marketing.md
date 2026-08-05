@@ -42,6 +42,7 @@ Snapshot reads are served from normalized marketing activity and event records h
 LiveHybrid marketing reads now forward to Shopify and observe returned marketing activity/event records as base catalog state:
 
 - A cold LiveHybrid proxy with no local marketing overlay returns Shopify's upstream response verbatim for registered marketing read roots, preserving aliases, opaque cursors, pageInfo, and Shopify's own search/sort behavior for pre-existing rows.
+- Singular activity reads for staged IDs and activity connections constrained entirely to staged `marketingActivityIds` or staged `remoteIds` are locally authoritative and do not require an upstream round trip. Unconstrained and mixed-identity catalogs still hydrate upstream before applying the overlay.
 - After local staged marketing writes or tombstones exist, the proxy overlays staged activity/event records and tombstones on the observed base catalog, then recomputes selected marketing roots from the effective catalog without hiding unrelated upstream records. Non-marketing roots in the same upstream response are left intact.
 - Observed opaque cursors are retained on base activity/event records, while newly staged local records continue to use stable synthetic `cursor:<gid>` cursors.
 - The live `marketing-live-hybrid-non-empty-read` parity scenario captures two disposable Shopify external marketing activities and replays non-empty cold LiveHybrid activity/event reads through upstream cassette entries. Runtime tests cover staged create/update/delete overlay on top of that observed upstream catalog.

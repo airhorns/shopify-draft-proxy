@@ -4,10 +4,15 @@ import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 
 import {
+  bindCorrespondingGidAliases,
+  captureResponseForRequest,
+  captureResponseForTarget,
   createParityGidAliasBindings,
   defaultApiVersionForCapture,
   diffValues,
+  parseArgs as parseParityArgs,
   parseJsonlRecordsForParity,
+  rewriteBoundGidAliases,
   scenarioClockFromCapture,
   selectPaths,
 } from '../../scripts/parity-run.js';
@@ -23,6 +28,50 @@ const repoRoot = new URL('../..', import.meta.url);
 const paritySpecRoot = new URL('../../config/parity-specs/', import.meta.url);
 const parityCliTimeoutMs = 30_000;
 const execFileAsync = promisify(execFile);
+
+describe('captureResponseForTarget', () => {
+  it('wraps legacy direct data targets as GraphQL passthrough responses', () => {
+    expect(
+      captureResponseForTarget(
+        { downstreamRead: { data: { customersCount: { count: 42 } } } },
+        { name: 'downstream', capturePath: '$.downstreamRead.data' },
+      ),
+    ).toEqual({
+      status: 200,
+      body: { data: { customersCount: { count: 42 } } },
+    });
+  });
+});
+
+describe('captureResponseForRequest', () => {
+  it('finds the response beside a captured public request envelope', () => {
+    const query = 'mutation ProductCreate($input: ProductInput!) { productCreate(product: $input) { product { id } } }';
+
+    expect(
+      captureResponseForRequest(
+        {
+          setup: {
+            request: { query, variables: { input: { title: 'Captured product' } } },
+            response: {
+              status: 200,
+              body: { data: { productCreate: { product: { id: 'gid://shopify/Product/100' } } } },
+            },
+          },
+        },
+        {
+          query,
+          variables: { input: { title: 'Captured product' } },
+          headers: {},
+          path: '/admin/api/2026-04/graphql.json',
+          apiSurface: 'admin',
+        },
+      ),
+    ).toEqual({
+      status: 200,
+      body: { data: { productCreate: { product: { id: 'gid://shopify/Product/100' } } } },
+    });
+  });
+});
 
 describe('scenarioClockFromCapture', () => {
   it('derives a lifecycle replay clock from one captured epoch run id', () => {
@@ -45,6 +94,73 @@ describe('scenarioClockFromCapture', () => {
         second: { runId: '1783175824303' },
       }),
     ).toBeUndefined();
+  });
+
+  it('derives a lifecycle replay clock from a unique epoch embedded in captured values', () => {
+    expect(
+      scenarioClockFromCapture({
+        variables: {
+          email: 'draft-order-probe-1777076856718@example.com',
+          reserveInventoryUntil: '2026-05-25T00:27:36Z',
+        },
+        response: { sku: 'custom-service-1777076856718' },
+      }),
+    ).toBe('2026-04-25T00:27:36.718Z');
+  });
+
+  it('does not freeze a lifecycle capture with ambiguous embedded epochs', () => {
+    expect(
+      scenarioClockFromCapture({
+        variables: {
+          email: 'draft-order-probe-1777076856718@example.com',
+          reserveInventoryUntil: '2026-05-25T00:27:36Z',
+        },
+        response: { sku: 'custom-service-1777076856719' },
+      }),
+    ).toBeUndefined();
+  });
+
+  it('does not treat Shopify GID tails as embedded capture epochs', () => {
+    expect(
+      scenarioClockFromCapture({
+        variables: {
+          title: 'scheduled-discount-1783175824302',
+          startsAt: '2026-07-18T14:37:04.302Z',
+        },
+        response: { id: 'gid://shopify/DiscountAutomaticNode/1658181583154' },
+      }),
+    ).toBe('2026-07-04T14:37:04.302Z');
+  });
+});
+
+describe('parity runner CLI', () => {
+  it('rejects attempts to suppress parity failures', () => {
+    expect(() => parseParityArgs(['--allow-failures'])).toThrow('Unknown flag: --allow-failures');
+  });
+});
+
+describe('parity comparison target schema', () => {
+  it('allows a cold replay target to retain captured Shopify GIDs', () => {
+    const parsed = paritySpecSchema.parse({
+      scenarioId: 'cold-replay',
+      operationNames: ['product'],
+      scenarioStatus: 'captured',
+      assertionKinds: ['payload-shape'],
+      liveCaptureFiles: ['fixtures/conformance/example.myshopify.com/2026-04/example.json'],
+      comparisonMode: 'captured-vs-proxy-request',
+      comparison: {
+        targets: [
+          {
+            name: 'cold-target',
+            capturePath: '$.response.data',
+            preserveProxyState: true,
+            rewriteGidAliases: false,
+          },
+        ],
+      },
+    });
+
+    expect(parsed.comparison?.targets?.[0]?.rewriteGidAliases).toBe(false);
   });
 });
 
@@ -124,6 +240,165 @@ describe('parity runner exact Shopify GID aliases', () => {
   });
 });
 
+describe('parity runner lifecycle Shopify GID aliases', () => {
+  it('validates captured public setup requests separately from the scenario request', () => {
+    const parsed = paritySpecSchema.parse({
+      scenarioId: 'captured-public-setup',
+      operationNames: ['productCreate', 'sellingPlanGroupCreate'],
+      scenarioStatus: 'captured',
+      assertionKinds: ['downstream-read-parity'],
+      comparisonMode: 'captured-vs-proxy-request',
+      liveCaptureFiles: ['fixtures/conformance/example/2026-04/products/setup.json'],
+      proxySetups: [
+        {
+          name: 'member-product',
+          captureResponsePath: '$.captures[0].response',
+          proxyRequest: {
+            documentCapturePath: '$.captures[0].request.query',
+            variablesCapturePath: '$.captures[0].request.variables',
+          },
+        },
+      ],
+      proxyRequest: { documentCapturePath: '$.captures[1].request.query' },
+      comparison: {
+        mode: 'strict-json',
+        expectedDifferences: [],
+        targets: [{ name: 'create-group', capturePath: '$.captures[1].response.data', proxyPath: '$.data' }],
+      },
+    });
+
+    expect(parsed.proxySetups).toEqual([
+      {
+        name: 'member-product',
+        captureResponsePath: '$.captures[0].response',
+        proxyRequest: {
+          documentCapturePath: '$.captures[0].request.query',
+          variablesCapturePath: '$.captures[0].request.variables',
+        },
+      },
+    ]);
+  });
+
+  it('rewrites later request variables from corresponding public setup responses', () => {
+    const bindings = createParityGidAliasBindings();
+    bindCorrespondingGidAliases(
+      {
+        data: {
+          productCreate: {
+            product: {
+              id: 'gid://shopify/Product/100',
+              variants: [{ id: 'gid://shopify/ProductVariant/200' }],
+            },
+          },
+        },
+      },
+      {
+        data: {
+          productCreate: {
+            product: {
+              id: 'gid://shopify/Product/1?shopify-draft-proxy=synthetic',
+              variants: [{ id: 'gid://shopify/ProductVariant/2?shopify-draft-proxy=synthetic' }],
+            },
+          },
+        },
+      },
+      bindings,
+    );
+
+    expect(
+      rewriteBoundGidAliases(
+        {
+          productId: 'gid://shopify/Product/100',
+          componentIds: ['gid://shopify/ProductVariant/200', 'gid://shopify/ProductVariant/unrelated'],
+        },
+        bindings,
+      ),
+    ).toEqual({
+      productId: 'gid://shopify/Product/1?shopify-draft-proxy=synthetic',
+      componentIds: [
+        'gid://shopify/ProductVariant/2?shopify-draft-proxy=synthetic',
+        'gid://shopify/ProductVariant/unrelated',
+      ],
+    });
+    expect(
+      diffValues(
+        'gid://shopify/Product/100',
+        'gid://shopify/Product/1?shopify-draft-proxy=synthetic',
+        [],
+        '$',
+        bindings,
+      ),
+    ).toEqual([]);
+    expect(
+      diffValues(
+        'gid://shopify/Product/other',
+        'gid://shopify/Product/3?shopify-draft-proxy=synthetic',
+        [],
+        '$',
+        bindings,
+      ),
+    ).not.toEqual([]);
+
+    expect(
+      diffValues(
+        'Invalid id: gid://shopify/Product/100',
+        'Invalid id: gid://shopify/Product/1?shopify-draft-proxy=synthetic',
+        [],
+        '$',
+        bindings,
+      ),
+    ).toEqual([]);
+    expect(
+      diffValues(
+        'Invalid id: gid://shopify/Product/unrelated',
+        'Invalid id: gid://shopify/Product/1?shopify-draft-proxy=synthetic',
+        [],
+        '$',
+        bindings,
+      ),
+    ).not.toEqual([]);
+  });
+
+  it('does not bind mismatched resource types or one captured id to multiple proxy ids', () => {
+    const bindings = createParityGidAliasBindings();
+    bindCorrespondingGidAliases(
+      { id: 'gid://shopify/Product/100' },
+      { id: 'gid://shopify/Collection/1?shopify-draft-proxy=synthetic' },
+      bindings,
+    );
+    bindCorrespondingGidAliases(
+      { id: 'gid://shopify/Product/100' },
+      { id: 'gid://shopify/Product/1?shopify-draft-proxy=synthetic' },
+      bindings,
+    );
+    bindCorrespondingGidAliases(
+      { id: 'gid://shopify/Product/100' },
+      { id: 'gid://shopify/Product/2?shopify-draft-proxy=synthetic' },
+      bindings,
+    );
+
+    expect(rewriteBoundGidAliases('gid://shopify/Product/100', bindings)).toBe(
+      'gid://shopify/Product/1?shopify-draft-proxy=synthetic',
+    );
+  });
+
+  it('does not rebind a Shopify id already observed unchanged through a public read', () => {
+    const bindings = createParityGidAliasBindings();
+    bindCorrespondingGidAliases(
+      { article: { id: 'gid://shopify/Article/100' } },
+      { article: { id: 'gid://shopify/Article/100' } },
+      bindings,
+    );
+    bindCorrespondingGidAliases(
+      { article: { id: 'gid://shopify/Article/100' } },
+      { article: { id: 'gid://shopify/Article/1?shopify-draft-proxy=synthetic' } },
+      bindings,
+    );
+
+    expect(rewriteBoundGidAliases('gid://shopify/Article/100', bindings)).toBe('gid://shopify/Article/100');
+  });
+});
+
 describe('parity runner API version routing', () => {
   it('uses a supported captured version from metadata or the fixture path', () => {
     expect(defaultApiVersionForCapture('fixtures/example/2025-01/products/example.json', {})).toBe('2025-01');
@@ -146,8 +421,8 @@ describe('parity runner API version routing', () => {
   });
 });
 
-async function runCorepackPnpm(args: string[]): Promise<string> {
-  const { stdout } = await execFileAsync('corepack', ['pnpm', ...args], {
+async function runPnpm(args: string[]): Promise<string> {
+  const { stdout } = await execFileAsync('pnpm', args, {
     cwd: repoRoot,
     encoding: 'utf8',
     maxBuffer: 10 * 1024 * 1024,
@@ -523,7 +798,7 @@ describe('Rust parity runner CLI', () => {
   it(
     'discovers every checked-in parity spec before executing scenarios',
     async () => {
-      const output = await runCorepackPnpm(['parity:run', '--', '--dry-run']);
+      const output = await runPnpm(['parity:run', '--', '--dry-run']);
       expect(output).toContain(`[parity] ${countParitySpecs(paritySpecRoot)} spec(s) selected`);
     },
     parityCliTimeoutMs,
@@ -532,7 +807,7 @@ describe('Rust parity runner CLI', () => {
   it(
     'uses the captured target response as the passthrough cassette fallback for unsupported roots',
     async () => {
-      const output = await runCorepackPnpm([
+      const output = await runPnpm([
         'parity',
         '--',
         '--spec',
@@ -546,7 +821,7 @@ describe('Rust parity runner CLI', () => {
   it(
     'unwraps captured response.body payloads for passthrough cassette fallbacks',
     async () => {
-      const output = await runCorepackPnpm([
+      const output = await runPnpm([
         'parity',
         '--',
         '--spec',
@@ -560,7 +835,7 @@ describe('Rust parity runner CLI', () => {
   it(
     'does not require local Rust handlers to consume every captured upstream call when output matches',
     async () => {
-      const output = await runCorepackPnpm([
+      const output = await runPnpm([
         'parity',
         '--',
         '--spec',
@@ -574,7 +849,7 @@ describe('Rust parity runner CLI', () => {
   it(
     'uses each comparison target capture as fallback even when unrelated upstream recordings remain',
     async () => {
-      const output = await runCorepackPnpm([
+      const output = await runPnpm([
         'parity',
         '--',
         '--spec',
@@ -588,7 +863,7 @@ describe('Rust parity runner CLI', () => {
   it(
     'resolves capture-path variables before replaying recorded passthrough node reads',
     async () => {
-      const output = await runCorepackPnpm([
+      const output = await runPnpm([
         'parity',
         '--',
         '--spec',
@@ -602,7 +877,7 @@ describe('Rust parity runner CLI', () => {
   it(
     'executes proxyUpload targets as side-effect assertions for staged upload parity',
     async () => {
-      const output = await runCorepackPnpm([
+      const output = await runPnpm([
         'parity',
         '--',
         '--spec',
@@ -616,7 +891,7 @@ describe('Rust parity runner CLI', () => {
   it(
     'uses the primary capture target, not the first target request, as primary passthrough fallback',
     async () => {
-      const output = await runCorepackPnpm([
+      const output = await runPnpm([
         'parity',
         '--',
         '--spec',
@@ -630,7 +905,7 @@ describe('Rust parity runner CLI', () => {
   it(
     'uses exact nested captured requests for primary passthrough fallback',
     async () => {
-      const output = await runCorepackPnpm([
+      const output = await runPnpm([
         'parity',
         '--',
         '--spec',
@@ -644,7 +919,7 @@ describe('Rust parity runner CLI', () => {
   it(
     'applies expected-difference rules to wildcard array paths',
     async () => {
-      const output = await runCorepackPnpm([
+      const output = await runPnpm([
         'parity',
         '--',
         '--spec',

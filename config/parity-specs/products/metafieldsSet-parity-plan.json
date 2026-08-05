@@ -7,12 +7,12 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-parity.json"
   ],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/products/metafieldsSet-parity-plan-no-compare-digest.graphql",
+    "documentPath": "config/parity-requests/products/metafieldsSet-parity-plan.graphql",
     "variablesPath": "config/parity-requests/products/metafieldsSet-parity-plan.variables.json",
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Executed by the conformance parity runner against the local staged `metafieldsSet` path with live fixture variables. The comparison covers mutation data plus immediate downstream `product.metafield(...)` and `product.metafields` visibility for product-owned metafields. This non-CAS scenario intentionally omits compareDigest from the selected payload; CAS token behavior is covered by the dedicated compareDigest scenarios.",
+  "notes": "Executed by the conformance parity runner against the local staged `metafieldsSet` path with live fixture variables. The comparison covers mutation data plus immediate downstream `product.metafield(...)` and `product.metafields` visibility for product-owned metafields. Shopify compareDigest values are opaque CAS tokens, so this scenario verifies their shape while dedicated compareDigest scenarios cover CAS behavior.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -25,6 +25,21 @@
         "path": "$.product.metafields.pageInfo.endCursor",
         "matcher": "non-empty-string",
         "reason": "Shopify returns opaque base64 cursors while the local serializer uses stable synthetic cursors for staged metafields."
+      },
+      {
+        "path": "$.metafieldsSet.metafields[0].compareDigest",
+        "matcher": "regex:^[0-9a-f]{64}$",
+        "reason": "Shopify compareDigest values are opaque CAS tokens; local staging emits deterministic 64-character CAS tokens."
+      },
+      {
+        "path": "$.product.metafields.nodes[0].compareDigest",
+        "matcher": "regex:^[0-9a-f]{64}$",
+        "reason": "Shopify compareDigest values are opaque CAS tokens; local staging emits deterministic 64-character CAS tokens."
+      },
+      {
+        "path": "$.product.primarySpec.compareDigest",
+        "matcher": "regex:^[0-9a-f]{64}$",
+        "reason": "Shopify compareDigest values are opaque CAS tokens; local staging emits deterministic 64-character CAS tokens."
       }
     ],
     "targets": [
@@ -37,7 +52,7 @@
         "name": "downstream-read-data",
         "capturePath": "$.downstreamRead.data",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/products/metafieldsSet-downstream-read-no-compare-digest.graphql",
+          "documentPath": "config/parity-requests/products/metafieldsSet-downstream-read.graphql",
           "variablesCapturePath": "$.downstreamReadVariables"
         },
         "proxyPath": "$.data"

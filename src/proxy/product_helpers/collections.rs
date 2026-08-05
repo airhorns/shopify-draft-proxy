@@ -1393,17 +1393,14 @@ impl DraftProxy {
                 "variables": {},
             }),
         );
-        self.store.staged.current_channel_publication_resolved = true;
-        self.store.staged.current_channel_publication_id = if (200..300).contains(&response.status)
-        {
-            response
+        if (200..300).contains(&response.status) {
+            self.store.staged.current_channel_publication_resolved = true;
+            self.store.staged.current_channel_publication_id = response
                 .body
                 .pointer("/data/currentAppInstallation/publication/id")
                 .and_then(Value::as_str)
-                .map(str::to_string)
-        } else {
-            None
-        };
+                .map(str::to_string);
+        }
         self.store.staged.current_channel_publication_id.clone()
     }
 
@@ -1580,7 +1577,11 @@ impl DraftProxy {
         } else {
             None
         };
-        if resource_exists && to_current && current_channel_id.is_none() {
+        if resource_exists
+            && to_current
+            && self.store.staged.current_channel_publication_resolved
+            && current_channel_id.is_none()
+        {
             user_errors.push(user_error_omit_code(
                 ["id"],
                 "Channel does not exist",
@@ -2252,7 +2253,9 @@ impl DraftProxy {
         let collection_id = resolved_string_field(arguments, "id").unwrap_or_default();
         let requested_product_ids = list_string_field(arguments, "productIds");
         self.hydrate_missing_collection_baseline(&collection_id, &requested_product_ids);
-        if let Some(errors) = self.collection_membership_guard_errors(root_field, &collection_id) {
+        if let Some(errors) =
+            self.collection_membership_guard_errors(root_field, &collection_id, None)
+        {
             return ResolverOutcome::value(self.collection_payload_value(None, None, errors));
         }
         let mut products = self.collection_products(&collection_id);
@@ -2297,7 +2300,11 @@ impl DraftProxy {
             );
         }
         self.hydrate_missing_collection_baseline(&collection_id, &product_ids);
-        if let Some(errors) = self.collection_membership_guard_errors(root_field, &collection_id) {
+        let api_version =
+            crate::admin_graphql::AdminApiVersion::from_route(&invocation.request.path);
+        if let Some(errors) =
+            self.collection_membership_guard_errors(root_field, &collection_id, api_version)
+        {
             return ResolverOutcome::value(self.collection_payload_value(None, None, errors));
         }
         let mut products = self.collection_products(&collection_id);
@@ -2345,7 +2352,9 @@ impl DraftProxy {
             })
             .collect::<Vec<_>>();
         self.hydrate_missing_collection_baseline(&collection_id, &move_product_ids);
-        if let Some(errors) = self.collection_membership_guard_errors(root_field, &collection_id) {
+        if let Some(errors) =
+            self.collection_membership_guard_errors(root_field, &collection_id, None)
+        {
             return ResolverOutcome::value(self.collection_payload_value(None, None, errors));
         }
         self.hydrate_collection_reorder_sort_order(&collection_id);
@@ -2461,6 +2470,7 @@ impl DraftProxy {
         &self,
         root_field: &str,
         collection_id: &str,
+        api_version: Option<crate::admin_graphql::AdminApiVersion>,
     ) -> Option<Vec<Value>> {
         let Some(collection) = self.store.collection_by_id(collection_id) else {
             return Some(vec![collection_user_error(
@@ -2468,11 +2478,21 @@ impl DraftProxy {
                 "Collection does not exist",
             )]);
         };
-        if root_field == "collectionAddProductsV2" && collection_is_smart(collection) {
-            return Some(vec![collection_user_error(
-                ["id"],
-                "Can't manually add products to a smart collection",
-            )]);
+        if collection_is_smart(collection) {
+            let message = match root_field {
+                "collectionAddProductsV2" => {
+                    Some("Can't manually add products to a smart collection")
+                }
+                "collectionRemoveProducts"
+                    if api_version != Some(crate::admin_graphql::AdminApiVersion::V2025_01) =>
+                {
+                    Some("Can't manually remove products from a smart collection")
+                }
+                _ => None,
+            };
+            if let Some(message) = message {
+                return Some(vec![collection_user_error(["id"], message)]);
+            }
         }
         None
     }

@@ -13,7 +13,7 @@ impl DraftProxy {
         // forward one combined scalar hydrate upstream and stage the observed
         // records so existence checks and merge validation read consistent state.
         // Attached resources are fetched later, only for the successful branch.
-        let hydrated_ids = self.ensure_customers_hydrated_for_merge(
+        let (hydrated_ids, attached_hydrated_ids) = self.ensure_customers_hydrated_for_merge(
             invocation.request,
             &[one_id.clone(), two_id.clone()],
         );
@@ -27,6 +27,7 @@ impl DraftProxy {
             &one_id,
             &two_id,
             &hydrated_ids,
+            &attached_hydrated_ids,
         );
         ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
             "customerMerge",
@@ -72,7 +73,7 @@ impl DraftProxy {
         customer_id: &str,
         request_erasure: bool,
     ) -> (Value, &'static str, Vec<String>) {
-        if !self.customer_exists_for_mutation(request, customer_id) {
+        if !self.customer_exists_with_addresses_for_mutation(request, customer_id) {
             return failed_payload_outcome(customer_data_erasure_payload_json(
                 None,
                 vec![customer_data_erasure_user_error(
@@ -126,6 +127,7 @@ impl DraftProxy {
         one_id: &str,
         two_id: &str,
         hydrated_ids: &[String],
+        attached_hydrated_ids: &BTreeSet<String>,
     ) -> (Value, Vec<String>) {
         if one_id.is_empty() || two_id.is_empty() {
             return (
@@ -175,7 +177,12 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
-        self.hydrate_customer_merge_attached_resources(request, hydrated_ids);
+        let ids_needing_attached_hydration = hydrated_ids
+            .iter()
+            .filter(|id| !attached_hydrated_ids.contains(*id))
+            .cloned()
+            .collect::<Vec<_>>();
+        self.hydrate_customer_merge_attached_resources(request, &ids_needing_attached_hydration);
 
         let override_fields =
             resolved_object_field(arguments, "overrideFields").unwrap_or_default();

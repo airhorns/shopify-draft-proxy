@@ -2709,23 +2709,41 @@ fn backup_region_update_hydrates_market_region_from_upstream_in_live_hybrid() {
                         }
                     }),
                 },
-                Some("BackupRegionAvailableHydrate") => {
-                    assert_eq!(body["variables"], json!({}));
+                Some("BackupRegionMarketsHydrate") => {
+                    assert_eq!(
+                        body["variables"],
+                        json!({ "first": 250, "regionsFirst": 250 })
+                    );
                     let query = body["query"].as_str().unwrap_or_default();
-                    assert!(query.contains("availableBackupRegions"));
-                    assert!(!query.contains("markets(first:"));
-                    assert!(!query.contains("regions(first:"));
+                    assert!(query.contains("markets(first: $first)"));
+                    assert!(query.contains("regions(first: $regionsFirst)"));
                     Response {
                         status: 200,
                         headers: Default::default(),
                         body: json!({
                             "data": {
-                                "availableBackupRegions": [{
-                                    "__typename": "MarketRegionCountry",
-                                    "id": "gid://shopify/MarketRegionCountry/shop-jp",
-                                    "name": "Japan",
-                                    "code": "JP"
-                                }]
+                                "markets": {
+                                    "nodes": [{
+                                        "id": "gid://shopify/Market/shop-jp",
+                                        "name": "Japan",
+                                        "handle": "japan",
+                                        "status": "ACTIVE",
+                                        "type": "REGION",
+                                        "conditions": {
+                                            "conditionTypes": ["REGION"],
+                                            "regionsCondition": {
+                                                "regions": {
+                                                    "nodes": [{
+                                                        "__typename": "MarketRegionCountry",
+                                                        "id": "gid://shopify/MarketRegionCountry/shop-jp",
+                                                        "name": "Japan",
+                                                        "code": "JP"
+                                                    }]
+                                                }
+                                            }
+                                        }
+                                    }]
+                                }
                             }
                         }),
                     }
@@ -2821,7 +2839,7 @@ fn backup_region_update_hydrates_market_region_from_upstream_in_live_hybrid() {
             .collect::<Vec<_>>(),
         vec![
             "BackupRegionAccessScopes".to_string(),
-            "BackupRegionAvailableHydrate".to_string()
+            "BackupRegionMarketsHydrate".to_string()
         ]
     );
 }
@@ -7232,6 +7250,121 @@ fn location_edit_and_delete_are_local_in_live_hybrid_mode() {
 }
 
 #[test]
+fn live_location_connection_hydrates_caller_edges_before_applying_delete_tombstone() {
+    let deleted_id = "gid://shopify/Location/91020";
+    let survivor_id = "gid://shopify/Location/91029";
+    let second_survivor_id = "gid://shopify/Location/91021";
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("StorePropertiesLocationHydrate") {
+                let requested_id = body["variables"]["id"].as_str().unwrap_or_default();
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "location": {
+                                "id": requested_id,
+                                "name": "Hydrated upstream location",
+                                "isActive": false,
+                                "deletable": true,
+                                "hasActiveInventory": false,
+                                "hasUnfulfilledOrders": false,
+                                "isFulfillmentService": false,
+                                "isPrimary": false
+                            }
+                        }
+                    }),
+                };
+            }
+            assert!(
+                query.contains("query LocationConnectionAfterLocalDelete"),
+                "unexpected caller query: {query}"
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "locations": {
+                            "edges": [
+                                { "node": { "id": deleted_id } },
+                                { "node": { "id": survivor_id } },
+                                { "node": { "id": second_survivor_id } }
+                            ],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "upstream-start",
+                                "endCursor": "upstream-end"
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let deleted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteUpstreamLocation($id: ID!) {
+          locationDelete(locationId: $id) {
+            deletedLocationId
+            locationDeleteUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": deleted_id }),
+    ));
+    assert_eq!(
+        deleted.body["data"]["locationDelete"],
+        json!({ "deletedLocationId": deleted_id, "locationDeleteUserErrors": [] })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query LocationConnectionAfterLocalDelete($first: Int!) {
+          locations(first: $first) {
+            edges { node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "first": 50 }),
+    ));
+    assert_eq!(
+        read.body["data"]["locations"]["edges"],
+        json!([
+            { "node": { "id": survivor_id } },
+            { "node": { "id": second_survivor_id } }
+        ])
+    );
+
+    let deleted_survivor = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteSparseObservedLocation($id: ID!) {
+          locationDelete(locationId: $id) {
+            deletedLocationId
+            locationDeleteUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": survivor_id }),
+    ));
+    assert_eq!(
+        deleted_survivor.body["data"]["locationDelete"],
+        json!({ "deletedLocationId": survivor_id, "locationDeleteUserErrors": [] })
+    );
+    let requests = upstream_bodies.lock().unwrap();
+    assert_eq!(requests.len(), 3);
+    assert_eq!(requests[2]["variables"]["id"], json!(survivor_id));
+}
+
+#[test]
 fn location_deactivate_recomputes_inventory_for_hydrated_base_location() {
     let location_id = "gid://shopify/Location/live-inventory-base";
     let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
@@ -8938,6 +9071,372 @@ fn fulfillment_order_move_uses_staged_destination_location_state() {
 }
 
 #[test]
+fn fulfillment_order_move_reuses_observed_delivery_profile_location() {
+    let order_id = "gid://shopify/Order/7004011";
+    let fulfillment_order_id = "gid://shopify/FulfillmentOrder/70040111";
+    let destination_location_id = "gid://shopify/Location/70040199";
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let fulfillment_order_transport =
+        fulfillment_order_hydrate_transport(vec![fulfillment_order_order_fixture(
+            order_id,
+            "#70041",
+            fulfillment_order_id,
+            "gid://shopify/FulfillmentOrderLineItem/70040112",
+            1,
+            "OPEN",
+        )]);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body.clone());
+            if body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("ObserveMoveDestination"))
+            {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "locationsAvailableForDeliveryProfilesConnection": {
+                                "nodes": [{
+                                    "id": destination_location_id,
+                                    "name": "Observed move destination",
+                                    "isActive": true,
+                                    "isFulfillmentService": false
+                                }],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false
+                                }
+                            }
+                        }
+                    }),
+                };
+            }
+            fulfillment_order_transport(request)
+        });
+
+    let observed = proxy.process_request(json_graphql_request(
+        r#"
+        query ObserveMoveDestination {
+          locationsAvailableForDeliveryProfilesConnection(first: 5) {
+            nodes { id name isActive isFulfillmentService }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        observed.body["data"]["locationsAvailableForDeliveryProfilesConnection"]["nodes"][0]["id"],
+        json!(destination_location_id)
+    );
+
+    let moved = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MoveToObservedDestination($id: ID!, $newLocationId: ID!) {
+          fulfillmentOrderMove(id: $id, newLocationId: $newLocationId) {
+            movedFulfillmentOrder {
+              id
+              assignedLocation { name location { id name } }
+            }
+            originalFulfillmentOrder {
+              id
+              assignedLocation { name location { id name } }
+            }
+            remainingFulfillmentOrder { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": fulfillment_order_id,
+            "newLocationId": destination_location_id
+        }),
+    ));
+    let payload = &moved.body["data"]["fulfillmentOrderMove"];
+    assert_eq!(payload["userErrors"], json!([]));
+    assert_eq!(
+        payload["movedFulfillmentOrder"]["assignedLocation"]["location"]["id"],
+        json!(destination_location_id)
+    );
+    assert_eq!(
+        payload["originalFulfillmentOrder"]["assignedLocation"]["name"],
+        json!("Observed move destination")
+    );
+    assert_eq!(payload["remainingFulfillmentOrder"], Value::Null);
+
+    let bodies = upstream_bodies.lock().unwrap();
+    assert_eq!(bodies.len(), 2);
+    assert!(bodies[1]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("ShippingFulfillmentOrderHydrate")));
+    assert!(bodies.iter().all(|body| body["query"]
+        .as_str()
+        .is_none_or(|query| !query.contains("StorePropertiesLocationHydrate"))));
+}
+
+#[test]
+fn fulfillment_order_hold_retries_recorded_assignment_status_hydrate_shape() {
+    let order_id = "gid://shopify/Order/7004021";
+    let fulfillment_order_id = "gid://shopify/FulfillmentOrder/70040211";
+    let order = fulfillment_order_order_fixture(
+        order_id,
+        "#70042",
+        fulfillment_order_id,
+        "gid://shopify/FulfillmentOrderLineItem/70040212",
+        2,
+        "OPEN",
+    );
+    let fulfillment_order = order["fulfillmentOrders"]["nodes"][0].clone();
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy = snapshot_proxy().with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+        captured_bodies.lock().unwrap().push(body.clone());
+        let query = body["query"].as_str().unwrap_or_default();
+        if query.contains("requestStatus assignmentStatus fulfillAt") {
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "fulfillmentOrder": fulfillment_order } }),
+            }
+        } else {
+            Response {
+                status: 404,
+                headers: Default::default(),
+                body: json!({ "errors": [{ "message": "no recorded query" }] }),
+            }
+        }
+    });
+
+    let held = proxy.process_request(json_graphql_request(
+        r#"
+        mutation HoldUsingRecordedAssignmentHydrate(
+          $id: ID!
+          $fulfillmentHold: FulfillmentOrderHoldInput!
+        ) {
+          fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {
+            fulfillmentOrder { id status }
+            fulfillmentHold { handle reason }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": fulfillment_order_id,
+            "fulfillmentHold": {
+                "reason": "OTHER",
+                "reasonNotes": "Recorded assignment hydrate",
+                "handle": "recorded-assignment-hydrate"
+            }
+        }),
+    ));
+    assert_eq!(
+        held.body["data"]["fulfillmentOrderHold"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        held.body["data"]["fulfillmentOrderHold"]["fulfillmentOrder"]["status"],
+        json!("ON_HOLD")
+    );
+
+    let bodies = upstream_bodies.lock().unwrap();
+    assert_eq!(bodies.len(), 4);
+    assert!(bodies[3]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("requestStatus assignmentStatus fulfillAt")));
+}
+
+#[test]
+fn fulfillment_order_merge_reuses_complete_order_observed_by_public_read() {
+    let order_id = "gid://shopify/Order/7004031";
+    let target_id = "gid://shopify/FulfillmentOrder/70040311";
+    let source_id = "gid://shopify/FulfillmentOrder/70040321";
+    let mut order = fulfillment_order_order_fixture(
+        order_id,
+        "#70043",
+        target_id,
+        "gid://shopify/FulfillmentOrderLineItem/70040312",
+        1,
+        "OPEN",
+    );
+    let source = fulfillment_order_order_fixture(
+        order_id,
+        "#70043",
+        source_id,
+        "gid://shopify/FulfillmentOrderLineItem/70040322",
+        1,
+        "OPEN",
+    )["fulfillmentOrders"]["nodes"][0]
+        .clone();
+    order["fulfillmentOrders"]["nodes"]
+        .as_array_mut()
+        .unwrap()
+        .push(source);
+
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body.clone());
+            if body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("ObserveMergePrerequisites"))
+            {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "order": order } }),
+                }
+            } else {
+                Response {
+                    status: 599,
+                    headers: Default::default(),
+                    body: json!({ "errors": [{ "message": "unexpected upstream call" }] }),
+                }
+            }
+        });
+
+    let observed = proxy.process_request(json_graphql_request(
+        r#"
+        query ObserveMergePrerequisites($id: ID!) {
+          order(id: $id) {
+            id
+            name
+            displayFulfillmentStatus
+            fulfillmentOrders(first: 10) {
+              nodes {
+                id
+                status
+                requestStatus
+                fulfillBy
+                lineItems(first: 10) {
+                  nodes {
+                    id
+                    totalQuantity
+                    remainingQuantity
+                    lineItem { id title quantity fulfillableQuantity }
+                  }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "id": order_id }),
+    ));
+    assert_eq!(
+        observed.body["data"]["order"]["fulfillmentOrders"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+
+    let merged = merge_fulfillment_order_batch(
+        &mut proxy,
+        json!([{
+            "mergeIntents": [
+                { "fulfillmentOrderId": target_id },
+                { "fulfillmentOrderId": source_id }
+            ]
+        }]),
+    );
+    let payload = &merged.body["data"]["fulfillmentOrderMerge"];
+    assert_eq!(payload["userErrors"], json!([]));
+    assert_eq!(
+        payload["fulfillmentOrderMerges"][0]["fulfillmentOrder"]["lineItems"]["nodes"][0]
+            ["remainingQuantity"],
+        json!(2)
+    );
+    assert_eq!(upstream_bodies.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn fulfillment_order_detail_reuses_value_from_forwarded_mixed_document() {
+    let fulfillment_order_id = "gid://shopify/FulfillmentOrder/70040411";
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body.clone());
+            assert!(body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("MixedFulfillmentOrderDetail")));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shop": { "id": "gid://shopify/Shop/700404" },
+                        "fulfillmentOrder": {
+                            "id": fulfillment_order_id,
+                            "status": "CLOSED",
+                            "requestStatus": "UNSUBMITTED",
+                            "assignedLocation": { "name": "Observed detail location" },
+                            "lineItems": {
+                                "nodes": [{
+                                    "id": "gid://shopify/FulfillmentOrderLineItem/70040412",
+                                    "totalQuantity": 1,
+                                    "remainingQuantity": 0,
+                                    "lineItem": {
+                                        "id": "gid://shopify/LineItem/70040413",
+                                        "title": "Observed detail line"
+                                    }
+                                }],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": "observed-start",
+                                    "endCursor": "observed-end"
+                                }
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query MixedFulfillmentOrderDetail($id: ID!) {
+          shop { id }
+          fulfillmentOrder(id: $id) {
+            id
+            status
+            requestStatus
+            assignedLocation { name }
+            lineItems(first: 5) {
+              nodes {
+                id
+                totalQuantity
+                remainingQuantity
+                lineItem { id title }
+              }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({ "id": fulfillment_order_id }),
+    ));
+    assert_eq!(
+        response.body["data"]["fulfillmentOrder"]["id"],
+        json!(fulfillment_order_id)
+    );
+    assert_eq!(
+        response.body["data"]["fulfillmentOrder"]["lineItems"]["pageInfo"]["endCursor"],
+        json!("observed-end")
+    );
+    assert_eq!(upstream_bodies.lock().unwrap().len(), 1);
+}
+
+#[test]
 fn fulfillment_order_open_rejects_already_open_without_mutating_hydrated_order() {
     let order_id = "gid://shopify/Order/7002002";
     let fulfillment_order_id = "gid://shopify/FulfillmentOrder/2234567891";
@@ -10185,6 +10684,174 @@ fn store_property_node_reads_resolve_shop_records_from_store_state() {
             }
         })
     );
+}
+
+#[test]
+fn metafield_node_reads_resolve_effective_owner_metafield_state() {
+    let mut proxy = snapshot_proxy();
+    let product = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMetafieldNodeOwner($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "Metafield node owner" } }),
+    ));
+    assert_eq!(
+        product.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let product_id = product.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SetMetafieldForNodeRead($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { id namespace key type value jsonValue ownerType }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "metafields": [{
+                "ownerId": product_id,
+                "namespace": "custom",
+                "key": "material",
+                "type": "single_line_text_field",
+                "value": "Canvas"
+            }]
+        }),
+    ));
+    assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+    let metafield = set.body["data"]["metafieldsSet"]["metafields"][0].clone();
+    let metafield_id = metafield["id"].as_str().unwrap().to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadMetafieldNodes($id: ID!) {
+          node(id: $id) {
+            __typename
+            ... on Metafield {
+              id namespace key type value jsonValue ownerType definition { id name }
+            }
+          }
+          nodes(ids: [$id]) {
+            __typename
+            ... on Metafield {
+              id namespace key type value jsonValue ownerType definition { id name }
+            }
+          }
+        }
+        "#,
+        json!({ "id": metafield_id }),
+    ));
+    let expected = json!({
+        "__typename": "Metafield",
+        "id": metafield["id"],
+        "namespace": "custom",
+        "key": "material",
+        "type": "single_line_text_field",
+        "value": "Canvas",
+        "jsonValue": "Canvas",
+        "ownerType": "PRODUCT",
+        "definition": null
+    });
+    assert_eq!(read.body["data"]["node"], expected);
+    assert_eq!(read.body["data"]["nodes"], json!([expected]));
+}
+
+#[test]
+fn metafield_node_reads_reuse_owner_metafields_observed_by_product_passthrough() {
+    let requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            let mut requests = captured_requests.lock().unwrap();
+            requests.push(body);
+            let body = if requests.len() == 1 {
+                json!({
+                    "data": {
+                        "product": {
+                            "id": "gid://shopify/Product/observed-metafield-owner",
+                            "title": "Observed metafield owner",
+                            "primarySpec": {
+                                "id": "gid://shopify/Metafield/observed-material",
+                                "namespace": "custom",
+                                "key": "material",
+                                "type": "single_line_text_field",
+                                "value": "Canvas",
+                                "jsonValue": "Canvas",
+                                "ownerType": "PRODUCT",
+                                "definition": null
+                            }
+                        }
+                    }
+                })
+            } else {
+                json!({ "data": { "nodes": [null] } })
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body,
+            }
+        });
+
+    let primary = proxy.process_request(json_graphql_request(
+        r#"
+        query ObserveProductMetafield($id: ID!, $namespace: String!, $key: String!) {
+          product(id: $id) {
+            id
+            title
+            primarySpec: metafield(namespace: $namespace, key: $key) {
+              id namespace key type value jsonValue ownerType definition { id name }
+            }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/observed-metafield-owner",
+            "namespace": "custom",
+            "key": "material"
+        }),
+    ));
+    assert_eq!(primary.status, 200);
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadObservedMetafieldNode($id: ID!) {
+          nodes(ids: [$id]) {
+            __typename
+            ... on Metafield {
+              id namespace key type value jsonValue ownerType definition { id name }
+            }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Metafield/observed-material" }),
+    ));
+    assert_eq!(
+        read.body["data"]["nodes"],
+        json!([{
+            "__typename": "Metafield",
+            "id": "gid://shopify/Metafield/observed-material",
+            "namespace": "custom",
+            "key": "material",
+            "type": "single_line_text_field",
+            "value": "Canvas",
+            "jsonValue": "Canvas",
+            "ownerType": "PRODUCT",
+            "definition": null
+        }])
+    );
+    assert_eq!(requests.lock().unwrap().len(), 1);
 }
 
 #[test]

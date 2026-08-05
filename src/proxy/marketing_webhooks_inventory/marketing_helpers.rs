@@ -784,6 +784,9 @@ impl DraftProxy {
         field: &MarketingRootInput,
     ) -> ResolverOutcome<Value> {
         if self.config.read_mode == ReadMode::LiveHybrid {
+            if self.marketing_query_has_locally_authoritative_staged_scope(field) {
+                return ResolverOutcome::value(self.marketing_query_value(request, field));
+            }
             let mut outcome =
                 self.cached_or_forward_upstream_root_outcome(request, &field.response_key);
             if outcome.errors.is_empty() {
@@ -799,6 +802,47 @@ impl DraftProxy {
             return outcome;
         }
         ResolverOutcome::value(self.marketing_query_value(request, field))
+    }
+
+    fn marketing_query_has_locally_authoritative_staged_scope(
+        &self,
+        field: &MarketingRootInput,
+    ) -> bool {
+        let staged_matches_id = |id: &str| {
+            self.store
+                .staged
+                .marketing_activities
+                .records
+                .keys()
+                .any(|candidate| candidate == id || shopify_gid_identities_overlap(candidate, id))
+                || self.store.staged.marketing_activities.is_tombstoned(id)
+        };
+        let staged_matches_remote_id = |remote_id: &str| {
+            self.store
+                .staged
+                .marketing_activities
+                .records
+                .values()
+                .any(|activity| {
+                    activity["remoteId"].as_str() == Some(remote_id)
+                        || activity["marketingEvent"]["remoteId"].as_str() == Some(remote_id)
+                })
+        };
+
+        match field.name.as_str() {
+            "marketingActivity" => resolved_string_field(&field.arguments, "id")
+                .is_some_and(|id| staged_matches_id(&id)),
+            "marketingActivities" => {
+                let ids = resolved_string_list_arg(&field.arguments, "marketingActivityIds");
+                let remote_ids = resolved_string_list_arg(&field.arguments, "remoteIds");
+                (!ids.is_empty() || !remote_ids.is_empty())
+                    && ids.iter().all(|id| staged_matches_id(id))
+                    && remote_ids
+                        .iter()
+                        .all(|remote_id| staged_matches_remote_id(remote_id))
+            }
+            _ => false,
+        }
     }
 
     fn observe_marketing_upstream_response(&mut self, field: &MarketingRootInput, body: &Value) {
@@ -2073,6 +2117,7 @@ fn immutable_external_activity_validator_rejects_missing_marketing_event() {
         bulk_operation_run_mutation_max_input_file_size_bytes: None,
         port: 0,
         shopify_admin_origin: "https://shopify.com".to_string(),
+        shopify_store_domain: None,
         snapshot_path: None,
     });
     let err = proxy.marketing_external_immutable_update_error(

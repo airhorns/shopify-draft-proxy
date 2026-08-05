@@ -116,6 +116,7 @@ struct ProxyRootExecutor {
     version: AdminApiVersion,
     root_calls: BTreeMap<String, PreparedRootCall>,
     root_locations: BTreeMap<String, SourceLocation>,
+    observe_upstream_products: bool,
     observe_upstream_shop: bool,
     delivery_promise_mutation: Option<PreparedAtomicMutation>,
     delivery_promise_outcomes: std::sync::Mutex<Option<BTreeMap<String, ResolverOutcome<Value>>>>,
@@ -371,6 +372,19 @@ impl RootFieldExecutor for ProxyRootExecutor {
                 };
                 if self.observe_upstream_shop {
                     proxy.observe_upstream_shop_query(&response);
+                }
+                if self.observe_upstream_products {
+                    let caller_data = proxy
+                        .execution_session
+                        .request_cache
+                        .caller_data()
+                        .cloned()
+                        .unwrap_or(Value::Null);
+                    for (response_key, call) in &self.root_calls {
+                        if let Some(value) = caller_data.get(response_key) {
+                            proxy.observe_upstream_product_root_value(&call.field.name, value);
+                        }
+                    }
                 }
                 *cached = Some(response);
             }
@@ -863,6 +877,7 @@ impl DraftProxy {
 
         let all_passthrough = !root_names.is_empty() && !has_local_root && has_passthrough_root;
         let direct_full_query_passthrough = disposition.direct_full_query_passthrough;
+        let observe_upstream_products = disposition.observe_upstream_products;
         let observe_upstream_shop = disposition.observe_upstream_shop;
         if let Some((document, _, _)) = prepared.as_ref() {
             if let Some(error) = required_variable_error(document, &graphql_request.variables) {
@@ -959,6 +974,7 @@ impl DraftProxy {
                 version,
                 root_calls,
                 root_locations,
+                observe_upstream_products,
                 observe_upstream_shop,
                 delivery_promise_mutation,
                 delivery_promise_outcomes: std::sync::Mutex::new(None),

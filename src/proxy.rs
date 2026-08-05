@@ -71,6 +71,7 @@ pub struct Config {
     pub bulk_operation_run_mutation_max_input_file_size_bytes: Option<u64>,
     pub port: u16,
     pub shopify_admin_origin: String,
+    pub shopify_store_domain: Option<String>,
     pub snapshot_path: Option<String>,
 }
 
@@ -84,6 +85,7 @@ impl Default for Config {
             ),
             port: 4000,
             shopify_admin_origin: "https://shopify.com".to_string(),
+            shopify_store_domain: None,
             snapshot_path: None,
         }
     }
@@ -1985,10 +1987,50 @@ impl Store {
     }
 
     fn marketing_activities(&self) -> Vec<Value> {
+        let mut synthetic_by_title = BTreeMap::<String, Vec<Option<String>>>::new();
+        for activity in self.staged.marketing_activities.records.values() {
+            if !activity["id"].as_str().is_some_and(is_synthetic_gid) {
+                continue;
+            }
+            let Some(title) = activity["title"].as_str() else {
+                continue;
+            };
+            let remote_id = activity["remoteId"]
+                .as_str()
+                .or_else(|| activity["marketingEvent"]["remoteId"].as_str())
+                .map(str::to_string);
+            synthetic_by_title
+                .entry(title.to_string())
+                .or_default()
+                .push(remote_id);
+        }
+
         effective_records(
             &self.base.marketing_activities,
             &self.staged.marketing_activities,
         )
+        .into_iter()
+        .filter(|activity| {
+            if activity["id"].as_str().is_some_and(is_synthetic_gid) {
+                return true;
+            }
+            let Some(staged_remote_ids) = activity["title"]
+                .as_str()
+                .and_then(|title| synthetic_by_title.get(title))
+            else {
+                return true;
+            };
+            let observed_remote_id = activity["remoteId"]
+                .as_str()
+                .or_else(|| activity["marketingEvent"]["remoteId"].as_str());
+            match observed_remote_id {
+                Some(remote_id) => !staged_remote_ids
+                    .iter()
+                    .any(|candidate| candidate.as_deref() == Some(remote_id)),
+                None => staged_remote_ids.len() != 1,
+            }
+        })
+        .collect()
     }
 
     fn marketing_events(&self) -> Vec<Value> {

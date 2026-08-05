@@ -52,6 +52,7 @@ fn snapshot_proxy() -> DraftProxy {
         bulk_operation_run_mutation_max_input_file_size_bytes: None,
         port: 0,
         shopify_admin_origin: "https://shopify.com".to_string(),
+        shopify_store_domain: None,
         snapshot_path: None,
     })
 }
@@ -1108,6 +1109,7 @@ fn product_read_passthroughs_in_live_hybrid_when_there_is_no_local_overlay_state
         bulk_operation_run_mutation_max_input_file_size_bytes: None,
         port: 0,
         shopify_admin_origin: "https://shopify.com".to_string(),
+        shopify_store_domain: None,
         snapshot_path: None,
     })
     .with_upstream_transport({
@@ -1440,6 +1442,7 @@ fn collection_create_reserves_handles_against_observed_and_staged_collections() 
         bulk_operation_run_mutation_max_input_file_size_bytes: None,
         port: 0,
         shopify_admin_origin: "https://shopify.com".to_string(),
+        shopify_store_domain: None,
         snapshot_path: None,
     })
     .with_upstream_transport({
@@ -1712,6 +1715,7 @@ fn top_level_collections_live_hybrid_overlays_observed_upstream_state() {
         bulk_operation_run_mutation_max_input_file_size_bytes: None,
         port: 0,
         shopify_admin_origin: "https://shopify.com".to_string(),
+        shopify_store_domain: None,
         snapshot_path: None,
     })
     .with_upstream_transport({
@@ -1783,6 +1787,7 @@ fn collection_handle_lookups_forward_after_staged_collection_miss() {
         bulk_operation_run_mutation_max_input_file_size_bytes: None,
         port: 0,
         shopify_admin_origin: "https://shopify.com".to_string(),
+        shopify_store_domain: None,
         snapshot_path: None,
     })
     .with_upstream_transport(move |request| {
@@ -1882,6 +1887,7 @@ fn collections_count_uses_upstream_total_with_staged_delta() {
         bulk_operation_run_mutation_max_input_file_size_bytes: None,
         port: 0,
         shopify_admin_origin: "https://shopify.com".to_string(),
+        shopify_store_domain: None,
         snapshot_path: None,
     })
     .with_upstream_transport(move |request| {
@@ -1939,6 +1945,7 @@ fn collections_live_hybrid_hydrates_identity_when_selection_omits_id() {
         bulk_operation_run_mutation_max_input_file_size_bytes: None,
         port: 0,
         shopify_admin_origin: "https://shopify.com".to_string(),
+        shopify_store_domain: None,
         snapshot_path: None,
     })
     .with_upstream_transport(move |request| {

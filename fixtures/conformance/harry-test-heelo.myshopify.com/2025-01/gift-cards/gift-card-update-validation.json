@@ -4,7 +4,7 @@
   "apiVersion": "2025-01",
   "notes": [
     "HAR-694 captures live giftCardUpdate validation branches for deactivated-card protected fields, missing update arguments, missing changed customerId, recipient text length, and success.",
-    "The public Admin API exposes giftCardUpdate.userErrors as generic UserError in 2025-01, so the live request records field/message only; expected replay data adds the typed code values required by the internal GiftCardErrorCode contract.",
+    "The public Admin API exposes giftCardUpdate.userErrors as generic UserError in 2025-01; parity compares the recorded public field/message payload and top-level recipient-length errors directly.",
     "Setup creates disposable Customer A/B plus active/deactivated gift cards; cleanup deactivates setup gift cards and deletes setup customers."
   ],
   "proxyVariables": {
@@ -309,68 +309,6 @@
             }
           }
         }
-      }
-    }
-  },
-  "expected": {
-    "data": {
-      "deactivatedExpiresOn": {
-        "giftCard": null,
-        "userErrors": [
-          {
-            "field": ["input", "expiresOn"],
-            "message": "The gift card is deactivated.",
-            "code": "INVALID"
-          }
-        ]
-      },
-      "emptyInput": {
-        "giftCard": null,
-        "userErrors": [
-          {
-            "field": ["input"],
-            "message": "At least one argument is required in the input.",
-            "code": "INVALID"
-          }
-        ]
-      },
-      "missingCustomer": {
-        "giftCard": null,
-        "userErrors": [
-          {
-            "field": ["input", "customerId"],
-            "message": "The customer could not be found.",
-            "code": "CUSTOMER_NOT_FOUND"
-          }
-        ]
-      },
-      "longRecipientName": {
-        "giftCard": null,
-        "userErrors": [
-          {
-            "field": ["input", "recipientAttributes", "preferredName"],
-            "code": "TOO_LONG",
-            "message": "preferredName is too long (maximum is 255)"
-          }
-        ]
-      },
-      "longRecipientMessage": {
-        "giftCard": null,
-        "userErrors": [
-          {
-            "field": ["input", "recipientAttributes", "message"],
-            "code": "TOO_LONG",
-            "message": "message is too long (maximum is 200)"
-          }
-        ]
-      },
-      "success": {
-        "giftCard": {
-          "id": "gid://shopify/GiftCard/654852292914",
-          "note": "HAR-694 updated note",
-          "updatedAt": "2026-05-05T18:50:02Z"
-        },
-        "userErrors": []
       }
     }
   },

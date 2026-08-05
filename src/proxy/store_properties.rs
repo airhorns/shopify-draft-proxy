@@ -177,6 +177,17 @@ impl DraftProxy {
                 }
                 result.outcome
             }
+            "locations"
+                if self.config.read_mode == ReadMode::LiveHybrid
+                    && self.has_location_overlay_state() =>
+            {
+                let result = self.cached_or_forward_upstream_graphql_result(request, response_key);
+                if !result.transport_succeeded {
+                    return result.outcome;
+                }
+                self.observe_base_locations_from_data(&result.data);
+                self.location_root_outcome(root_name, &arguments, response_key)
+            }
             _ if self.has_location_overlay_state()
                 || !self.location_root_needs_upstream(root_name, &arguments) =>
             {

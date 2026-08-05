@@ -47,7 +47,7 @@
       },
       {
         "name": "giftCardUpdate deactivated multi-field userErrors",
-        "capturePath": "$.expected.data",
+        "capturePath": "$.operations.multiFieldUpdate.response.payload.data",
         "proxyPath": "$.data",
         "proxyRequest": {
           "documentPath": "config/parity-requests/gift-cards/gift-card-update-deactivated-multi-field.graphql",

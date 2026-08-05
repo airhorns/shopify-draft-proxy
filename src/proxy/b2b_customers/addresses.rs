@@ -468,6 +468,9 @@ fn customer_resolve_address_region(
     let country = match country_input
         .as_deref()
         .and_then(customer_country_from_input)
+        // `ZZ` is a valid Shopify CountryCode enum value, but Admin customer
+        // mailing addresses reject it as an unknown Atlas country.
+        .filter(|country| country.code != "ZZ")
     {
         Some(country) => Some(country),
         None if country_input.is_some() => {

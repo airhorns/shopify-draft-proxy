@@ -34,6 +34,7 @@
       },
       {
         "name": "downstream-read-data",
+        "preferTargetFallback": true,
         "capturePath": "$.downstreamRead.data",
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/metafieldsSet-downstream-read.graphql",

@@ -3098,6 +3098,238 @@ fn product_variants_read_respects_connection_arguments() {
 }
 
 #[test]
+fn authoritative_mixed_product_read_warms_normalized_state_across_dump_restore() {
+    let product_id = "gid://shopify/Product/observed-mixed-read";
+    let variant_id = "gid://shopify/ProductVariant/observed-mixed-read";
+    let inventory_item_id = "gid://shopify/InventoryItem/observed-mixed-read";
+    let inventory_level_id =
+        "gid://shopify/InventoryLevel/observed-mixed-read?inventory_item_id=observed-mixed-read";
+    let upstream_calls = Arc::new(AtomicUsize::new(0));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let call = captured_calls.fetch_add(1, Ordering::SeqCst);
+            assert_eq!(
+                call, 0,
+                "the restored read must use normalized base state; unexpected request: {}",
+                request.body
+            );
+            let inventory_item = json!({
+                "id": inventory_item_id,
+                "tracked": false,
+                "requiresShipping": true,
+                "inventoryLevels": {
+                    "edges": [{
+                        "cursor": "opaque-inventory-level-cursor",
+                        "node": {
+                            "id": inventory_level_id,
+                            "location": {
+                                "id": "gid://shopify/Location/observed-mixed-read",
+                                "name": "Observed location"
+                            },
+                            "quantities": [{ "name": "available", "quantity": 4 }]
+                        }
+                    }],
+                    "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "opaque-inventory-level-cursor",
+                        "endCursor": "opaque-inventory-level-cursor"
+                    }
+                }
+            });
+            let variant = json!({
+                "id": variant_id,
+                "title": "Observed variant",
+                "sku": "OBSERVED-MIXED",
+                "inventoryQuantity": 4,
+                "inventoryItem": inventory_item,
+                "product": { "id": product_id, "title": "Observed mixed product" }
+            });
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "product": {
+                            "id": product_id,
+                            "title": "Observed mixed product",
+                            "variants": {
+                                "edges": [{
+                                    "cursor": "opaque-variant-cursor",
+                                    "node": variant
+                                }],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": "opaque-variant-cursor",
+                                    "endCursor": "opaque-variant-cursor"
+                                }
+                            }
+                        },
+                        "variant": variant,
+                        "stock": inventory_item
+                    }
+                }),
+            }
+        });
+
+    let query = r#"
+        query MixedProductRead($productId: ID!, $variantId: ID!, $inventoryItemId: ID!) {
+          product(id: $productId) {
+            id
+            title
+            variants(first: 5) {
+              edges {
+                cursor
+                node {
+                  id
+                  title
+                  sku
+                  inventoryQuantity
+                  inventoryItem {
+                    id
+                    tracked
+                    requiresShipping
+                    inventoryLevels(first: 5) {
+                      edges {
+                        cursor
+                        node {
+                          id
+                          location { id name }
+                          quantities(names: ["available"]) { name quantity }
+                        }
+                      }
+                      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+                    }
+                  }
+                }
+              }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          variant: productVariant(id: $variantId) {
+            id
+            title
+            sku
+            inventoryQuantity
+            inventoryItem { id tracked requiresShipping }
+            product { id title }
+          }
+          stock: inventoryItem(id: $inventoryItemId) {
+            id
+            tracked
+            requiresShipping
+            variant { id title sku inventoryQuantity product { id title } }
+          }
+        }
+    "#;
+    let variables = json!({
+        "productId": product_id,
+        "variantId": variant_id,
+        "inventoryItemId": inventory_item_id
+    });
+    let first = proxy.process_request(json_graphql_request(query, variables.clone()));
+    assert_eq!(first.status, 200);
+    assert_eq!(upstream_calls.load(Ordering::SeqCst), 1);
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    assert_eq!(dump.status, 200);
+    assert!(
+        dump.body["state"]["baseState"]["products"]
+            .get(product_id)
+            .is_some(),
+        "authoritative product root should be normalized: {}",
+        dump.body["state"]["baseState"]["products"]
+    );
+    assert!(
+        dump.body["state"]["baseState"]["productVariants"]
+            .get(variant_id)
+            .is_some(),
+        "authoritative variant roots should be normalized: {}",
+        dump.body["state"]["baseState"]["productVariants"]
+    );
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let restored = proxy.process_request(json_graphql_request(query, variables));
+    assert_eq!(restored.status, 200);
+    assert_eq!(restored.body["data"]["product"]["id"], json!(product_id));
+    assert_eq!(
+        restored.body["data"]["variant"]["inventoryItem"]["id"],
+        json!(inventory_item_id)
+    );
+    assert_eq!(
+        restored.body["data"]["stock"]["variant"]["id"],
+        json!(variant_id)
+    );
+    assert_eq!(
+        restored.body["data"]["product"]["variants"]["edges"][0]["cursor"],
+        json!("opaque-variant-cursor")
+    );
+    assert_eq!(
+        restored.body["data"]["product"]["variants"]["edges"][0]["node"]["inventoryItem"]
+            ["inventoryLevels"]["edges"][0]["cursor"],
+        json!("opaque-inventory-level-cursor")
+    );
+    assert_eq!(upstream_calls.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn authoritative_product_preview_url_reads_are_not_served_from_observed_base_state() {
+    let product_id = "gid://shopify/Product/live-preview-url";
+    let upstream_calls = Arc::new(AtomicUsize::new(0));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_| {
+            let call = captured_calls.fetch_add(1, Ordering::SeqCst);
+            let (status, preview_url) = if call == 0 {
+                ("DRAFT", "https://preview.example/first")
+            } else {
+                ("ARCHIVED", "https://preview.example/second")
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "product": {
+                            "id": product_id,
+                            "status": status,
+                            "onlineStorePreviewUrl": preview_url
+                        }
+                    },
+                    "extensions": { "requestMarker": call }
+                }),
+            }
+        });
+    let query = r#"
+        query LivePreviewUrl($id: ID!) {
+          product(id: $id) { id status onlineStorePreviewUrl }
+        }
+    "#;
+
+    let first = proxy.process_request(json_graphql_request(query, json!({ "id": product_id })));
+    let second = proxy.process_request(json_graphql_request(query, json!({ "id": product_id })));
+
+    assert_eq!(first.body["data"]["product"]["status"], json!("DRAFT"));
+    assert_eq!(
+        second.body["data"]["product"],
+        json!({
+            "id": product_id,
+            "status": "ARCHIVED",
+            "onlineStorePreviewUrl": "https://preview.example/second"
+        })
+    );
+    assert_eq!(second.body["extensions"]["requestMarker"], json!(1));
+    assert_eq!(upstream_calls.load(Ordering::SeqCst), 2);
+}
+
+#[test]
 fn product_variants_connection_honors_sort_keys_and_reverse() {
     let product_id = "gid://shopify/Product/variant-sort-connection";
     let mut proxy = snapshot_proxy().with_base_products(vec![seed_product(product_id)]);
@@ -10009,6 +10241,87 @@ fn product_read_resolves_published_on_current_publication_from_current_channel()
             }
         })
     );
+}
+
+#[test]
+fn publishable_aggregate_only_product_selection_uses_combined_cold_hydrate() {
+    let product_id = "gid://shopify/Product/9264105488617";
+    let publication_id = "gid://shopify/Publication/82090459369";
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured = Arc::clone(&forwarded);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured.lock().unwrap().push(request.clone());
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            assert!(
+                body["query"].as_str().is_some_and(
+                    |query| query.contains("StorePropertiesPublishableInputValidationHydrate")
+                ),
+                "aggregate-only cold resolution must use the combined publishable hydrate: {}",
+                body["query"]
+            );
+            let data = if body["variables"] == json!({ "id": product_id }) {
+                json!({
+                    "publishable": {
+                        "id": product_id,
+                        "publishedOnCurrentPublication": false,
+                        "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
+                        "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
+                    }
+                })
+            } else {
+                assert_eq!(body["variables"], json!({}));
+                json!({
+                    "shop": { "publicationCount": 1, "currencyCode": "CAD" },
+                    "publications": {
+                        "nodes": [{ "id": publication_id, "name": "Online Store" }]
+                    }
+                })
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": data }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PublishableAggregateOnlyProduct($id: ID!, $input: [PublicationInput!]!) {
+          publishablePublish(id: $id, input: $input) {
+            publishable {
+              ... on Product {
+                id
+                publishedOnCurrentPublication
+                availablePublicationsCount { count precision }
+                resourcePublicationsCount { count precision }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": product_id,
+            "input": [{ "publicationId": publication_id }]
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["publishablePublish"],
+        json!({
+            "publishable": {
+                "id": product_id,
+                "publishedOnCurrentPublication": false,
+                "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
+                "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
+            },
+            "userErrors": []
+        })
+    );
+    assert!(!forwarded.lock().unwrap().is_empty());
 }
 
 #[test]
@@ -20310,6 +20623,8 @@ fn collection_validations_and_reorder_are_store_backed() {
             "handle": "first-product"
         }])
     );
+    let state_before_smart_remove = state_snapshot(&proxy);
+    let log_len_before_smart_remove = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
     let smart_remove_v1 = proxy.process_request(json_graphql_request(
         r#"
         mutation SmartRemoveV1($id: ID!, $productIds: [ID!]!) {
@@ -20326,15 +20641,19 @@ fn collection_validations_and_reorder_are_store_backed() {
     ));
     assert_eq!(
         smart_remove_v1.body["data"]["collectionRemoveProducts"]["userErrors"],
-        json!([])
+        json!([{
+            "field": ["id"],
+            "message": "Can't manually remove products from a smart collection"
+        }])
     );
     assert_eq!(
-        smart_remove_v1.body["data"]["collectionRemoveProducts"]["job"]["done"],
-        json!(false)
-    );
-    assert_eq!(
-        smart_remove_v1.body["data"]["collectionRemoveProducts"]["job"]["query"],
+        smart_remove_v1.body["data"]["collectionRemoveProducts"]["job"],
         Value::Null
+    );
+    assert_eq!(state_snapshot(&proxy), state_before_smart_remove);
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        log_len_before_smart_remove
     );
     let smart_read_after_remove = proxy.process_request(json_graphql_request(
         r#"
@@ -20349,6 +20668,34 @@ fn collection_validations_and_reorder_are_store_backed() {
     assert_eq!(
         smart_read_after_remove.body["data"]["collection"]["products"]["nodes"],
         json!([{ "id": "gid://shopify/Product/first" }])
+    );
+    let mut legacy_smart_remove_request = json_graphql_request(
+        r#"
+        mutation LegacySmartRemoveV1($id: ID!, $productIds: [ID!]!) {
+          collectionRemoveProducts(id: $id, productIds: $productIds) {
+            job { id done query { __typename } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": smart_id,
+            "productIds": ["gid://shopify/Product/first"]
+        }),
+    );
+    legacy_smart_remove_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let legacy_smart_remove = proxy.process_request(legacy_smart_remove_request);
+    assert_eq!(
+        legacy_smart_remove.body["data"]["collectionRemoveProducts"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        legacy_smart_remove.body["data"]["collectionRemoveProducts"]["job"]["done"],
+        json!(false)
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        log_len_before_smart_remove + 1
     );
     let state_before_smart_reorder = state_snapshot(&proxy);
     let log_len_before_smart_reorder = log_snapshot(&proxy)["entries"].as_array().unwrap().len();

@@ -394,6 +394,12 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
         load_media,
     ),
     node_entry!(
+        "Metafield",
+        "DraftProxy::owner_metafield_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+        load_metafield,
+    ),
+    node_entry!(
         "Metaobject",
         "DraftProxy::metaobject_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,

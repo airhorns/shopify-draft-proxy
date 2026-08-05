@@ -102,6 +102,42 @@ fn assert_timestamp_second(value: &Value, expected_prefix: &str, context: &str) 
 }
 
 #[test]
+fn nested_input_enum_errors_point_at_the_immediate_parent_object() {
+    let mut proxy = snapshot_proxy();
+    let invalid_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/metaobjects/metaobject-definition-customer-account-access-invalid-create.graphql"
+        ),
+        json!({ "type": "invalid_customer_account_access" }),
+    ));
+    assert_eq!(
+        invalid_create.body["errors"][0]["locations"],
+        json!([{ "line": 7, "column": 15 }])
+    );
+    assert_eq!(
+        invalid_create.body["errors"][0]["path"],
+        json!([
+            "mutation MetaobjectDefinitionCustomerAccountAccessInvalidCreate",
+            "metaobjectDefinitionCreate",
+            "definition",
+            "access",
+            "customerAccount"
+        ])
+    );
+
+    let invalid_update = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/metaobjects/metaobject-definition-customer-account-access-invalid-update.graphql"
+        ),
+        json!({ "id": "gid://shopify/MetaobjectDefinition/1" }),
+    ));
+    assert_eq!(
+        invalid_update.body["errors"][0]["locations"],
+        json!([{ "line": 2, "column": 61 }])
+    );
+}
+
+#[test]
 fn metaobject_timestamps_follow_proxy_clock() {
     let clock = Arc::new(Mutex::new(utc_time(1_783_324_800)));
     let mut proxy = snapshot_proxy_with_clock(Arc::clone(&clock));
@@ -1399,6 +1435,91 @@ fn marketing_live_hybrid_cold_read_forwards_non_empty_upstream_catalog() {
     assert!(requests[0]["query"].as_str().is_some_and(|query| query
         .contains("marketingActivities")
         && query.contains("marketingEvent")));
+}
+
+#[test]
+fn marketing_live_hybrid_staged_id_and_remote_id_reads_do_not_require_upstream() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_requests.lock().unwrap().push(body);
+            Response {
+                status: 500,
+                headers: Default::default(),
+                body: json!({ "errors": [{ "message": "unexpected upstream request" }] }),
+            }
+        });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateLocallyAuthoritativeMarketingActivity($input: MarketingActivityCreateExternalInput!) {
+          created: marketingActivityCreateExternal(input: $input) {
+            marketingActivity { id title marketingEvent { remoteId } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "title": "Local authoritative activity",
+            "remoteId": "local-authoritative",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/local-authoritative",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "utm": {
+                "campaign": "local-authoritative",
+                "source": "email",
+                "medium": "newsletter"
+            }
+        }}),
+    ));
+    assert_eq!(create.body["data"]["created"]["userErrors"], json!([]));
+    let activity_id = create.body["data"]["created"]["marketingActivity"]["id"]
+        .as_str()
+        .expect("staged marketing activity id")
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadLocallyAuthoritativeMarketingActivity($id: ID!, $ids: [ID!], $remoteIds: [String!]) {
+          activity: marketingActivity(id: $id) { id title marketingEvent { remoteId } }
+          byId: marketingActivities(first: 5, marketingActivityIds: $ids) {
+            nodes { id title }
+          }
+          byRemoteId: marketingActivities(first: 5, remoteIds: $remoteIds) {
+            nodes { id title marketingEvent { remoteId } }
+          }
+        }
+        "#,
+        json!({
+            "id": activity_id,
+            "ids": [activity_id],
+            "remoteIds": ["local-authoritative"]
+        }),
+    ));
+
+    assert_eq!(
+        read.body["data"]["activity"],
+        json!({
+            "id": activity_id,
+            "title": "Local authoritative activity",
+            "marketingEvent": { "remoteId": "local-authoritative" }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["byId"]["nodes"].as_array().unwrap().len(),
+        1
+    );
+    assert_eq!(
+        read.body["data"]["byRemoteId"]["nodes"][0]["marketingEvent"]["remoteId"],
+        json!("local-authoritative")
+    );
+    assert!(
+        upstream_requests.lock().unwrap().is_empty(),
+        "staged identity-constrained marketing reads are locally authoritative"
+    );
 }
 
 #[test]
@@ -5270,6 +5391,209 @@ fn inventory_live_hybrid_cold_roots_forward_one_complete_request() {
 }
 
 #[test]
+fn inventory_quantity_mutation_hydrates_item_and_attached_location_with_narrow_query() {
+    let inventory_item_id = "gid://shopify/InventoryItem/939001";
+    let variant_id = "gid://shopify/ProductVariant/939002";
+    let product_id = "gid://shopify/Product/939003";
+    let location_id = "gid://shopify/Location/939004";
+    let inventory_level_id = "gid://shopify/InventoryLevel/939005?inventory_item_id=939001";
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body)
+                .expect("inventory quantity hydrate body should parse");
+            captured_requests.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(query.contains("query ProductsHydrateNodes"));
+            assert!(query.contains("inventoryLevels(first: 50)"));
+            assert!(!query.contains("includeInactive"));
+            assert_eq!(body["variables"], json!({ "ids": [inventory_item_id] }));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "nodes": [{
+                            "__typename": "InventoryItem",
+                            "id": inventory_item_id,
+                            "tracked": true,
+                            "requiresShipping": true,
+                            "variant": {
+                                "id": variant_id,
+                                "title": "Default Title",
+                                "inventoryQuantity": 4,
+                                "selectedOptions": [{ "name": "Title", "value": "Default Title" }],
+                                "product": {
+                                    "id": product_id,
+                                    "title": "Quantity hydration product",
+                                    "handle": "quantity-hydration-product",
+                                    "status": "ACTIVE",
+                                    "totalInventory": 4,
+                                    "tracksInventory": true
+                                }
+                            },
+                            "inventoryLevels": {
+                                "nodes": [{
+                                    "id": inventory_level_id,
+                                    "location": { "id": location_id, "name": "Quantity stockroom" },
+                                    "quantities": [
+                                        { "name": "available", "quantity": 4 },
+                                        { "name": "on_hand", "quantity": 4 }
+                                    ]
+                                }]
+                            }
+                        }]
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation HydrateQuantityTarget($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            inventoryAdjustmentGroup {
+              changes { name delta location { id name } item { id } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "available",
+                "reason": "correction",
+                "quantities": [{
+                    "inventoryItemId": inventory_item_id,
+                    "locationId": location_id,
+                    "quantity": 8,
+                    "changeFromQuantity": 4
+                }]
+            }
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["inventorySetQuantities"]["inventoryAdjustmentGroup"]["changes"][0]
+            ["location"],
+        json!({ "id": location_id, "name": "Quantity stockroom" })
+    );
+    assert_eq!(upstream_requests.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn inventory_quantity_mutation_retries_the_recorded_rich_reference_query() {
+    let inventory_item_id = "gid://shopify/InventoryItem/939101";
+    let variant_id = "gid://shopify/ProductVariant/939102";
+    let product_id = "gid://shopify/Product/939103";
+    let location_id = "gid://shopify/Location/939104";
+    let inventory_level_id = "gid://shopify/InventoryLevel/939105?inventory_item_id=939101";
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body)
+                .expect("inventory quantity hydrate body should parse");
+            captured_requests.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            if !query.contains("includeInactive: true") {
+                return Response {
+                    status: 500,
+                    headers: Default::default(),
+                    body: json!({ "errors": [{ "message": "narrow hydrate unavailable" }] }),
+                };
+            }
+            assert_eq!(body["variables"], json!({ "ids": [inventory_item_id] }));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "nodes": [{
+                            "id": inventory_item_id,
+                            "tracked": true,
+                            "requiresShipping": true,
+                            "variant": {
+                                "id": variant_id,
+                                "title": "Default Title",
+                                "inventoryQuantity": 4,
+                                "selectedOptions": [{ "name": "Title", "value": "Default Title" }],
+                                "product": {
+                                    "id": product_id,
+                                    "title": "Recorded rich hydration product",
+                                    "handle": "recorded-rich-hydration-product",
+                                    "status": "ACTIVE",
+                                    "totalInventory": 4,
+                                    "tracksInventory": true
+                                }
+                            },
+                            "inventoryLevels": {
+                                "nodes": [{
+                                    "id": inventory_level_id,
+                                    "isActive": true,
+                                    "location": { "id": location_id, "name": "Recorded stockroom" },
+                                    "quantities": [
+                                        { "name": "available", "quantity": 4 },
+                                        { "name": "on_hand", "quantity": 4 }
+                                    ]
+                                }]
+                            }
+                        }]
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation HydrateQuantityTarget($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            inventoryAdjustmentGroup {
+              changes { name delta location { id name } item { id } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "available",
+                "reason": "correction",
+                "quantities": [{
+                    "inventoryItemId": inventory_item_id,
+                    "locationId": location_id,
+                    "quantity": 8,
+                    "changeFromQuantity": 4
+                }]
+            }
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["inventorySetQuantities"]["inventoryAdjustmentGroup"]["changes"][0]
+            ["location"],
+        json!({ "id": location_id, "name": "Recorded stockroom" })
+    );
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(requests.len(), 2);
+    assert!(requests[0]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("inventoryLevels(first: 50)")));
+    assert!(requests[1]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("includeInactive: true")));
+}
+
+#[test]
 fn inventory_activate_hydrates_unobserved_targets_and_overlays_immediate_read() {
     let inventory_item_id = "gid://shopify/InventoryItem/940001";
     let variant_id = "gid://shopify/ProductVariant/940002";
@@ -7798,6 +8122,74 @@ fn inventory_activate_on_hand_seeds_and_validates_locally() {
         })
     );
     assert_eq!(calls.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn inventory_item_levels_preserve_activation_order_without_an_explicit_sort() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![inventory_activation_base_product()]);
+    let variant = create_legacy_variant(
+        &mut proxy,
+        "gid://shopify/Product/1",
+        "INV-ACTIVATION-ORDER",
+        "10.00",
+    );
+    let inventory_item_id = variant["inventoryItem"]["id"].as_str().unwrap().to_string();
+    // Deliberately allocate the target first, then activate the higher-id
+    // destination first. inventoryLevels has no sortKey argument, so its default
+    // ordering must follow the effective level graph rather than synthetic IDs.
+    let target_location_id = add_inventory_test_location(&mut proxy, "Target location");
+    let destination_location_id = add_inventory_test_location(&mut proxy, "Destination location");
+
+    for (location_id, available) in [(&destination_location_id, 9), (&target_location_id, 5)] {
+        let activate = proxy.process_request(json_graphql_request(
+            r#"
+            mutation ActivateInOrder($inventoryItemId: ID!, $locationId: ID!, $available: Int) {
+              inventoryActivate(
+                inventoryItemId: $inventoryItemId
+                locationId: $locationId
+                available: $available
+              ) {
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({
+                "inventoryItemId": inventory_item_id,
+                "locationId": location_id,
+                "available": available,
+            }),
+        ));
+        assert_eq!(
+            activate.body["data"]["inventoryActivate"]["userErrors"],
+            json!([])
+        );
+    }
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryLevelOrder($inventoryItemId: ID!) {
+          inventoryItem(id: $inventoryItemId) {
+            defaultLevels: inventoryLevels(first: 10) {
+              nodes { location { id } quantities(names: ["available"]) { name quantity } }
+            }
+          }
+        }
+        "#,
+        json!({"inventoryItemId": inventory_item_id}),
+    ));
+    assert_eq!(
+        read.body["data"]["inventoryItem"]["defaultLevels"]["nodes"],
+        json!([
+            {
+                "location": {"id": destination_location_id},
+                "quantities": [{"name": "available", "quantity": 9}]
+            },
+            {
+                "location": {"id": target_location_id},
+                "quantities": [{"name": "available", "quantity": 5}]
+            }
+        ])
+    );
 }
 
 #[test]
@@ -20847,7 +21239,7 @@ fn media_file_delete_uses_authoritative_tombstones_beyond_former_reference_caps(
         first_product["variants"]["nodes"].as_array().unwrap().len(),
         51
     );
-    assert!(first_product.to_string().find(media_id).is_none());
+    assert!(!first_product.to_string().contains(media_id));
     let variant_zero = first_product["variants"]["nodes"]
         .as_array()
         .unwrap()
@@ -24523,6 +24915,57 @@ fn standard_metaobject_definition_enable_stages_catalog_definition_and_meta_surf
     let duplicate_log = log_snapshot(&proxy);
     assert_eq!(duplicate_log["entries"].as_array().unwrap().len(), 2);
     assert_eq!(duplicate_log["entries"][1]["stagedResourceIds"], json!([]));
+
+    let immutable_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RejectStandardDefinitionUpdate(
+          $id: ID!
+          $definition: MetaobjectDefinitionUpdateInput!
+        ) {
+          metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+            metaobjectDefinition { id name fieldDefinitions { key } }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({
+            "id": definition_id,
+            "definition": {
+                "name": "Mutated standard definition",
+                "fieldDefinitions": { "delete": ["answer"] }
+            }
+        }),
+    ));
+    assert_eq!(
+        immutable_update.body["data"]["metaobjectDefinitionUpdate"],
+        json!({
+            "metaobjectDefinition": null,
+            "userErrors": [{
+                "field": ["definition"],
+                "message": "Standard metaobject definitions can't be updated",
+                "code": "IMMUTABLE",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 2);
+    let after_rejected_update = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadStandardDefinitionAfterRejectedUpdate($id: ID!) {
+          metaobjectDefinition(id: $id) { name fieldDefinitions { key } }
+        }
+        "#,
+        json!({ "id": definition_id }),
+    ));
+    assert_eq!(
+        after_rejected_update.body["data"]["metaobjectDefinition"]["name"],
+        json!("Question and Answer Pairs")
+    );
+    assert_eq!(
+        after_rejected_update.body["data"]["metaobjectDefinition"]["fieldDefinitions"],
+        json!([{ "key": "question" }, { "key": "answer" }, { "key": "sources" }])
+    );
 
     let unknown = proxy.process_request(json_graphql_request(
         enable_query,

@@ -529,8 +529,9 @@ impl DraftProxy {
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
+        selected_price_query: Option<&ResolvedValue>,
     ) -> ResolverOutcome<Value> {
-        self.fixed_price_mutation_preflight(field, request);
+        self.fixed_price_mutation_preflight(field, request, selected_price_query);
         let outcome = match field.name.as_str() {
             "priceListCreate" => self.price_list_create_response(field),
             "priceListUpdate" => self.price_list_update_response(field),
@@ -745,6 +746,7 @@ impl DraftProxy {
     /// logic below loads into the local store — no fixture is hardcoded.
     pub(in crate::proxy) fn quantity_pricing_rules_mutation_preflight(
         &mut self,
+        root_name: &str,
         request: &Request,
         variables: &BTreeMap<String, ResolvedValue>,
     ) {
@@ -768,18 +770,35 @@ impl DraftProxy {
             return;
         }
 
+        let query = if matches!(root_name, "quantityRulesAdd" | "quantityRulesDelete") {
+            QUANTITY_RULES_PREFLIGHT_QUERY
+        } else {
+            QUANTITY_PRICING_RULES_PREFLIGHT_QUERY
+        };
         let body = json!({
-            "query": QUANTITY_PRICING_RULES_PREFLIGHT_QUERY,
+            "query": query,
             "variables": resolved_variables_json(variables),
             "operationName": "MarketsMutationPreflightHydrate",
         });
-        self.run_markets_preflight(request, body, Self::stage_fixed_price_preflight);
+        let hydrated = self.run_markets_preflight(request, body, Self::stage_fixed_price_preflight);
+        if !hydrated && query == QUANTITY_RULES_PREFLIGHT_QUERY {
+            self.run_markets_preflight(
+                request,
+                json!({
+                    "query": QUANTITY_PRICING_RULES_PREFLIGHT_QUERY,
+                    "variables": resolved_variables_json(variables),
+                    "operationName": "MarketsMutationPreflightHydrate",
+                }),
+                Self::stage_fixed_price_preflight,
+            );
+        }
     }
 
     pub(in crate::proxy) fn fixed_price_mutation_preflight(
         &mut self,
         field: &MarketsRootInput,
         request: &Request,
+        selected_price_query: Option<&ResolvedValue>,
     ) {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return;
@@ -790,8 +809,11 @@ impl DraftProxy {
             "priceListFixedPricesAdd" | "priceListFixedPricesUpdate" | "priceListFixedPricesDelete"
         );
         let body = if by_product {
-            let preflight_variables =
-                product_fixed_prices_preflight_variables(&field.name, &field.arguments);
+            let preflight_variables = product_fixed_prices_preflight_variables(
+                &field.name,
+                &field.arguments,
+                selected_price_query,
+            );
             if !self.product_fixed_prices_preflight_needed(&preflight_variables) {
                 return;
             }
@@ -863,10 +885,13 @@ impl DraftProxy {
         request: &Request,
         body: Value,
         stage: impl FnOnce(&mut Self, &Value),
-    ) {
+    ) -> bool {
         let response = self.upstream_post(request, body);
         if response.status < 400 {
             stage(self, &response.body);
+            true
+        } else {
+            false
         }
     }
 
@@ -1180,7 +1205,8 @@ impl DraftProxy {
         {
             json!({"deletedQuantityRulesVariantIds": [], "userErrors": [quantity_rule_error(vec!["priceListId"], "PRICE_LIST_DOES_NOT_EXIST", "Price list does not exist.")]})
         } else {
-            let variant_errors = quantity_rules_delete_variant_errors(&self.store, &variant_ids);
+            let variant_errors =
+                quantity_rules_delete_variant_errors(&self.store, &price_list_id, &variant_ids);
             if variant_errors.is_empty() {
                 if let Some(price_list) = self.store.staged.price_lists.get_mut(&price_list_id) {
                     delete_quantity_rule_nodes(price_list, &variant_ids);
