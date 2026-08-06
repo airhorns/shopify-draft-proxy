@@ -10,9 +10,10 @@ use serde_json::{json, Value};
 use crate::graphql::{
     parse_operation, parse_operation_with_variables,
     parse_operation_with_variables_and_operation_name, parsed_document, root_field_arguments,
-    root_fields, selected_operation, selected_operation_query, variable_definition_info,
-    variables_with_operation_defaults, OperationSelectionError, OperationType, RawArgumentValue,
-    ResolvedValue, RootFieldSelection, SelectedField, SourceLocation,
+    root_fields, selected_field_paths, selected_operation, selected_operation_query,
+    variable_definition_info, variables_with_operation_defaults, OperationSelectionError,
+    OperationType, RawArgumentValue, ResolvedValue, RootFieldSelection, SelectedField,
+    SourceLocation,
 };
 use crate::node_resolver_inventory::{EntityRef, NodeLoadState};
 use crate::operation_registry::{
@@ -741,6 +742,10 @@ struct StagedState {
     product_option_linked_metaobject_definition_ids: BTreeSet<String>,
     owner_metafields: BTreeMap<String, Vec<Value>>,
     deleted_owner_metafields: BTreeSet<(String, String, String)>,
+    /// Canonical parents first learned through owner-metafield hydration are
+    /// partial observations. Requested paths live separately from record and
+    /// child-effect presence so later reads can refill only missing shapes.
+    owner_parent_observed_field_paths: BTreeMap<String, BTreeSet<Vec<String>>>,
     metafield_definitions: BTreeMap<MetafieldDefinitionKey, Value>,
     deleted_metafield_definitions: BTreeSet<MetafieldDefinitionKey>,
     metafield_reference_ids: BTreeSet<String>,

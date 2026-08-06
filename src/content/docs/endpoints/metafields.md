@@ -70,6 +70,17 @@ Definition-backed `metafieldsSet` support consults effective staged definitions 
 
 In LiveHybrid, `metafieldsSet` and `metafieldsDelete` hydrate each targeted `(ownerId, namespace, key)` through Shopify's versioned `HasMetafields` interface before validation or staging. Hydration retains the existing metafield ID, type, value, `createdAt`, `updatedAt`, definition, and opaque `compareDigest`; a no-op valid CAS write keeps that metadata unchanged. The local state distinguishes a returned `null` metafield from a missing or incomplete hydration response. An unresolved target aborts the whole root before any input is staged, so it cannot be treated as known absence. Mixed-owner validation preserves input error order and batch atomicity.
 
+Owner-metafield observations track parent field completeness separately from
+parent record presence and local child effects. For Product, ProductVariant,
+Collection, Customer, Order, and Company, a narrow metafield read or mutation
+hydrate can provide the parent identity needed by the metafield resolver, but
+it does not make unobserved sibling fields authoritative. A later LiveHybrid
+root or generic `node` / `nodes` read hydrates the missing requested shape once,
+merges it without downgrading richer parent state, and retains the local
+metafield overlay. Child-only effects do not establish parent existence;
+unresolved parents remain `null`, and exact local tombstones take precedence
+without an upstream read.
+
 Accepted mutation owner GID families are `Article`, `CartTransform`, `Collection`, `Company`, `Customer`, `DeliveryCustomization`, `FulfillmentConstraintRule`, `Location`, `Market`, `Order`, `Page`, `PaymentCustomization`, `Product`, `ProductVariant`, `Shop`, and `Validation`. The resource type must also implement `HasMetafields` in the requested Admin API version; other owner types return `Owner is invalid` before staging. Location, Page, Article, and Market have captured mixed-owner valid/stale CAS, delete, and public-root read-after-write/read-after-delete behavior. Their `location(id:)`, `page(id:)`, `article(id:)`, and `market(id:)` reads overlay staged metafields without a second upstream fetch once the mutation hydration is authoritative.
 
 Every well-formed owner ID must resolve to an existing owner before the batch can write. Snapshot mode accepts owners already present in staged or base state, while LiveHybrid performs a read-only `nodes(ids:)` hydration for unresolved IDs. A missing owner returns `metafields: []` with `code: INVALID_VALUE`, message `Owner does not exist.`, and field `['metafields', '<index>', 'ownerId']`. If any row is missing, no row is staged and no `metafieldsSet` mutation-log entry is appended. This preflight applies across the locally accepted `HasMetafields` owner families rather than treating Product as a special case; exact Shopify parity for the missing-owner branch is product-backed, while the broader owner-family contract has local runtime coverage. Known staged and hydrated owners continue through the local write path, and the supported mutation document is not sent to Shopify at runtime.

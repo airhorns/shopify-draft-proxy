@@ -1104,6 +1104,11 @@ impl DraftProxy {
                 } else {
                     id.is_empty()
                         || (!self.store.has_product(&id) && !self.store.product_is_tombstoned(&id))
+                        || (self.owner_parent_is_partial(&id)
+                            && !self.owner_parent_shape_is_complete(
+                                &id,
+                                &selected_field_paths(&field.selection),
+                            ))
                 }
             }
             "productByIdentifier" => !self.product_identifier_has_local_answer(field),
@@ -1713,30 +1718,35 @@ impl DraftProxy {
                 return ResolverOutcome::error(error);
             }
         }
-        let owner_metafield_catalog_active = self
-            .store
-            .staged
-            .owner_metafields
-            .keys()
-            .any(|owner_id| shopify_gid_resource_type(owner_id) == Some("ProductVariant"));
-        let owner_read_fallback = owner_metafield_catalog_active
-            && self
-                .execution_session
-                .request_cache
-                .entity_was_requested(OWNER_METAFIELD_EVIDENCE_SCOPE, id);
+        if self.config.read_mode == ReadMode::LiveHybrid
+            && self.owner_parent_is_partial(id)
+            && !self.owner_parent_shape_is_complete(id, &invocation.requested_field_paths)
+        {
+            let result = self.cached_or_forward_upstream_graphql_result(
+                invocation.request,
+                invocation.response_key,
+            );
+            if !result.transport_succeeded || !result.outcome.errors.is_empty() {
+                return result.outcome;
+            }
+            let node = result
+                .data
+                .get(invocation.response_key)
+                .cloned()
+                .unwrap_or(Value::Null);
+            if node.is_null() {
+                return result.outcome;
+            }
+            self.stage_observed_owner_metafield_node(&node);
+            self.record_owner_parent_observed_shape(id, &invocation.requested_field_paths);
+        }
         let owner_known_missing = self
             .execution_session
             .request_cache
             .entity_is_missing(OWNER_METAFIELD_EVIDENCE_SCOPE, id);
         let has_local_answer = self.store.product_variant_by_id(id).is_some()
             || self.store.product_variants.staged.is_tombstoned(id)
-            || self.owner_has_metafield_local_effects(id)
-            || owner_read_fallback
             || owner_known_missing
-            || self
-                .execution_session
-                .request_cache
-                .entity_was_hydrated(OWNER_METAFIELD_EVIDENCE_SCOPE, id)
             || media_hydration_attempted;
         if self.config.read_mode == ReadMode::Live
             || (self.config.read_mode == ReadMode::LiveHybrid && !has_local_answer)
@@ -1752,13 +1762,6 @@ impl DraftProxy {
             self.store
                 .product_variant_by_id(id)
                 .map(|variant| self.product_variant_canonical_value(variant))
-                .or_else(|| {
-                    (self.owner_has_metafield_local_effects(id)
-                        || (self.config.read_mode == ReadMode::Snapshot
-                            && owner_metafield_catalog_active)
-                        || owner_read_fallback)
-                        .then(|| json!({ "id": id }))
-                })
                 .unwrap_or(Value::Null)
         };
         ResolverOutcome::value(value)
@@ -1785,30 +1788,35 @@ impl DraftProxy {
                 return ResolverOutcome::error(error);
             }
         }
-        let owner_metafield_catalog_active = self
-            .store
-            .staged
-            .owner_metafields
-            .keys()
-            .any(|owner_id| shopify_gid_resource_type(owner_id) == Some("Product"));
-        let owner_read_fallback = owner_metafield_catalog_active
-            && self
-                .execution_session
-                .request_cache
-                .entity_was_requested(OWNER_METAFIELD_EVIDENCE_SCOPE, id);
+        if self.config.read_mode == ReadMode::LiveHybrid
+            && self.owner_parent_is_partial(id)
+            && !self.owner_parent_shape_is_complete(id, &invocation.requested_field_paths)
+        {
+            let result = self.cached_or_forward_upstream_graphql_result(
+                invocation.request,
+                invocation.response_key,
+            );
+            if !result.transport_succeeded || !result.outcome.errors.is_empty() {
+                return result.outcome;
+            }
+            let node = result
+                .data
+                .get(invocation.response_key)
+                .cloned()
+                .unwrap_or(Value::Null);
+            if node.is_null() {
+                return result.outcome;
+            }
+            self.stage_observed_owner_metafield_node(&node);
+            self.record_owner_parent_observed_shape(id, &invocation.requested_field_paths);
+        }
         let owner_known_missing = self
             .execution_session
             .request_cache
             .entity_is_missing(OWNER_METAFIELD_EVIDENCE_SCOPE, id);
         let has_local_answer = self.store.has_product(id)
             || self.store.product_is_tombstoned(id)
-            || self.owner_has_metafield_local_effects(id)
-            || owner_read_fallback
-            || owner_known_missing
-            || self
-                .execution_session
-                .request_cache
-                .entity_was_hydrated(OWNER_METAFIELD_EVIDENCE_SCOPE, id);
+            || owner_known_missing;
         if self.config.read_mode == ReadMode::Live
             || (self.config.read_mode == ReadMode::LiveHybrid && !has_local_answer)
         {
@@ -1823,13 +1831,6 @@ impl DraftProxy {
             self.store
                 .product_by_id(id)
                 .map(|product| self.product_canonical_value(product))
-                .or_else(|| {
-                    (self.owner_has_metafield_local_effects(id)
-                        || (self.config.read_mode == ReadMode::Snapshot
-                            && owner_metafield_catalog_active)
-                        || owner_read_fallback)
-                        .then(|| json!({ "id": id }))
-                })
                 .unwrap_or(Value::Null)
         };
         ResolverOutcome::value(value)

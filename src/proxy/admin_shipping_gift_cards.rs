@@ -168,7 +168,8 @@ impl DraftProxy {
         if (200..300).contains(&response.status) {
             let data =
                 self.node_query_data_with_upstream_fallback(fields, &response.body, Some(request));
-            self.observe_nodes_data(&json!({ "data": data }));
+            self.observe_nodes_data(&json!({ "data": data.clone() }));
+            self.record_node_parent_observed_shapes(fields, &data, Some(request));
         }
         for response_key in upstream_response_keys {
             self.execution_session

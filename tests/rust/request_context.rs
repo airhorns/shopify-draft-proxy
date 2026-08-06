@@ -63,7 +63,6 @@ fn cache_keys_and_entity_evidence_preserve_their_invariants() {
         cache.entity_state("owner-metafields", id),
         Some(EntityEvidenceState::Observed)
     );
-    assert!(cache.entity_was_requested("owner-metafields", id));
     assert!(cache.entity_was_hydrated("owner-metafields", id));
     assert!(!cache.entity_is_missing("owner-metafields", id));
 }

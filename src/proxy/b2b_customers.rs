@@ -169,20 +169,53 @@ impl DraftProxy {
             self.hydrate_shop_pricing_state_if_missing(invocation.request, true, false);
         }
         let mut upstream_value = invocation.upstream_value;
+        let partial_customer_needs_hydration = invocation.root_name == "customer"
+            && resolved_string_field(&arguments, "id").is_some_and(|id| {
+                self.owner_parent_is_partial(&id)
+                    && !self.owner_parent_shape_is_complete(&id, &invocation.requested_field_paths)
+            });
+        if partial_customer_needs_hydration {
+            if upstream_value.as_ref().is_some_and(Value::is_null) {
+                return ResolverOutcome::value(Value::Null);
+            }
+            if let Some(customer) = upstream_value.as_ref().filter(|value| value.is_object()) {
+                self.stage_observed_owner_metafield_node(customer);
+                if let Some(id) = resolved_string_field(&arguments, "id") {
+                    self.record_owner_parent_observed_shape(&id, &invocation.requested_field_paths);
+                }
+            }
+        }
         if upstream_value.is_none()
             && handle_customers
-            && self.customer_overlay_needs_upstream_data(invocation.root_name, &arguments)
+            && self.customer_overlay_needs_upstream_data(
+                invocation.root_name,
+                &arguments,
+                &invocation.requested_field_paths,
+            )
         {
+            let partial_customer = partial_customer_needs_hydration;
             let upstream = self.cached_or_forward_upstream_root_outcome(
                 invocation.request,
                 invocation.response_key,
             );
+            if partial_customer && (!upstream.errors.is_empty() || upstream.value.is_null()) {
+                return upstream;
+            }
             // This is best-effort overlay hydration, not a passthrough root.
             // Preserve the staged customer result when the live catalog cannot
             // be fetched; the legacy overlay path likewise treated an
             // unsuccessful hydrate as an empty baseline rather than replacing
             // authoritative local state with an upstream transport error.
             if upstream.errors.is_empty() {
+                if partial_customer && upstream.value.is_object() {
+                    self.stage_observed_owner_metafield_node(&upstream.value);
+                    if let Some(id) = resolved_string_field(&arguments, "id") {
+                        self.record_owner_parent_observed_shape(
+                            &id,
+                            &invocation.requested_field_paths,
+                        );
+                    }
+                }
                 upstream_value = Some(upstream.value);
             }
         }

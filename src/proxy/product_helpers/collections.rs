@@ -724,15 +724,12 @@ impl DraftProxy {
             .trim()
             .to_string();
         let identifier = BTreeMap::from([("id".to_string(), ResolvedValue::String(id.clone()))]);
-        self.hydrate_collection_identifier_if_needed(&invocation, &identifier, None);
-        let value = self.collection_canonical_value_by_id(&id);
-        ResolverOutcome::value(
-            if value.is_null() && self.owner_has_metafield_local_effects(&id) {
-                json!({ "__typename": "Collection", "id": id })
-            } else {
-                value
-            },
-        )
+        if let Some(outcome) =
+            self.hydrate_collection_identifier_if_needed(&invocation, &identifier, None)
+        {
+            return outcome;
+        }
+        ResolverOutcome::value(self.collection_canonical_value_by_id(&id))
     }
 
     pub(crate) fn collections_root(
@@ -800,7 +797,11 @@ impl DraftProxy {
     ) -> ResolverOutcome<Value> {
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         let identifier = resolved_object_field(&arguments, "identifier").unwrap_or_default();
-        self.hydrate_collection_identifier_if_needed(&invocation, &identifier, None);
+        if let Some(outcome) =
+            self.hydrate_collection_identifier_if_needed(&invocation, &identifier, None)
+        {
+            return outcome;
+        }
         let value = if let Some(id) = resolved_string_field(&identifier, "id") {
             self.collection_canonical_value_by_id(&id)
         } else if let Some(handle) = resolved_string_field(&identifier, "handle") {
@@ -822,7 +823,13 @@ impl DraftProxy {
             .unwrap_or_default()
             .trim()
             .to_string();
-        self.hydrate_collection_identifier_if_needed(&invocation, &BTreeMap::new(), Some(&handle));
+        if let Some(outcome) = self.hydrate_collection_identifier_if_needed(
+            &invocation,
+            &BTreeMap::new(),
+            Some(&handle),
+        ) {
+            return outcome;
+        }
         ResolverOutcome::value(self.collection_canonical_value_by_handle(&handle))
     }
 
@@ -831,9 +838,9 @@ impl DraftProxy {
         invocation: &RootInvocation<'_>,
         identifier: &BTreeMap<String, ResolvedValue>,
         direct_handle: Option<&str>,
-    ) {
+    ) -> Option<ResolverOutcome<Value>> {
         if self.config.read_mode != ReadMode::LiveHybrid {
-            return;
+            return None;
         }
         let id = resolved_string_field(identifier, "id")
             .map(|id| id.trim().to_string())
@@ -847,24 +854,38 @@ impl DraftProxy {
                     .map(|handle| handle.trim().to_string())
                     .filter(|handle| !handle.is_empty())
             });
+        let partial_id_needs_upstream = id.as_deref().is_some_and(|id| {
+            self.owner_parent_is_partial(id)
+                && !self.owner_parent_shape_is_complete(id, &invocation.requested_field_paths)
+        });
         let needs_upstream = id.as_deref().is_some_and(|id| {
-            self.store.collection_by_id(id).is_none()
-                && !self.store.collection_is_deleted(id)
-                && !self
-                    .execution_session
-                    .request_cache
-                    .entity_was_hydrated(OWNER_METAFIELD_EVIDENCE_SCOPE, id)
+            !self.store.collection_is_deleted(id)
+                && (self.store.collection_by_id(id).is_none()
+                    && !self
+                        .execution_session
+                        .request_cache
+                        .entity_was_hydrated(OWNER_METAFIELD_EVIDENCE_SCOPE, id)
+                    || partial_id_needs_upstream)
         }) || handle.as_deref().is_some_and(|handle| {
             self.store.collection_by_handle(handle).is_none()
                 && !self.store.collection_handle_is_deleted(handle)
         });
         if !needs_upstream {
-            return;
+            return None;
         }
-        let response = (self.upstream_transport)(invocation.request.clone());
-        if response.status < 400 {
-            self.observe_collections_read_response(&response);
+        let result = self
+            .cached_or_forward_upstream_graphql_result(invocation.request, invocation.response_key);
+        if !result.transport_succeeded || !result.outcome.errors.is_empty() {
+            return partial_id_needs_upstream.then_some(result.outcome);
         }
+        if partial_id_needs_upstream && result.outcome.value.is_null() {
+            return Some(result.outcome);
+        }
+        self.observe_collection_value(&result.data);
+        if let Some(id) = id.as_deref() {
+            self.record_owner_parent_observed_shape(id, &invocation.requested_field_paths);
+        }
+        None
     }
 
     pub(in crate::proxy) fn collection_canonical_value_by_id(&self, id: &str) -> Value {
@@ -993,9 +1014,13 @@ impl DraftProxy {
                     .get("handle")
                     .and_then(Value::as_str)
                     .is_some_and(|handle| self.store.collection_handle_is_deleted(handle))
-                && self.store.collection_by_id(id).is_none()
+                && (self.store.collection_by_id(id).is_none() || self.owner_parent_is_partial(id))
             {
-                self.stage_collection_from_observed_json(value);
+                if self.owner_parent_is_partial(id) {
+                    self.stage_observed_owner_metafield_node(value);
+                } else {
+                    self.stage_collection_from_observed_json(value);
+                }
             }
         }
         match value {
