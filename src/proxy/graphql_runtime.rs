@@ -19,7 +19,10 @@ use crate::resolver_registry::{
 /// Normalize a resolver value back to schema field names. Aliases belong to
 /// the caller-facing GraphQL response; domain values, request caches, and
 /// stores own canonical entity values.
-fn canonicalize_resolver_value(value: &Value, selections: &[SelectedField]) -> Value {
+pub(in crate::proxy) fn canonicalize_resolver_value(
+    value: &Value,
+    selections: &[SelectedField],
+) -> Value {
     if value.is_null() || selections.is_empty() {
         return value.clone();
     }
@@ -1385,8 +1388,9 @@ impl DraftProxy {
                 raw_arguments,
                 arguments,
                 requested_field_paths: BTreeSet::new(),
-                field_selection: compatibility_root_field
-                    .map(|field| field.selection.clone())
+                field_selection: prepared
+                    .map(|call| call.field.selection.clone())
+                    .or_else(|| compatibility_root_field.map(|field| field.selection.clone()))
                     .unwrap_or_default(),
                 upstream_value: None,
                 request,
@@ -2246,7 +2250,9 @@ fn serialize_selection_set(selection: &[SelectedField]) -> String {
     )
 }
 
-fn serialize_raw_arguments(arguments: &BTreeMap<String, RawArgumentValue>) -> String {
+pub(in crate::proxy) fn serialize_raw_arguments(
+    arguments: &BTreeMap<String, RawArgumentValue>,
+) -> String {
     if arguments.is_empty() {
         return String::new();
     }
@@ -2274,7 +2280,7 @@ fn serialize_resolved_arguments(arguments: &BTreeMap<String, ResolvedValue>) -> 
     )
 }
 
-fn serialize_raw_argument_value(value: &RawArgumentValue) -> String {
+pub(in crate::proxy) fn serialize_raw_argument_value(value: &RawArgumentValue) -> String {
     match value {
         RawArgumentValue::String(value) => quote_graphql_string(value),
         RawArgumentValue::Int(value) => value.to_string(),

@@ -613,13 +613,9 @@ struct StagedState {
     next_storefront_cart_applied_gift_card_id: u64,
     next_storefront_cart_metafield_id: u64,
     next_storefront_cart_delivery_address_id: u64,
-    // Store-wide total customer count baseline reported by `customersCount`.
-    // The live shop's total is store-specific and cannot be reconstructed from
-    // the handful of customers a scenario stages, so a scenario seeds the
-    // recorded baseline and the read resolver reports `base - deletions` so the
-    // count tracks merges/deletes generically. `None` falls back to the legacy
-    // default for scenarios that never seed a baseline.
-    customers_count_base: Option<u64>,
+    // Upstream Count baselines keyed by the complete customersCount argument
+    // set. A filtered or limited count must never become the store-wide base.
+    customer_count_baselines: BTreeMap<String, Value>,
     store_credit_accounts: StagedRecords<Value>,
     store_credit_transactions: BTreeMap<String, Value>,
     store_credit_transaction_order: Vec<String>,
@@ -667,6 +663,7 @@ struct StagedState {
     markets_hydrated_scopes: BTreeSet<String>,
     markets_upstream_counts: BTreeMap<String, Value>,
     markets_dirty_families: BTreeSet<String>,
+    markets_dirty_ids: BTreeMap<String, BTreeSet<String>>,
     publication_ids: BTreeSet<String>,
     created_publication_ids: BTreeSet<String>,
     // Full publication records staged this scenario, keyed by publication gid.

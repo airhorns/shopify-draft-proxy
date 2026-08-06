@@ -1,0 +1,690 @@
+{
+  "scenarioId": "marketing-bounded-overlay-refill",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "proxyVariables": {
+    "create": {
+      "input": {
+        "title": "BoundedOverlay1785292317020q950flB",
+        "remoteId": "bounded-overlay-b-1785292317020q950fl",
+        "status": "ACTIVE",
+        "remoteUrl": "https://example.com/bounded-overlay-b-1785292317020q950fl",
+        "tactic": "NEWSLETTER",
+        "marketingChannelType": "EMAIL",
+        "utm": {
+          "campaign": "bounded-overlay-b-1785292317020q950fl",
+          "source": "email",
+          "medium": "newsletter"
+        }
+      }
+    },
+    "read": {
+      "query": "title:BoundedOverlay1785292317020q950flA OR title:BoundedOverlay1785292317020q950flC OR title:BoundedOverlay1785292317020q950flE OR title:BoundedOverlay1785292317020q950flB"
+    }
+  },
+  "setup": {
+    "baseCreates": [
+      {
+        "operationName": "MarketingBoundedOverlayBaseACreate",
+        "query": "mutation MarketingActivityConnectionWindowCreate($input: MarketingActivityCreateExternalInput!) {\n  created: marketingActivityCreateExternal(input: $input) {\n    marketingActivity {\n      id\n      title\n      createdAt\n      marketingEvent {\n        id\n        type\n        scheduledToEndAt\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "title": "BoundedOverlay1785292317020q950flA",
+            "remoteId": "bounded-overlay-a-1785292317020q950fl",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/bounded-overlay-a-1785292317020q950fl",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "utm": {
+              "campaign": "bounded-overlay-a-1785292317020q950fl",
+              "source": "email",
+              "medium": "newsletter"
+            }
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "created": {
+                "marketingActivity": {
+                  "id": "gid://shopify/MarketingActivity/198704759090",
+                  "title": "BoundedOverlay1785292317020q950flA",
+                  "createdAt": "2026-07-29T02:31:57Z",
+                  "marketingEvent": {
+                    "id": "gid://shopify/MarketingEvent/244060422450",
+                    "type": "NEWSLETTER",
+                    "scheduledToEndAt": null
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 11,
+                "actualQueryCost": 11,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1989,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "MarketingBoundedOverlayBaseCCreate",
+        "query": "mutation MarketingActivityConnectionWindowCreate($input: MarketingActivityCreateExternalInput!) {\n  created: marketingActivityCreateExternal(input: $input) {\n    marketingActivity {\n      id\n      title\n      createdAt\n      marketingEvent {\n        id\n        type\n        scheduledToEndAt\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "title": "BoundedOverlay1785292317020q950flC",
+            "remoteId": "bounded-overlay-c-1785292317020q950fl",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/bounded-overlay-c-1785292317020q950fl",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "utm": {
+              "campaign": "bounded-overlay-c-1785292317020q950fl",
+              "source": "email",
+              "medium": "newsletter"
+            }
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "created": {
+                "marketingActivity": {
+                  "id": "gid://shopify/MarketingActivity/198704791858",
+                  "title": "BoundedOverlay1785292317020q950flC",
+                  "createdAt": "2026-07-29T02:31:57Z",
+                  "marketingEvent": {
+                    "id": "gid://shopify/MarketingEvent/244060455218",
+                    "type": "NEWSLETTER",
+                    "scheduledToEndAt": null
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 11,
+                "actualQueryCost": 11,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1989,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "MarketingBoundedOverlayBaseECreate",
+        "query": "mutation MarketingActivityConnectionWindowCreate($input: MarketingActivityCreateExternalInput!) {\n  created: marketingActivityCreateExternal(input: $input) {\n    marketingActivity {\n      id\n      title\n      createdAt\n      marketingEvent {\n        id\n        type\n        scheduledToEndAt\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "title": "BoundedOverlay1785292317020q950flE",
+            "remoteId": "bounded-overlay-e-1785292317020q950fl",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/bounded-overlay-e-1785292317020q950fl",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "utm": {
+              "campaign": "bounded-overlay-e-1785292317020q950fl",
+              "source": "email",
+              "medium": "newsletter"
+            }
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "created": {
+                "marketingActivity": {
+                  "id": "gid://shopify/MarketingActivity/198704824626",
+                  "title": "BoundedOverlay1785292317020q950flE",
+                  "createdAt": "2026-07-29T02:31:57Z",
+                  "marketingEvent": {
+                    "id": "gid://shopify/MarketingEvent/244060487986",
+                    "type": "NEWSLETTER",
+                    "scheduledToEndAt": null
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 11,
+                "actualQueryCost": 11,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1989,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "baseRead": {
+      "operationName": "MarketingBoundedOverlayRefillRead",
+      "query": "query MarketingBoundedOverlayRefillRead($query: String!) {\n  marketingActivities(first: 2, query: $query, sortKey: TITLE) {\n    edges {\n      cursor\n      node {\n        title\n        status\n        marketingEvent {\n          remoteId\n        }\n      }\n    }\n    nodes {\n      title\n      status\n      marketingEvent {\n        remoteId\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "query": "title:BoundedOverlay1785292317020q950flA OR title:BoundedOverlay1785292317020q950flC OR title:BoundedOverlay1785292317020q950flE OR title:BoundedOverlay1785292317020q950flB"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "marketingActivities": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTg3MDQ3NTkwOTAsImxhc3RfdmFsdWUiOiJCb3VuZGVkT3ZlcmxheTE3ODUyOTIzMTcwMjBxOTUwZmxBIn0=",
+                  "node": {
+                    "title": "BoundedOverlay1785292317020q950flA",
+                    "status": "ACTIVE",
+                    "marketingEvent": {
+                      "remoteId": "bounded-overlay-a-1785292317020q950fl"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTg3MDQ3OTE4NTgsImxhc3RfdmFsdWUiOiJCb3VuZGVkT3ZlcmxheTE3ODUyOTIzMTcwMjBxOTUwZmxDIn0=",
+                  "node": {
+                    "title": "BoundedOverlay1785292317020q950flC",
+                    "status": "ACTIVE",
+                    "marketingEvent": {
+                      "remoteId": "bounded-overlay-c-1785292317020q950fl"
+                    }
+                  }
+                }
+              ],
+              "nodes": [
+                {
+                  "title": "BoundedOverlay1785292317020q950flA",
+                  "status": "ACTIVE",
+                  "marketingEvent": {
+                    "remoteId": "bounded-overlay-a-1785292317020q950fl"
+                  }
+                },
+                {
+                  "title": "BoundedOverlay1785292317020q950flC",
+                  "status": "ACTIVE",
+                  "marketingEvent": {
+                    "remoteId": "bounded-overlay-c-1785292317020q950fl"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxOTg3MDQ3NTkwOTAsImxhc3RfdmFsdWUiOiJCb3VuZGVkT3ZlcmxheTE3ODUyOTIzMTcwMjBxOTUwZmxBIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoxOTg3MDQ3OTE4NTgsImxhc3RfdmFsdWUiOiJCb3VuZGVkT3ZlcmxheTE3ODUyOTIzMTcwMjBxOTUwZmxDIn0="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "refill": {
+      "operationName": "DraftProxyConnectionOverlay",
+      "query": "query DraftProxyConnectionOverlay($query: String!) { overlayWindow: marketingActivities(after: \"eyJsYXN0X2lkIjoxOTg3MDQ3OTE4NTgsImxhc3RfdmFsdWUiOiJCb3VuZGVkT3ZlcmxheTE3ODUyOTIzMTcwMjBxOTUwZmxDIn0=\", first: 2, query: $query, sortKey: TITLE) { edges { cursor node { title status marketingEvent { remoteId } id title createdAt updatedAt isExternal status tactic app { id title } marketingEvent { id remoteId startedAt scheduledToEndAt description channelHandle type } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }",
+      "variables": {
+        "query": "title:BoundedOverlay1785292317020q950flA OR title:BoundedOverlay1785292317020q950flC OR title:BoundedOverlay1785292317020q950flE OR title:BoundedOverlay1785292317020q950flB"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "overlayWindow": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTg3MDQ4MjQ2MjYsImxhc3RfdmFsdWUiOiJCb3VuZGVkT3ZlcmxheTE3ODUyOTIzMTcwMjBxOTUwZmxFIn0=",
+                  "node": {
+                    "title": "BoundedOverlay1785292317020q950flE",
+                    "status": "ACTIVE",
+                    "marketingEvent": {
+                      "remoteId": "bounded-overlay-e-1785292317020q950fl",
+                      "id": "gid://shopify/MarketingEvent/244060487986",
+                      "startedAt": "2026-07-29T02:31:57Z",
+                      "scheduledToEndAt": null,
+                      "description": "BoundedOverlay1785292317020q950flE",
+                      "channelHandle": null,
+                      "type": "NEWSLETTER"
+                    },
+                    "id": "gid://shopify/MarketingActivity/198704824626",
+                    "createdAt": "2026-07-29T02:31:57Z",
+                    "updatedAt": "2026-07-29T02:31:57Z",
+                    "isExternal": true,
+                    "tactic": "NEWSLETTER",
+                    "app": {
+                      "id": "gid://shopify/App/347082227713",
+                      "title": "hermes-conformance-products"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjoxOTg3MDQ4MjQ2MjYsImxhc3RfdmFsdWUiOiJCb3VuZGVkT3ZlcmxheTE3ODUyOTIzMTcwMjBxOTUwZmxFIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoxOTg3MDQ4MjQ2MjYsImxhc3RfdmFsdWUiOiJCb3VuZGVkT3ZlcmxheTE3ODUyOTIzMTcwMjBxOTUwZmxFIn0="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 5,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "liveStagedCreate": {
+    "operationName": "MarketingBoundedOverlayStagedCreate",
+    "query": "mutation MarketingActivityConnectionWindowCreate($input: MarketingActivityCreateExternalInput!) {\n  created: marketingActivityCreateExternal(input: $input) {\n    marketingActivity {\n      id\n      title\n      createdAt\n      marketingEvent {\n        id\n        type\n        scheduledToEndAt\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "input": {
+        "title": "BoundedOverlay1785292317020q950flB",
+        "remoteId": "bounded-overlay-b-1785292317020q950fl",
+        "status": "ACTIVE",
+        "remoteUrl": "https://example.com/bounded-overlay-b-1785292317020q950fl",
+        "tactic": "NEWSLETTER",
+        "marketingChannelType": "EMAIL",
+        "utm": {
+          "campaign": "bounded-overlay-b-1785292317020q950fl",
+          "source": "email",
+          "medium": "newsletter"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "created": {
+            "marketingActivity": {
+              "id": "gid://shopify/MarketingActivity/198704857394",
+              "title": "BoundedOverlay1785292317020q950flB",
+              "createdAt": "2026-07-29T02:31:57Z",
+              "marketingEvent": {
+                "id": "gid://shopify/MarketingEvent/244060520754",
+                "type": "NEWSLETTER",
+                "scheduledToEndAt": null
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "finalRead": {
+    "operationName": "MarketingBoundedOverlayRefillRead",
+    "query": "query MarketingBoundedOverlayRefillRead($query: String!) {\n  marketingActivities(first: 2, query: $query, sortKey: TITLE) {\n    edges {\n      cursor\n      node {\n        title\n        status\n        marketingEvent {\n          remoteId\n        }\n      }\n    }\n    nodes {\n      title\n      status\n      marketingEvent {\n        remoteId\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+    "variables": {
+      "query": "title:BoundedOverlay1785292317020q950flA OR title:BoundedOverlay1785292317020q950flC OR title:BoundedOverlay1785292317020q950flE OR title:BoundedOverlay1785292317020q950flB"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "marketingActivities": {
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxOTg3MDQ3NTkwOTAsImxhc3RfdmFsdWUiOiJCb3VuZGVkT3ZlcmxheTE3ODUyOTIzMTcwMjBxOTUwZmxBIn0=",
+                "node": {
+                  "title": "BoundedOverlay1785292317020q950flA",
+                  "status": "ACTIVE",
+                  "marketingEvent": {
+                    "remoteId": "bounded-overlay-a-1785292317020q950fl"
+                  }
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjoxOTg3MDQ4NTczOTQsImxhc3RfdmFsdWUiOiJCb3VuZGVkT3ZlcmxheTE3ODUyOTIzMTcwMjBxOTUwZmxCIn0=",
+                "node": {
+                  "title": "BoundedOverlay1785292317020q950flB",
+                  "status": "ACTIVE",
+                  "marketingEvent": {
+                    "remoteId": "bounded-overlay-b-1785292317020q950fl"
+                  }
+                }
+              }
+            ],
+            "nodes": [
+              {
+                "title": "BoundedOverlay1785292317020q950flA",
+                "status": "ACTIVE",
+                "marketingEvent": {
+                  "remoteId": "bounded-overlay-a-1785292317020q950fl"
+                }
+              },
+              {
+                "title": "BoundedOverlay1785292317020q950flB",
+                "status": "ACTIVE",
+                "marketingEvent": {
+                  "remoteId": "bounded-overlay-b-1785292317020q950fl"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": true,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxOTg3MDQ3NTkwOTAsImxhc3RfdmFsdWUiOiJCb3VuZGVkT3ZlcmxheTE3ODUyOTIzMTcwMjBxOTUwZmxBIn0=",
+              "endCursor": "eyJsYXN0X2lkIjoxOTg3MDQ4NTczOTQsImxhc3RfdmFsdWUiOiJCb3VuZGVkT3ZlcmxheTE3ODUyOTIzMTcwMjBxOTUwZmxCIn0="
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 6,
+            "actualQueryCost": 6,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1994,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "operationName": "MarketingBoundedOverlayRefillCleanup",
+      "query": "#graphql\nmutation MarketingBoundedOverlayRefillCleanup($remoteId: String) {\n  marketingActivityDeleteExternal(remoteId: $remoteId) {\n    deletedMarketingActivityId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "remoteId": "bounded-overlay-b-1785292317020q950fl"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/198704857394",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MarketingBoundedOverlayRefillCleanup",
+      "query": "#graphql\nmutation MarketingBoundedOverlayRefillCleanup($remoteId: String) {\n  marketingActivityDeleteExternal(remoteId: $remoteId) {\n    deletedMarketingActivityId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "remoteId": "bounded-overlay-e-1785292317020q950fl"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/198704824626",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MarketingBoundedOverlayRefillCleanup",
+      "query": "#graphql\nmutation MarketingBoundedOverlayRefillCleanup($remoteId: String) {\n  marketingActivityDeleteExternal(remoteId: $remoteId) {\n    deletedMarketingActivityId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "remoteId": "bounded-overlay-c-1785292317020q950fl"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/198704791858",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MarketingBoundedOverlayRefillCleanup",
+      "query": "#graphql\nmutation MarketingBoundedOverlayRefillCleanup($remoteId: String) {\n  marketingActivityDeleteExternal(remoteId: $remoteId) {\n    deletedMarketingActivityId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "remoteId": "bounded-overlay-a-1785292317020q950fl"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/198704759090",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "operationName": "MarketingBoundedOverlayRefillRead",
+      "variables": {
+        "query": "title:BoundedOverlay1785292317020q950flA OR title:BoundedOverlay1785292317020q950flC OR title:BoundedOverlay1785292317020q950flE OR title:BoundedOverlay1785292317020q950flB"
+      },
+      "query": "query MarketingBoundedOverlayRefillRead($query: String!) {\n  marketingActivities(first: 2, query: $query, sortKey: TITLE) {\n    edges {\n      cursor\n      node {\n        title\n        status\n        marketingEvent {\n          remoteId\n        }\n      }\n    }\n    nodes {\n      title\n      status\n      marketingEvent {\n        remoteId\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "marketingActivities": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTg3MDQ3NTkwOTAsImxhc3RfdmFsdWUiOiJCb3VuZGVkT3ZlcmxheTE3ODUyOTIzMTcwMjBxOTUwZmxBIn0=",
+                  "node": {
+                    "title": "BoundedOverlay1785292317020q950flA",
+                    "status": "ACTIVE",
+                    "marketingEvent": {
+                      "remoteId": "bounded-overlay-a-1785292317020q950fl"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTg3MDQ3OTE4NTgsImxhc3RfdmFsdWUiOiJCb3VuZGVkT3ZlcmxheTE3ODUyOTIzMTcwMjBxOTUwZmxDIn0=",
+                  "node": {
+                    "title": "BoundedOverlay1785292317020q950flC",
+                    "status": "ACTIVE",
+                    "marketingEvent": {
+                      "remoteId": "bounded-overlay-c-1785292317020q950fl"
+                    }
+                  }
+                }
+              ],
+              "nodes": [
+                {
+                  "title": "BoundedOverlay1785292317020q950flA",
+                  "status": "ACTIVE",
+                  "marketingEvent": {
+                    "remoteId": "bounded-overlay-a-1785292317020q950fl"
+                  }
+                },
+                {
+                  "title": "BoundedOverlay1785292317020q950flC",
+                  "status": "ACTIVE",
+                  "marketingEvent": {
+                    "remoteId": "bounded-overlay-c-1785292317020q950fl"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxOTg3MDQ3NTkwOTAsImxhc3RfdmFsdWUiOiJCb3VuZGVkT3ZlcmxheTE3ODUyOTIzMTcwMjBxOTUwZmxBIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoxOTg3MDQ3OTE4NTgsImxhc3RfdmFsdWUiOiJCb3VuZGVkT3ZlcmxheTE3ODUyOTIzMTcwMjBxOTUwZmxDIn0="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "operationName": "DraftProxyConnectionOverlay",
+      "variables": {
+        "query": "title:BoundedOverlay1785292317020q950flA OR title:BoundedOverlay1785292317020q950flC OR title:BoundedOverlay1785292317020q950flE OR title:BoundedOverlay1785292317020q950flB"
+      },
+      "query": "query DraftProxyConnectionOverlay($query: String!) { overlayWindow: marketingActivities(after: \"eyJsYXN0X2lkIjoxOTg3MDQ3OTE4NTgsImxhc3RfdmFsdWUiOiJCb3VuZGVkT3ZlcmxheTE3ODUyOTIzMTcwMjBxOTUwZmxDIn0=\", first: 2, query: $query, sortKey: TITLE) { edges { cursor node { title status marketingEvent { remoteId } id title createdAt updatedAt isExternal status tactic app { id title } marketingEvent { id remoteId startedAt scheduledToEndAt description channelHandle type } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "overlayWindow": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTg3MDQ4MjQ2MjYsImxhc3RfdmFsdWUiOiJCb3VuZGVkT3ZlcmxheTE3ODUyOTIzMTcwMjBxOTUwZmxFIn0=",
+                  "node": {
+                    "title": "BoundedOverlay1785292317020q950flE",
+                    "status": "ACTIVE",
+                    "marketingEvent": {
+                      "remoteId": "bounded-overlay-e-1785292317020q950fl",
+                      "id": "gid://shopify/MarketingEvent/244060487986",
+                      "startedAt": "2026-07-29T02:31:57Z",
+                      "scheduledToEndAt": null,
+                      "description": "BoundedOverlay1785292317020q950flE",
+                      "channelHandle": null,
+                      "type": "NEWSLETTER"
+                    },
+                    "id": "gid://shopify/MarketingActivity/198704824626",
+                    "createdAt": "2026-07-29T02:31:57Z",
+                    "updatedAt": "2026-07-29T02:31:57Z",
+                    "isExternal": true,
+                    "tactic": "NEWSLETTER",
+                    "app": {
+                      "id": "gid://shopify/App/347082227713",
+                      "title": "hermes-conformance-products"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjoxOTg3MDQ4MjQ2MjYsImxhc3RfdmFsdWUiOiJCb3VuZGVkT3ZlcmxheTE3ODUyOTIzMTcwMjBxOTUwZmxFIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoxOTg3MDQ4MjQ2MjYsImxhc3RfdmFsdWUiOiJCb3VuZGVkT3ZlcmxheTE3ODUyOTIzMTcwMjBxOTUwZmxFIn0="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 5,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

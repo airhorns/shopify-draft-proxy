@@ -1,0 +1,22 @@
+mutation GiftCardLiveHybridOverlayDeactivate($id: ID!) {
+  giftCardDeactivate(id: $id) {
+    giftCard {
+      id
+      lastCharacters
+      enabled
+      expiresOn
+      initialValue {
+        amount
+        currencyCode
+      }
+      balance {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

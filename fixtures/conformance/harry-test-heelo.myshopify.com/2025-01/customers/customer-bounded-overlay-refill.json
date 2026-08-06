@@ -1,0 +1,715 @@
+{
+  "scenarioId": "customer-bounded-overlay-refill",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "proxyVariables": {
+    "create": {
+      "input": {
+        "email": "bounded-overlay-b-ms5gfmlb@example.com",
+        "firstName": "OverlayB",
+        "lastName": "Bounded",
+        "tags": ["bounded-overlay-ms5gfmlb"]
+      }
+    },
+    "read": {
+      "query": "tag:bounded-overlay-ms5gfmlb"
+    }
+  },
+  "setup": {
+    "baseCreates": [
+      {
+        "operationName": "CustomerBoundedOverlayBaseACreate",
+        "query": "mutation CustomerLiveHybridOverlayCreate($input: CustomerInput!) {\n  customerCreate(input: $input) {\n    customer {\n      id\n      email\n      firstName\n      lastName\n      displayName\n      state\n      tags\n      defaultEmailAddress {\n        emailAddress\n      }\n      defaultPhoneNumber {\n        phoneNumber\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "email": "bounded-overlay-a-ms5gfmlb@example.com",
+            "firstName": "OverlayA",
+            "lastName": "Bounded",
+            "tags": ["bounded-overlay-ms5gfmlb"]
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "customerCreate": {
+                "customer": {
+                  "id": "gid://shopify/Customer/11026644697394",
+                  "email": "bounded-overlay-a-ms5gfmlb@example.com",
+                  "firstName": "OverlayA",
+                  "lastName": "Bounded",
+                  "displayName": "OverlayA Bounded",
+                  "state": "DISABLED",
+                  "tags": ["bounded-overlay-ms5gfmlb"],
+                  "defaultEmailAddress": {
+                    "emailAddress": "bounded-overlay-a-ms5gfmlb@example.com"
+                  },
+                  "defaultPhoneNumber": null
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 12,
+                "actualQueryCost": 12,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1988,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "CustomerBoundedOverlayBaseCCreate",
+        "query": "mutation CustomerLiveHybridOverlayCreate($input: CustomerInput!) {\n  customerCreate(input: $input) {\n    customer {\n      id\n      email\n      firstName\n      lastName\n      displayName\n      state\n      tags\n      defaultEmailAddress {\n        emailAddress\n      }\n      defaultPhoneNumber {\n        phoneNumber\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "email": "bounded-overlay-c-ms5gfmlb@example.com",
+            "firstName": "OverlayC",
+            "lastName": "Bounded",
+            "tags": ["bounded-overlay-ms5gfmlb"]
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "customerCreate": {
+                "customer": {
+                  "id": "gid://shopify/Customer/11026644730162",
+                  "email": "bounded-overlay-c-ms5gfmlb@example.com",
+                  "firstName": "OverlayC",
+                  "lastName": "Bounded",
+                  "displayName": "OverlayC Bounded",
+                  "state": "DISABLED",
+                  "tags": ["bounded-overlay-ms5gfmlb"],
+                  "defaultEmailAddress": {
+                    "emailAddress": "bounded-overlay-c-ms5gfmlb@example.com"
+                  },
+                  "defaultPhoneNumber": null
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 12,
+                "actualQueryCost": 12,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1988,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "CustomerBoundedOverlayBaseECreate",
+        "query": "mutation CustomerLiveHybridOverlayCreate($input: CustomerInput!) {\n  customerCreate(input: $input) {\n    customer {\n      id\n      email\n      firstName\n      lastName\n      displayName\n      state\n      tags\n      defaultEmailAddress {\n        emailAddress\n      }\n      defaultPhoneNumber {\n        phoneNumber\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "email": "bounded-overlay-e-ms5gfmlb@example.com",
+            "firstName": "OverlayE",
+            "lastName": "Bounded",
+            "tags": ["bounded-overlay-ms5gfmlb"]
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "customerCreate": {
+                "customer": {
+                  "id": "gid://shopify/Customer/11026644762930",
+                  "email": "bounded-overlay-e-ms5gfmlb@example.com",
+                  "firstName": "OverlayE",
+                  "lastName": "Bounded",
+                  "displayName": "OverlayE Bounded",
+                  "state": "DISABLED",
+                  "tags": ["bounded-overlay-ms5gfmlb"],
+                  "defaultEmailAddress": {
+                    "emailAddress": "bounded-overlay-e-ms5gfmlb@example.com"
+                  },
+                  "defaultPhoneNumber": null
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 12,
+                "actualQueryCost": 12,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1988,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "baseRead": {
+      "operationName": "CustomerBoundedOverlayRefillRead",
+      "query": "query CustomerBoundedOverlayRefillRead($query: String!) {\n  customers(first: 2, query: $query, sortKey: NAME) {\n    edges {\n      cursor\n      node {\n        email\n        displayName\n        tags\n      }\n    }\n    nodes {\n      email\n      displayName\n      tags\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "query": "tag:bounded-overlay-ms5gfmlb"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customers": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMTAyNjY0NDY5NzM5NCwibGFzdF92YWx1ZSI6ImJvdW5kZWQsIG92ZXJsYXlhIn0=",
+                  "node": {
+                    "email": "bounded-overlay-a-ms5gfmlb@example.com",
+                    "displayName": "OverlayA Bounded",
+                    "tags": ["bounded-overlay-ms5gfmlb"]
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMTAyNjY0NDczMDE2MiwibGFzdF92YWx1ZSI6ImJvdW5kZWQsIG92ZXJsYXljIn0=",
+                  "node": {
+                    "email": "bounded-overlay-c-ms5gfmlb@example.com",
+                    "displayName": "OverlayC Bounded",
+                    "tags": ["bounded-overlay-ms5gfmlb"]
+                  }
+                }
+              ],
+              "nodes": [
+                {
+                  "email": "bounded-overlay-a-ms5gfmlb@example.com",
+                  "displayName": "OverlayA Bounded",
+                  "tags": ["bounded-overlay-ms5gfmlb"]
+                },
+                {
+                  "email": "bounded-overlay-c-ms5gfmlb@example.com",
+                  "displayName": "OverlayC Bounded",
+                  "tags": ["bounded-overlay-ms5gfmlb"]
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMTAyNjY0NDY5NzM5NCwibGFzdF92YWx1ZSI6ImJvdW5kZWQsIG92ZXJsYXlhIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoxMTAyNjY0NDczMDE2MiwibGFzdF92YWx1ZSI6ImJvdW5kZWQsIG92ZXJsYXljIn0="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "refill": {
+      "operationName": "DraftProxyConnectionOverlay",
+      "query": "query DraftProxyConnectionOverlay($query: String!) { overlayWindow: customers(after: \"eyJsYXN0X2lkIjoxMTAyNjY0NDczMDE2MiwibGFzdF92YWx1ZSI6ImJvdW5kZWQsIG92ZXJsYXljIn0=\", first: 2, query: $query, sortKey: NAME) { edges { cursor node { email displayName tags id firstName lastName displayName email phone locale note canDelete verifiedEmail dataSaleOptOut taxExempt taxExemptions state tags createdAt updatedAt defaultEmailAddress { emailAddress } defaultPhoneNumber { phoneNumber } defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }",
+      "variables": {
+        "query": "tag:bounded-overlay-ms5gfmlb"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "overlayWindow": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMTAyNjY0NDc2MjkzMCwibGFzdF92YWx1ZSI6ImJvdW5kZWQsIG92ZXJsYXllIn0=",
+                  "node": {
+                    "email": "bounded-overlay-e-ms5gfmlb@example.com",
+                    "displayName": "OverlayE Bounded",
+                    "tags": ["bounded-overlay-ms5gfmlb"],
+                    "id": "gid://shopify/Customer/11026644762930",
+                    "firstName": "OverlayE",
+                    "lastName": "Bounded",
+                    "phone": null,
+                    "locale": "en",
+                    "note": null,
+                    "canDelete": true,
+                    "verifiedEmail": true,
+                    "dataSaleOptOut": false,
+                    "taxExempt": false,
+                    "taxExemptions": [],
+                    "state": "DISABLED",
+                    "createdAt": "2026-07-29T02:17:29Z",
+                    "updatedAt": "2026-07-29T02:17:29Z",
+                    "defaultEmailAddress": {
+                      "emailAddress": "bounded-overlay-e-ms5gfmlb@example.com"
+                    },
+                    "defaultPhoneNumber": null,
+                    "defaultAddress": null
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjoxMTAyNjY0NDc2MjkzMCwibGFzdF92YWx1ZSI6ImJvdW5kZWQsIG92ZXJsYXllIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoxMTAyNjY0NDc2MjkzMCwibGFzdF92YWx1ZSI6ImJvdW5kZWQsIG92ZXJsYXllIn0="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 5,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "duplicateHydrate": {
+      "operationName": "CustomerDuplicateHydrate",
+      "query": "\nquery CustomerDuplicateHydrate($query: String!) {\n  customers(first: 1, query: $query) {\n    nodes { id }\n  }\n}\n",
+      "variables": {
+        "query": "email:bounded-overlay-b-ms5gfmlb@example.com"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customers": {
+              "nodes": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "liveStagedCreate": {
+    "operationName": "CustomerBoundedOverlayStagedCreate",
+    "query": "mutation CustomerLiveHybridOverlayCreate($input: CustomerInput!) {\n  customerCreate(input: $input) {\n    customer {\n      id\n      email\n      firstName\n      lastName\n      displayName\n      state\n      tags\n      defaultEmailAddress {\n        emailAddress\n      }\n      defaultPhoneNumber {\n        phoneNumber\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "input": {
+        "email": "bounded-overlay-b-ms5gfmlb@example.com",
+        "firstName": "OverlayB",
+        "lastName": "Bounded",
+        "tags": ["bounded-overlay-ms5gfmlb"]
+      }
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "customerCreate": {
+            "customer": {
+              "id": "gid://shopify/Customer/11026644894002",
+              "email": "bounded-overlay-b-ms5gfmlb@example.com",
+              "firstName": "OverlayB",
+              "lastName": "Bounded",
+              "displayName": "OverlayB Bounded",
+              "state": "DISABLED",
+              "tags": ["bounded-overlay-ms5gfmlb"],
+              "defaultEmailAddress": {
+                "emailAddress": "bounded-overlay-b-ms5gfmlb@example.com"
+              },
+              "defaultPhoneNumber": null
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "finalRead": {
+    "operationName": "CustomerBoundedOverlayRefillRead",
+    "query": "query CustomerBoundedOverlayRefillRead($query: String!) {\n  customers(first: 2, query: $query, sortKey: NAME) {\n    edges {\n      cursor\n      node {\n        email\n        displayName\n        tags\n      }\n    }\n    nodes {\n      email\n      displayName\n      tags\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+    "variables": {
+      "query": "tag:bounded-overlay-ms5gfmlb"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "customers": {
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMTAyNjY0NDY5NzM5NCwibGFzdF92YWx1ZSI6ImJvdW5kZWQsIG92ZXJsYXlhIn0=",
+                "node": {
+                  "email": "bounded-overlay-a-ms5gfmlb@example.com",
+                  "displayName": "OverlayA Bounded",
+                  "tags": ["bounded-overlay-ms5gfmlb"]
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMTAyNjY0NDg5NDAwMiwibGFzdF92YWx1ZSI6ImJvdW5kZWQsIG92ZXJsYXliIn0=",
+                "node": {
+                  "email": "bounded-overlay-b-ms5gfmlb@example.com",
+                  "displayName": "OverlayB Bounded",
+                  "tags": ["bounded-overlay-ms5gfmlb"]
+                }
+              }
+            ],
+            "nodes": [
+              {
+                "email": "bounded-overlay-a-ms5gfmlb@example.com",
+                "displayName": "OverlayA Bounded",
+                "tags": ["bounded-overlay-ms5gfmlb"]
+              },
+              {
+                "email": "bounded-overlay-b-ms5gfmlb@example.com",
+                "displayName": "OverlayB Bounded",
+                "tags": ["bounded-overlay-ms5gfmlb"]
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": true,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMTAyNjY0NDY5NzM5NCwibGFzdF92YWx1ZSI6ImJvdW5kZWQsIG92ZXJsYXlhIn0=",
+              "endCursor": "eyJsYXN0X2lkIjoxMTAyNjY0NDg5NDAwMiwibGFzdF92YWx1ZSI6ImJvdW5kZWQsIG92ZXJsYXliIn0="
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 4,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "operationName": "CustomerBoundedOverlayRefillCleanup",
+      "query": "#graphql\nmutation CustomerBoundedOverlayRefillCleanup($input: CustomerDeleteInput!) {\n  customerDelete(input: $input) {\n    deletedCustomerId\n    userErrors { field message }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/11026644894002"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerDelete": {
+              "deletedCustomerId": "gid://shopify/Customer/11026644894002",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerBoundedOverlayRefillCleanup",
+      "query": "#graphql\nmutation CustomerBoundedOverlayRefillCleanup($input: CustomerDeleteInput!) {\n  customerDelete(input: $input) {\n    deletedCustomerId\n    userErrors { field message }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/11026644762930"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerDelete": {
+              "deletedCustomerId": "gid://shopify/Customer/11026644762930",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerBoundedOverlayRefillCleanup",
+      "query": "#graphql\nmutation CustomerBoundedOverlayRefillCleanup($input: CustomerDeleteInput!) {\n  customerDelete(input: $input) {\n    deletedCustomerId\n    userErrors { field message }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/11026644730162"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerDelete": {
+              "deletedCustomerId": "gid://shopify/Customer/11026644730162",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerBoundedOverlayRefillCleanup",
+      "query": "#graphql\nmutation CustomerBoundedOverlayRefillCleanup($input: CustomerDeleteInput!) {\n  customerDelete(input: $input) {\n    deletedCustomerId\n    userErrors { field message }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/11026644697394"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerDelete": {
+              "deletedCustomerId": "gid://shopify/Customer/11026644697394",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "method": "POST",
+      "path": "/admin/api/2025-01/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "operationName": "CustomerDuplicateHydrate",
+      "variables": {
+        "query": "email:bounded-overlay-b-ms5gfmlb@example.com"
+      },
+      "query": "\nquery CustomerDuplicateHydrate($query: String!) {\n  customers(first: 1, query: $query) {\n    nodes { id }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customers": {
+              "nodes": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2025-01/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "operationName": "CustomerBoundedOverlayRefillRead",
+      "variables": {
+        "query": "tag:bounded-overlay-ms5gfmlb"
+      },
+      "query": "query CustomerBoundedOverlayRefillRead($query: String!) {\n  customers(first: 2, query: $query, sortKey: NAME) {\n    edges {\n      cursor\n      node {\n        email\n        displayName\n        tags\n      }\n    }\n    nodes {\n      email\n      displayName\n      tags\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customers": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMTAyNjY0NDY5NzM5NCwibGFzdF92YWx1ZSI6ImJvdW5kZWQsIG92ZXJsYXlhIn0=",
+                  "node": {
+                    "email": "bounded-overlay-a-ms5gfmlb@example.com",
+                    "displayName": "OverlayA Bounded",
+                    "tags": ["bounded-overlay-ms5gfmlb"]
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMTAyNjY0NDczMDE2MiwibGFzdF92YWx1ZSI6ImJvdW5kZWQsIG92ZXJsYXljIn0=",
+                  "node": {
+                    "email": "bounded-overlay-c-ms5gfmlb@example.com",
+                    "displayName": "OverlayC Bounded",
+                    "tags": ["bounded-overlay-ms5gfmlb"]
+                  }
+                }
+              ],
+              "nodes": [
+                {
+                  "email": "bounded-overlay-a-ms5gfmlb@example.com",
+                  "displayName": "OverlayA Bounded",
+                  "tags": ["bounded-overlay-ms5gfmlb"]
+                },
+                {
+                  "email": "bounded-overlay-c-ms5gfmlb@example.com",
+                  "displayName": "OverlayC Bounded",
+                  "tags": ["bounded-overlay-ms5gfmlb"]
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMTAyNjY0NDY5NzM5NCwibGFzdF92YWx1ZSI6ImJvdW5kZWQsIG92ZXJsYXlhIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoxMTAyNjY0NDczMDE2MiwibGFzdF92YWx1ZSI6ImJvdW5kZWQsIG92ZXJsYXljIn0="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2025-01/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "operationName": "DraftProxyConnectionOverlay",
+      "variables": {
+        "query": "tag:bounded-overlay-ms5gfmlb"
+      },
+      "query": "query DraftProxyConnectionOverlay($query: String!) { overlayWindow: customers(after: \"eyJsYXN0X2lkIjoxMTAyNjY0NDczMDE2MiwibGFzdF92YWx1ZSI6ImJvdW5kZWQsIG92ZXJsYXljIn0=\", first: 2, query: $query, sortKey: NAME) { edges { cursor node { email displayName tags id firstName lastName displayName email phone locale note canDelete verifiedEmail dataSaleOptOut taxExempt taxExemptions state tags createdAt updatedAt defaultEmailAddress { emailAddress } defaultPhoneNumber { phoneNumber } defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "overlayWindow": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMTAyNjY0NDc2MjkzMCwibGFzdF92YWx1ZSI6ImJvdW5kZWQsIG92ZXJsYXllIn0=",
+                  "node": {
+                    "email": "bounded-overlay-e-ms5gfmlb@example.com",
+                    "displayName": "OverlayE Bounded",
+                    "tags": ["bounded-overlay-ms5gfmlb"],
+                    "id": "gid://shopify/Customer/11026644762930",
+                    "firstName": "OverlayE",
+                    "lastName": "Bounded",
+                    "phone": null,
+                    "locale": "en",
+                    "note": null,
+                    "canDelete": true,
+                    "verifiedEmail": true,
+                    "dataSaleOptOut": false,
+                    "taxExempt": false,
+                    "taxExemptions": [],
+                    "state": "DISABLED",
+                    "createdAt": "2026-07-29T02:17:29Z",
+                    "updatedAt": "2026-07-29T02:17:29Z",
+                    "defaultEmailAddress": {
+                      "emailAddress": "bounded-overlay-e-ms5gfmlb@example.com"
+                    },
+                    "defaultPhoneNumber": null,
+                    "defaultAddress": null
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjoxMTAyNjY0NDc2MjkzMCwibGFzdF92YWx1ZSI6ImJvdW5kZWQsIG92ZXJsYXllIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoxMTAyNjY0NDc2MjkzMCwibGFzdF92YWx1ZSI6ImJvdW5kZWQsIG92ZXJsYXllIn0="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 5,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+query MarketingBoundedOverlayRefillRead($query: String!) {
+  marketingActivities(first: 2, query: $query, sortKey: TITLE) {
+    edges {
+      cursor
+      node {
+        title
+        status
+        marketingEvent {
+          remoteId
+        }
+      }
+    }
+    nodes {
+      title
+      status
+      marketingEvent {
+        remoteId
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

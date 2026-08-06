@@ -118,6 +118,17 @@ the runtime returns that transport response verbatim before schema projection
 so the backend status, headers, and error body are not replaced by local
 non-null execution errors.
 
+Staged LiveHybrid connection reads use one bounded overlay planner rather than
+turning a caller page into a complete catalog. The planner reuses the caller's
+authoritative rows, fetches only the requested window plus the staged delta and
+one boundary-proof row, and caches that exact argument/selection window for the
+request. Domain modules own schema-valid identity/filter/sort selections and
+record projection; the shared planner owns directional refill, opaque upstream
+cursor preservation, stable local cursors, deduplication, and `pageInfo`.
+Snapshot mode never enters this upstream refill path. Workflows that genuinely
+need a full catalog, such as supported bulk JSONL synthesis, use an explicit
+complete-catalog helper instead of broadening the ordinary read contract.
+
 ## GraphQL schema and resolver boundaries
 
 - Each Admin route version has its own full captured SDL. `config/admin-graphql/manifest.json` declares the executable inventory and default (`2026-07`); `AdminApiVersion` selects and lazily caches one immutable schema for `2025-01`, `2025-10`, `2026-01`, `2026-04`, or `2026-07`. Fields and input types that differ by version are therefore enforced by the requested route's actual schema.

@@ -1,5 +1,14 @@
 use super::common::*;
+use base64::Engine as _;
 use pretty_assertions::assert_eq;
+
+fn stable_overlay_cursor(root: &str, id: &str) -> String {
+    format!(
+        "local_{}",
+        base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .encode(json!({ "source": "local", "root": root, "id": id }).to_string())
+    )
+}
 
 #[test]
 fn fixed_amount_discount_hydrates_shop_currency_before_serialization() {
@@ -361,6 +370,52 @@ fn upstream_gift_card_fixture(id: &str, currency: &str) -> Value {
             }
         }
     })
+}
+
+fn upstream_gift_card_connection_window(
+    ids: &[u64],
+    has_previous_page: bool,
+    has_next_page: bool,
+) -> Value {
+    let nodes = ids
+        .iter()
+        .map(|id| {
+            json!({
+                "id": format!("gid://shopify/GiftCard/{id}"),
+                "lastCharacters": format!("{id:04}"),
+                "maskedCode": format!("•••• •••• •••• {id:04}"),
+                "enabled": true,
+                "deactivatedAt": null,
+                "expiresOn": format!("2026-{:02}-01", id / 100),
+                "createdAt": format!("2026-{:02}-01T00:00:00Z", id / 100),
+                "updatedAt": format!("2026-{:02}-01T00:00:00Z", id / 100),
+                "initialValue": { "amount": format!("{id}.0"), "currencyCode": "USD" },
+                "balance": { "amount": format!("{id}.0"), "currencyCode": "USD" },
+                "customer": null,
+                "recipientAttributes": null
+            })
+        })
+        .collect::<Vec<_>>();
+    let edges = ids
+        .iter()
+        .zip(nodes.iter())
+        .map(|(id, node)| json!({ "cursor": format!("opaque-{id}"), "node": node }))
+        .collect::<Vec<_>>();
+    json!({
+        "nodes": nodes,
+        "edges": edges,
+        "pageInfo": {
+            "hasNextPage": has_next_page,
+            "hasPreviousPage": has_previous_page,
+            "startCursor": ids.first().map(|id| format!("opaque-{id}")),
+            "endCursor": ids.last().map(|id| format!("opaque-{id}"))
+        }
+    })
+}
+
+fn shopify_gift_card_cursor(last_id: u64, last_value: Value) -> String {
+    base64::engine::general_purpose::STANDARD
+        .encode(json!({ "last_id": last_id, "last_value": last_value }).to_string())
 }
 
 fn gift_card_hydrate_query_from_body(body: &str) -> String {
@@ -2288,6 +2343,66 @@ fn discount_count_only_live_hybrid_preserves_upstream_total_with_staged_delta() 
         .any(|query| query.contains("discountNodesCount")));
 }
 
+#[test]
+fn discount_count_only_live_hybrid_falls_back_to_staged_matches_when_baseline_errors() {
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("DiscountUniquenessCheck") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "codeDiscountNodeByCode": null } }),
+                };
+            }
+            assert!(query.contains("discountNodesCount"));
+            Response {
+                status: 500,
+                headers: Default::default(),
+                body: json!({ "errors": [{ "message": "count baseline unavailable" }] }),
+            }
+        });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateCountFallbackDiscount($input: DiscountCodeBasicInput!) {
+          discountCodeBasicCreate(basicCodeDiscount: $input) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "title": "Count fallback unique staged discount",
+            "code": "COUNT-FALLBACK-STAGED",
+            "startsAt": "2026-04-27T19:31:14Z",
+            "context": { "all": "ALL" },
+            "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+        }}),
+    ));
+    assert_eq!(
+        create.body["data"]["discountCodeBasicCreate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CountFallbackAfterCreate($query: String!) {
+          discountNodesCount(query: $query) { count precision }
+        }
+        "#,
+        json!({ "query": "discount_class:order Count fallback unique" }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["discountNodesCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert!(read.body.get("errors").is_none());
+}
+
 fn starts_at_required_variables(starts_at: Option<Value>, product_id: &str) -> Value {
     let mut variables = json!({
         "basicCode": {
@@ -3790,7 +3905,9 @@ fn discount_app_lifecycle_stages_updates_reads_and_deletes_without_local_runtime
     ));
     assert_eq!(
         read.body["data"]["codeDiscountNode"]["codeDiscount"]["title"],
-        json!("App lifecycle code updated")
+        json!("App lifecycle code updated"),
+        "{}",
+        read.body
     );
     assert_eq!(
         read.body["data"]["codeDiscountNodeByCode"]["id"],
@@ -5648,6 +5765,33 @@ fn discount_live_hybrid_catalog_merges_upstream_and_staged_discounts() {
                     body: json!({ "data": { "codeDiscountNodeByCode": null } }),
                 };
             }
+            if body["operationName"] == "DraftProxyConnectionOverlay" {
+                let node = if query.contains("overlayWindow: codeDiscountNodes") {
+                    code_node_for_transport.clone()
+                } else if query.contains("overlayWindow: automaticDiscountNodes") {
+                    automatic_node_for_transport.clone()
+                } else {
+                    panic!("unexpected discount overlay query: {query}");
+                };
+                let cursor = node["id"].clone();
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "overlayWindow": {
+                                "edges": [{ "cursor": cursor.clone(), "node": node }],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": cursor.clone(),
+                                    "endCursor": cursor
+                                }
+                            }
+                        }
+                    }),
+                };
+            }
             let mut data = serde_json::Map::new();
             if query.contains("all: discountNodes") {
                 data.insert(
@@ -5782,7 +5926,7 @@ fn discount_live_hybrid_catalog_merges_upstream_and_staged_discounts() {
         json!({
             "hasNextPage": true,
             "hasPreviousPage": false,
-            "startCursor": staged_id,
+            "startCursor": stable_overlay_cursor("discountNodes", &staged_id),
             "endCursor": upstream_automatic_id
         })
     );
@@ -5930,13 +6074,17 @@ fn discount_live_hybrid_catalog_merges_upstream_and_staged_discounts() {
     assert_eq!(after_mutations.body["data"]["byCode"], json!(null));
 
     let calls = upstream_calls.lock().unwrap();
-    assert!(
+    assert_eq!(
         calls
             .iter()
-            .filter(|query| query.contains("codeOnly: codeDiscountNodes"))
-            .count()
-            >= 2,
-        "post-mutation discount catalog read should hydrate the upstream catalog, got {calls:?}"
+            .filter(|query| query.contains("query DraftProxyConnectionOverlay"))
+            .count(),
+        2,
+        "post-mutation aliases should use one bounded code and automatic window: {calls:?}"
+    );
+    assert!(
+        calls.len() <= 5,
+        "discount overlay transport budget: {calls:?}"
     );
 }
 
@@ -12570,7 +12718,7 @@ fn localization_translatable_resources_honor_reverse_and_cursor_windowing() {
 }
 
 #[test]
-fn localization_markets_read_hydrates_from_live_source_and_reuses_observed_market() {
+fn localization_markets_read_revalidates_an_unproven_partial_window() {
     let upstream_requests = Arc::new(Mutex::new(Vec::new()));
     let captured_requests = Arc::clone(&upstream_requests);
     let mut proxy =
@@ -12647,12 +12795,16 @@ fn localization_markets_read_hydrates_from_live_source_and_reuses_observed_marke
         );
     }
 
-    let cached = proxy.process_request(request);
+    let repeated = proxy.process_request(request);
     assert_eq!(
-        cached.body["data"]["markets"]["nodes"][0]["id"],
+        repeated.body["data"]["markets"]["nodes"][0]["id"],
         json!("gid://shopify/Market/97997685042")
     );
-    assert_eq!(upstream_requests.lock().unwrap().len(), 1);
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        2,
+        "a nodes-only response does not prove connection completeness across requests"
+    );
 }
 
 #[test]
@@ -16154,6 +16306,513 @@ fn gift_card_live_hybrid_cold_reads_forward_upstream_without_local_overlay() {
             "initialValue": { "amount": "25.0", "currencyCode": "USD" },
             "balance": { "amount": "25.0", "currencyCode": "USD" }
         })
+    );
+}
+
+#[test]
+fn gift_card_live_hybrid_overlay_refills_bounded_window_and_preserves_cursors() {
+    let upstream_queries = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_queries = Arc::clone(&upstream_queries);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            let query = body["query"].as_str().unwrap_or_default().to_string();
+            captured_queries.lock().unwrap().push(query.clone());
+
+            if query.contains("GiftCardCreateConfiguration") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "giftCardConfiguration": {
+                                "issueLimit": { "amount": "3000.0", "currencyCode": "USD" },
+                                "purchaseLimit": { "amount": "14000.0", "currencyCode": "USD" }
+                            }
+                        }
+                    }),
+                };
+            }
+
+            if query.contains("GiftCardOpaqueAfterBoundary") {
+                let connection = upstream_gift_card_connection_window(&[200, 300], true, false);
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "giftCards": connection } }),
+                };
+            }
+
+            if query.contains("GiftCardNodesOnlyOverlay") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "giftCards": {
+                                "nodes": [
+                                    { "id": "gid://shopify/GiftCard/100" },
+                                    { "id": "gid://shopify/GiftCard/200" }
+                                ]
+                            }
+                        }
+                    }),
+                };
+            }
+
+            let connection = if query.contains("DraftProxyConnectionOverlay") {
+                if query.contains("first: 4") && !query.contains("after:") {
+                    return Response {
+                        status: 200,
+                        headers: Default::default(),
+                        body: json!({
+                            "data": {
+                                "overlayWindow": upstream_gift_card_connection_window(
+                                    &[100, 200, 300, 400],
+                                    false,
+                                    true,
+                                )
+                            }
+                        }),
+                    };
+                }
+                assert!(
+                    query.contains("first: 2"),
+                    "refill should request only the remaining proof rows: {query}"
+                );
+                assert!(
+                    query.contains("after: \"opaque-200\""),
+                    "refill should continue at the authoritative boundary: {query}"
+                );
+                json!({
+                    "edges": [
+                        {
+                            "cursor": "opaque-300",
+                            "node": {
+                                "id": "gid://shopify/GiftCard/300",
+                                "lastCharacters": "0300",
+                                "createdAt": "2026-06-03T00:00:00Z"
+                            }
+                        },
+                        {
+                            "cursor": "opaque-400",
+                            "node": {
+                                "id": "gid://shopify/GiftCard/400",
+                                "lastCharacters": "0400",
+                                "createdAt": "2026-06-04T00:00:00Z"
+                            }
+                        }
+                    ],
+                    "pageInfo": {
+                        "hasNextPage": true,
+                        "hasPreviousPage": true,
+                        "startCursor": "opaque-300",
+                        "endCursor": "opaque-400"
+                    }
+                })
+            } else {
+                assert!(query.contains("GiftCardBoundedOverlayRefill"));
+                json!({
+                    "nodes": [
+                        {
+                            "id": "gid://shopify/GiftCard/100",
+                            "lastCharacters": "0100",
+                            "createdAt": "2026-06-01T00:00:00Z"
+                        },
+                        {
+                            "id": "gid://shopify/GiftCard/200",
+                            "lastCharacters": "0200",
+                            "createdAt": "2026-06-02T00:00:00Z"
+                        }
+                    ],
+                    "edges": [
+                        {
+                            "cursor": "opaque-100",
+                            "node": {
+                                "id": "gid://shopify/GiftCard/100",
+                                "lastCharacters": "0100",
+                                "createdAt": "2026-06-01T00:00:00Z"
+                            }
+                        },
+                        {
+                            "cursor": "opaque-200",
+                            "node": {
+                                "id": "gid://shopify/GiftCard/200",
+                                "lastCharacters": "0200",
+                                "createdAt": "2026-06-02T00:00:00Z"
+                            }
+                        }
+                    ],
+                    "pageInfo": {
+                        "hasNextPage": true,
+                        "hasPreviousPage": false,
+                        "startCursor": "opaque-100",
+                        "endCursor": "opaque-200"
+                    }
+                })
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "giftCards": connection, "overlayWindow": connection } }),
+            }
+        });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardBoundedOverlayCreate {
+          giftCardCreate(input: { initialValue: "41.01", code: "boundedrefill" }) {
+            giftCard { id lastCharacters createdAt }
+            userErrors { field message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        create.body["data"]["giftCardCreate"]["userErrors"],
+        json!([])
+    );
+    let local_id = json_string(
+        &create.body["data"]["giftCardCreate"]["giftCard"]["id"],
+        "staged gift-card id",
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query GiftCardBoundedOverlayRefill {
+          giftCards(first: 2, sortKey: ID) {
+            nodes { id lastCharacters createdAt }
+            edges { cursor node { id lastCharacters createdAt } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }"#,
+        json!({}),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["giftCards"]["nodes"]
+            .as_array()
+            .map(Vec::len),
+        Some(2)
+    );
+    assert_eq!(
+        read.body["data"]["giftCards"]["nodes"][0]["id"],
+        json!(local_id)
+    );
+    assert_eq!(
+        read.body["data"]["giftCards"]["nodes"][1]["id"],
+        json!("gid://shopify/GiftCard/100")
+    );
+    let local_cursor = json_string(
+        &read.body["data"]["giftCards"]["edges"][0]["cursor"],
+        "local gift-card cursor",
+    );
+    assert!(local_cursor.starts_with("local_"));
+    assert_eq!(
+        read.body["data"]["giftCards"]["edges"][1]["cursor"],
+        json!("opaque-100")
+    );
+    assert_eq!(
+        read.body["data"]["giftCards"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": local_cursor,
+            "endCursor": "opaque-100"
+        })
+    );
+
+    let after_cursor = shopify_gift_card_cursor(100, json!(100));
+    let after = proxy.process_request(json_graphql_request(
+        r#"query GiftCardOpaqueAfterBoundary($after: String!) {
+          giftCards(first: 2, after: $after, sortKey: ID) {
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }"#,
+        json!({ "after": after_cursor }),
+    ));
+    assert_eq!(
+        after.body["data"]["giftCards"]["edges"],
+        json!([
+            { "cursor": "opaque-200", "node": { "id": "gid://shopify/GiftCard/200" } },
+            { "cursor": "opaque-300", "node": { "id": "gid://shopify/GiftCard/300" } }
+        ]),
+        "a staged row before an opaque Shopify boundary must not leak into the next page"
+    );
+    assert_eq!(
+        after.body["data"]["giftCards"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": "opaque-200",
+            "endCursor": "opaque-300"
+        })
+    );
+
+    let nodes_only = proxy.process_request(json_graphql_request(
+        r#"query GiftCardNodesOnlyOverlay {
+          giftCards(first: 2, sortKey: ID) {
+            nodes { id }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        nodes_only.body["data"]["giftCards"]["nodes"],
+        json!([
+            { "id": local_id },
+            { "id": "gid://shopify/GiftCard/100" }
+        ]),
+        "a nodes-only caller page must be widened instead of treated as a complete catalog"
+    );
+    assert_eq!(
+        upstream_queries.lock().unwrap().len(),
+        6,
+        "configuration, three caller reads, and two bounded refills are the fixed transport budget"
+    );
+}
+
+#[test]
+fn gift_card_live_hybrid_overlay_bounds_sort_filter_reverse_and_discard() {
+    let upstream_queries = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_queries = Arc::clone(&upstream_queries);
+    let upstream_id = "gid://shopify/GiftCard/100";
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            let query = body["query"].as_str().unwrap_or_default().to_string();
+            captured_queries.lock().unwrap().push(query.clone());
+
+            if query.contains("query GiftCardHydrate") {
+                let mut card = upstream_gift_card_fixture(upstream_id, "USD");
+                card["expiresOn"] = json!("2026-01-01");
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "giftCard": card,
+                            "giftCardConfiguration": {
+                                "issueLimit": { "amount": "3000.0", "currencyCode": "USD" },
+                                "purchaseLimit": { "amount": "14000.0", "currencyCode": "USD" }
+                            }
+                        }
+                    }),
+                };
+            }
+
+            if query.contains("GiftCardOpaqueBeforeBoundary") {
+                let connection = upstream_gift_card_connection_window(&[200, 300], false, true);
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "giftCards": connection } }),
+                };
+            }
+
+            if query.contains("DraftProxyConnectionOverlay") {
+                assert!(
+                    query.contains("first: 2") || query.contains("last: 2"),
+                    "secondary hydration must stay at the two-row proof budget: {query}"
+                );
+                assert!(
+                    !query.contains("250"),
+                    "ordinary gift-card overlays must not request catalog-sized pages: {query}"
+                );
+                let connection = if query.contains("last: 2") {
+                    assert!(query.contains("before: \"opaque-300\""));
+                    upstream_gift_card_connection_window(&[100, 200], false, true)
+                } else if query.contains("reverse: true") {
+                    assert!(query.contains("after: \"opaque-300\""));
+                    upstream_gift_card_connection_window(&[200, 100], true, false)
+                } else {
+                    assert!(query.contains("after: \"opaque-200\""));
+                    upstream_gift_card_connection_window(&[300, 400], true, true)
+                };
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "overlayWindow": connection } }),
+                };
+            }
+
+            let data = if query.contains("GiftCardReverseBackwardOverlay") {
+                json!({
+                    "reverse": upstream_gift_card_connection_window(&[400, 300], false, true),
+                    "backward": upstream_gift_card_connection_window(&[300, 400], true, true)
+                })
+            } else {
+                json!({
+                    "giftCards": upstream_gift_card_connection_window(&[100, 200], false, true)
+                })
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": data }),
+            }
+        });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardSortChangingUpdate($id: ID!) {
+          giftCardUpdate(id: $id, input: { expiresOn: "2035-01-01" }) {
+            giftCard { id expiresOn }
+            userErrors { field message }
+          }
+        }"#,
+        json!({ "id": upstream_id }),
+    ));
+    assert_eq!(
+        update.body["data"]["giftCardUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let sorted = proxy.process_request(json_graphql_request(
+        r#"query GiftCardSortChangingOverlay {
+          giftCards(first: 2, sortKey: EXPIRES_ON) {
+            edges { cursor node { id expiresOn } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        sorted.body["data"]["giftCards"]["edges"],
+        json!([
+            {
+                "cursor": "opaque-200",
+                "node": { "id": "gid://shopify/GiftCard/200", "expiresOn": "2026-02-01" }
+            },
+            {
+                "cursor": "opaque-300",
+                "node": { "id": "gid://shopify/GiftCard/300", "expiresOn": "2026-03-01" }
+            }
+        ])
+    );
+    assert_eq!(
+        sorted.body["data"]["giftCards"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "opaque-200",
+            "endCursor": "opaque-300"
+        })
+    );
+
+    let before_cursor = shopify_gift_card_cursor(400, json!(1_775_001_600_000_i64));
+    let before = proxy.process_request(json_graphql_request(
+        r#"query GiftCardOpaqueBeforeBoundary($before: String!) {
+          giftCards(last: 2, before: $before, sortKey: EXPIRES_ON) {
+            edges { cursor node { id expiresOn } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }"#,
+        json!({ "before": before_cursor }),
+    ));
+    assert_eq!(
+        before.body["data"]["giftCards"]["edges"],
+        json!([
+            {
+                "cursor": "opaque-200",
+                "node": { "id": "gid://shopify/GiftCard/200", "expiresOn": "2026-02-01" }
+            },
+            {
+                "cursor": "opaque-300",
+                "node": { "id": "gid://shopify/GiftCard/300", "expiresOn": "2026-03-01" }
+            }
+        ]),
+        "a sort-changing staged row after an opaque boundary must not leak into a backward page"
+    );
+
+    let deactivate = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardFilteredRemoval($id: ID!) {
+          giftCardDeactivate(id: $id) {
+            giftCard { id enabled deactivatedAt }
+            userErrors { field message }
+          }
+        }"#,
+        json!({ "id": upstream_id }),
+    ));
+    assert_eq!(
+        deactivate.body["data"]["giftCardDeactivate"]["userErrors"],
+        json!([])
+    );
+
+    let filtered = proxy.process_request(json_graphql_request(
+        r#"query GiftCardFilteredOverlay {
+          giftCards(first: 2, query: "status:enabled", sortKey: ID) {
+            edges { cursor node { id enabled } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        filtered.body["data"]["giftCards"]["edges"],
+        json!([
+            {
+                "cursor": "opaque-200",
+                "node": { "id": "gid://shopify/GiftCard/200", "enabled": true }
+            },
+            {
+                "cursor": "opaque-300",
+                "node": { "id": "gid://shopify/GiftCard/300", "enabled": true }
+            }
+        ])
+    );
+
+    let reverse = proxy.process_request(json_graphql_request(
+        r#"query GiftCardReverseBackwardOverlay($before: String!) {
+          reverse: giftCards(first: 2, sortKey: ID, reverse: true) {
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          backward: giftCards(last: 2, before: $before, sortKey: ID) {
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }"#,
+        json!({ "before": "opaque-500" }),
+    ));
+    assert_eq!(
+        reverse.body["data"]["reverse"]["edges"],
+        json!([
+            { "cursor": "opaque-400", "node": { "id": "gid://shopify/GiftCard/400" } },
+            { "cursor": "opaque-300", "node": { "id": "gid://shopify/GiftCard/300" } }
+        ])
+    );
+    assert_eq!(
+        reverse.body["data"]["backward"]["edges"],
+        json!([
+            { "cursor": "opaque-300", "node": { "id": "gid://shopify/GiftCard/300" } },
+            { "cursor": "opaque-400", "node": { "id": "gid://shopify/GiftCard/400" } }
+        ])
+    );
+
+    let before_reset_count = upstream_queries.lock().unwrap().len();
+    assert_eq!(
+        before_reset_count, 9,
+        "one hydrate, four caller reads, and four bounded directional refills"
+    );
+    let reset = proxy.process_request(request_with_body("POST", "/__meta/reset", "{}"));
+    assert_eq!(reset.status, 200);
+    let after_reset = proxy.process_request(json_graphql_request(
+        r#"query GiftCardAfterDiscard {
+          giftCards(first: 2, query: "status:enabled", sortKey: ID) {
+            edges { cursor node { id enabled } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        upstream_queries.lock().unwrap().len(),
+        before_reset_count + 1,
+        "discard restores the unaffected one-forward cold read path"
+    );
+    assert_eq!(
+        after_reset.body["data"]["giftCards"]["edges"][0]["cursor"],
+        json!("opaque-100")
     );
 }
 

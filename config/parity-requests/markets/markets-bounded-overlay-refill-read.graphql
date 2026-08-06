@@ -1,0 +1,27 @@
+query MarketsBoundedOverlayRefillRead($query: String!) {
+  markets(first: 2, query: $query, sortKey: NAME) {
+    edges {
+      cursor
+      node {
+        name
+        handle
+        status
+        enabled
+        type
+      }
+    }
+    nodes {
+      name
+      handle
+      status
+      enabled
+      type
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

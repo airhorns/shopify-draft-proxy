@@ -5997,6 +5997,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'markets-bounded-overlay-refill',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-markets-bounded-overlay-refill-conformance.ts',
+    purpose:
+      'Markets LiveHybrid bounded connection refill evidence with a staged NAME-sorted market inserted between authoritative rows and one exact post-boundary Shopify page.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}markets-bounded-overlay-refill.json`,
+      'config/parity-specs/markets/markets-bounded-overlay-refill.json',
+      'config/parity-requests/markets/markets-bounded-overlay-refill-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates three disposable authoritative markets and one staged-equivalent market, records bounded pre-create and post-create windows, then deletes all four markets.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'markets-legacy-parity-fixtures',
     scriptPath: 'scripts/capture-market-orphan-fixture-replacements-conformance.mts',
     purpose:
@@ -6929,6 +6946,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates two disposable external marketing activities, captures first-page and after-cursor connection reads, then deletes both activities by remote ID.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'marketing',
+    captureId: 'marketing-bounded-overlay-refill',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-marketing-bounded-overlay-refill-conformance.ts',
+    purpose:
+      'Marketing LiveHybrid bounded connection refill evidence with a staged TITLE-sorted activity inserted between authoritative rows and one exact post-boundary Shopify page.',
+    requiredAuthScopes: ['read_marketing_events', 'write_marketing_events'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}marketing-bounded-overlay-refill.json`,
+      'config/parity-specs/marketing/marketing-bounded-overlay-refill.json',
+      'config/parity-requests/marketing/marketing-bounded-overlay-refill-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates three disposable authoritative external marketing activities and one staged-equivalent activity, records bounded pre-create and post-create windows, then deletes all four by remote ID.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -14690,6 +14724,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'gift-cards',
+    captureId: 'gift-card-live-hybrid-overlay-windowing',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-gift-card-live-hybrid-overlay-windowing-conformance.ts',
+    purpose:
+      'Gift-card LiveHybrid overlay parity for authoritative rows plus staged-equivalent create, sort-changing update, enabled-filter removal, and reverse connection windows.',
+    requiredAuthScopes: ['read_gift_cards', 'write_gift_cards'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}gift-card-live-hybrid-overlay-windowing.json`,
+      'config/parity-specs/gift-cards/gift-card-live-hybrid-overlay-windowing.json',
+      'config/parity-requests/gift-cards/gift-card-live-hybrid-overlay-create.graphql',
+      'config/parity-requests/gift-cards/gift-card-live-hybrid-overlay-read.graphql',
+      'config/parity-requests/gift-cards/gift-card-live-hybrid-overlay-update.graphql',
+      'config/parity-requests/gift-cards/gift-card-live-hybrid-overlay-deactivate.graphql',
+    ],
+    cleanupBehavior:
+      'Creates four disposable authoritative gift cards and one staged-equivalent card, records base-only upstream cassettes before local-equivalent mutations, then deactivates every created card.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'gift-cards',
     captureId: 'gift-card-create-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-gift-card-create-validation-conformance.ts',
@@ -15094,6 +15148,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates one disposable base customer and one disposable staged-equivalent customer, records base-only upstream cassettes before the staged-equivalent exists, then deletes both customers.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
+    captureId: 'customer-bounded-overlay-refill',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-customer-bounded-overlay-refill-conformance.ts',
+    purpose:
+      'Customer LiveHybrid bounded connection refill evidence with a staged NAME-sorted insertion between authoritative rows and one exact post-boundary Shopify page.',
+    requiredAuthScopes: ['read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-bounded-overlay-refill.json`,
+      'config/parity-specs/customers/customer-bounded-overlay-refill.json',
+      'config/parity-requests/customers/customer-bounded-overlay-refill-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates three disposable authoritative customers and one staged-equivalent customer, records the bounded pre-create window/refill and post-create window, then deletes all four customers.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
