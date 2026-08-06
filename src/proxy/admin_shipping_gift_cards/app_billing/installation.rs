@@ -24,34 +24,6 @@ impl DraftProxy {
         }
     }
 
-    pub(in crate::proxy) fn rebuild_app_graph_indexes(&mut self) {
-        self.store.base.app_installation_ids_by_app_id.clear();
-        self.store.base.app_ids_by_handle.clear();
-        self.store.base.app_ids_by_api_key.clear();
-        for (app_id, app) in &self.store.base.apps.records {
-            if let Some(handle) = app.get("handle").and_then(Value::as_str) {
-                self.store
-                    .base
-                    .app_ids_by_handle
-                    .insert(handle.to_string(), app_id.clone());
-            }
-            if let Some(api_key) = app.get("apiKey").and_then(Value::as_str) {
-                self.store
-                    .base
-                    .app_ids_by_api_key
-                    .insert(api_key.to_string(), app_id.clone());
-            }
-        }
-        for (installation_id, installation) in &self.store.base.app_installations.records {
-            if let Some(app_id) = app_id_from_installation(installation) {
-                self.store
-                    .base
-                    .app_installation_ids_by_app_id
-                    .insert(app_id, installation_id.clone());
-            }
-        }
-    }
-
     fn remember_current_app_request_context(&mut self, request: &Request, app_id: &str) {
         self.store
             .base

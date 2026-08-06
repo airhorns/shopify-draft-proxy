@@ -17556,7 +17556,8 @@ fn order_create_manual_payment_commit_replays_the_original_raw_mutation() {
     let order_id = "gid://shopify/Order/manual-payment-commit";
     restore_state_with(&mut proxy, |state| {
         state["baseState"]["shop"]["plan"]["shopifyPlus"] = json!(true);
-        state["stagedState"]["orders"][order_id] = manual_payment_context_order(order_id);
+        state["stagedState"]["orders"]["records"][order_id] =
+            manual_payment_context_order(order_id);
     });
 
     let mut request = manual_payment_request(json!(order_id), Some("12.50"));
@@ -20282,9 +20283,9 @@ fn seed_abandonment_delivery_status(
         "emailSentAt": email_sent_at
     });
     record["__draftProxyDeliveryStatuses"] = Value::Object(delivery_statuses);
-    let staged_state = restored["state"]["stagedState"]
+    let staged_state = restored["runtimeState"]["store"]["staged"]
         .as_object_mut()
-        .expect("state dump should include stagedState object");
+        .expect("state dump should include structural staged state");
     let abandonments = staged_state
         .entry("abandonments".to_string())
         .or_insert_with(|| json!({}))

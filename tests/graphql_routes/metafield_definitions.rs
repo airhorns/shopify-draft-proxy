@@ -3567,11 +3567,12 @@ fn metafield_definition_update_validates_name_description_length_without_mutatin
     let mut restored = proxy
         .process_request(request_with_body("POST", "/__meta/dump", "{}"))
         .body;
-    let definitions = restored["state"]["stagedState"]["metafieldDefinitions"]
-        .as_object_mut()
+    let definitions = restored["runtimeState"]["store"]["staged"]["metafieldDefinitions"]
+        .as_array_mut()
         .expect("staged metafield definitions");
     let restored_definition = definitions
-        .values_mut()
+        .iter_mut()
+        .filter_map(|entry| entry.as_array_mut()?.get_mut(1))
         .find(|definition| {
             definition["namespace"].as_str() == Some(namespace)
                 && definition["key"].as_str() == Some(key)

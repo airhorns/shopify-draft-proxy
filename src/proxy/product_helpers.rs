@@ -4490,7 +4490,6 @@ pub(in crate::proxy) fn product_variant_state_from_observed_json(
     product_variant_state_from_json_parts(
         value,
         product_id,
-        ProductVariantInventoryItemMode::Optional,
         &[
             "id",
             "productId",
@@ -4509,30 +4508,18 @@ pub(in crate::proxy) fn product_variant_state_from_observed_json(
     )
 }
 
-#[derive(Clone, Copy)]
-enum ProductVariantInventoryItemMode {
-    Optional,
-    Required,
-}
-
 fn product_variant_state_from_json_parts(
     value: &Value,
     product_id: String,
-    inventory_item_mode: ProductVariantInventoryItemMode,
     extra_field_exclusions: &[&str],
 ) -> Option<ProductVariantRecord> {
     let id = value.get("id")?.as_str()?.to_string();
     let inventory_item = value.get("inventoryItem");
-    let inventory_item_id = match inventory_item_mode {
-        ProductVariantInventoryItemMode::Optional => inventory_item
-            .and_then(|item| item.get("id"))
-            .and_then(Value::as_str)
-            .map(str::to_string)
-            .unwrap_or_default(),
-        ProductVariantInventoryItemMode::Required => {
-            inventory_item?.get("id")?.as_str()?.to_string()
-        }
-    };
+    let inventory_item_id = inventory_item
+        .and_then(|item| item.get("id"))
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_default();
     Some(ProductVariantRecord {
         id,
         product_id,
@@ -4617,19 +4604,6 @@ pub(in crate::proxy) fn product_state_map_json(
             .map(|(id, product)| (id.clone(), product_state_json(product)))
             .collect(),
     )
-}
-
-pub(in crate::proxy) fn product_state_map_from_json(
-    value: &Value,
-) -> BTreeMap<String, ProductRecord> {
-    value
-        .as_object()
-        .into_iter()
-        .flatten()
-        .filter_map(|(id, value)| {
-            product_state_from_json(value).map(|product| (id.clone(), product))
-        })
-        .collect()
 }
 
 pub(in crate::proxy) fn product_state_from_json(value: &Value) -> Option<ProductRecord> {
@@ -4842,46 +4816,6 @@ pub(in crate::proxy) fn product_variant_state_map_json(
     )
 }
 
-pub(in crate::proxy) fn product_variant_state_map_from_json(
-    value: &Value,
-) -> BTreeMap<String, ProductVariantRecord> {
-    value
-        .as_object()
-        .into_iter()
-        .flatten()
-        .filter_map(|(id, value)| {
-            product_variant_state_from_json(value).map(|variant| (id.clone(), variant))
-        })
-        .collect()
-}
-
-pub(in crate::proxy) fn product_variant_state_from_json(
-    value: &Value,
-) -> Option<ProductVariantRecord> {
-    let product_id = value.get("productId")?.as_str()?.to_string();
-    product_variant_state_from_json_parts(
-        value,
-        product_id,
-        ProductVariantInventoryItemMode::Required,
-        &[
-            "id",
-            "productId",
-            "title",
-            "sku",
-            "barcode",
-            "price",
-            "compareAtPrice",
-            "taxable",
-            "inventoryPolicy",
-            "inventoryQuantity",
-            "selectedOptions",
-            "inventoryItem",
-            "mediaIds",
-            "media",
-        ],
-    )
-}
-
 pub(in crate::proxy) fn product_variant_state_json(variant: &ProductVariantRecord) -> Value {
     // Shopify returns `null` (not an empty string) for a variant with no SKU. The state
     // parser reads a null SKU back as an empty string, so this round-trips cleanly.
@@ -4944,12 +4878,6 @@ pub(in crate::proxy) fn product_variant_state_extra_fields(
 
 pub(in crate::proxy) fn product_cursor(product: &ProductRecord) -> &str {
     &product.id
-}
-
-pub(in crate::proxy) fn rust_state_dump_path_exists(dump: &Value, path: &str) -> bool {
-    path.split('.')
-        .try_fold(dump, |current, segment| current.get(segment))
-        .is_some()
 }
 
 pub(in crate::proxy) fn product_variant_record_from_create_input(

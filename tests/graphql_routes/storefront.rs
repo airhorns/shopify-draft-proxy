@@ -2165,7 +2165,8 @@ fn storefront_money_projection_uses_observed_currency_and_nulls_without_evidence
         stage_storefront_cart_variant(&mut cart_state_proxy, 5);
     let (_, cad_variant_id, _) = stage_storefront_cart_variant(&mut cart_state_proxy, 5);
     restore_state_with(&mut cart_state_proxy, |state| {
-        state["stagedState"]["productVariants"][&cad_variant_id]["currencyCode"] = json!("CAD");
+        state["stagedState"]["productVariants"][&cad_variant_id]["extra_fields"]["currencyCode"] =
+            json!("CAD");
     });
     let cart_state_currency = cart_state_proxy.process_request(storefront_graphql_request(
         r#"
