@@ -1,0 +1,214 @@
+{
+  "scenarioId": "gift-card-live-hybrid-overlay-windowing",
+  "operationNames": ["giftCardCreate", "giftCardUpdate", "giftCardDeactivate", "giftCards"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["connection-window-parity", "downstream-read-parity", "filter-semantics", "sort-key-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-cards/gift-card-live-hybrid-overlay-windowing.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "proxyConfig": {
+    "readMode": "live-hybrid"
+  },
+  "proxyRequest": {
+    "apiVersion": "2025-01",
+    "documentPath": "config/parity-requests/gift-cards/gift-card-live-hybrid-overlay-create.graphql",
+    "variablesCapturePath": "$.proxyVariables.create"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict whole-payload replay of a Shopify-backed giftCards LiveHybrid overlay. The recorder creates four authoritative cards, records their base-only connection responses as exact upstream cassettes, then materializes the local-equivalent create, expiresOn sort-changing update, and deactivation/status-filter removal in Shopify. Proxy replay stages only those three mutations locally and must merge them with the authoritative rows. Cursor paths remain explicitly volatile because Shopify cursors are resource- and sort-state-specific while the proxy preserves authoritative cursors and assigns stable local cursors.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "staged create payload matches",
+        "capturePath": "$.liveStagedCreate.response.body.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.giftCardCreate.giftCard.id",
+            "matcher": "shopify-gid:GiftCard",
+            "reason": "The proxy stages a synthetic gift card while the live capture materializes a different GiftCard resource."
+          }
+        ]
+      },
+      {
+        "name": "staged create occupies initial-value sort position",
+        "capturePath": "$.afterCreateRead.response.body.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiVersion": "2025-01",
+          "documentPath": "config/parity-requests/gift-cards/gift-card-live-hybrid-overlay-read.graphql",
+          "variablesCapturePath": "$.proxyVariables.afterCreateRead"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.forward.nodes[2].id",
+            "matcher": "shopify-gid:GiftCard",
+            "reason": "The staged card keeps a synthetic GiftCard id during proxy replay."
+          },
+          {
+            "path": "$.forward.edges[2].node.id",
+            "matcher": "shopify-gid:GiftCard",
+            "reason": "The staged card keeps a synthetic GiftCard id during proxy replay."
+          },
+          {
+            "path": "$.forward.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque resource-specific cursors while mixed overlays preserve authoritative cursors and assign stable local cursors."
+          },
+          {
+            "path": "$.forward.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Connection boundary cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.forward.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Connection boundary cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.reverse.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque resource-specific cursors while mixed overlays preserve authoritative cursors and assign stable local cursors."
+          },
+          {
+            "path": "$.reverse.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Connection boundary cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.reverse.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Connection boundary cursors are opaque and resource-instance specific."
+          }
+        ]
+      },
+      {
+        "name": "sort-changing update payload matches",
+        "capturePath": "$.liveSortChangingUpdate.response.body.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiVersion": "2025-01",
+          "documentPath": "config/parity-requests/gift-cards/gift-card-live-hybrid-overlay-update.graphql",
+          "variablesCapturePath": "$.proxyVariables.update"
+        }
+      },
+      {
+        "name": "sort-changing update repositions authoritative row",
+        "capturePath": "$.afterSortChangingUpdateRead.response.body.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiVersion": "2025-01",
+          "documentPath": "config/parity-requests/gift-cards/gift-card-live-hybrid-overlay-read.graphql",
+          "variablesCapturePath": "$.proxyVariables.afterSortChangingUpdateRead"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.forward.nodes[1].id",
+            "matcher": "shopify-gid:GiftCard",
+            "reason": "The staged card keeps a synthetic GiftCard id during proxy replay."
+          },
+          {
+            "path": "$.forward.edges[1].node.id",
+            "matcher": "shopify-gid:GiftCard",
+            "reason": "The staged card keeps a synthetic GiftCard id during proxy replay."
+          },
+          {
+            "path": "$.forward.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify regenerates sort-aware opaque cursors after materialized updates; the proxy preserves authoritative cursors and assigns stable local cursors."
+          },
+          {
+            "path": "$.forward.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Connection boundary cursors are opaque and sort-state specific."
+          },
+          {
+            "path": "$.forward.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Connection boundary cursors are opaque and sort-state specific."
+          },
+          {
+            "path": "$.reverse.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify regenerates sort-aware opaque cursors after materialized updates; the proxy preserves authoritative cursors and assigns stable local cursors."
+          },
+          {
+            "path": "$.reverse.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Connection boundary cursors are opaque and sort-state specific."
+          },
+          {
+            "path": "$.reverse.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Connection boundary cursors are opaque and sort-state specific."
+          }
+        ]
+      },
+      {
+        "name": "deactivation payload matches",
+        "capturePath": "$.liveDeactivate.response.body.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiVersion": "2025-01",
+          "documentPath": "config/parity-requests/gift-cards/gift-card-live-hybrid-overlay-deactivate.graphql",
+          "variablesCapturePath": "$.proxyVariables.deactivate"
+        }
+      },
+      {
+        "name": "enabled filter removes deactivated row and preserves reverse window",
+        "capturePath": "$.afterEnabledRemovalRead.response.body.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiVersion": "2025-01",
+          "documentPath": "config/parity-requests/gift-cards/gift-card-live-hybrid-overlay-read.graphql",
+          "variablesCapturePath": "$.proxyVariables.afterEnabledRemovalRead"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.forward.nodes[1].id",
+            "matcher": "shopify-gid:GiftCard",
+            "reason": "The staged card keeps a synthetic GiftCard id during proxy replay."
+          },
+          {
+            "path": "$.forward.edges[1].node.id",
+            "matcher": "shopify-gid:GiftCard",
+            "reason": "The staged card keeps a synthetic GiftCard id during proxy replay."
+          },
+          {
+            "path": "$.forward.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque resource-specific cursors while mixed overlays preserve authoritative cursors and assign stable local cursors."
+          },
+          {
+            "path": "$.forward.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Connection boundary cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.forward.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Connection boundary cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.reverse.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque resource-specific cursors while mixed overlays preserve authoritative cursors and assign stable local cursors."
+          },
+          {
+            "path": "$.reverse.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Connection boundary cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.reverse.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Connection boundary cursors are opaque and resource-instance specific."
+          }
+        ]
+      }
+    ]
+  }
+}

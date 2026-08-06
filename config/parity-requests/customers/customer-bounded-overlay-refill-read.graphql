@@ -1,0 +1,23 @@
+query CustomerBoundedOverlayRefillRead($query: String!) {
+  customers(first: 2, query: $query, sortKey: NAME) {
+    edges {
+      cursor
+      node {
+        email
+        displayName
+        tags
+      }
+    }
+    nodes {
+      email
+      displayName
+      tags
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

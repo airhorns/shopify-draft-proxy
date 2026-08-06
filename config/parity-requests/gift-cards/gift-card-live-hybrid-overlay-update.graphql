@@ -1,0 +1,22 @@
+mutation GiftCardLiveHybridOverlayUpdate($id: ID!, $expiresOn: Date!) {
+  giftCardUpdate(id: $id, input: { expiresOn: $expiresOn }) {
+    giftCard {
+      id
+      lastCharacters
+      enabled
+      expiresOn
+      initialValue {
+        amount
+        currencyCode
+      }
+      balance {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

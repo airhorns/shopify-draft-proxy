@@ -55,6 +55,7 @@ pub(in crate::proxy) struct RequestCache {
     caller_data: Option<Value>,
     caller_selections: BTreeMap<String, Vec<SelectedField>>,
     supplemental_responses: BTreeMap<RequestCacheKey, Response>,
+    cached_values: BTreeMap<RequestCacheKey, Value>,
     completed: BTreeSet<RequestCacheKey>,
     entities: BTreeMap<RequestCacheKey, EntityEvidenceState>,
 }
@@ -101,6 +102,14 @@ impl RequestCache {
         response: Response,
     ) {
         self.supplemental_responses.insert(key, response);
+    }
+
+    pub(in crate::proxy) fn cached_value(&self, key: &RequestCacheKey) -> Option<&Value> {
+        self.cached_values.get(key)
+    }
+
+    pub(in crate::proxy) fn record_cached_value(&mut self, key: RequestCacheKey, value: Value) {
+        self.cached_values.insert(key, value);
     }
 
     pub(in crate::proxy) fn is_complete(&self, key: &RequestCacheKey) -> bool {

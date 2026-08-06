@@ -1,0 +1,605 @@
+{
+  "scenarioId": "markets-bounded-overlay-refill",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "proxyVariables": {
+    "create": {
+      "input": {
+        "name": "ZZZBoundedMarket20260729024116407B",
+        "enabled": true
+      }
+    },
+    "read": {
+      "query": "name:ZZZBoundedMarket20260729024116407*"
+    }
+  },
+  "setup": {
+    "baseCreates": [
+      {
+        "operationName": "MarketsBoundedOverlayBaseACreate",
+        "query": "mutation MarketsConnectionArgumentsCreate($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      status\n      enabled\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "name": "ZZZBoundedMarket20260729024116407A",
+            "enabled": true
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "marketCreate": {
+                "market": {
+                  "id": "gid://shopify/Market/99096232242",
+                  "name": "ZZZBoundedMarket20260729024116407A",
+                  "status": "ACTIVE",
+                  "enabled": true,
+                  "type": "NONE"
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "MarketsBoundedOverlayBaseCCreate",
+        "query": "mutation MarketsConnectionArgumentsCreate($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      status\n      enabled\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "name": "ZZZBoundedMarket20260729024116407C",
+            "enabled": true
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "marketCreate": {
+                "market": {
+                  "id": "gid://shopify/Market/99096265010",
+                  "name": "ZZZBoundedMarket20260729024116407C",
+                  "status": "ACTIVE",
+                  "enabled": true,
+                  "type": "NONE"
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "MarketsBoundedOverlayBaseECreate",
+        "query": "mutation MarketsConnectionArgumentsCreate($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      status\n      enabled\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "name": "ZZZBoundedMarket20260729024116407E",
+            "enabled": true
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "marketCreate": {
+                "market": {
+                  "id": "gid://shopify/Market/99096297778",
+                  "name": "ZZZBoundedMarket20260729024116407E",
+                  "status": "ACTIVE",
+                  "enabled": true,
+                  "type": "NONE"
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "baseRead": {
+      "operationName": "MarketsBoundedOverlayRefillRead",
+      "query": "query MarketsBoundedOverlayRefillRead($query: String!) {\n  markets(first: 2, query: $query, sortKey: NAME) {\n    edges {\n      cursor\n      node {\n        name\n        handle\n        status\n        enabled\n        type\n      }\n    }\n    nodes {\n      name\n      handle\n      status\n      enabled\n      type\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "query": "name:ZZZBoundedMarket20260729024116407*"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "markets": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5OTA5NjIzMjI0MiwibGFzdF92YWx1ZSI6Inp6emJvdW5kZWRtYXJrZXQyMDI2MDcyOTAyNDExNjQwN2EifQ==",
+                  "node": {
+                    "name": "ZZZBoundedMarket20260729024116407A",
+                    "handle": "zzzboundedmarket20260729024116407a",
+                    "status": "ACTIVE",
+                    "enabled": true,
+                    "type": "NONE"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5OTA5NjI2NTAxMCwibGFzdF92YWx1ZSI6Inp6emJvdW5kZWRtYXJrZXQyMDI2MDcyOTAyNDExNjQwN2MifQ==",
+                  "node": {
+                    "name": "ZZZBoundedMarket20260729024116407C",
+                    "handle": "zzzboundedmarket20260729024116407c",
+                    "status": "ACTIVE",
+                    "enabled": true,
+                    "type": "NONE"
+                  }
+                }
+              ],
+              "nodes": [
+                {
+                  "name": "ZZZBoundedMarket20260729024116407A",
+                  "handle": "zzzboundedmarket20260729024116407a",
+                  "status": "ACTIVE",
+                  "enabled": true,
+                  "type": "NONE"
+                },
+                {
+                  "name": "ZZZBoundedMarket20260729024116407C",
+                  "handle": "zzzboundedmarket20260729024116407c",
+                  "status": "ACTIVE",
+                  "enabled": true,
+                  "type": "NONE"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5OTA5NjIzMjI0MiwibGFzdF92YWx1ZSI6Inp6emJvdW5kZWRtYXJrZXQyMDI2MDcyOTAyNDExNjQwN2EifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo5OTA5NjI2NTAxMCwibGFzdF92YWx1ZSI6Inp6emJvdW5kZWRtYXJrZXQyMDI2MDcyOTAyNDExNjQwN2MifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "refill": {
+      "operationName": "DraftProxyConnectionOverlay",
+      "query": "query DraftProxyConnectionOverlay($query: String!) { overlayWindow: markets(after: \"eyJsYXN0X2lkIjo5OTA5NjI2NTAxMCwibGFzdF92YWx1ZSI6Inp6emJvdW5kZWRtYXJrZXQyMDI2MDcyOTAyNDExNjQwN2MifQ==\", first: 2, query: $query, sortKey: NAME) { edges { cursor node { name handle status enabled type id name handle status enabled type } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }",
+      "variables": {
+        "query": "name:ZZZBoundedMarket20260729024116407*"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "overlayWindow": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5OTA5NjI5Nzc3OCwibGFzdF92YWx1ZSI6Inp6emJvdW5kZWRtYXJrZXQyMDI2MDcyOTAyNDExNjQwN2UifQ==",
+                  "node": {
+                    "name": "ZZZBoundedMarket20260729024116407E",
+                    "handle": "zzzboundedmarket20260729024116407e",
+                    "status": "ACTIVE",
+                    "enabled": true,
+                    "type": "NONE",
+                    "id": "gid://shopify/Market/99096297778"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjo5OTA5NjI5Nzc3OCwibGFzdF92YWx1ZSI6Inp6emJvdW5kZWRtYXJrZXQyMDI2MDcyOTAyNDExNjQwN2UifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo5OTA5NjI5Nzc3OCwibGFzdF92YWx1ZSI6Inp6emJvdW5kZWRtYXJrZXQyMDI2MDcyOTAyNDExNjQwN2UifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "liveStagedCreate": {
+    "operationName": "MarketsBoundedOverlayStagedCreate",
+    "query": "mutation MarketsConnectionArgumentsCreate($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      status\n      enabled\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "input": {
+        "name": "ZZZBoundedMarket20260729024116407B",
+        "enabled": true
+      }
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "marketCreate": {
+            "market": {
+              "id": "gid://shopify/Market/99096363314",
+              "name": "ZZZBoundedMarket20260729024116407B",
+              "status": "ACTIVE",
+              "enabled": true,
+              "type": "NONE"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "finalRead": {
+    "operationName": "MarketsBoundedOverlayRefillRead",
+    "query": "query MarketsBoundedOverlayRefillRead($query: String!) {\n  markets(first: 2, query: $query, sortKey: NAME) {\n    edges {\n      cursor\n      node {\n        name\n        handle\n        status\n        enabled\n        type\n      }\n    }\n    nodes {\n      name\n      handle\n      status\n      enabled\n      type\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+    "variables": {
+      "query": "name:ZZZBoundedMarket20260729024116407*"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "markets": {
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjo5OTA5NjIzMjI0MiwibGFzdF92YWx1ZSI6Inp6emJvdW5kZWRtYXJrZXQyMDI2MDcyOTAyNDExNjQwN2EifQ==",
+                "node": {
+                  "name": "ZZZBoundedMarket20260729024116407A",
+                  "handle": "zzzboundedmarket20260729024116407a",
+                  "status": "ACTIVE",
+                  "enabled": true,
+                  "type": "NONE"
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjo5OTA5NjM2MzMxNCwibGFzdF92YWx1ZSI6Inp6emJvdW5kZWRtYXJrZXQyMDI2MDcyOTAyNDExNjQwN2IifQ==",
+                "node": {
+                  "name": "ZZZBoundedMarket20260729024116407B",
+                  "handle": "zzzboundedmarket20260729024116407b",
+                  "status": "ACTIVE",
+                  "enabled": true,
+                  "type": "NONE"
+                }
+              }
+            ],
+            "nodes": [
+              {
+                "name": "ZZZBoundedMarket20260729024116407A",
+                "handle": "zzzboundedmarket20260729024116407a",
+                "status": "ACTIVE",
+                "enabled": true,
+                "type": "NONE"
+              },
+              {
+                "name": "ZZZBoundedMarket20260729024116407B",
+                "handle": "zzzboundedmarket20260729024116407b",
+                "status": "ACTIVE",
+                "enabled": true,
+                "type": "NONE"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": true,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo5OTA5NjIzMjI0MiwibGFzdF92YWx1ZSI6Inp6emJvdW5kZWRtYXJrZXQyMDI2MDcyOTAyNDExNjQwN2EifQ==",
+              "endCursor": "eyJsYXN0X2lkIjo5OTA5NjM2MzMxNCwibGFzdF92YWx1ZSI6Inp6emJvdW5kZWRtYXJrZXQyMDI2MDcyOTAyNDExNjQwN2IifQ=="
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 4,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "operationName": "MarketsBoundedOverlayRefillCleanup",
+      "query": "#graphql\nmutation MarketsBoundedOverlayRefillCleanup($id: ID!) {\n  marketDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Market/99096363314"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "marketDelete": {
+              "deletedId": "gid://shopify/Market/99096363314",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MarketsBoundedOverlayRefillCleanup",
+      "query": "#graphql\nmutation MarketsBoundedOverlayRefillCleanup($id: ID!) {\n  marketDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Market/99096297778"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "marketDelete": {
+              "deletedId": "gid://shopify/Market/99096297778",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MarketsBoundedOverlayRefillCleanup",
+      "query": "#graphql\nmutation MarketsBoundedOverlayRefillCleanup($id: ID!) {\n  marketDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Market/99096265010"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "marketDelete": {
+              "deletedId": "gid://shopify/Market/99096265010",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MarketsBoundedOverlayRefillCleanup",
+      "query": "#graphql\nmutation MarketsBoundedOverlayRefillCleanup($id: ID!) {\n  marketDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Market/99096232242"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "marketDelete": {
+              "deletedId": "gid://shopify/Market/99096232242",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "operationName": "MarketsBoundedOverlayRefillRead",
+      "variables": {
+        "query": "name:ZZZBoundedMarket20260729024116407*"
+      },
+      "query": "query MarketsBoundedOverlayRefillRead($query: String!) {\n  markets(first: 2, query: $query, sortKey: NAME) {\n    edges {\n      cursor\n      node {\n        name\n        handle\n        status\n        enabled\n        type\n      }\n    }\n    nodes {\n      name\n      handle\n      status\n      enabled\n      type\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "markets": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5OTA5NjIzMjI0MiwibGFzdF92YWx1ZSI6Inp6emJvdW5kZWRtYXJrZXQyMDI2MDcyOTAyNDExNjQwN2EifQ==",
+                  "node": {
+                    "name": "ZZZBoundedMarket20260729024116407A",
+                    "handle": "zzzboundedmarket20260729024116407a",
+                    "status": "ACTIVE",
+                    "enabled": true,
+                    "type": "NONE"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5OTA5NjI2NTAxMCwibGFzdF92YWx1ZSI6Inp6emJvdW5kZWRtYXJrZXQyMDI2MDcyOTAyNDExNjQwN2MifQ==",
+                  "node": {
+                    "name": "ZZZBoundedMarket20260729024116407C",
+                    "handle": "zzzboundedmarket20260729024116407c",
+                    "status": "ACTIVE",
+                    "enabled": true,
+                    "type": "NONE"
+                  }
+                }
+              ],
+              "nodes": [
+                {
+                  "name": "ZZZBoundedMarket20260729024116407A",
+                  "handle": "zzzboundedmarket20260729024116407a",
+                  "status": "ACTIVE",
+                  "enabled": true,
+                  "type": "NONE"
+                },
+                {
+                  "name": "ZZZBoundedMarket20260729024116407C",
+                  "handle": "zzzboundedmarket20260729024116407c",
+                  "status": "ACTIVE",
+                  "enabled": true,
+                  "type": "NONE"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5OTA5NjIzMjI0MiwibGFzdF92YWx1ZSI6Inp6emJvdW5kZWRtYXJrZXQyMDI2MDcyOTAyNDExNjQwN2EifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo5OTA5NjI2NTAxMCwibGFzdF92YWx1ZSI6Inp6emJvdW5kZWRtYXJrZXQyMDI2MDcyOTAyNDExNjQwN2MifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "operationName": "DraftProxyConnectionOverlay",
+      "variables": {
+        "query": "name:ZZZBoundedMarket20260729024116407*"
+      },
+      "query": "query DraftProxyConnectionOverlay($query: String!) { overlayWindow: markets(after: \"eyJsYXN0X2lkIjo5OTA5NjI2NTAxMCwibGFzdF92YWx1ZSI6Inp6emJvdW5kZWRtYXJrZXQyMDI2MDcyOTAyNDExNjQwN2MifQ==\", first: 2, query: $query, sortKey: NAME) { edges { cursor node { name handle status enabled type id name handle status enabled type } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "overlayWindow": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5OTA5NjI5Nzc3OCwibGFzdF92YWx1ZSI6Inp6emJvdW5kZWRtYXJrZXQyMDI2MDcyOTAyNDExNjQwN2UifQ==",
+                  "node": {
+                    "name": "ZZZBoundedMarket20260729024116407E",
+                    "handle": "zzzboundedmarket20260729024116407e",
+                    "status": "ACTIVE",
+                    "enabled": true,
+                    "type": "NONE",
+                    "id": "gid://shopify/Market/99096297778"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjo5OTA5NjI5Nzc3OCwibGFzdF92YWx1ZSI6Inp6emJvdW5kZWRtYXJrZXQyMDI2MDcyOTAyNDExNjQwN2UifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo5OTA5NjI5Nzc3OCwibGFzdF92YWx1ZSI6Inp6emJvdW5kZWRtYXJrZXQyMDI2MDcyOTAyNDExNjQwN2UifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

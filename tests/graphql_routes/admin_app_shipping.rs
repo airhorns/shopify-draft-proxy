@@ -25,19 +25,11 @@ fn synthetic_product_timestamp_for_log_len(log_len: usize) -> String {
     format!("2024-01-01T00:00:{:02}.000Z", (log_len + 1) % 60)
 }
 
-fn bulk_operation_test_cursor(id: &str, timestamp: &str) -> String {
-    let last_id = id
-        .rsplit('/')
-        .next()
-        .unwrap_or_default()
-        .parse::<u64>()
-        .expect("test bulk operation id should have a numeric tail");
-    base64::engine::general_purpose::STANDARD.encode(
-        json!({
-            "last_id": last_id,
-            "last_value": timestamp.strip_suffix('Z').unwrap_or(timestamp).replace('T', " ")
-        })
-        .to_string(),
+fn bulk_operation_test_cursor(id: &str, _timestamp: &str) -> String {
+    format!(
+        "local_{}",
+        base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .encode(json!({ "source": "local", "root": "bulkOperations", "id": id }).to_string())
     )
 }
 

@@ -1,0 +1,80 @@
+query GiftCardLiveHybridOverlayRead($query: String!, $sortKey: GiftCardSortKeys!) {
+  forward: giftCards(first: 4, query: $query, sortKey: $sortKey) {
+    nodes {
+      id
+      lastCharacters
+      enabled
+      expiresOn
+      initialValue {
+        amount
+        currencyCode
+      }
+      balance {
+        amount
+        currencyCode
+      }
+    }
+    edges {
+      cursor
+      node {
+        id
+        lastCharacters
+        enabled
+        expiresOn
+        initialValue {
+          amount
+          currencyCode
+        }
+        balance {
+          amount
+          currencyCode
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  reverse: giftCards(first: 2, query: $query, sortKey: $sortKey, reverse: true) {
+    nodes {
+      id
+      lastCharacters
+      enabled
+      expiresOn
+      initialValue {
+        amount
+        currencyCode
+      }
+      balance {
+        amount
+        currencyCode
+      }
+    }
+    edges {
+      cursor
+      node {
+        id
+        lastCharacters
+        enabled
+        expiresOn
+        initialValue {
+          amount
+          currencyCode
+        }
+        balance {
+          amount
+          currencyCode
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "scenarioId": "markets-bounded-overlay-refill",
+  "operationNames": ["marketCreate", "markets"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["downstream-read-parity", "read-after-write", "pagination-shape", "sort-order"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/markets-bounded-overlay-refill.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafields_markets_products_tail.rs"],
+  "proxyConfig": { "readMode": "live-hybrid" },
+  "proxyRequest": {
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/markets/markets-connection-arguments-create.graphql",
+    "variablesCapturePath": "$.proxyVariables.create"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "A registered live capture creates three authoritative markets, records the caller's bounded two-row NAME-sorted page plus the exact authoritative refill immediately beyond it, then creates the staged-equivalent market in Shopify. Proxy replay stages only that fourth market and must insert it between authoritative rows while retaining a proven following-page boundary.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "stage-create-user-errors",
+        "capturePath": "$.liveStagedCreate.response.body.data.marketCreate.userErrors",
+        "proxyPath": "$.data.marketCreate.userErrors"
+      },
+      {
+        "name": "bounded-markets-refill-connection",
+        "capturePath": "$.finalRead.response.body.data.markets",
+        "proxyPath": "$.data.markets",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/markets/markets-bounded-overlay-refill-read.graphql",
+          "variablesCapturePath": "$.proxyVariables.read"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.edges[1].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify assigns an authoritative cursor after the live create; proxy replay assigns the staged market a stable proxy-local cursor."
+          },
+          {
+            "path": "$.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "The second row is locally staged during proxy replay, so its outgoing cursor is proxy-local."
+          }
+        ]
+      }
+    ]
+  }
+}
