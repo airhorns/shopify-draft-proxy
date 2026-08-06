@@ -207,6 +207,7 @@ impl StorefrontRootExecutor {
                 operation_path: &call.operation_path,
                 operation_root_names: call.operation.root_fields.clone(),
                 operation_roots,
+                root_children: Vec::new(),
                 variable_definitions: &call.variable_definitions,
                 raw_arguments: call.field.raw_arguments.clone(),
                 arguments,

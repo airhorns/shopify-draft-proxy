@@ -438,7 +438,6 @@ describe('operation registry', () => {
         'SubscriptionContract',
         'SubscriptionDraft',
         'TaxonomyAttribute',
-        'TaxonomyCategory',
         'TaxonomyChoiceListAttribute',
         'TaxonomyMeasurementAttribute',
         'TaxonomyValue',

@@ -2,6 +2,431 @@ use super::common::*;
 use pretty_assertions::assert_eq;
 use shopify_draft_proxy::proxy::Response;
 
+fn taxonomy_category(id: &str, name: &str, parent_id: Option<&str>) -> Value {
+    let level = id.rsplit('/').next().unwrap_or_default().split('-').count() as i64;
+    json!({
+        "__typename": "TaxonomyCategory",
+        "id": id,
+        "name": name,
+        "fullName": name,
+        "isRoot": parent_id.is_none(),
+        "isLeaf": true,
+        "level": level,
+        "parentId": parent_id,
+        "ancestorIds": parent_id.into_iter().collect::<Vec<_>>(),
+        "childrenIds": [],
+        "isArchived": false
+    })
+}
+
+fn taxonomy_connection(rows: &[Value], has_next_page: bool) -> Value {
+    let edges = rows
+        .iter()
+        .enumerate()
+        .map(|(index, node)| {
+            json!({
+                "cursor": format!("opaque-taxonomy-cursor-{index}"),
+                "node": node
+            })
+        })
+        .collect::<Vec<_>>();
+    json!({
+        "nodes": rows,
+        "edges": edges,
+        "pageInfo": {
+            "hasNextPage": has_next_page,
+            "hasPreviousPage": false,
+            "startCursor": (!rows.is_empty()).then_some("opaque-taxonomy-cursor-0"),
+            "endCursor": (!rows.is_empty())
+                .then(|| format!("opaque-taxonomy-cursor-{}", rows.len() - 1))
+        }
+    })
+}
+
+#[test]
+fn admin_platform_snapshot_empty_and_restored_reads_are_store_backed() {
+    let mut empty = snapshot_proxy().with_upstream_transport(|_| {
+        panic!("snapshot Admin platform reads must not call upstream")
+    });
+    let request = json_graphql_request(
+        r#"
+        query PlatformSnapshot($search: String!) {
+          versions: publicApiVersions { handle displayName supported }
+          catalog: taxonomy {
+            matches: categories(first: 2, search: $search) {
+              nodes { __typename id name fullName isRoot isLeaf level parentId ancestorIds childrenIds isArchived }
+              edges { cursor node { id name } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({"search": "pet"}),
+    );
+    let empty_response = empty.process_request(request.clone());
+    assert_eq!(empty_response.status, 200);
+    assert_eq!(empty_response.body["data"]["versions"], json!([]));
+    assert_eq!(
+        empty_response.body["data"]["catalog"]["matches"],
+        taxonomy_connection(&[], false)
+    );
+    assert_eq!(log_snapshot(&empty)["entries"], json!([]));
+
+    let categories = vec![
+        taxonomy_category(
+            "gid://shopify/TaxonomyCategory/ap-2-6",
+            "Pet Apparel",
+            Some("gid://shopify/TaxonomyCategory/ap-2"),
+        ),
+        taxonomy_category(
+            "gid://shopify/TaxonomyCategory/ap-2-7",
+            "Pet Apparel Hangers",
+            Some("gid://shopify/TaxonomyCategory/ap-2"),
+        ),
+    ];
+    let upstream_calls = Arc::new(Mutex::new(0usize));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let categories_for_transport = categories.clone();
+    let mut live =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            *captured_calls.lock().unwrap() += 1;
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            assert!(body["query"]
+                .as_str()
+                .unwrap()
+                .contains("versions: publicApiVersions"));
+            Response {
+                status: 200,
+                headers: [(
+                    "x-shopify-shop-api-call-limit".to_string(),
+                    "1/40".to_string(),
+                )]
+                .into_iter()
+                .collect(),
+                body: json!({
+                    "data": {
+                        "versions": [{
+                            "handle": "2026-04",
+                            "displayName": "2026-04",
+                            "supported": true
+                        }],
+                        "catalog": {
+                            "matches": taxonomy_connection(&categories_for_transport, false)
+                        }
+                    },
+                    "extensions": { "cost": { "actualQueryCost": 4 } }
+                }),
+            }
+        });
+    let cold = live.process_request(request.clone());
+    assert_eq!(cold.status, 200);
+    assert_eq!(cold.headers["x-shopify-shop-api-call-limit"], "1/40");
+    assert_eq!(*upstream_calls.lock().unwrap(), 1);
+    assert_eq!(
+        cold.body["data"]["catalog"]["matches"]["nodes"],
+        json!(categories)
+    );
+    assert_eq!(log_snapshot(&live)["entries"], json!([]));
+    let warm = live.process_request(request.clone());
+    assert_eq!(warm.body["data"], cold.body["data"]);
+    assert_eq!(*upstream_calls.lock().unwrap(), 1);
+
+    let dump = live.process_request(request_with_body("POST", "/__meta/dump", ""));
+    let mut restored = snapshot_proxy().with_upstream_transport(|_| {
+        panic!("restored snapshot Admin platform reads must not call upstream")
+    });
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let restored_response = restored.process_request(request);
+    assert_eq!(restored_response.status, 200);
+    assert_eq!(restored_response.body["data"], cold.body["data"]);
+    let restored_cursor_window = restored.process_request(json_graphql_request(
+        r#"
+        query RestoredTaxonomyCursorWindow {
+          taxonomy {
+            categories(first: 1, search: "pet", after: "opaque-taxonomy-cursor-0") {
+              nodes { id name }
+              edges { cursor node { id name } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(restored_cursor_window.status, 200);
+    assert_eq!(
+        restored_cursor_window.body["data"]["taxonomy"]["categories"]["nodes"][0]["id"],
+        "gid://shopify/TaxonomyCategory/ap-2-7"
+    );
+    assert_eq!(
+        restored_cursor_window.body["data"]["taxonomy"]["categories"]["edges"][0]["cursor"],
+        "opaque-taxonomy-cursor-1"
+    );
+    assert_eq!(log_snapshot(&restored)["entries"], json!([]));
+}
+
+#[test]
+fn taxonomy_partial_windows_remain_scoped_and_use_one_transport_call_per_cold_document() {
+    let calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&calls);
+    let pet_rows = vec![
+        taxonomy_category(
+            "gid://shopify/TaxonomyCategory/ap-2-6",
+            "Pet Apparel",
+            Some("gid://shopify/TaxonomyCategory/ap-2"),
+        ),
+        taxonomy_category(
+            "gid://shopify/TaxonomyCategory/ap-2-7",
+            "Pet Apparel Hangers",
+            Some("gid://shopify/TaxonomyCategory/ap-2"),
+        ),
+    ];
+    let next_row = taxonomy_category(
+        "gid://shopify/TaxonomyCategory/ap-2-8",
+        "Pet Beds",
+        Some("gid://shopify/TaxonomyCategory/ap-2"),
+    );
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            captured_calls.lock().unwrap().push(body.clone());
+            let after = body["variables"]["after"].as_str();
+            let connection = if after.is_some() {
+                taxonomy_connection(std::slice::from_ref(&next_row), false)
+            } else {
+                taxonomy_connection(&pet_rows, true)
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "taxonomy": {
+                            "petWindow": connection,
+                            "missingWindow": taxonomy_connection(&[], false)
+                        }
+                    }
+                }),
+            }
+        });
+    let query = r#"
+        query TaxonomyWindows($after: String) {
+          taxonomy {
+            petWindow: categories(first: 2, search: "pet", after: $after) {
+              nodes { id name fullName isRoot isLeaf level parentId ancestorIds childrenIds isArchived }
+              edges { cursor node { id name } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            missingWindow: categories(first: 2, childrenOf: "gid://shopify/TaxonomyCategory/missing") {
+              nodes { id name }
+              edges { cursor node { id name } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+    "#;
+    let first = proxy.process_request(json_graphql_request(query, json!({"after": null})));
+    assert_eq!(first.status, 200);
+    assert!(
+        first.body["data"]["taxonomy"]["petWindow"]["pageInfo"]["hasNextPage"]
+            .as_bool()
+            .unwrap()
+    );
+    assert_eq!(calls.lock().unwrap().len(), 1);
+
+    let cached = proxy.process_request(json_graphql_request(query, json!({"after": null})));
+    assert_eq!(cached.body["data"], first.body["data"]);
+    assert_eq!(calls.lock().unwrap().len(), 1);
+
+    let next = proxy.process_request(json_graphql_request(
+        query,
+        json!({"after": "opaque-taxonomy-cursor-1"}),
+    ));
+    assert_eq!(next.status, 200);
+    assert_eq!(
+        next.body["data"]["taxonomy"]["petWindow"]["nodes"][0]["id"],
+        "gid://shopify/TaxonomyCategory/ap-2-8"
+    );
+    assert_eq!(calls.lock().unwrap().len(), 2);
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
+fn taxonomy_category_nodes_batch_cold_hydration_and_survive_reset() {
+    let calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&calls);
+    let first = taxonomy_category(
+        "gid://shopify/TaxonomyCategory/aa",
+        "Apparel & Accessories",
+        None,
+    );
+    let second = taxonomy_category(
+        "gid://shopify/TaxonomyCategory/ap-2-6",
+        "Pet Apparel",
+        Some("gid://shopify/TaxonomyCategory/ap-2"),
+    );
+    let first_for_transport = first.clone();
+    let second_for_transport = second.clone();
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            captured_calls.lock().unwrap().push(body.clone());
+            assert!(body["query"].as_str().unwrap().contains("nodes(ids: $ids)"));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "nodes": [first_for_transport, null, second_for_transport]
+                    }
+                }),
+            }
+        });
+    let request = json_graphql_request(
+        r#"
+        query TaxonomyNodes($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            __typename
+            id
+            ... on TaxonomyCategory {
+              name fullName isRoot isLeaf level parentId ancestorIds childrenIds isArchived
+            }
+          }
+        }
+        "#,
+        json!({"ids": [
+            "gid://shopify/TaxonomyCategory/aa",
+            "gid://shopify/TaxonomyCategory/missing",
+            "gid://shopify/TaxonomyCategory/ap-2-6"
+        ]}),
+    );
+    let cold = proxy.process_request(request.clone());
+    assert_eq!(cold.status, 200);
+    assert_eq!(cold.body["data"]["nodes"], json!([first, null, second]));
+    assert_eq!(calls.lock().unwrap().len(), 1);
+
+    let warm = proxy.process_request(request.clone());
+    assert_eq!(warm.body["data"], cold.body["data"]);
+    assert_eq!(calls.lock().unwrap().len(), 1);
+    let reset = proxy.process_request(request_with_body("POST", "/__meta/reset", ""));
+    assert_eq!(reset.status, 200);
+    let after_reset = proxy.process_request(request);
+    assert_eq!(after_reset.body["data"], cold.body["data"]);
+    assert_eq!(calls.lock().unwrap().len(), 1);
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
+fn taxonomy_large_catalog_keeps_cold_window_transport_budget_constant() {
+    let calls = Arc::new(Mutex::new(0usize));
+    let captured_calls = Arc::clone(&calls);
+    let match_row = taxonomy_category(
+        "gid://shopify/TaxonomyCategory/large-4999",
+        "Large catalog match",
+        None,
+    );
+    let match_row_for_transport = match_row.clone();
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_| {
+            *captured_calls.lock().unwrap() += 1;
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "taxonomy": {
+                            "categories": taxonomy_connection(
+                                std::slice::from_ref(&match_row_for_transport),
+                                false,
+                            )
+                        }
+                    }
+                }),
+            }
+        });
+    restore_state_with(&mut proxy, |state| {
+        let mut rows = serde_json::Map::new();
+        let mut order = Vec::new();
+        for index in 0..5_000 {
+            let id = format!("gid://shopify/TaxonomyCategory/large-{index}");
+            order.push(id.clone());
+            rows.insert(
+                id.clone(),
+                taxonomy_category(&id, &format!("Large category {index}"), None),
+            );
+        }
+        state["baseState"]["taxonomyCategories"] = Value::Object(rows);
+        state["baseState"]["taxonomyCategoryOrder"] = json!(order);
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query TaxonomyLargeCatalog {
+          taxonomy {
+            categories(first: 1, search: "large catalog match") {
+              nodes { id name }
+              edges { cursor node { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["taxonomy"]["categories"]["nodes"][0]["id"],
+        match_row["id"]
+    );
+    assert_eq!(*calls.lock().unwrap(), 1);
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
+fn taxonomy_cold_errors_status_and_headers_remain_authoritative() {
+    let calls = Arc::new(Mutex::new(0usize));
+    let captured_calls = Arc::clone(&calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_| {
+            *captured_calls.lock().unwrap() += 1;
+            Response {
+                status: 429,
+                headers: [("retry-after".to_string(), "2".to_string())]
+                    .into_iter()
+                    .collect(),
+                body: json!({
+                    "errors": [{
+                        "message": "Throttled",
+                        "extensions": { "code": "THROTTLED" }
+                    }]
+                }),
+            }
+        });
+    let request = json_graphql_request(
+        r#"
+        query TaxonomyTransportFailure {
+          taxonomy {
+            categories(first: 1) { nodes { id } }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    for expected_calls in 1..=2 {
+        let response = proxy.process_request(request.clone());
+        assert_eq!(response.status, 429);
+        assert_eq!(response.headers["retry-after"], "2");
+        assert_eq!(response.body["errors"][0]["message"], "Throttled");
+        assert_eq!(*calls.lock().unwrap(), expected_calls);
+    }
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
 #[test]
 fn mixed_admin_platform_read_forwards_the_original_document_once() {
     let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));

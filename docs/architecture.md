@@ -76,13 +76,16 @@ variable/default coercion, selection projection, abstract-type checks, and null
 propagation. Root resolvers are request-scoped and execute serially against the
 same instance-owned proxy. Each invocation receives the engine-coerced root
 arguments, raw argument-source metadata, root/operation source locations, and
-variable-definition metadata for compatibility validation. It also receives a
-set of engine-selected output paths and the current root's selected field tree
-for bounded transport planning, plus a shallow, selection-free inventory of the
-operation's root names, response keys, and resolved arguments. The current root's
-arguments are engine-coerced; sibling
-root arguments in compatibility planning come from the parsed operation. Those
-values may choose a narrow or broad hydration but never shape the returned JSON;
+variable-definition metadata for compatibility validation. It also receives
+engine-selected output paths and the current root's selected field tree for
+bounded hydration planning, plus shallow, selection-free inventories of the
+operation's root names, response keys, and resolved arguments and the active
+root's direct child names, response keys, and resolved arguments. The
+direct-child inventory lets a domain associate aliased connection windows with
+their scopes without reparsing the document. The current root's arguments are
+engine-coerced; sibling and direct-child arguments in compatibility planning
+come from the parsed operation. Those values may choose a narrow or broad
+hydration but never shape the returned JSON;
 output projection remains engine-owned. A local resolver receives `RootInvocation`,
 whose `LocalResolverMode` can only be `OverlayRead` or `StageLocally`;
 passthrough is decided before domain code is entered. Domain roots route from
@@ -282,12 +285,14 @@ The runtime should use normalized state rather than raw GraphQL blobs.
 
 `DraftProxy` owns a typed Rust `Store` for runtime resource state. Products, saved searches, inventory transfers/shipments, and Storefront carts/lines use normalized records with shared effective-read helpers or deterministic order indexes, while other staged domain data also lives under `Store::staged` so reset, dump/restore plumbing, and future normalization work have one ownership boundary. Order, gift-card, and inventory lifecycle LiveHybrid hydration stores known base records and related context in `BaseState` so supported local mutations can overlay real upstream reads without runtime Shopify writes.
 
-The normalized product, saved-search, and inventory-lifecycle portions currently include:
+The normalized product, saved-search, inventory-lifecycle, and Admin-platform utility portions currently include:
 
 - `BaseState` for snapshot, fixture, or restored upstream state
 - `StagedState` for local inserts and updates
 - ordered ID arrays for deterministic effective lists and dump/restore round trips
 - tombstone sets for staged deletes
+- observed Admin API version rows and an authoritative-observation marker
+- normalized taxonomy categories, authoritative missing category IDs, exact argument-keyed connection windows, and ordered proven-complete scope windows with opaque cursors
 
 Inventory lifecycle preflights use the caller's Admin API path and headers for query-only upstream hydration. Transfer and shipment details, endpoint locations, line-item quantities, tracking, and transfer/shipment linkage are normalized into base records before local validation; the supported mutation itself remains locally staged and is retained only for ordered commit replay.
 
