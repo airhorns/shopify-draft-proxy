@@ -9,6 +9,26 @@ impl DraftProxy {
         &mut self,
         commit_request: &Request,
     ) -> Response {
+        self.commit_staged_mutations_with(|entry| {
+            Ok(if commit_request.headers.is_empty() {
+                log_entry_headers(entry)
+            } else {
+                commit_request.headers.clone()
+            })
+        })
+    }
+
+    pub fn commit_with_header_resolver(
+        &mut self,
+        resolver: impl Fn(&Value) -> Result<BTreeMap<String, String>, String>,
+    ) -> Response {
+        self.commit_staged_mutations_with(resolver)
+    }
+
+    fn commit_staged_mutations_with(
+        &mut self,
+        headers_for: impl Fn(&Value) -> Result<BTreeMap<String, String>, String>,
+    ) -> Response {
         let transport = Arc::clone(&self.commit_transport);
         let mut committed = 0usize;
         let mut failed = 0usize;
@@ -24,10 +44,39 @@ impl DraftProxy {
             let log_id = log_entry_id(&self.log_entries[index]);
             let path = log_entry_path(&self.log_entries[index]);
             let body = replay_body(&self.log_entries[index], &id_map);
+            let headers = match headers_for(&self.log_entries[index]) {
+                Ok(headers) => headers,
+                Err(error) => {
+                    failed += 1;
+                    set_log_status(&mut self.log_entries[index], "failed");
+                    attempts.push(json!({
+                        "index": index,
+                        "logId": log_id,
+                        "status": "failed",
+                        "request": {
+                            "method": "POST",
+                            "path": path
+                        },
+                        "error": error
+                    }));
+                    return Response {
+                        status: 502,
+                        headers: BTreeMap::new(),
+                        body: json!({
+                            "ok": false,
+                            "committed": committed,
+                            "failed": failed,
+                            "stopIndex": index,
+                            "attempts": attempts,
+                            "error": error
+                        }),
+                    };
+                }
+            };
             let replay = Request {
                 method: "POST".to_string(),
                 path: path.clone(),
-                headers: commit_request.headers.clone(),
+                headers,
                 body,
             };
             let outcome = transport(replay);
@@ -108,6 +157,23 @@ fn log_entry_id(entry: &Value) -> String {
         .and_then(Value::as_str)
         .unwrap_or("unknown")
         .to_string()
+}
+
+fn log_entry_headers(entry: &Value) -> BTreeMap<String, String> {
+    entry
+        .get("headers")
+        .and_then(Value::as_object)
+        .map(|headers| {
+            headers
+                .iter()
+                .filter_map(|(name, value)| {
+                    value
+                        .as_str()
+                        .map(|value| (name.clone(), value.to_string()))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn log_entry_path(entry: &Value) -> String {

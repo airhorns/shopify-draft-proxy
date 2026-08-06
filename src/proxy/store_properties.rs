@@ -1,4 +1,5 @@
 use super::*;
+use crate::proxy::request_context::AdminOperationContext;
 use std::sync::OnceLock;
 
 pub(in crate::proxy) fn store_property_field_resolver_registrations(
@@ -127,6 +128,25 @@ pub(in crate::proxy) const SHOP_IDENTITY_HYDRATE_QUERY: &str = r#"#graphql
 "#;
 
 impl DraftProxy {
+    pub(in crate::proxy) fn shop_query_is_upstream_authoritative(
+        &self,
+        context: &AdminOperationContext<'_>,
+    ) -> bool {
+        self.config.read_mode == ReadMode::LiveHybrid
+            && context.operation_type == OperationType::Query
+            && !context.roots.is_empty()
+            && context.roots.iter().all(|root| root.name == "shop")
+            && !self.should_handle_shop_policy_query_locally()
+            && !self.should_route_owner_metafields_read(context.roots, context.variables)
+    }
+
+    pub(in crate::proxy) fn observe_upstream_shop_query(&mut self, response: &Response) {
+        if (200..300).contains(&response.status) {
+            self.hydrate_shop_state_from_response_data(&response.body["data"]);
+            self.observe_nodes_response(response);
+        }
+    }
+
     pub(crate) fn store_properties_query_root(
         &mut self,
         invocation: RootInvocation<'_>,

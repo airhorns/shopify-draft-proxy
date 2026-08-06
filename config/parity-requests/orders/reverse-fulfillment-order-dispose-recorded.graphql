@@ -12,6 +12,7 @@ mutation ReverseFulfillmentOrderDisposeRecorded($dispositionInputs: [ReverseFulf
       }
     }
     userErrors {
+      code
       field
       message
     }

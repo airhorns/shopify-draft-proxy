@@ -8,6 +8,12 @@ import { createAdminGraphqlClient, type ConformanceGraphqlPayload } from './conf
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { assertDiscountConformanceScopes, probeDiscountConformanceScopes } from './discount-conformance-lib.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+import {
+  captureDiscountItemRefsHydrate,
+  captureDiscountUniquenessCheck,
+  captureDraftProxyShopPricingHydrate,
+  type RecordedUpstreamCall,
+} from './support/shopify/runtime-hydration-capture.js';
 
 type ProductCreateData = {
   productCreate?: {
@@ -178,6 +184,7 @@ const cleanupResponses: unknown[] = [];
 const setupProducts: ProductRecord[] = [];
 let variables: Record<string, unknown> | undefined;
 let validationResponse: unknown;
+const upstreamCalls: RecordedUpstreamCall[] = [];
 
 try {
   const buyProductResponse = await runGraphql<ProductCreateData>(productCreateMutation, {
@@ -238,6 +245,19 @@ try {
     }),
   };
 
+  upstreamCalls.push(await captureDiscountItemRefsHydrate(runGraphqlRaw, [buyProduct.id, getProduct.id]));
+  for (const input of [
+    variables['codePercentage'],
+    variables['codeDiscountAmount'],
+    variables['codeSubscription'],
+    variables['codeOneTime'],
+  ]) {
+    const code = (input as { code?: unknown }).code;
+    if (typeof code !== 'string') throw new Error('Code BXGY validation input is missing its code.');
+    upstreamCalls.push(await captureDiscountUniquenessCheck(runGraphqlRaw, code));
+  }
+  upstreamCalls.push(await captureDraftProxyShopPricingHydrate(runGraphqlRaw));
+
   validationResponse = (await runGraphqlRaw(document, variables)).payload;
 } finally {
   for (const cleanupStep of cleanup.reverse()) {
@@ -272,7 +292,7 @@ const fixture = {
 
     return response;
   }),
-  upstreamCalls: [],
+  upstreamCalls,
 };
 
 await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');

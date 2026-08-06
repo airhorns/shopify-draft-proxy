@@ -3,6 +3,13 @@ use super::*;
 const DELIVERY_PROFILE_VARIANTS_HYDRATE_QUERY: &str = "query ShippingDeliveryProfileVariantsHydrate($ids: [ID!]!) { nodes(ids: $ids) { ... on ProductVariant { id title product { id title handle } } } }";
 const DELIVERY_PROFILE_SELLING_PLAN_GROUPS_HYDRATE_QUERY: &str = "query ShippingDeliveryProfileSellingPlanGroupsHydrate($ids: [ID!]!) { nodes(ids: $ids) { ... on SellingPlanGroup { id name } } }";
 const DELIVERY_PROFILE_LOCATION_NODES_HYDRATE_QUERY: &str = "query ShippingDeliveryProfileLocationNodesHydrate($ids: [ID!]!) { nodes(ids: $ids) { __typename ... on Location { id name isActive isFulfillmentService } } }";
+const DELIVERY_PROFILE_LOCATIONS_CATALOG_PAGE_QUERY: &str = r#"query ShippingDeliveryProfileLocationsHydrate($after: String) {
+  locationsAvailableForDeliveryProfilesConnection(first: 250, after: $after) {
+    nodes { id name isActive isFulfillmentService }
+    pageInfo { hasNextPage endCursor }
+  }
+}"#;
+const DELIVERY_PROFILE_LOCATION_CATALOG_MAX_PAGES: usize = 10_000;
 // Must byte-match the recorded `ShippingDeliveryProfileHydrate` upstream call in
 // the same captures. Issued when removing a profile the proxy has not staged
 // locally, to learn whether the target is the shop's default profile (which
@@ -124,7 +131,6 @@ const DELIVERY_PROFILE_UNASSIGNED_LOCATIONS_PAGE_QUERY: &str = r#"query Shipping
   deliveryProfile(id: $id) { unassignedLocationsPaginated(first: 250, after: $after) { nodes { id name } pageInfo { hasNextPage endCursor } } }
 }"#;
 const DELIVERY_PROFILE_DEFAULT_REMOVE_MESSAGE: &str = "Cannot delete the default profile.";
-const DELIVERY_PROFILE_LOCATION_CATALOG_FALLBACK_FIRST_VALUES: &[usize] = &[2, 3, 1];
 const DELIVERY_PROFILE_GID_PREFIX: &str = "gid://shopify/DeliveryProfile/";
 
 struct DeliveryProfileMutationOutcome {
@@ -157,6 +163,16 @@ impl DeliveryProfileMutationOutcome {
             )],
         }
     }
+
+    fn indeterminate_location_hydration() -> Self {
+        Self {
+            payload: Value::Null,
+            staged_ids: Vec::new(),
+            errors: vec![json!({
+                "message": "Unable to verify delivery profile locations"
+            })],
+        }
+    }
 }
 
 enum DeliveryProfileAssociationError {
@@ -177,11 +193,19 @@ impl DraftProxy {
                 );
                 if result.transport_succeeded {
                     self.observe_delivery_profile_locations_data(&result.data);
+                    self.observe_complete_delivery_profile_location_baseline(
+                        &result.data,
+                        &arguments,
+                    );
                 }
                 return result.outcome;
             }
-            if self.store.staged.observed_shipping_locations.is_empty() {
-                self.hydrate_delivery_profile_locations_baseline(invocation.request);
+            if !self.store.staged.observed_shipping_locations_complete
+                && !self.hydrate_delivery_profile_locations_baseline(invocation.request)
+            {
+                return ResolverOutcome::error(
+                    "Unable to hydrate complete delivery profile location catalog",
+                );
             }
         }
         arguments
@@ -349,7 +373,9 @@ impl DraftProxy {
     ) -> DeliveryProfileMutationOutcome {
         let profile_input = resolved_object_field(arguments, "profile").unwrap_or_default();
         let location_ids = delivery_profile_location_ids_from_input(&profile_input);
-        self.hydrate_delivery_profile_locations(&location_ids, request);
+        if !self.hydrate_delivery_profile_locations(&location_ids, request) {
+            return DeliveryProfileMutationOutcome::indeterminate_location_hydration();
+        }
         let mut location_exists =
             |location_id: &str| self.delivery_profile_location_exists(location_id);
         let user_errors = delivery_profile_create_user_errors(&profile_input, &mut location_exists);
@@ -419,7 +445,9 @@ impl DraftProxy {
 
         let profile_input = resolved_object_field(arguments, "profile").unwrap_or_default();
         let location_ids = delivery_profile_location_ids_from_input(&profile_input);
-        self.hydrate_delivery_profile_locations(&location_ids, request);
+        if !self.hydrate_delivery_profile_locations(&location_ids, request) {
+            return DeliveryProfileMutationOutcome::indeterminate_location_hydration();
+        }
         let mut location_exists =
             |location_id: &str| self.delivery_profile_location_exists(location_id);
         let user_errors = delivery_profile_update_user_errors(&profile_input, &mut location_exists);
@@ -1577,9 +1605,9 @@ impl DraftProxy {
         &mut self,
         location_ids: &[String],
         request: &Request,
-    ) {
+    ) -> bool {
         if self.config.read_mode == ReadMode::Snapshot {
-            return;
+            return true;
         }
 
         let mut missing_location_ids = Vec::new();
@@ -1590,30 +1618,26 @@ impl DraftProxy {
             missing_location_ids.push(location_id.clone());
         }
         if missing_location_ids.is_empty() {
-            return;
+            return true;
         }
 
-        self.hydrate_delivery_profile_location_nodes(&missing_location_ids, request);
+        let unresolved_location_ids =
+            self.hydrate_delivery_profile_location_nodes(&missing_location_ids, request);
+        if unresolved_location_ids.is_empty() {
+            return true;
+        }
 
-        let mut unresolved_location_ids = Vec::new();
-        for location_id in missing_location_ids {
-            if self.location_for_read(&location_id).is_none() {
-                unresolved_location_ids.push(location_id);
-            }
-        }
-        if !unresolved_location_ids.is_empty() {
-            self.hydrate_delivery_profile_location_catalog_fallback(
-                &unresolved_location_ids,
-                request,
-            );
-        }
+        self.hydrate_delivery_profile_location_catalog_pages(
+            Some(&unresolved_location_ids),
+            request,
+        )
     }
 
     fn hydrate_delivery_profile_location_nodes(
         &mut self,
         location_ids: &[String],
         request: &Request,
-    ) {
+    ) -> Vec<String> {
         let response = self.upstream_post(
             request,
             json!({
@@ -1621,44 +1645,137 @@ impl DraftProxy {
                 "variables": { "ids": location_ids }
             }),
         );
-        if !(200..300).contains(&response.status) {
-            return;
+        if !(200..300).contains(&response.status)
+            || response
+                .body
+                .get("errors")
+                .is_some_and(|errors| !errors.as_array().is_some_and(|errors| errors.is_empty()))
+        {
+            return location_ids.to_vec();
         }
         let Some(nodes) = response.body["data"]["nodes"].as_array() else {
-            return;
+            return location_ids.to_vec();
         };
-        for node in nodes {
-            if node.get("__typename").and_then(Value::as_str) != Some("Location") {
+        let mut unresolved = Vec::new();
+        for (index, location_id) in location_ids.iter().enumerate() {
+            let Some(node) = nodes.get(index) else {
+                unresolved.push(location_id.clone());
+                continue;
+            };
+            if node.is_null() {
+                continue;
+            }
+            match node.get("__typename").and_then(Value::as_str) {
+                Some("Location") => {}
+                Some(_) => continue,
+                None => {
+                    unresolved.push(location_id.clone());
+                    continue;
+                }
+            }
+            if node.get("id").and_then(Value::as_str) != Some(location_id.as_str()) {
+                unresolved.push(location_id.clone());
                 continue;
             }
             self.stage_observed_shipping_location(node.clone());
         }
+        unresolved
     }
 
-    fn hydrate_delivery_profile_location_catalog_fallback(
+    fn hydrate_delivery_profile_location_catalog_pages(
         &mut self,
-        location_ids: &[String],
+        requested_location_ids: Option<&[String]>,
         request: &Request,
-    ) {
-        for first in delivery_profile_location_catalog_fallback_first_values(location_ids.len()) {
-            if location_ids
-                .iter()
-                .all(|location_id| self.location_for_read(location_id).is_some())
-            {
-                return;
+    ) -> bool {
+        if self.store.staged.observed_shipping_locations_complete {
+            return true;
+        }
+
+        let requested_locations_resolved = |proxy: &DraftProxy| {
+            requested_location_ids.is_some_and(|location_ids| {
+                location_ids
+                    .iter()
+                    .all(|location_id| proxy.location_for_read(location_id).is_some())
+            })
+        };
+        let mut after = self
+            .store
+            .staged
+            .observed_shipping_locations_next_cursor
+            .clone();
+        let mut requested_cursors = BTreeSet::new();
+
+        for _ in 0..DELIVERY_PROFILE_LOCATION_CATALOG_MAX_PAGES {
+            if requested_locations_resolved(self) {
+                return true;
+            }
+            if let Some(cursor) = &after {
+                if !requested_cursors.insert(cursor.clone()) {
+                    return false;
+                }
             }
             let response = self.upstream_post(
                 request,
                 json!({
-                    "query": delivery_profile_locations_hydrate_query(first),
-                    "variables": {}
+                    "query": DELIVERY_PROFILE_LOCATIONS_CATALOG_PAGE_QUERY,
+                    "operationName": "ShippingDeliveryProfileLocationsHydrate",
+                    "variables": { "after": after }
                 }),
             );
-            if !(200..300).contains(&response.status) {
-                continue;
+            if !(200..300).contains(&response.status)
+                || response.body.get("errors").is_some_and(|errors| {
+                    !errors.as_array().is_some_and(|errors| errors.is_empty())
+                })
+            {
+                return false;
             }
-            self.observe_delivery_profile_locations_response(&response);
+            let Some(connection) = response
+                .body
+                .pointer("/data/locationsAvailableForDeliveryProfilesConnection")
+            else {
+                return false;
+            };
+            let Some(nodes) = connection.get("nodes").and_then(Value::as_array).cloned() else {
+                return false;
+            };
+            if nodes
+                .iter()
+                .any(|node| node.get("id").and_then(Value::as_str).is_none())
+            {
+                return false;
+            }
+            let has_next_page = connection
+                .pointer("/pageInfo/hasNextPage")
+                .and_then(Value::as_bool);
+            let end_cursor = connection_end_cursor(connection);
+            for node in nodes {
+                self.stage_observed_shipping_location(node);
+            }
+
+            match has_next_page {
+                Some(false) => {
+                    self.store.staged.observed_shipping_locations_complete = true;
+                    self.store.staged.observed_shipping_locations_next_cursor = None;
+                    return true;
+                }
+                Some(true) => {
+                    let Some(end_cursor) = end_cursor.filter(|cursor| !cursor.is_empty()) else {
+                        return requested_locations_resolved(self);
+                    };
+                    if requested_cursors.contains(&end_cursor) {
+                        return requested_locations_resolved(self);
+                    }
+                    self.store.staged.observed_shipping_locations_next_cursor =
+                        Some(end_cursor.clone());
+                    after = Some(end_cursor);
+                    if requested_locations_resolved(self) {
+                        return true;
+                    }
+                }
+                None => return requested_locations_resolved(self),
+            }
         }
+        false
     }
 
     fn delivery_profile_location_exists(&self, id: &str) -> bool {
@@ -1684,23 +1801,11 @@ impl DraftProxy {
     pub(in crate::proxy) fn hydrate_delivery_profile_locations_baseline(
         &mut self,
         request: &Request,
-    ) {
-        if self.config.read_mode == ReadMode::Snapshot
-            || !self.store.staged.observed_shipping_locations.is_empty()
-        {
-            return;
+    ) -> bool {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return true;
         }
-        let response = self.upstream_post(
-            request,
-            json!({
-                "query": delivery_profile_locations_hydrate_query(250),
-                "operationName": "ShippingDeliveryProfileLocationsHydrate",
-                "variables": {}
-            }),
-        );
-        if (200..300).contains(&response.status) {
-            self.observe_delivery_profile_locations_response(&response);
-        }
+        self.hydrate_delivery_profile_location_catalog_pages(None, request)
     }
 
     fn effective_shipping_locations(&self) -> Vec<Value> {
@@ -1733,15 +1838,6 @@ impl DraftProxy {
         locations.push(location);
     }
 
-    pub(in crate::proxy) fn observe_delivery_profile_locations_response(
-        &mut self,
-        response: &Response,
-    ) {
-        if (200..300).contains(&response.status) {
-            self.observe_delivery_profile_locations_data(&response.body["data"]);
-        }
-    }
-
     pub(in crate::proxy) fn observe_delivery_profile_locations_data(&mut self, data: &Value) {
         let Some(nodes) =
             data["locationsAvailableForDeliveryProfilesConnection"]["nodes"].as_array()
@@ -1750,6 +1846,25 @@ impl DraftProxy {
         };
         for node in nodes {
             self.stage_observed_shipping_location(node.clone());
+        }
+    }
+
+    fn observe_complete_delivery_profile_location_baseline(
+        &mut self,
+        data: &Value,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) {
+        let default_catalog_scope = arguments.iter().all(|(name, value)| match name.as_str() {
+            "first" => true,
+            "reverse" => resolved_value_bool(value) == Some(false),
+            _ => false,
+        });
+        let Some(connection) = data.get("locationsAvailableForDeliveryProfilesConnection") else {
+            return;
+        };
+        if default_catalog_scope && upstream_page_is_complete_baseline(connection, arguments) {
+            self.store.staged.observed_shipping_locations_complete = true;
+            self.store.staged.observed_shipping_locations_next_cursor = None;
         }
     }
 
@@ -1791,25 +1906,6 @@ impl DraftProxy {
             .observed_shipping_locations
             .insert(id, location);
     }
-}
-
-fn delivery_profile_locations_hydrate_query(first: usize) -> String {
-    format!(
-        "query ShippingDeliveryProfileLocationsHydrate {{\n    locationsAvailableForDeliveryProfilesConnection(first: {first}) {{\n      nodes {{\n        id\n        name\n        isActive\n        isFulfillmentService\n      }}\n    }}\n  }}"
-    )
-}
-
-fn delivery_profile_location_catalog_fallback_first_values(requested_count: usize) -> Vec<usize> {
-    let mut first_values = Vec::new();
-    if (1..=3).contains(&requested_count) {
-        first_values.push(requested_count);
-    }
-    for first in DELIVERY_PROFILE_LOCATION_CATALOG_FALLBACK_FIRST_VALUES {
-        if !first_values.contains(first) {
-            first_values.push(*first);
-        }
-    }
-    first_values
 }
 
 fn collect_delivery_profile_response_values(value: &Value, profiles: &mut Vec<Value>) {

@@ -131,7 +131,14 @@ from the return domain's reverse fulfillment order state. Explicit
 with the requested quantity and line item; empty inputs expand to all reverse
 fulfillment order lines at their total quantities. The recorded order/return
 parity fixture uses one two-line return for empty expansion and a second
-two-line return for explicit multi-line delivery creation.
+two-line return for explicit multi-line delivery creation. Live-hybrid create,
+shipping-update, and disposal mutations query-hydrate cold authoritative
+reverse-logistics resources and referenced locations before staging. Missing,
+wrong-type, unrelated, duplicate, and over-quantity references fail atomically;
+the handlers do not fabricate submitted relationships or append rejected
+mutations to the ordered commit log. Valid hydrated mutations remain local-only
+until explicit commit and are visible through reverse-logistics and generic
+node reads.
 
 Carrier-service slices cover create, update, delete, downstream
 `carrierService(id:)`, `carrierServices(...)`, active filters, unknown-id
@@ -324,7 +331,14 @@ selectable on the captured Admin GraphQL 2026-04 `UserError` type. Location IDs
 supplied in delivery-profile location groups must resolve from staged, observed,
 or LiveHybrid-hydrated location state; unknown IDs return the public
 `The Location could not be found for this shop.` userError instead of creating a
-synthetic location. Delivery-profile `variantsToAssociate` inputs add
+synthetic location. LiveHybrid validation resolves submitted IDs through one
+deduplicated `nodes(ids:)` query. If that authoritative lookup is unavailable,
+the eligibility catalog fallback follows 250-row `pageInfo` cursors until all
+requested IDs resolve or the catalog is proven complete; interrupted lookups
+remain explicitly incomplete and fail closed without staging or reporting a
+false missing-location userError. Eligibility-catalog baselines use the same
+resumable pagination, including catalogs larger than 250 rows. Delivery-profile
+`variantsToAssociate` inputs add
 associations only for `ProductVariant` IDs resolved from staged/base product
 state or LiveHybrid `nodes(ids:)` hydration. Nonexistent, inaccessible, or
 wrong-shop variant lookups that hydrate as missing nodes are left unassociated;

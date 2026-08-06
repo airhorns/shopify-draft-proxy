@@ -4,6 +4,7 @@ import 'dotenv/config';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { captureMetafieldsSetOwnerExistence, recordParityUpstreamCalls } from './conformance-capture-lib.js';
 import { createAdminGraphqlClient, type ConformanceGraphqlPayload } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
@@ -12,7 +13,7 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ e
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
 const outputPath = path.join(outputDir, 'metafields-set-owner-isolation-parity.json');
-const { runGraphql } = createAdminGraphqlClient({
+const { runGraphql, runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
@@ -228,6 +229,9 @@ try {
   ownerWithMetafields = await createProduct(`Owner metafield isolation populated ${runId}`);
 
   const namespace = `owner_isolation_${runId}`;
+  const ownerExistence = await captureMetafieldsSetOwnerExistence(runGraphqlRequest, apiVersion, [
+    ownerWithMetafields.id,
+  ]);
   const key = 'tier';
   const metafieldsSetVariables: MetafieldsSetVariables = {
     metafields: [
@@ -271,13 +275,14 @@ try {
         },
         isolatedOwnerReadVariables,
         isolatedOwnerRead,
-        upstreamCalls: [],
+        upstreamCalls: [ownerExistence],
       },
       null,
       2,
     )}\n`,
     'utf8',
   );
+  recordParityUpstreamCalls(['metafields-set-owner-isolation'], apiVersion, [outputPath]);
 } finally {
   for (const [label, product] of [
     ['ownerWithoutMetafields', ownerWithoutMetafields],

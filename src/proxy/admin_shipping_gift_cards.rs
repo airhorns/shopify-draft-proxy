@@ -1,5 +1,6 @@
 use super::resolved_values;
 use super::*;
+use crate::proxy::request_context::{AdminOperationContext, RequestCacheKey};
 
 mod app_billing;
 mod backup_region;
@@ -34,6 +35,10 @@ pub(in crate::proxy) use self::publishable::{
     publishable_input_needs_publication_catalog_hydration, publishable_input_publication_ids,
 };
 pub(in crate::proxy) use self::segments::segment_field_resolver_type_policies;
+
+pub(in crate::proxy) fn node_query_response_key(response_key: &str) -> RequestCacheKey {
+    RequestCacheKey::new("node-query-response", response_key)
+}
 
 pub(in crate::proxy) fn shipping_field_resolver_type_policies() -> Vec<FieldResolverTypePolicy> {
     [
@@ -81,6 +86,35 @@ pub(in crate::proxy) fn shipping_field_resolver_type_policies() -> Vec<FieldReso
 }
 
 impl DraftProxy {
+    pub(in crate::proxy) fn admin_platform_query_is_upstream_authoritative(
+        &self,
+        context: &AdminOperationContext<'_>,
+    ) -> bool {
+        self.config.read_mode == ReadMode::LiveHybrid
+            && context.operation_type == OperationType::Query
+            && context.has_domain(CapabilityDomain::AdminPlatform)
+            && context.has_domain(CapabilityDomain::Unknown)
+            && context.all_domains(|domain| {
+                matches!(
+                    domain,
+                    CapabilityDomain::AdminPlatform | CapabilityDomain::Unknown
+                )
+            })
+    }
+
+    pub(in crate::proxy) fn prepare_node_query(&mut self, context: &AdminOperationContext<'_>) {
+        if context.operation_type != OperationType::Query
+            || context.roots.len() <= 1
+            || !context
+                .roots
+                .iter()
+                .all(|root| matches!(root.name.as_str(), "node" | "nodes"))
+        {
+            return;
+        }
+        self.preflight_node_query_entities(context.request, context.roots);
+    }
+
     pub(crate) fn domain_query_root(
         &mut self,
         invocation: RootInvocation<'_>,
@@ -130,16 +164,17 @@ impl DraftProxy {
             return;
         }
 
-        let response = (self.upstream_transport)(request.clone());
+        let response = self.cached_or_forward_upstream_response(request);
         if (200..300).contains(&response.status) {
             let data =
                 self.node_query_data_with_upstream_fallback(fields, &response.body, Some(request));
             self.observe_nodes_data(&json!({ "data": data }));
         }
-        self.execution_session.node_hydration = Some(RequestNodeHydration {
-            response,
-            upstream_response_keys,
-        });
+        for response_key in upstream_response_keys {
+            self.execution_session
+                .request_cache
+                .mark_complete(node_query_response_key(&response_key));
+        }
     }
 
     fn node_fields_only_target_resource_type(

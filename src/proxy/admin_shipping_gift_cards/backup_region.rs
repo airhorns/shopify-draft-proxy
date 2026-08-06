@@ -227,6 +227,10 @@ impl DraftProxy {
         let Some(scopes) = current_app_installation_access_scopes(&response.body) else {
             return false;
         };
+        self.store
+            .base
+            .backup_region_access_scopes_by_request_context
+            .insert(request_app_context_key(request), scopes.clone());
         self.observe_current_app_installation_data(request, &response.body["data"]);
         self.mark_backup_region_access_scopes_cached(request);
         !backup_region_scopes_include_markets(&scopes)
@@ -240,6 +244,14 @@ impl DraftProxy {
                     .collect(),
             );
         }
+        if let Some(scopes) = self
+            .store
+            .base
+            .backup_region_access_scopes_by_request_context
+            .get(&request_app_context_key(request))
+        {
+            return Some(scopes.clone());
+        }
         let request_app_id = request_app_gid(request);
         let app_id = self.current_app_installation_app_id_for_request(&request_app_id)?;
         let installation = self.app_installation_for_app(&app_id)?;
@@ -247,7 +259,11 @@ impl DraftProxy {
             .get(BACKUP_REGION_ACCESS_SCOPES_CACHE_FIELD)
             .and_then(Value::as_bool)
             == Some(true))
-        .then(|| app_access_scope_handles(installation).into_iter().collect())
+        .then(|| {
+            app_access_scope_handles(&installation)
+                .into_iter()
+                .collect()
+        })
     }
 
     fn mark_backup_region_access_scopes_cached(&mut self, request: &Request) {

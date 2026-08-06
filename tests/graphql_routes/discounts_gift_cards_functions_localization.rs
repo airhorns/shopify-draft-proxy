@@ -732,7 +732,7 @@ fn test_function_metadata() -> Vec<Value> {
             "gid://shopify/ShopifyFunction/fulfillment-constraint-local",
             "Fulfillment Constraint Local",
             "fulfillment-constraint-local",
-            "FULFILLMENT_CONSTRAINT_RULE",
+            "fulfillment_constraints",
             "fulfillment-app-key",
             "fulfillment-app",
         ),
@@ -783,6 +783,9 @@ fn function_metadata_proxy_with_hits(hits: Arc<Mutex<Vec<Value>>>) -> DraftProxy
         let operation_name = body["operationName"].as_str().unwrap_or_default();
         let query = body["query"].as_str().unwrap_or_default();
         let response_body = match operation_name {
+            "FunctionFulfillmentConstraintRuleHydrateById" => {
+                json!({ "data": { "node": null } })
+            }
             "FunctionHydrateById" => {
                 let id = body["variables"]["id"].as_str().unwrap_or_default();
                 json!({
@@ -798,20 +801,75 @@ fn function_metadata_proxy_with_hits(hits: Arc<Mutex<Vec<Value>>>) -> DraftProxy
                     .collect::<Vec<_>>();
                 json!({ "data": { "shopifyFunctions": { "nodes": nodes } } })
             }
-            _ if query.contains("cartTransforms") => {
-                json!({ "data": { "cartTransforms": { "nodes": [] } } })
+            _ => {
+                let caller = request
+                    .headers
+                    .get("x-shopify-draft-proxy-api-client-id")
+                    .map(String::as_str);
+                let visible = test_function_metadata()
+                    .into_iter()
+                    .filter(|function| {
+                        caller.is_none_or(|caller| {
+                            function["app"]["apiKey"].as_str() == Some(caller)
+                                || function["app"]["id"]
+                                    .as_str()
+                                    .is_some_and(|id| id.ends_with(caller))
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                let connection = |nodes: Vec<Value>| {
+                    let edges = nodes
+                        .iter()
+                        .map(|node| {
+                            json!({
+                                "cursor": format!("opaque:{}", node["id"].as_str().unwrap_or_default()),
+                                "node": node
+                            })
+                        })
+                        .collect::<Vec<_>>();
+                    let start_cursor = edges.first().and_then(|edge| edge["cursor"].as_str());
+                    let end_cursor = edges.last().and_then(|edge| edge["cursor"].as_str());
+                    json!({
+                        "nodes": nodes,
+                        "edges": edges,
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": start_cursor,
+                            "endCursor": end_cursor
+                        }
+                    })
+                };
+                let validation_functions = visible
+                    .iter()
+                    .filter(|function| function["apiType"] == json!("VALIDATION"))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let cart_functions = visible
+                    .iter()
+                    .filter(|function| function["apiType"] == json!("CART_TRANSFORM"))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let requested_singular = visible.iter().find(|function| {
+                    function["id"]
+                        .as_str()
+                        .is_some_and(|id| query.contains(id))
+                });
+                json!({
+                    "data": {
+                        "validation": null,
+                        "validations": connection(Vec::new()),
+                        "cartTransforms": connection(Vec::new()),
+                        "fulfillmentConstraintRules": [],
+                        "shopifyFunctions": connection(visible.clone()),
+                        "validationFunctions": connection(validation_functions),
+                        "cartFunctions": connection(cart_functions),
+                        "shopifyFunction": requested_singular,
+                        "cartFunction": requested_singular,
+                        "ownedFunction": requested_singular
+                    }
+                })
             }
-            _ if query.contains("validations") => {
-                json!({ "data": { "validations": { "nodes": [] } } })
-            }
-            _ if query.contains("fulfillmentConstraintRules") => {
-                json!({ "data": { "fulfillmentConstraintRules": [] } })
-            }
-            _ => json!({
-                "errors": [{
-                    "message": format!("unexpected function metadata upstream request: {body}")
-                }]
-            }),
         };
         Response {
             status: 200,
@@ -843,6 +901,7 @@ fn function_fulfillment_constraint_rule_proxy_with_hits(
                 "key": "config",
                 "type": "json",
                 "value": "{\"mode\":\"upstream\"}",
+                "compareDigest": "digest:upstream",
                 "ownerType": "FULFILLMENT_CONSTRAINT_RULE",
                 "createdAt": "2026-01-01T00:00:00Z",
                 "updatedAt": "2026-01-01T00:00:00Z"
@@ -860,6 +919,15 @@ fn function_fulfillment_constraint_rule_proxy_with_hits(
         let operation_name = body["operationName"].as_str().unwrap_or_default();
         let query = body["query"].as_str().unwrap_or_default();
         let response_body = match operation_name {
+            "FunctionFulfillmentConstraintRuleHydrateById" => {
+                let id = body["variables"]["id"].as_str().unwrap_or_default();
+                let node = if upstream_rule["id"].as_str() == Some(id) {
+                    upstream_rule.clone()
+                } else {
+                    Value::Null
+                };
+                json!({ "data": { "node": node } })
+            }
             "FunctionHydrateByHandle" => {
                 let handle = body["variables"]["handle"].as_str().unwrap_or_default();
                 let nodes = test_function_metadata_by_id_or_handle(None, Some(handle))
@@ -877,8 +945,33 @@ fn function_fulfillment_constraint_rule_proxy_with_hits(
                     .unwrap_or(Value::Null);
                 json!({ "data": { "shopifyFunction": function } })
             }
+            _ if query.contains("validations")
+                && query.contains("fulfillmentConstraintRules") =>
+            {
+                json!({
+                    "data": {
+                        "validations": {
+                            "nodes": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        },
+                        "fulfillmentConstraintRules": [upstream_rule.clone()]
+                    }
+                })
+            }
             _ if query.contains("validations") => {
-                json!({ "data": { "validations": { "nodes": [] } } })
+                json!({
+                    "data": {
+                        "validations": {
+                            "nodes": [],
+                            "pageInfo": { "hasNextPage": false, "endCursor": null }
+                        }
+                    }
+                })
             }
             _ if query.contains("cartTransforms") => {
                 json!({ "data": { "cartTransforms": { "nodes": [] } } })
@@ -1202,6 +1295,15 @@ fn create_discount_ref_collection(proxy: &mut DraftProxy) -> String {
     )
 }
 
+fn set_discount_shop_sells_subscriptions(proxy: &mut DraftProxy, enabled: bool) {
+    restore_state_with(proxy, |state| {
+        if !state["baseState"]["shop"].is_object() {
+            state["baseState"]["shop"] = json!({});
+        }
+        state["baseState"]["shop"]["features"]["sellsSubscriptions"] = json!(enabled);
+    });
+}
+
 fn basic_code_discount_input(title: &str, code: &str, items: Value) -> Value {
     json!({
         "title": title,
@@ -1333,6 +1435,7 @@ fn discount_broad_bulk_roots_stage_locally_without_runtime_upstream_forwarding()
                 headers: Default::default(),
                 body: json!({
                     "data": {
+                        "codeDiscountNodeByCode": null,
                         "discountCodeBulkActivate": { "job": { "done": true }, "userErrors": [] },
                         "discountCodeBulkDeactivate": { "job": { "done": true }, "userErrors": [] },
                         "discountCodeBulkDelete": { "job": { "done": true }, "userErrors": [] },
@@ -1669,6 +1772,7 @@ fn discount_broad_bulk_search_and_saved_search_target_effective_local_catalog() 
                 headers: Default::default(),
                 body: json!({
                     "data": {
+                        "codeDiscountNodeByCode": null,
                         "codeNode": null,
                         "automaticNode": null,
                         "deactivated": null,
@@ -2184,7 +2288,7 @@ fn discount_count_only_live_hybrid_preserves_upstream_total_with_staged_delta() 
         .any(|query| query.contains("discountNodesCount")));
 }
 
-fn starts_at_required_variables(starts_at: Option<Value>) -> Value {
+fn starts_at_required_variables(starts_at: Option<Value>, product_id: &str) -> Value {
     let mut variables = json!({
         "basicCode": {
             "title": "StartsAt required code basic",
@@ -2198,8 +2302,8 @@ fn starts_at_required_variables(starts_at: Option<Value>) -> Value {
             "code": "STARTSAT-BXGY",
             "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false },
             "context": { "all": "ALL" },
-            "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10180236017970"] } } },
-            "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 1 } } }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10180236017970"] } } }
+            "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": [product_id] } } },
+            "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 1 } } }, "items": { "products": { "productsToAdd": [product_id] } } }
         },
         "freeShippingCode": {
             "title": "StartsAt required code free shipping",
@@ -2218,8 +2322,8 @@ fn starts_at_required_variables(starts_at: Option<Value>) -> Value {
             "title": "StartsAt required automatic BXGY",
             "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false },
             "context": { "all": "ALL" },
-            "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10180236017970"] } } },
-            "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 1 } } }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10180236017970"] } } }
+            "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": [product_id] } } },
+            "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 1 } } }, "items": { "products": { "productsToAdd": [product_id] } } }
         },
         "automaticFreeShipping": {
             "title": "StartsAt required automatic free shipping",
@@ -2246,6 +2350,7 @@ fn starts_at_required_variables(starts_at: Option<Value>) -> Value {
 #[test]
 fn discount_native_create_requires_starts_at_for_all_roots() {
     let mut proxy = snapshot_proxy();
+    let (product_id, _) = create_discount_ref_product(&mut proxy);
     let query = r#"
         mutation DiscountStartsAtRequiredValidation(
           $basicCode: DiscountCodeBasicInput!
@@ -2265,8 +2370,8 @@ fn discount_native_create_requires_starts_at_for_all_roots() {
     "#;
 
     for variables in [
-        starts_at_required_variables(None),
-        starts_at_required_variables(Some(Value::Null)),
+        starts_at_required_variables(None, &product_id),
+        starts_at_required_variables(Some(Value::Null), &product_id),
     ] {
         let response = proxy.process_request(json_graphql_request(query, variables));
         assert_eq!(response.status, 200);
@@ -2358,6 +2463,448 @@ fn discount_native_update_preserves_existing_starts_at_when_omitted() {
             ["startsAt"],
         json!("2026-04-27T19:31:14Z")
     );
+}
+
+fn assert_discount_prerequisite_unresolved(response: &Response, root: &str, node_field: &str) {
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body["data"][root][node_field], json!(null));
+    assert_eq!(
+        response.body["data"][root]["userErrors"],
+        json!([{
+            "field": ["base"],
+            "message": "Discount validation prerequisites could not be resolved.",
+            "code": "INTERNAL_ERROR",
+            "extraInfo": null
+        }])
+    );
+}
+
+fn discount_prerequisite_code_create(proxy: &mut DraftProxy, code: &str) -> Response {
+    proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountPrerequisiteCodeCreate($input: DiscountCodeBasicInput!) {
+          discountCodeBasicCreate(basicCodeDiscount: $input) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "title": format!("Prerequisite {code}"),
+            "code": code,
+            "startsAt": "2026-04-25T00:00:00Z",
+            "context": { "all": "ALL" },
+            "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+        }}),
+    ))
+}
+
+#[test]
+fn discount_prerequisite_duplicate_code_retries_unresolved_reads_without_staging() {
+    let responses = Arc::new(Mutex::new(vec![
+        Response {
+            status: 503,
+            headers: Default::default(),
+            body: json!({ "errors": [{ "message": "unavailable" }] }),
+        },
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": {} }),
+        },
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": { "codeDiscountNodeByCode": null },
+                "errors": [{ "message": "partial lookup" }]
+            }),
+        },
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": { "codeDiscountNodeByCode": null } }),
+        },
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "codeDiscountNodeByCode": {
+                        "id": "gid://shopify/DiscountCodeNode/remote-taken"
+                    }
+                }
+            }),
+        },
+    ]));
+    let queued_responses = Arc::clone(&responses);
+    let hits = Arc::new(Mutex::new(0usize));
+    let captured_hits = Arc::clone(&hits);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            assert!(request.body.contains("DiscountUniquenessCheck"));
+            *captured_hits.lock().unwrap() += 1;
+            queued_responses.lock().unwrap().remove(0)
+        });
+    let initial_state = state_snapshot(&proxy);
+
+    for _ in 0..3 {
+        let response = discount_prerequisite_code_create(&mut proxy, "RETRY-CODE");
+        assert_discount_prerequisite_unresolved(
+            &response,
+            "discountCodeBasicCreate",
+            "codeDiscountNode",
+        );
+        assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+        assert_eq!(state_snapshot(&proxy), initial_state);
+    }
+
+    let verified_absent = discount_prerequisite_code_create(&mut proxy, "RETRY-CODE");
+    assert_eq!(
+        verified_absent.body["data"]["discountCodeBasicCreate"]["userErrors"],
+        json!([])
+    );
+    assert!(
+        verified_absent.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["id"]
+            .as_str()
+            .is_some_and(|id| id.contains("shopify-draft-proxy=synthetic"))
+    );
+
+    let verified_present = discount_prerequisite_code_create(&mut proxy, "REMOTE-TAKEN");
+    assert_eq!(
+        verified_present.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        verified_present.body["data"]["discountCodeBasicCreate"]["userErrors"][0]["code"],
+        json!("TAKEN")
+    );
+    assert_eq!(*hits.lock().unwrap(), 5);
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn discount_prerequisite_bulk_add_keeps_codes_unchanged_until_uniqueness_is_resolved() {
+    let responses = Arc::new(Mutex::new(vec![
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": { "codeDiscountNodeByCode": null } }),
+        },
+        Response {
+            status: 503,
+            headers: Default::default(),
+            body: json!({ "errors": [{ "message": "unavailable" }] }),
+        },
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": { "codeDiscountNodeByCode": null } }),
+        },
+    ]));
+    let queued_responses = Arc::clone(&responses);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            assert!(request.body.contains("DiscountUniquenessCheck"));
+            queued_responses.lock().unwrap().remove(0)
+        });
+    let created = discount_prerequisite_code_create(&mut proxy, "BULK-OWNER");
+    let discount_id = json_string(
+        &created.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["id"],
+        "bulk owner discount id",
+    );
+    let bulk_add = r#"
+        mutation DiscountPrerequisiteBulkAdd(
+          $discountId: ID!
+          $codes: [DiscountRedeemCodeInput!]!
+        ) {
+          discountRedeemCodeBulkAdd(discountId: $discountId, codes: $codes) {
+            bulkCreation { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+    "#;
+    let state_before_bulk = state_snapshot(&proxy);
+
+    let unresolved = proxy.process_request(json_graphql_request(
+        bulk_add,
+        json!({ "discountId": discount_id, "codes": [{ "code": "BULK-RETRY" }] }),
+    ));
+    assert_discount_prerequisite_unresolved(
+        &unresolved,
+        "discountRedeemCodeBulkAdd",
+        "bulkCreation",
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(state_snapshot(&proxy), state_before_bulk);
+
+    let resolved = proxy.process_request(json_graphql_request(
+        bulk_add,
+        json!({ "discountId": discount_id, "codes": [{ "code": "BULK-RETRY" }] }),
+    ));
+    assert_eq!(
+        resolved.body["data"]["discountRedeemCodeBulkAdd"]["userErrors"],
+        json!([])
+    );
+    assert!(resolved.body["data"]["discountRedeemCodeBulkAdd"]["bulkCreation"]["id"].is_string());
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 2);
+}
+
+fn discount_prerequisite_subscription_create(proxy: &mut DraftProxy, title: &str) -> Response {
+    proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountPrerequisiteSubscriptionCreate($input: DiscountAutomaticBasicInput!) {
+          discountAutomaticBasicCreate(automaticBasicDiscount: $input) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "title": title,
+            "startsAt": "2026-04-25T00:00:00Z",
+            "customerGets": {
+                "value": { "percentage": 0.1 },
+                "items": { "all": true },
+                "appliesOnSubscription": true
+            }
+        }}),
+    ))
+}
+
+#[test]
+fn discount_prerequisite_subscription_capability_retries_unresolved_reads_and_caches_only_booleans()
+{
+    let responses = Arc::new(Mutex::new(vec![
+        Response {
+            status: 503,
+            headers: Default::default(),
+            body: json!({ "errors": [{ "message": "unavailable" }] }),
+        },
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": { "shop": { "features": {} } } }),
+        },
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": { "shop": { "features": { "sellsSubscriptions": true } } },
+                "errors": [{ "message": "partial capability" }]
+            }),
+        },
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": { "shop": { "features": { "sellsSubscriptions": true } } }
+            }),
+        },
+    ]));
+    let queued_responses = Arc::clone(&responses);
+    let hits = Arc::new(Mutex::new(0usize));
+    let captured_hits = Arc::clone(&hits);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            assert!(request
+                .body
+                .contains("DraftProxyShopSubscriptionCapability"));
+            *captured_hits.lock().unwrap() += 1;
+            queued_responses.lock().unwrap().remove(0)
+        });
+    let initial_state = state_snapshot(&proxy);
+
+    for attempt in 0..3 {
+        let response = discount_prerequisite_subscription_create(
+            &mut proxy,
+            &format!("Unresolved subscription {attempt}"),
+        );
+        assert_discount_prerequisite_unresolved(
+            &response,
+            "discountAutomaticBasicCreate",
+            "automaticDiscountNode",
+        );
+        assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+        assert_eq!(state_snapshot(&proxy), initial_state);
+    }
+
+    for title in ["Resolved subscription", "Cached subscription"] {
+        let response = discount_prerequisite_subscription_create(&mut proxy, title);
+        assert_eq!(
+            response.body["data"]["discountAutomaticBasicCreate"]["userErrors"],
+            json!([])
+        );
+    }
+    assert_eq!(*hits.lock().unwrap(), 4);
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 2);
+
+    let false_hits = Arc::new(Mutex::new(0usize));
+    let captured_false_hits = Arc::clone(&false_hits);
+    let mut false_proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_| {
+            *captured_false_hits.lock().unwrap() += 1;
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": { "shop": { "features": { "sellsSubscriptions": false } } }
+                }),
+            }
+        });
+    for title in ["Known absent subscription", "Cached absent subscription"] {
+        let response = discount_prerequisite_subscription_create(&mut false_proxy, title);
+        assert_eq!(
+            response.body["data"]["discountAutomaticBasicCreate"]["automaticDiscountNode"],
+            json!(null)
+        );
+        assert_eq!(
+            response.body["data"]["discountAutomaticBasicCreate"]["userErrors"][0]["message"],
+            json!("Customer gets applies on subscription is not permitted for this shop.")
+        );
+    }
+    assert_eq!(*false_hits.lock().unwrap(), 1);
+    assert_eq!(log_snapshot(&false_proxy)["entries"], json!([]));
+}
+
+fn discount_prerequisite_product_create(
+    proxy: &mut DraftProxy,
+    title: &str,
+    product_ids: &[&str],
+) -> Response {
+    proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountPrerequisiteProductCreate($input: DiscountAutomaticBasicInput!) {
+          discountAutomaticBasicCreate(automaticBasicDiscount: $input) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "title": title,
+            "startsAt": "2026-04-25T00:00:00Z",
+            "customerGets": {
+                "value": { "percentage": 0.1 },
+                "items": { "products": { "productsToAdd": product_ids } }
+            }
+        }}),
+    ))
+}
+
+#[test]
+fn discount_prerequisite_item_references_require_complete_key_specific_results_and_retry() {
+    let product_one = "gid://shopify/Product/81001";
+    let product_two = "gid://shopify/Product/81002";
+    let missing_product = "gid://shopify/Product/81003";
+    let responses = Arc::new(Mutex::new(vec![
+        Response {
+            status: 503,
+            headers: Default::default(),
+            body: json!({ "errors": [{ "message": "unavailable" }] }),
+        },
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": { "nodes": {} } }),
+        },
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": { "nodes": [null, null] },
+                "errors": [{ "message": "partial nodes" }]
+            }),
+        },
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": { "nodes": [{ "__typename": "Product", "id": product_one }] }
+            }),
+        },
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": { "nodes": [
+                    { "__typename": "Customer", "id": product_one },
+                    { "__typename": "Product", "id": product_two }
+                ] }
+            }),
+        },
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": { "nodes": [
+                    { "__typename": "Product", "id": product_one },
+                    { "__typename": "Product", "id": product_two }
+                ] }
+            }),
+        },
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": { "nodes": [null] } }),
+        },
+    ]));
+    let queued_responses = Arc::clone(&responses);
+    let hits = Arc::new(Mutex::new(0usize));
+    let captured_hits = Arc::clone(&hits);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            assert!(request.body.contains("ProductsHydrateNodes"));
+            *captured_hits.lock().unwrap() += 1;
+            queued_responses.lock().unwrap().remove(0)
+        });
+    let initial_state = state_snapshot(&proxy);
+
+    for attempt in 0..5 {
+        let response = discount_prerequisite_product_create(
+            &mut proxy,
+            &format!("Unresolved products {attempt}"),
+            &[product_one, product_two],
+        );
+        assert_discount_prerequisite_unresolved(
+            &response,
+            "discountAutomaticBasicCreate",
+            "automaticDiscountNode",
+        );
+        assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+        assert_eq!(state_snapshot(&proxy), initial_state);
+    }
+
+    let verified_present = discount_prerequisite_product_create(
+        &mut proxy,
+        "Verified present products",
+        &[product_one, product_two],
+    );
+    assert_eq!(
+        verified_present.body["data"]["discountAutomaticBasicCreate"]["userErrors"],
+        json!([])
+    );
+
+    let verified_absent = discount_prerequisite_product_create(
+        &mut proxy,
+        "Verified absent product",
+        &[missing_product],
+    );
+    assert_eq!(
+        verified_absent.body["data"]["discountAutomaticBasicCreate"]["automaticDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        verified_absent.body["data"]["discountAutomaticBasicCreate"]["userErrors"],
+        json!([{
+            "field": ["automaticBasicDiscount", "customerGets", "items", "products", "productsToAdd"],
+            "message": "Product with id: 81003 is invalid",
+            "code": "INVALID",
+            "extraInfo": null
+        }])
+    );
+    assert_eq!(*hits.lock().unwrap(), 7);
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
 }
 
 #[test]
@@ -6465,8 +7012,8 @@ fn functions_handle_lookup_uses_narrow_query_and_reuses_metadata() {
 
 #[test]
 fn functions_cold_reads_forward_and_hydrate_non_catalog_function_metadata() {
-    let upstream_hits = Arc::new(Mutex::new(0usize));
-    let hit_counter = Arc::clone(&upstream_hits);
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_hits = Arc::clone(&upstream_hits);
     let mut upstream_function =
         test_function_metadata_by_id_or_handle(None, Some("non-catalog-validation")).unwrap();
     upstream_function["apiType"] = json!("cart_checkout_validation");
@@ -6477,24 +7024,35 @@ fn functions_cold_reads_forward_and_hydrate_non_catalog_function_metadata() {
     .with_upstream_transport(move |request| {
         let body: Value =
             serde_json::from_str(&request.body).expect("cold function read body should parse");
-        *hit_counter.lock().unwrap() += 1;
-        assert!(
-            body["query"]
-                .as_str()
-                .unwrap_or_default()
-                .contains("shopifyFunctions"),
-            "cold function read should forward the original shopifyFunctions query, got {body}"
-        );
-        Response {
-            status: 200,
-            headers: Default::default(),
-            body: json!({
+        captured_hits.lock().unwrap().push(body.clone());
+        let response_body = match body["operationName"].as_str() {
+            Some("FunctionValidationDecisionPreflight") => json!({
                 "data": {
-                    "validationFunctions": {
-                        "nodes": [upstream_function.clone()]
+                    "validations": {
+                        "nodes": [],
+                        "pageInfo": { "hasNextPage": false, "endCursor": null }
                     }
                 }
             }),
+            _ if body["query"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("shopifyFunctions") =>
+            {
+                json!({
+                    "data": {
+                        "validationFunctions": {
+                            "nodes": [upstream_function.clone()]
+                        }
+                    }
+                })
+            }
+            _ => panic!("unexpected cold function read upstream request: {body}"),
+        };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: response_body,
         }
     });
 
@@ -6512,7 +7070,7 @@ fn functions_cold_reads_forward_and_hydrate_non_catalog_function_metadata() {
         cold_read.body["data"]["validationFunctions"]["nodes"][0]["handle"],
         json!("non-catalog-validation")
     );
-    assert_eq!(*upstream_hits.lock().unwrap(), 1);
+    assert_eq!(upstream_hits.lock().unwrap().len(), 1);
 
     let create = proxy.process_request(json_graphql_request(
         r#"
@@ -6543,11 +7101,36 @@ fn functions_cold_reads_forward_and_hydrate_non_catalog_function_metadata() {
         create.body["data"]["validationCreate"]["validation"]["shopifyFunction"]["app"]["apiKey"],
         json!("non-catalog-app-key")
     );
-    assert_eq!(
-        *upstream_hits.lock().unwrap(),
-        1,
-        "create should reuse the hydrated function metadata without another upstream read"
-    );
+    {
+        let hits = upstream_hits.lock().unwrap();
+        assert_eq!(hits.len(), 2);
+        let original_read = hits
+            .iter()
+            .find(|body| {
+                body["query"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .contains("query ColdNonCatalogFunctionRead")
+            })
+            .expect("cold function read should forward the original shopifyFunctions query");
+        assert!(original_read["query"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("shopifyFunctions(first: 5, apiType: \"VALIDATION\")"));
+        let validation_preflight = hits
+            .iter()
+            .find(|body| body["operationName"] == "FunctionValidationDecisionPreflight")
+            .expect("enabled create should obtain a bounded active-validation decision");
+        assert_eq!(validation_preflight["variables"], json!({ "after": null }));
+        assert!(validation_preflight["query"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("validations(first: 25, after: $after)"));
+        assert!(!validation_preflight["query"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("metafields"));
+    }
 
     let local_read = proxy.process_request(json_graphql_request(
         r#"
@@ -6567,7 +7150,1439 @@ fn functions_cold_reads_forward_and_hydrate_non_catalog_function_metadata() {
             "app": { "apiKey": "non-catalog-app-key" }
         })
     );
-    assert_eq!(*upstream_hits.lock().unwrap(), 1);
+    assert_eq!(
+        upstream_hits.lock().unwrap().len(),
+        3,
+        "enabled create adds one bounded validation preflight, while each Function metadata read forwards its requested window"
+    );
+}
+
+#[test]
+fn functions_live_hybrid_function_windows_do_not_treat_first_page_as_complete() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let hit_log = Arc::clone(&upstream_hits);
+    let first_function = function_metadata_record(
+        "gid://shopify/ShopifyFunction/window-validation-a",
+        "Window Validation A",
+        "window-validation-a",
+        "cart_checkout_validation",
+        "window-validation-app-key",
+        "window-validation-app",
+    );
+    let second_function = function_metadata_record(
+        "gid://shopify/ShopifyFunction/window-validation-b",
+        "Window Validation B",
+        "window-validation-b",
+        "cart_checkout_validation",
+        "window-validation-app-key",
+        "window-validation-app",
+    );
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value =
+            serde_json::from_str(&request.body).expect("function window request body should parse");
+        hit_log.lock().unwrap().push(body.clone());
+        let after = body["variables"]["after"].as_str();
+        let (function, cursor, has_next_page, has_previous_page) =
+            if after == Some("opaque-function-a") {
+                (second_function.clone(), "opaque-function-b", false, true)
+            } else {
+                (first_function.clone(), "opaque-function-a", true, false)
+            };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "shopifyFunctions": {
+                        "nodes": [function.clone()],
+                        "edges": [{ "cursor": cursor, "node": function }],
+                        "pageInfo": {
+                            "hasNextPage": has_next_page,
+                            "hasPreviousPage": has_previous_page,
+                            "startCursor": cursor,
+                            "endCursor": cursor
+                        }
+                    }
+                }
+            }),
+        }
+    });
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query FunctionWindowFirstPage {
+          shopifyFunctions(first: 1, apiType: "VALIDATION") {
+            edges { cursor node { id handle apiType } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        first_page.body["data"]["shopifyFunctions"]["edges"][0]["cursor"],
+        json!("opaque-function-a")
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageValidationBeforeWindowRead {
+          validationCreate(validation: { functionHandle: "window-validation-a", title: "Staged window validation" }) {
+            validation { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        create.body["data"]["validationCreate"]["userErrors"],
+        json!([])
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query FunctionWindowSecondPage($after: String!) {
+          shopifyFunctions(first: 1, after: $after, apiType: "VALIDATION") {
+            edges { cursor node { id handle apiType } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "after": "opaque-function-a" }),
+    ));
+    assert_eq!(
+        second_page.body["data"]["shopifyFunctions"]["edges"],
+        json!([{
+            "cursor": "opaque-function-b",
+            "node": {
+                "id": "gid://shopify/ShopifyFunction/window-validation-b",
+                "handle": "window-validation-b",
+                "apiType": "cart_checkout_validation"
+            }
+        }])
+    );
+    assert_eq!(
+        second_page.body["data"]["shopifyFunctions"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": "opaque-function-b",
+            "endCursor": "opaque-function-b"
+        })
+    );
+    let hits = upstream_hits.lock().unwrap();
+    assert_eq!(
+        hits.len(),
+        2,
+        "each requested cold window should forward once"
+    );
+    assert_eq!(hits[1]["variables"]["after"], json!("opaque-function-a"));
+}
+
+#[test]
+fn functions_live_hybrid_staged_insert_resumes_after_local_cursor_with_bounded_window() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let hit_log = Arc::clone(&upstream_hits);
+    let function = function_metadata_record(
+        "gid://shopify/ShopifyFunction/window-insert",
+        "Window Insert",
+        "window-insert",
+        "cart_checkout_validation",
+        "window-insert-key",
+        "window-insert-app",
+    );
+    let validation = |suffix: &str, title: &str| {
+        json!({
+            "id": format!("gid://shopify/Validation/{suffix}"),
+            "title": title,
+            "enabled": true,
+            "blockOnFailure": false,
+            "shopifyFunction": function.clone()
+        })
+    };
+    let alpha = validation("0", "Alpha");
+    let charlie = validation("2", "Charlie");
+    let delta = validation("3", "Delta");
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body)
+            .expect("staged-insert window request should parse");
+        hit_log.lock().unwrap().push(body.clone());
+        let query = body["query"].as_str().unwrap_or_default();
+        if query.contains("shopifyFunctions") {
+            return Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shopifyFunctions": {
+                            "nodes": [function.clone()],
+                            "edges": [{ "cursor": "opaque-function", "node": function.clone() }],
+                            "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": "opaque-function", "endCursor": "opaque-function" }
+                        }
+                    }
+                }),
+            };
+        }
+        if body["operationName"] == json!("FunctionConnectionWindowHydrate") {
+            assert!(query.contains("after: \"opaque-alpha\""), "{query}");
+            assert!(!query.contains("cursor:gid://"), "{query}");
+            return Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "validations": {
+                            "nodes": [charlie.clone(), delta.clone()],
+                            "edges": [
+                                { "cursor": "opaque-charlie", "node": charlie.clone() },
+                                { "cursor": "opaque-delta", "node": delta.clone() }
+                            ],
+                            "pageInfo": { "hasNextPage": false, "hasPreviousPage": true, "startCursor": "opaque-charlie", "endCursor": "opaque-delta" }
+                        }
+                    }
+                }),
+            };
+        }
+        if body["variables"]["after"]
+            .as_str()
+            .is_some_and(|cursor| cursor.starts_with("cursor:gid://"))
+        {
+            return Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "errors": [{ "message": "Shopify rejected a local cursor" }] }),
+            };
+        }
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "validations": {
+                        "nodes": [alpha.clone(), charlie.clone()],
+                        "edges": [
+                            { "cursor": "opaque-alpha", "node": alpha.clone() },
+                            { "cursor": "opaque-charlie", "node": charlie.clone() }
+                        ],
+                        "pageInfo": { "hasNextPage": true, "hasPreviousPage": false, "startCursor": "opaque-alpha", "endCursor": "opaque-charlie" }
+                    }
+                }
+            }),
+        }
+    });
+
+    proxy.process_request(json_graphql_request(
+        r#"query ObserveInsertFunction { shopifyFunctions(first: 1, apiType: "VALIDATION") { nodes { id title handle apiType appKey app { id apiKey } } } }"#,
+        json!({}),
+    ));
+    let create = proxy.process_request(json_graphql_request(
+        r#"mutation StageWindowInsert { validationCreate(validation: { functionHandle: "window-insert", title: "Bravo" }) { validation { id title } userErrors { field message code } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        create.body["data"]["validationCreate"]["userErrors"],
+        json!([])
+    );
+
+    let first = proxy.process_request(json_graphql_request(
+        r#"query ValidationInsertFirst { validations(first: 2, sortKey: ID) { edges { cursor node { id title } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        first.body["data"]["validations"]["edges"]
+            .as_array()
+            .unwrap_or_else(|| panic!("unexpected first page: {:#}", first.body))
+            .iter()
+            .map(|edge| edge["node"]["title"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec!["Alpha", "Bravo"]
+    );
+    let local_cursor = first.body["data"]["validations"]["pageInfo"]["endCursor"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(local_cursor.starts_with("cursor:gid://shopify/Validation/"));
+
+    let second = proxy.process_request(json_graphql_request(
+        r#"query ValidationInsertSecond($after: String!) { validations(first: 2, after: $after, sortKey: ID) { edges { cursor node { id title } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }"#,
+        json!({ "after": local_cursor }),
+    ));
+    assert_eq!(
+        second.body["data"]["validations"]["edges"],
+        json!([
+            { "cursor": "opaque-charlie", "node": { "id": "gid://shopify/Validation/2", "title": "Charlie" } },
+            { "cursor": "opaque-delta", "node": { "id": "gid://shopify/Validation/3", "title": "Delta" } }
+        ])
+    );
+    assert_eq!(
+        second.body["data"]["validations"]["pageInfo"],
+        json!({ "hasNextPage": false, "hasPreviousPage": true, "startCursor": "opaque-charlie", "endCursor": "opaque-delta" })
+    );
+    let hits = upstream_hits.lock().unwrap();
+    assert_eq!(
+        hits.len(),
+        3,
+        "catalog observation and one transport per requested window"
+    );
+}
+
+#[test]
+fn functions_live_hybrid_multiple_staged_inserts_continue_after_last_local_cursor() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let hit_log = Arc::clone(&upstream_hits);
+    let function = function_metadata_record(
+        "gid://shopify/ShopifyFunction/multiple-window-inserts",
+        "Multiple Window Inserts",
+        "multiple-window-inserts",
+        "cart_checkout_validation",
+        "multiple-window-inserts-key",
+        "multiple-window-inserts-app",
+    );
+    let base_validation = |suffix: &str, title: &str| {
+        json!({
+            "id": format!("gid://shopify/Validation/{suffix}"),
+            "title": title,
+            "enabled": true,
+            "blockOnFailure": false,
+            "shopifyFunction": function.clone()
+        })
+    };
+    let charlie = base_validation("base-c", "Charlie");
+    let bravo = base_validation("base-b", "Bravo");
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body)
+            .expect("multiple staged insert window request should parse");
+        hit_log.lock().unwrap().push(body.clone());
+        if body["query"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("shopifyFunctions")
+        {
+            return Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shopifyFunctions": {
+                            "nodes": [function.clone()],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        }
+                    }
+                }),
+            };
+        }
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "validations": {
+                        "edges": [
+                            { "cursor": "opaque-charlie", "node": charlie.clone() },
+                            { "cursor": "opaque-bravo", "node": bravo.clone() }
+                        ],
+                        "pageInfo": {
+                            "hasNextPage": true,
+                            "hasPreviousPage": false,
+                            "startCursor": "opaque-charlie",
+                            "endCursor": "opaque-bravo"
+                        }
+                    }
+                }
+            }),
+        }
+    });
+
+    proxy.process_request(json_graphql_request(
+        r#"query ObserveMultipleInsertFunction { shopifyFunctions(first: 1, apiType: "VALIDATION") { nodes { id title handle apiType appKey app { id apiKey } } } }"#,
+        json!({}),
+    ));
+    for title in ["Older staged validation", "Newer staged validation"] {
+        let create = proxy.process_request(json_graphql_request(
+            r#"mutation StageMultipleWindowInsert($title: String!) { validationCreate(validation: { functionHandle: "multiple-window-inserts", title: $title }) { validation { id title } userErrors { field message code } } }"#,
+            json!({ "title": title }),
+        ));
+        assert_eq!(
+            create.body["data"]["validationCreate"]["userErrors"],
+            json!([])
+        );
+    }
+
+    let first = proxy.process_request(json_graphql_request(
+        r#"query MultipleInsertFirst { validations(first: 2, reverse: true) { edges { cursor node { id title } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        first.body["data"]["validations"]["edges"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|edge| edge["node"]["title"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec!["Newer staged validation", "Older staged validation"]
+    );
+    let local_cursor = first.body["data"]["validations"]["pageInfo"]["endCursor"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let second = proxy.process_request(json_graphql_request(
+        r#"query MultipleInsertSecond($after: String!) { validations(first: 2, after: $after, reverse: true) { edges { cursor node { id title } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }"#,
+        json!({ "after": local_cursor }),
+    ));
+    assert_eq!(
+        second.body["data"]["validations"]["edges"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|edge| edge["node"]["title"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec!["Charlie", "Bravo"]
+    );
+    assert_eq!(
+        upstream_hits.lock().unwrap().len(),
+        3,
+        "one Function observation and one transport per requested window"
+    );
+}
+
+#[test]
+fn functions_live_hybrid_validation_tombstones_use_one_bounded_refill_window() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let hit_log = Arc::clone(&upstream_hits);
+    let validation_function = function_metadata_record(
+        "gid://shopify/ShopifyFunction/window-validation",
+        "Window Validation",
+        "window-validation",
+        "cart_checkout_validation",
+        "window-validation-key",
+        "window-validation-app",
+    );
+    let validation = |suffix: &str| {
+        json!({
+            "id": format!("gid://shopify/Validation/{suffix}"),
+            "title": format!("Validation {suffix}"),
+            "enabled": true,
+            "blockOnFailure": false,
+            "shopifyFunction": validation_function.clone(),
+            "metafield": {
+                "namespace": "custom",
+                "key": "flag",
+                "type": "single_line_text_field",
+                "value": suffix
+            }
+        })
+    };
+    let validation_a = validation("a");
+    let validation_b = validation("b");
+    let validation_c = validation("c");
+    let validation_d = validation("d");
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body)
+            .expect("validation window request should parse");
+        hit_log.lock().unwrap().push(body.clone());
+        let operation_name = body["operationName"].as_str().unwrap_or_default();
+        let nodes = if operation_name == "FunctionConnectionWindowHydrate" {
+            vec![
+                validation_a.clone(),
+                validation_b.clone(),
+                validation_c.clone(),
+                validation_d.clone(),
+            ]
+        } else {
+            vec![validation_a.clone(), validation_b.clone()]
+        };
+        let edges = nodes
+            .iter()
+            .map(|node| {
+                json!({
+                    "cursor": format!("opaque-validation-{}", node["title"].as_str().unwrap().chars().last().unwrap()),
+                    "node": node
+                })
+            })
+            .collect::<Vec<_>>();
+        let response = match operation_name {
+            "FunctionValidationHydrateById" => {
+                json!({ "data": { "validation": validation_a.clone() } })
+            }
+            "FunctionConnectionWindowHydrate" => json!({
+                "data": {
+                    "validations": {
+                        "nodes": nodes,
+                        "edges": edges,
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": "opaque-validation-a",
+                            "endCursor": "opaque-validation-d"
+                        }
+                    }
+                }
+            }),
+            _ => json!({
+                "data": {
+                    "validations": {
+                        "nodes": nodes,
+                        "edges": edges,
+                        "pageInfo": {
+                            "hasNextPage": true,
+                            "hasPreviousPage": false,
+                            "startCursor": "opaque-validation-a",
+                            "endCursor": "opaque-validation-b"
+                        }
+                    }
+                }
+            }),
+        };
+        Response { status: 200, headers: Default::default(), body: response }
+    });
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteValidationAtWindowBoundary($id: ID!) {
+          validationDelete(id: $id) { deletedId userErrors { field message code } }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Validation/a" }),
+    ));
+    assert_eq!(
+        delete.body["data"]["validationDelete"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ValidationWindowAfterTombstone {
+          validations(first: 2) {
+            edges {
+              cursor
+              node {
+                id
+                title
+                metafield(namespace: "custom", key: "flag") { value }
+              }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["validations"]["edges"],
+        json!([
+            {
+                "cursor": "opaque-validation-b",
+                "node": { "id": "gid://shopify/Validation/b", "title": "Validation b", "metafield": { "value": "b" } }
+            },
+            {
+                "cursor": "opaque-validation-c",
+                "node": { "id": "gid://shopify/Validation/c", "title": "Validation c", "metafield": { "value": "c" } }
+            }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["validations"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "opaque-validation-b",
+            "endCursor": "opaque-validation-c"
+        })
+    );
+    let hits = upstream_hits.lock().unwrap();
+    assert_eq!(
+        hits.len(),
+        3,
+        "targeted delete hydrate, caller read, and one refill only"
+    );
+    let refill = hits
+        .iter()
+        .find(|body| body["operationName"] == json!("FunctionConnectionWindowHydrate"))
+        .expect("bounded validation refill request");
+    let refill_query = refill["query"].as_str().unwrap();
+    assert!(
+        refill_query.contains("validations(first: 4"),
+        "{refill_query}"
+    );
+    assert!(refill_query.contains("metafield("), "{refill_query}");
+    assert!(!refill_query.contains("first: 100"), "{refill_query}");
+}
+
+#[test]
+fn functions_live_hybrid_validation_tombstone_wins_over_singular_upstream_value() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let hit_log = Arc::clone(&upstream_hits);
+    let validation = json!({
+        "id": "gid://shopify/Validation/singular-tombstone",
+        "title": "Deleted upstream validation",
+        "enabled": true,
+        "blockOnFailure": false
+    });
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body)
+            .expect("singular validation tombstone request should parse");
+        hit_log.lock().unwrap().push(body.clone());
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": { "validation": validation.clone() } }),
+        }
+    });
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"mutation DeleteSingularValidation($id: ID!) { validationDelete(id: $id) { deletedId userErrors { field message code } } }"#,
+        json!({ "id": "gid://shopify/Validation/singular-tombstone" }),
+    ));
+    assert_eq!(
+        delete.body["data"]["validationDelete"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query ReadDeletedSingularValidation($id: ID!) { validation(id: $id) { id title } }"#,
+        json!({ "id": "gid://shopify/Validation/singular-tombstone" }),
+    ));
+    assert_eq!(read.body["data"]["validation"], Value::Null);
+    assert_eq!(
+        upstream_hits.lock().unwrap().len(),
+        2,
+        "delete prerequisite and unchanged caller read only"
+    );
+}
+
+#[test]
+fn functions_live_hybrid_node_only_tombstone_hydrates_identity_and_cursors() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let hit_log = Arc::clone(&upstream_hits);
+    let validation = |suffix: &str| {
+        json!({
+            "id": format!("gid://shopify/Validation/node-only-{suffix}"),
+            "title": format!("Validation {suffix}"),
+            "enabled": true,
+            "blockOnFailure": false
+        })
+    };
+    let validation_a = validation("a");
+    let validation_b = validation("b");
+    let validation_c = validation("c");
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body)
+            .expect("node-only validation window request should parse");
+        hit_log.lock().unwrap().push(body.clone());
+        if body["operationName"] == json!("FunctionValidationHydrateById") {
+            return Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "validation": validation_a.clone() } }),
+            };
+        }
+        if body["operationName"] == json!("FunctionConnectionWindowHydrate") {
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                query.contains("node { title id }") || query.contains("node { id title }"),
+                "{query}"
+            );
+            return Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "validations": {
+                            "edges": [
+                                { "cursor": "opaque-node-only-a", "node": validation_a.clone() },
+                                { "cursor": "opaque-node-only-b", "node": validation_b.clone() },
+                                { "cursor": "opaque-node-only-c", "node": validation_c.clone() }
+                            ],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "opaque-node-only-a",
+                                "endCursor": "opaque-node-only-c"
+                            }
+                        }
+                    }
+                }),
+            };
+        }
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "validations": {
+                        "nodes": [
+                            { "title": "Validation a" },
+                            { "title": "Validation b" }
+                        ],
+                        "pageInfo": {
+                            "hasNextPage": true,
+                            "hasPreviousPage": false,
+                            "startCursor": "opaque-node-only-a",
+                            "endCursor": "opaque-node-only-b"
+                        }
+                    }
+                }
+            }),
+        }
+    });
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"mutation DeleteNodeOnlyValidation($id: ID!) { validationDelete(id: $id) { deletedId userErrors { field message code } } }"#,
+        json!({ "id": "gid://shopify/Validation/node-only-a" }),
+    ));
+    assert_eq!(
+        delete.body["data"]["validationDelete"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query NodeOnlyValidationWindow { validations(first: 2) { nodes { title } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["validations"],
+        json!({
+            "nodes": [
+                { "title": "Validation b" },
+                { "title": "Validation c" }
+            ],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "opaque-node-only-b",
+                "endCursor": "opaque-node-only-c"
+            }
+        })
+    );
+    assert_eq!(
+        upstream_hits.lock().unwrap().len(),
+        3,
+        "targeted delete, unchanged caller read, and one bounded identity refill"
+    );
+}
+
+#[test]
+fn functions_live_hybrid_large_catalog_max_window_uses_bounded_tail_refill() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let hit_log = Arc::clone(&upstream_hits);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body)
+            .expect("large Function catalog request should parse");
+        hit_log.lock().unwrap().push(body.clone());
+        let validation = |index: usize| {
+            json!({
+                "id": format!("gid://shopify/Validation/large-{index:04}"),
+                "title": format!("Large validation {index:04}"),
+                "enabled": true,
+                "blockOnFailure": false
+            })
+        };
+        if body["operationName"] == json!("FunctionValidationHydrateById") {
+            return Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "validation": validation(0) } }),
+            };
+        }
+        let (start, end, has_previous) =
+            if body["operationName"] == json!("FunctionConnectionWindowHydrate") {
+                let query = body["query"].as_str().unwrap_or_default();
+                assert!(
+                    query.contains("after: \"opaque-large-0249\"") && query.contains("first: 2"),
+                    "{query}"
+                );
+                (250, 252, true)
+            } else {
+                (0, 250, false)
+            };
+        let edges = (start..end)
+            .map(|index| {
+                json!({
+                    "cursor": format!("opaque-large-{index:04}"),
+                    "node": validation(index)
+                })
+            })
+            .collect::<Vec<_>>();
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "validations": {
+                        "edges": edges,
+                        "pageInfo": {
+                            "hasNextPage": true,
+                            "hasPreviousPage": has_previous,
+                            "startCursor": format!("opaque-large-{start:04}"),
+                            "endCursor": format!("opaque-large-{:04}", end - 1)
+                        }
+                    }
+                }
+            }),
+        }
+    });
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"mutation DeleteLargeWindowValidation($id: ID!) { validationDelete(id: $id) { deletedId userErrors { field message code } } }"#,
+        json!({ "id": "gid://shopify/Validation/large-0000" }),
+    ));
+    assert_eq!(
+        delete.body["data"]["validationDelete"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query LargeValidationWindow { validations(first: 250) { edges { cursor node { id title } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }"#,
+        json!({}),
+    ));
+    let edges = read.body["data"]["validations"]["edges"]
+        .as_array()
+        .unwrap();
+    assert_eq!(edges.len(), 250);
+    assert_eq!(
+        edges.first().unwrap()["node"]["id"],
+        json!("gid://shopify/Validation/large-0001")
+    );
+    assert_eq!(
+        edges.last().unwrap()["node"]["id"],
+        json!("gid://shopify/Validation/large-0250")
+    );
+    assert_eq!(
+        read.body["data"]["validations"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "opaque-large-0001",
+            "endCursor": "opaque-large-0250"
+        })
+    );
+    assert_eq!(
+        upstream_hits.lock().unwrap().len(),
+        3,
+        "targeted delete, one caller window, and one two-row tail refill"
+    );
+}
+
+#[test]
+fn functions_live_hybrid_cart_transform_empty_after_local_cursor_preserves_empty_page_info() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let hit_log = Arc::clone(&upstream_hits);
+    let function = function_metadata_record(
+        "cart-empty-local-cursor",
+        "Empty local cursor cart transform",
+        "cart-empty-local-cursor",
+        "cart_transform",
+        "cart-empty-local-cursor-key",
+        "cart-empty-local-cursor-app",
+    );
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body)
+            .expect("empty cart-transform continuation request should parse");
+        hit_log.lock().unwrap().push(body.clone());
+        let response = match body["operationName"].as_str() {
+            Some("FunctionHydrateById") => {
+                json!({ "data": { "shopifyFunction": function.clone() } })
+            }
+            Some("FunctionCartTransformDecisionPreflight") => {
+                json!({ "data": { "cartTransforms": { "nodes": [] } } })
+            }
+            _ => {
+                json!({
+                    "data": {
+                        "cartTransforms": {
+                            "edges": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        }
+                    }
+                })
+            }
+        };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: response,
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageEmptyLocalCursorCartTransform($functionId: String!) {
+          cartTransformCreate(functionId: $functionId, blockOnFailure: false) {
+            cartTransform { id functionId blockOnFailure }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "functionId": "cart-empty-local-cursor" }),
+    ));
+    assert_eq!(
+        create.body["data"]["cartTransformCreate"]["userErrors"],
+        json!([])
+    );
+
+    let first = proxy.process_request(json_graphql_request(
+        r#"
+        query EmptyLocalCursorCartTransformFirst($after: String) {
+          cartTransforms(first: 1, after: $after) {
+            edges { cursor node { id functionId blockOnFailure } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "after": null }),
+    ));
+    let local_cursor = first.body["data"]["cartTransforms"]["pageInfo"]["endCursor"]
+        .as_str()
+        .expect("staged cart transform should expose a local cursor")
+        .to_string();
+
+    let after = proxy.process_request(json_graphql_request(
+        r#"
+        query EmptyLocalCursorCartTransformAfter($after: String) {
+          cartTransforms(first: 1, after: $after) {
+            edges { cursor node { id functionId blockOnFailure } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "after": local_cursor }),
+    ));
+    assert_eq!(
+        after.body["data"]["cartTransforms"],
+        json!({
+            "edges": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            }
+        })
+    );
+    let hits = upstream_hits.lock().unwrap();
+    assert_eq!(
+        hits.len(),
+        4,
+        "Function identity, one-row existence preflight, caller first window, and one bounded continuation refill"
+    );
+    let refill = hits
+        .iter()
+        .find(|body| body["operationName"] == json!("FunctionConnectionWindowHydrate"))
+        .expect("bounded cart-transform continuation refill");
+    let query = refill["query"].as_str().unwrap_or_default();
+    assert!(query.contains("cartTransforms(first: 3"), "{query}");
+    assert!(!query.contains("cursor:gid://"), "{query}");
+}
+
+#[test]
+fn functions_live_hybrid_cart_transform_tombstones_use_one_bounded_refill_window() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let hit_log = Arc::clone(&upstream_hits);
+    let transform = |suffix: &str| {
+        json!({
+            "id": format!("gid://shopify/CartTransform/{suffix}"),
+            "functionId": format!("gid://shopify/ShopifyFunction/cart-{suffix}"),
+            "blockOnFailure": false
+        })
+    };
+    let transform_a = transform("a");
+    let transform_b = transform("b");
+    let transform_c = transform("c");
+    let transform_d = transform("d");
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body)
+            .expect("cart-transform window request should parse");
+        hit_log.lock().unwrap().push(body.clone());
+        let operation_name = body["operationName"].as_str().unwrap_or_default();
+        if operation_name == "FunctionCartTransformHydrateById" {
+            return Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "node": transform_a.clone() } }),
+            };
+        }
+        let nodes = if operation_name == "FunctionConnectionWindowHydrate" {
+            vec![transform_a.clone(), transform_b.clone(), transform_c.clone(), transform_d.clone()]
+        } else {
+            vec![transform_a.clone(), transform_b.clone()]
+        };
+        let edges = nodes
+            .iter()
+            .map(|node| {
+                json!({
+                    "cursor": format!("opaque-cart-{}", node["id"].as_str().unwrap().chars().last().unwrap()),
+                    "node": node
+                })
+            })
+            .collect::<Vec<_>>();
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "cartTransforms": {
+                        "nodes": nodes,
+                        "edges": edges,
+                        "pageInfo": {
+                            "hasNextPage": operation_name != "FunctionConnectionWindowHydrate",
+                            "hasPreviousPage": false,
+                            "startCursor": "opaque-cart-a",
+                            "endCursor": if operation_name == "FunctionConnectionWindowHydrate" { "opaque-cart-d" } else { "opaque-cart-b" }
+                        }
+                    }
+                }
+            }),
+        }
+    });
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteCartTransformAtWindowBoundary($id: ID!) {
+          cartTransformDelete(id: $id) { deletedId userErrors { field message code } }
+        }
+        "#,
+        json!({ "id": "gid://shopify/CartTransform/a" }),
+    ));
+    assert_eq!(
+        delete.body["data"]["cartTransformDelete"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CartTransformWindowAfterTombstone {
+          cartTransforms(first: 2) {
+            edges { cursor node { id functionId blockOnFailure } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["cartTransforms"]["edges"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|edge| edge["node"]["id"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec![
+            "gid://shopify/CartTransform/b",
+            "gid://shopify/CartTransform/c"
+        ]
+    );
+    assert_eq!(
+        read.body["data"]["cartTransforms"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+    let hits = upstream_hits.lock().unwrap();
+    assert_eq!(
+        hits.len(),
+        3,
+        "targeted cart hydrate, caller read, and one refill only"
+    );
+    let refill_query = hits
+        .iter()
+        .find(|body| body["operationName"] == json!("FunctionConnectionWindowHydrate"))
+        .and_then(|body| body["query"].as_str())
+        .expect("bounded cart-transform refill request");
+    assert!(
+        refill_query.contains("cartTransforms(first: 4"),
+        "{refill_query}"
+    );
+    assert!(!refill_query.contains("first: 100"), "{refill_query}");
+}
+
+#[test]
+fn functions_partial_nested_metafield_observations_merge_without_catalog_paging() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let hit_log = Arc::clone(&upstream_hits);
+    let id = "gid://shopify/Validation/partial-metafield";
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body)
+            .expect("partial validation observation should parse");
+        hit_log.lock().unwrap().push(body.clone());
+        let query = body["query"].as_str().unwrap_or_default();
+        let mut node = json!({ "id": id, "title": "Upstream partial title" });
+        if query.contains("metafield(") {
+            node["metafield"] = json!({
+                "namespace": "custom",
+                "key": "preserved",
+                "value": "upstream-value"
+            });
+        }
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "validations": {
+                        "nodes": [node],
+                        "edges": [],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": "opaque-partial",
+                            "endCursor": "opaque-partial"
+                        }
+                    }
+                }
+            }),
+        }
+    });
+
+    let cold = proxy.process_request(json_graphql_request(
+        r#"query ObserveNarrowValidation { validations(first: 1) { nodes { id title } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        cold.body["data"]["validations"]["nodes"][0]["title"],
+        json!("Upstream partial title")
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdatePartiallyObservedValidation($id: ID!) {
+          validationUpdate(id: $id, validation: { title: "Locally updated title" }) {
+            validation { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": id }),
+    ));
+    assert_eq!(
+        update.body["data"]["validationUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadNarrowValidationMetafield {
+          validations(first: 1) {
+            nodes {
+              id
+              title
+              metafield(namespace: "custom", key: "preserved") { value }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["validations"]["nodes"][0],
+        json!({
+            "id": id,
+            "title": "Locally updated title",
+            "metafield": { "value": "upstream-value" }
+        })
+    );
+    let hits = upstream_hits.lock().unwrap();
+    assert_eq!(
+        hits.len(),
+        2,
+        "the update must reuse the partial observation without a hydrate"
+    );
+    assert!(hits.iter().all(|body| {
+        !body["query"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("metafields(first: 100)")
+    }));
+}
+
+#[test]
+fn functions_cold_singular_node_and_nodes_reads_stay_targeted_and_batch_ids() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let hit_log = Arc::clone(&upstream_hits);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body)
+            .expect("targeted Function lookup request should parse");
+        hit_log.lock().unwrap().push(body.clone());
+        let query = body["query"].as_str().unwrap_or_default();
+        let data = if query.contains("BatchedFunctionNodesLookup") {
+            json!({
+                "nodes": [
+                    {
+                        "__typename": "Validation",
+                        "id": "gid://shopify/Validation/batched",
+                        "title": "Batched validation"
+                    },
+                    {
+                        "__typename": "CartTransform",
+                        "id": "gid://shopify/CartTransform/batched",
+                        "functionId": "gid://shopify/ShopifyFunction/batched"
+                    }
+                ]
+            })
+        } else if query.contains("SingularFunctionNodeLookup") {
+            json!({
+                "node": {
+                    "__typename": "CartTransform",
+                    "id": "gid://shopify/CartTransform/singular",
+                    "functionId": "gid://shopify/ShopifyFunction/singular"
+                }
+            })
+        } else {
+            json!({
+                "validation": {
+                    "id": "gid://shopify/Validation/singular",
+                    "title": "Singular validation"
+                }
+            })
+        };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": data }),
+        }
+    });
+
+    let singular = proxy.process_request(json_graphql_request(
+        r#"query SingularValidationLookup($id: ID!) { validation(id: $id) { id title } }"#,
+        json!({ "id": "gid://shopify/Validation/singular" }),
+    ));
+    assert_eq!(
+        singular.body["data"]["validation"]["title"],
+        json!("Singular validation")
+    );
+    let node = proxy.process_request(json_graphql_request(
+        r#"query SingularFunctionNodeLookup($id: ID!) { node(id: $id) { __typename ... on CartTransform { id functionId } } }"#,
+        json!({ "id": "gid://shopify/CartTransform/singular" }),
+    ));
+    assert_eq!(
+        node.body["data"]["node"]["id"],
+        json!("gid://shopify/CartTransform/singular")
+    );
+    let nodes = proxy.process_request(json_graphql_request(
+        r#"query BatchedFunctionNodesLookup($ids: [ID!]!) { nodes(ids: $ids) { __typename ... on Validation { id title } ... on CartTransform { id functionId } } }"#,
+        json!({
+            "ids": [
+                "gid://shopify/Validation/batched",
+                "gid://shopify/CartTransform/batched"
+            ]
+        }),
+    ));
+    assert_eq!(nodes.body["data"]["nodes"].as_array().unwrap().len(), 2);
+
+    let hits = upstream_hits.lock().unwrap();
+    assert_eq!(
+        hits.len(),
+        3,
+        "each cold lookup should use one caller transport"
+    );
+    assert!(hits[0]["query"]
+        .as_str()
+        .unwrap()
+        .contains("SingularValidationLookup"));
+    assert!(hits[1]["query"]
+        .as_str()
+        .unwrap()
+        .contains("SingularFunctionNodeLookup"));
+    assert!(hits[2]["query"]
+        .as_str()
+        .unwrap()
+        .contains("BatchedFunctionNodesLookup"));
+    assert_eq!(
+        hits[2]["variables"]["ids"],
+        json!([
+            "gid://shopify/Validation/batched",
+            "gid://shopify/CartTransform/batched"
+        ])
+    );
+    assert!(hits.iter().all(|body| {
+        !body["query"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("first: 100")
+    }));
+}
+
+#[test]
+fn functions_scoped_connection_observations_round_trip_and_do_not_become_request_cache() {
+    let upstream_hits = Arc::new(Mutex::new(0usize));
+    let hit_counter = Arc::clone(&upstream_hits);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |_request| {
+        *hit_counter.lock().unwrap() += 1;
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "shopifyFunctions": {
+                        "nodes": [],
+                        "edges": [],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": null,
+                            "endCursor": null
+                        }
+                    }
+                }
+            }),
+        }
+    });
+    let mut forward_a = json_graphql_request(
+        r#"query ScopedFunctionsA { shopifyFunctions(first: 1, apiType: "VALIDATION") { edges { cursor node { id } } pageInfo { hasNextPage } } }"#,
+        json!({}),
+    );
+    forward_a.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "app-a".to_string(),
+    );
+    proxy.process_request(forward_a.clone());
+    let mut backward_a = json_graphql_request(
+        r#"query ScopedFunctionsBackward { shopifyFunctions(last: 1, before: "opaque-z", useCreationUi: true) { edges { cursor node { id } } pageInfo { hasPreviousPage } } }"#,
+        json!({}),
+    );
+    backward_a.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "app-a".to_string(),
+    );
+    proxy.process_request(backward_a);
+    let mut forward_b = forward_a;
+    forward_b.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "app-b".to_string(),
+    );
+    proxy.process_request(forward_b);
+    assert_eq!(*upstream_hits.lock().unwrap(), 3);
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    let observations = dump.body["state"]["baseState"]["functionConnectionObservations"]
+        .as_object()
+        .expect("scoped Function observations should dump");
+    assert_eq!(observations.len(), 3);
+    let scope_keys = observations
+        .values()
+        .filter_map(|observation| observation["scopeKey"].as_str())
+        .collect::<Vec<_>>();
+    assert!(scope_keys
+        .iter()
+        .any(|key| key.contains("app-a") && key.contains("forward")));
+    assert!(scope_keys
+        .iter()
+        .any(|key| key.contains("app-a") && key.contains("backward")));
+    assert!(scope_keys
+        .iter()
+        .any(|key| key.contains("app-b") && key.contains("forward")));
+    assert!(dump.body["state"]["baseState"]
+        .get("functionMetadataCatalogHydrated")
+        .is_none());
+
+    let restored_hits = Arc::new(Mutex::new(0usize));
+    let restored_counter = Arc::clone(&restored_hits);
+    let mut restored = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |_request| {
+        *restored_counter.lock().unwrap() += 1;
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "shopifyFunctions": {
+                        "nodes": [], "edges": [],
+                        "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null }
+                    }
+                }
+            }),
+        }
+    });
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let mut repeated = json_graphql_request(
+        r#"query ScopedFunctionsAAgain { shopifyFunctions(first: 1, apiType: "VALIDATION") { nodes { id } } }"#,
+        json!({}),
+    );
+    repeated.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "app-a".to_string(),
+    );
+    restored.process_request(repeated);
+    assert_eq!(
+        *restored_hits.lock().unwrap(),
+        1,
+        "restored observations are not request caches"
+    );
+    restored.process_request(request_with_body("POST", "/__meta/reset", ""));
+    let reset_dump = restored.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(
+        reset_dump.body["state"]["baseState"]["functionConnectionObservations"]
+            .as_object()
+            .unwrap()
+            .len(),
+        3,
+        "reset preserves base observations while clearing request-local caches"
+    );
 }
 
 #[test]
@@ -6675,8 +8690,8 @@ fn functions_hydrated_raw_api_types_remain_public_while_filters_use_canonical_ke
     );
     assert_eq!(
         *upstream_hits.lock().unwrap(),
-        1,
-        "local function read should use hydrated metadata without another upstream request"
+        2,
+        "each unaffected read should forward the caller's complete document once"
     );
 }
 
@@ -6725,6 +8740,26 @@ fn functions_shopify_functions_without_api_type_returns_all_local_metadata_and_w
                 .contains("shopifyFunctions"),
             "cold function read should forward the original shopifyFunctions query, got {body}"
         );
+        let query = body["query"].as_str().unwrap_or_default();
+        let (window, has_next_page, has_previous_page) =
+            if query.contains("HydrateUnfilteredFunctions") {
+                (upstream_functions.clone(), false, false)
+            } else if body["variables"]["after"].as_str() == Some("opaque-unfiltered-cart") {
+                (vec![upstream_functions[2].clone()], false, true)
+            } else {
+                (upstream_functions[..2].to_vec(), true, false)
+            };
+        let edges = window
+            .iter()
+            .map(|function| {
+                json!({
+                    "cursor": format!("opaque-{}", function["handle"].as_str().unwrap_or_default()),
+                    "node": function
+                })
+            })
+            .collect::<Vec<_>>();
+        let start_cursor = edges.first().and_then(|edge| edge["cursor"].as_str());
+        let end_cursor = edges.last().and_then(|edge| edge["cursor"].as_str());
         Response {
             status: 200,
             headers: Default::default(),
@@ -6732,13 +8767,17 @@ fn functions_shopify_functions_without_api_type_returns_all_local_metadata_and_w
                 "data": {
                     "cartFunction": upstream_functions[1].clone(),
                     "shopifyFunctions": {
-                        "nodes": upstream_functions.clone(),
+                        "nodes": window,
+                        "edges": edges,
                         "pageInfo": {
-                            "hasNextPage": false,
-                            "hasPreviousPage": false,
-                            "startCursor": "upstream-start",
-                            "endCursor": "upstream-end"
+                            "hasNextPage": has_next_page,
+                            "hasPreviousPage": has_previous_page,
+                            "startCursor": start_cursor,
+                            "endCursor": end_cursor
                         }
+                    },
+                    "cartFunctions": {
+                        "nodes": [upstream_functions[1].clone()]
                     },
                     "validationFunction": upstream_functions[0].clone()
                 }
@@ -6803,11 +8842,11 @@ fn functions_shopify_functions_without_api_type_returns_all_local_metadata_and_w
         first_page.body["data"]["shopifyFunctions"]["edges"],
         json!([
             {
-                "cursor": "cursor:gid://shopify/ShopifyFunction/unfiltered-validation",
+                "cursor": "opaque-unfiltered-validation",
                 "node": { "handle": "unfiltered-validation" }
             },
             {
-                "cursor": "cursor:gid://shopify/ShopifyFunction/unfiltered-cart",
+                "cursor": "opaque-unfiltered-cart",
                 "node": { "handle": "unfiltered-cart" }
             }
         ])
@@ -6817,8 +8856,8 @@ fn functions_shopify_functions_without_api_type_returns_all_local_metadata_and_w
         json!({
             "hasNextPage": true,
             "hasPreviousPage": false,
-            "startCursor": "cursor:gid://shopify/ShopifyFunction/unfiltered-validation",
-            "endCursor": "cursor:gid://shopify/ShopifyFunction/unfiltered-cart"
+            "startCursor": "opaque-unfiltered-validation",
+            "endCursor": "opaque-unfiltered-cart"
         })
     );
     assert_eq!(
@@ -6848,14 +8887,14 @@ fn functions_shopify_functions_without_api_type_returns_all_local_metadata_and_w
         json!({
             "hasNextPage": false,
             "hasPreviousPage": true,
-            "startCursor": "cursor:gid://shopify/ShopifyFunction/unfiltered-payment",
-            "endCursor": "cursor:gid://shopify/ShopifyFunction/unfiltered-payment"
+            "startCursor": "opaque-unfiltered-payment",
+            "endCursor": "opaque-unfiltered-payment"
         })
     );
     assert_eq!(
         *upstream_hits.lock().unwrap(),
-        1,
-        "local function reads after hydration should not make another upstream request"
+        3,
+        "each unaffected requested window should forward once"
     );
 }
 
@@ -6954,6 +8993,62 @@ fn functions_live_hybrid_reads_merge_upstream_records_after_one_local_validation
             "FunctionValidationHydrateById" => {
                 json!({ "data": { "validation": upstream_validation.clone() } })
             }
+            "FunctionValidationDecisionPreflight" => json!({
+                "data": {
+                    "validations": {
+                        "nodes": [{
+                            "id": upstream_validation["id"].clone(),
+                            "enabled": upstream_validation["enabled"].clone(),
+                            "shopifyFunction": {
+                                "id": upstream_validation_function["id"].clone()
+                            }
+                        }],
+                        "pageInfo": { "hasNextPage": false, "endCursor": null }
+                    }
+                }
+            }),
+            _ if query.contains("ReadFunctionsOverlayAfterValidationStage") => json!({
+                "data": {
+                    "stagedValidation": null,
+                    "baseValidation": upstream_validation.clone(),
+                    "validations": {
+                        "nodes": [upstream_validation.clone()],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": "opaque-upstream-validation",
+                            "endCursor": "opaque-upstream-validation"
+                        }
+                    },
+                    "cartTransforms": {
+                        "nodes": [upstream_cart_transform.clone()],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": "opaque-upstream-cart-transform",
+                            "endCursor": "opaque-upstream-cart-transform"
+                        }
+                    },
+                    "allFunctions": {
+                        "nodes": [
+                            upstream_validation_function.clone(),
+                            upstream_cart_function.clone(),
+                            test_function_metadata_by_id_or_handle(None, Some("validation-local"))
+                                .expect("validation-local test metadata")
+                        ],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": "opaque-upstream-validation-function",
+                            "endCursor": "opaque-upstream-cart-function"
+                        }
+                    },
+                    "cartFunctions": {
+                        "nodes": [upstream_cart_function.clone()]
+                    },
+                    "upstreamCartFunction": upstream_cart_function.clone()
+                }
+            }),
             _ if query.contains("validations") => json!({
                 "data": { "validations": { "nodes": [upstream_validation.clone()] } }
             }),
@@ -7637,7 +9732,7 @@ fn functions_validation_max_cap_update_defaults_and_metafield_rejection_preserve
         stage_response.body["data"]["maxActive"],
         json!({
             "validation": null,
-            "userErrors": [{ "field": [], "message": "Cannot have more than 25 active validation functions.", "code": "MAX_VALIDATIONS_ACTIVATED" }]
+            "userErrors": [{ "field": null, "message": "Cannot have more than 25 active validation functions.", "code": "MAX_VALIDATIONS_ACTIVATED" }]
         })
     );
     let subject_id = stage_response.body["data"]["subject"]["validation"]["id"]
@@ -7691,6 +9786,526 @@ fn functions_validation_max_cap_update_defaults_and_metafield_rejection_preserve
         log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
         log_count_before_rejected_update,
         "failed validationUpdate must not enter commit replay"
+    );
+}
+
+#[test]
+fn functions_validation_create_uses_bounded_decision_preflight_after_partial_read() {
+    let validation_function = function_metadata_record(
+        "gid://shopify/ShopifyFunction/validation-cap",
+        "Validation Cap",
+        "validation-cap",
+        "VALIDATION",
+        "validation-cap-key",
+        "validation-cap-app",
+    );
+    let upstream_validations = (1..=25)
+        .map(|index| {
+            json!({
+                "id": format!("gid://shopify/Validation/upstream-{index}"),
+                "title": format!("Upstream validation {index}"),
+                "enabled": true,
+                "blockOnFailure": false,
+                "shopifyFunction": validation_function.clone(),
+                "metafields": { "nodes": [] }
+            })
+        })
+        .collect::<Vec<_>>();
+    let partial_validation = json!({ "id": upstream_validations[0]["id"].clone() });
+    let hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_hits = Arc::clone(&hits);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value =
+            serde_json::from_str(&request.body).expect("validation catalog request should parse");
+        captured_hits.lock().unwrap().push(body.clone());
+        let response_body = match body["operationName"].as_str() {
+            Some("FunctionValidationDecisionPreflight") => json!({
+                "data": {
+                    "validations": {
+                        "nodes": upstream_validations.iter().map(|validation| json!({
+                            "id": validation["id"].clone(),
+                            "enabled": true,
+                            "shopifyFunction": { "id": validation_function["id"].clone() }
+                        })).collect::<Vec<_>>(),
+                        "pageInfo": {
+                            "hasNextPage": true,
+                            "endCursor": "more-disabled-validations-exist"
+                        }
+                    }
+                }
+            }),
+            Some("FunctionHydrateByHandle") => json!({
+                "data": { "shopifyFunctions": { "nodes": [validation_function.clone()] } }
+            }),
+            _ if body["query"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("PartialValidationCatalogRead") =>
+            {
+                json!({
+                    "data": {
+                        "validations": {
+                            "nodes": [partial_validation.clone()]
+                        }
+                    }
+                })
+            }
+            _ => json!({
+                "errors": [{
+                    "message": format!("unexpected validation catalog request: {body}")
+                }]
+            }),
+        };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: response_body,
+        }
+    });
+
+    let partial_read = proxy.process_request(json_graphql_request(
+        r#"
+        query PartialValidationCatalogRead {
+          validations(first: 1) {
+            nodes { id }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        partial_read.body["data"]["validations"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+
+    let create_query = r#"
+        mutation CreateTwentySixthActiveValidation {
+          validationCreate(validation: {
+            functionHandle: "validation-cap"
+            title: "Twenty sixth active validation"
+            enable: true
+          }) {
+            validation { id }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let create = proxy.process_request(json_graphql_request(create_query, json!({})));
+    assert_eq!(
+        create.body["data"]["validationCreate"],
+        json!({
+            "validation": null,
+            "userErrors": [{
+                "field": null,
+                "message": "Cannot have more than 25 active validation functions.",
+                "code": "MAX_VALIDATIONS_ACTIVATED"
+            }]
+        })
+    );
+
+    let hits = hits.lock().unwrap();
+    let decision_preflights = hits
+        .iter()
+        .filter(|body| body["operationName"] == "FunctionValidationDecisionPreflight")
+        .collect::<Vec<_>>();
+    assert_eq!(decision_preflights.len(), 1);
+    assert_eq!(
+        decision_preflights[0]["variables"],
+        json!({ "after": null })
+    );
+    let decision_query = decision_preflights[0]["query"].as_str().unwrap_or_default();
+    assert!(decision_query.contains("validations(first: 25, after: $after)"));
+    assert!(
+        !decision_query.contains("first: 250"),
+        "the active-validation cap needs at most one threshold-width page at a time"
+    );
+    assert!(decision_query.contains("enabled"));
+    assert!(decision_query.contains("shopifyFunction {"));
+    for forbidden_field in ["title", "blockOnFailure", "metafields"] {
+        assert!(
+            !decision_query.contains(forbidden_field),
+            "mutation decision preflight must not hydrate {forbidden_field}"
+        );
+    }
+    assert_eq!(
+        hits.iter()
+            .filter(|body| body["operationName"] == "FunctionValidationsHydrate")
+            .count(),
+        0,
+        "mutation decisions must not open the full lifecycle catalog"
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"],
+        json!([]),
+        "the locally handled rejection must not enter commit replay"
+    );
+}
+
+#[test]
+fn functions_validation_decision_cursor_survives_dump_restore_and_resumes() {
+    let validation_function = function_metadata_record(
+        "gid://shopify/ShopifyFunction/validation-cursor",
+        "Validation Cursor",
+        "validation-cursor",
+        "VALIDATION",
+        "validation-cursor-key",
+        "validation-cursor-app",
+    );
+    let first_page = (1..=25)
+        .map(|index| {
+            json!({
+                "id": format!("gid://shopify/Validation/cursor-{index}"),
+                "enabled": true,
+                "shopifyFunction": { "id": validation_function["id"].clone() }
+            })
+        })
+        .collect::<Vec<_>>();
+    let initial_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_initial_hits = Arc::clone(&initial_hits);
+    let initial_function = validation_function.clone();
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body).unwrap();
+        captured_initial_hits.lock().unwrap().push(body.clone());
+        let response_body = match body["operationName"].as_str() {
+            Some("FunctionValidationDecisionPreflight") => json!({
+                "data": {
+                    "validations": {
+                        "nodes": first_page.clone(),
+                        "pageInfo": { "hasNextPage": true, "endCursor": "validation-page-1" }
+                    }
+                }
+            }),
+            Some("FunctionHydrateByHandle") => json!({
+                "data": { "shopifyFunctions": { "nodes": [initial_function.clone()] } }
+            }),
+            _ => panic!("unexpected initial cursor request: {body}"),
+        };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: response_body,
+        }
+    });
+
+    let initial_create = proxy.process_request(json_graphql_request(
+        r#"mutation InitialCursorCap {
+          validationCreate(validation: { functionHandle: "validation-cursor", enable: true }) {
+            validation { id }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        initial_create.body["data"]["validationCreate"]["userErrors"][0]["code"],
+        json!("MAX_VALIDATIONS_ACTIVATED")
+    );
+    assert_eq!(initial_hits.lock().unwrap().len(), 2);
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    assert_eq!(
+        dump.body["state"]["baseState"]["functionValidationDecisionNextCursor"],
+        json!("validation-page-1")
+    );
+    assert_eq!(
+        dump.body["state"]["baseState"]["functionValidationDecisionRecords"]
+            .as_object()
+            .unwrap()
+            .len(),
+        25
+    );
+    assert!(dump.body["state"]["baseState"]
+        .get("functionValidationDecisionCatalogComplete")
+        .is_none());
+    assert!(dump.body["state"]["baseState"]
+        .get("functionValidationsCatalogHydrated")
+        .is_none());
+
+    let restored_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_restored_hits = Arc::clone(&restored_hits);
+    let restored_function = validation_function.clone();
+    let mut restored = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body).unwrap();
+        captured_restored_hits.lock().unwrap().push(body.clone());
+        let response_body = match body["operationName"].as_str() {
+            Some("FunctionValidationHydrateById") => json!({
+                "data": {
+                    "validation": {
+                        "id": "gid://shopify/Validation/cursor-1",
+                        "title": "Cursor one",
+                        "enabled": true,
+                        "blockOnFailure": false,
+                        "shopifyFunction": restored_function.clone(),
+                        "metafields": { "nodes": [] }
+                    }
+                }
+            }),
+            Some("FunctionValidationDecisionPreflight") => json!({
+                "data": {
+                    "validations": {
+                        "nodes": [{
+                            "id": "gid://shopify/Validation/cursor-26",
+                            "enabled": true,
+                            "shopifyFunction": { "id": restored_function["id"].clone() }
+                        }],
+                        "pageInfo": { "hasNextPage": false, "endCursor": "validation-page-2" }
+                    }
+                }
+            }),
+            _ => panic!("unexpected restored cursor request: {body}"),
+        };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: response_body,
+        }
+    });
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let delete = restored.process_request(json_graphql_request(
+        r#"mutation DeleteDecisionRecord { validationDelete(id: "gid://shopify/Validation/cursor-1") { deletedId userErrors { code } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        delete.body["data"]["validationDelete"]["deletedId"],
+        json!("gid://shopify/Validation/cursor-1")
+    );
+    let resumed_create = restored.process_request(json_graphql_request(
+        r#"mutation ResumedCursorCap {
+          validationCreate(validation: { functionHandle: "validation-cursor", enable: true }) {
+            validation { id }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        resumed_create.body["data"]["validationCreate"]["userErrors"][0]["code"],
+        json!("MAX_VALIDATIONS_ACTIVATED")
+    );
+    let restored_hits = restored_hits.lock().unwrap();
+    assert_eq!(restored_hits.len(), 2);
+    let resumed_preflight = restored_hits
+        .iter()
+        .find(|body| body["operationName"] == "FunctionValidationDecisionPreflight")
+        .unwrap();
+    assert_eq!(
+        resumed_preflight["variables"],
+        json!({ "after": "validation-page-1" })
+    );
+}
+
+#[test]
+fn functions_cart_transform_create_uses_targeted_reuse_and_existence_preflights() {
+    let registered_validation_function = function_metadata_record(
+        "gid://shopify/ShopifyFunction/registered-validation",
+        "Registered Validation",
+        "registered-validation",
+        "VALIDATION",
+        "registered-validation-key",
+        "registered-validation-app",
+    );
+    let second_cart_function = function_metadata_record(
+        "gid://shopify/ShopifyFunction/second-cart",
+        "Second Cart Transform",
+        "second-cart",
+        "CART_TRANSFORM",
+        "second-cart-key",
+        "second-cart-app",
+    );
+    let upstream_validation = json!({
+        "id": "gid://shopify/Validation/registered-validation",
+        "title": "Registered validation",
+        "enabled": false,
+        "blockOnFailure": false,
+        "shopifyFunction": registered_validation_function.clone(),
+        "metafields": { "nodes": [] }
+    });
+    let upstream_cart_transform = json!({
+        "id": "gid://shopify/CartTransform/existing",
+        "functionId": "gid://shopify/ShopifyFunction/existing-cart",
+        "blockOnFailure": false,
+        "metafields": { "nodes": [] }
+    });
+    let hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_hits = Arc::clone(&hits);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body)
+            .expect("cart transform catalog request should parse");
+        captured_hits.lock().unwrap().push(body.clone());
+        let response_body = match body["operationName"].as_str() {
+            Some("FunctionValidationDecisionPreflight") => json!({
+                "data": {
+                    "validations": {
+                        "nodes": [{
+                            "id": upstream_validation["id"].clone(),
+                            "enabled": false,
+                            "shopifyFunction": {
+                                "id": registered_validation_function["id"].clone()
+                            }
+                        }],
+                        "pageInfo": { "hasNextPage": false, "endCursor": "validation-end" }
+                    }
+                }
+            }),
+            Some("FunctionCartTransformDecisionPreflight") => json!({
+                "data": {
+                    "cartTransforms": {
+                        "nodes": [{
+                            "id": upstream_cart_transform["id"].clone(),
+                            "functionId": upstream_cart_transform["functionId"].clone()
+                        }]
+                    }
+                }
+            }),
+            Some("FunctionHydrateById") => {
+                let id = body["variables"]["id"].as_str().unwrap_or_default();
+                let function = if id == second_cart_function["id"].as_str().unwrap() {
+                    second_cart_function.clone()
+                } else if id == registered_validation_function["id"].as_str().unwrap() {
+                    registered_validation_function.clone()
+                } else {
+                    Value::Null
+                };
+                json!({ "data": { "shopifyFunction": function } })
+            }
+            _ => json!({
+                "errors": [{
+                    "message": format!("unexpected cart transform catalog request: {body}")
+                }]
+            }),
+        };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: response_body,
+        }
+    });
+
+    let reused = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReuseUnobservedValidationFunction {
+          cartTransformCreate(
+            functionId: "gid://shopify/ShopifyFunction/registered-validation"
+          ) {
+            cartTransform { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        reused.body["data"]["cartTransformCreate"],
+        json!({
+            "cartTransform": null,
+            "userErrors": [{
+                "field": ["functionId"],
+                "message": "Could not enable cart transform because it is already registered",
+                "code": "FUNCTION_ALREADY_REGISTERED"
+            }]
+        })
+    );
+
+    let second = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateSecondCartTransform {
+          cartTransformCreate(
+            functionId: "gid://shopify/ShopifyFunction/second-cart"
+          ) {
+            cartTransform { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        second.body["data"]["cartTransformCreate"],
+        json!({
+            "cartTransform": null,
+            "userErrors": [{
+                "field": null,
+                "message": "An API client cannot have more than 1 cart transform functions per shop",
+                "code": null
+            }]
+        })
+    );
+
+    let hits = hits.lock().unwrap();
+    for operation_name in [
+        "FunctionValidationDecisionPreflight",
+        "FunctionCartTransformDecisionPreflight",
+    ] {
+        assert_eq!(
+            hits.iter()
+                .filter(|body| body["operationName"] == operation_name)
+                .count(),
+            1,
+            "{operation_name} should run exactly once for both cold decisions"
+        );
+    }
+    assert_eq!(
+        hits.iter()
+            .filter(|body| body["operationName"] == "FunctionHydrateById")
+            .count(),
+        2,
+        "each cold Function should use one exact metadata lookup"
+    );
+    let validation_query = hits
+        .iter()
+        .find(|body| body["operationName"] == "FunctionValidationDecisionPreflight")
+        .and_then(|body| body["query"].as_str())
+        .unwrap_or_default();
+    assert!(validation_query.contains("validations(first: 25, after: $after)"));
+    assert!(!validation_query.contains("metafields"));
+    let cart_query = hits
+        .iter()
+        .find(|body| body["operationName"] == "FunctionCartTransformDecisionPreflight")
+        .and_then(|body| body["query"].as_str())
+        .unwrap_or_default();
+    assert!(cart_query.contains("cartTransforms(first: 1)"));
+    assert!(!cart_query.contains("metafields"));
+    for full_catalog_operation in [
+        "FunctionValidationsHydrate",
+        "FunctionCartTransformsHydrate",
+    ] {
+        assert_eq!(
+            hits.iter()
+                .filter(|body| body["operationName"] == full_catalog_operation)
+                .count(),
+            0
+        );
+    }
+    assert_eq!(
+        log_snapshot(&proxy)["entries"],
+        json!([]),
+        "both rejected cart-transform creates must stay out of commit replay"
     );
 }
 
@@ -7805,7 +10420,7 @@ fn functions_cart_transform_create_validates_identifier_api_conflict_and_metafie
         cap_conflict.body["data"]["cartTransformCreate"],
         json!({
             "cartTransform": null,
-            "userErrors": [{ "field": ["base"], "message": "The maximum number of cart transforms per shop has been reached.", "code": "MAXIMUM_CART_TRANSFORMS" }]
+            "userErrors": [{ "field": null, "message": "An API client cannot have more than 1 cart transform functions per shop", "code": null }]
         })
     );
     assert_eq!(
@@ -7859,7 +10474,7 @@ fn functions_fulfillment_constraint_rules_stage_locally_and_read_after_write() {
         json!({
             "id": "gid://shopify/ShopifyFunction/fulfillment-constraint-local",
             "handle": "fulfillment-constraint-local",
-            "apiType": "FULFILLMENT_CONSTRAINT_RULE"
+            "apiType": "fulfillment_constraints"
         })
     );
     assert_eq!(
@@ -7902,7 +10517,7 @@ fn functions_fulfillment_constraint_rules_stage_locally_and_read_after_write() {
             "deliveryMethodTypes": ["SHIPPING", "LOCAL"],
             "function": {
                 "handle": "fulfillment-constraint-local",
-                "apiType": "FULFILLMENT_CONSTRAINT_RULE"
+                "apiType": "fulfillment_constraints"
             },
             "metafield": {
                 "namespace": "custom",
@@ -7984,7 +10599,7 @@ fn functions_fulfillment_constraint_rules_stage_locally_and_read_after_write() {
         empty_read.body["data"]["fulfillmentConstraintRules"],
         json!([])
     );
-    assert_eq!(hydrate_requests.lock().unwrap().len(), 2);
+    assert_eq!(hydrate_requests.lock().unwrap().len(), 3);
     assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 3);
 
     let upstream_hydrate_requests = Arc::new(Mutex::new(Vec::new()));
@@ -8057,7 +10672,7 @@ fn functions_fulfillment_constraint_rules_stage_locally_and_read_after_write() {
         rules[1]["function"],
         json!({
             "handle": "fulfillment-constraint-local",
-            "apiType": "FULFILLMENT_CONSTRAINT_RULE",
+            "apiType": "fulfillment_constraints",
             "app": { "apiKey": "fulfillment-app-key" }
         })
     );
@@ -8071,6 +10686,86 @@ fn functions_fulfillment_constraint_rules_stage_locally_and_read_after_write() {
                 .unwrap_or_default()
                 .contains("fulfillmentConstraintRules")),
         "post-stage read should hydrate upstream fulfillment constraint rules"
+    );
+    let update_base = upstream_proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateHydratedFulfillmentConstraintRule {
+          fulfillmentConstraintRuleUpdate(
+            id: "gid://shopify/FulfillmentConstraintRule/upstream-rule"
+            deliveryMethodTypes: [PICK_UP]
+          ) {
+            fulfillmentConstraintRule {
+              id
+              deliveryMethodTypes
+              function { id handle apiType app { apiKey } }
+              metafield(namespace: "custom", key: "config") {
+                id
+                namespace
+                key
+                type
+                value
+                ownerType
+              }
+            }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        update_base.body["data"]["fulfillmentConstraintRuleUpdate"],
+        json!({
+            "fulfillmentConstraintRule": {
+                "id": "gid://shopify/FulfillmentConstraintRule/upstream-rule",
+                "deliveryMethodTypes": ["PICK_UP"],
+                "function": {
+                    "id": "gid://shopify/ShopifyFunction/upstream-fulfillment-constraint",
+                    "handle": "upstream-fulfillment-constraint",
+                    "apiType": "FULFILLMENT_CONSTRAINT_RULE",
+                    "app": { "apiKey": "upstream-fulfillment-key" }
+                },
+                "metafield": {
+                    "id": "gid://shopify/Metafield/upstream-fulfillment-config",
+                    "namespace": "custom",
+                    "key": "config",
+                    "type": "json",
+                    "value": "{\"mode\":\"upstream\"}",
+                    "ownerType": "FULFILLMENT_CONSTRAINT_RULE"
+                }
+            },
+            "userErrors": []
+        })
+    );
+    let updated_read = upstream_proxy.process_request(json_graphql_request(
+        r#"
+        query ReadHydratedFulfillmentConstraintRuleAfterUpdate {
+          fulfillmentConstraintRules {
+            id
+            deliveryMethodTypes
+            function { handle }
+            metafield(namespace: "custom", key: "config") { value }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        updated_read.body["data"]["fulfillmentConstraintRules"]
+            .as_array()
+            .expect("updated fulfillment constraint rules should be a list")
+            .len(),
+        2,
+        "a staged overlay of a base rule must not duplicate the rule"
+    );
+    assert_eq!(
+        updated_read.body["data"]["fulfillmentConstraintRules"][0],
+        json!({
+            "id": "gid://shopify/FulfillmentConstraintRule/upstream-rule",
+            "deliveryMethodTypes": ["PICK_UP"],
+            "function": { "handle": "upstream-fulfillment-constraint" },
+            "metafield": { "value": "{\"mode\":\"upstream\"}" }
+        })
     );
     let delete_base = upstream_proxy.process_request(json_graphql_request(
         r#"
@@ -8174,6 +10869,258 @@ fn functions_fulfillment_constraint_rules_stage_locally_and_read_after_write() {
 }
 
 #[test]
+fn functions_fulfillment_constraint_rule_update_cold_hydrates_effective_state() {
+    let hydrate_requests = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy =
+        function_fulfillment_constraint_rule_proxy_with_hits(Arc::clone(&hydrate_requests));
+
+    let mut update_request = json_graphql_request(
+        r#"
+        mutation UpdateColdFulfillmentConstraintRule {
+          fulfillmentConstraintRuleUpdate(
+            id: "gid://shopify/FulfillmentConstraintRule/upstream-rule"
+            deliveryMethodTypes: [LOCAL, PICK_UP]
+          ) {
+            fulfillmentConstraintRule {
+              id
+              deliveryMethodTypes
+              function { id handle apiType appKey app { id apiKey } }
+              metafields(first: 10) {
+                nodes { id namespace key type value ownerType createdAt updatedAt }
+              }
+            }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    update_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "upstream-fulfillment-key".to_string(),
+    );
+    let update = proxy.process_request(update_request);
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["fulfillmentConstraintRuleUpdate"],
+        json!({
+            "fulfillmentConstraintRule": {
+                "id": "gid://shopify/FulfillmentConstraintRule/upstream-rule",
+                "deliveryMethodTypes": ["LOCAL", "PICK_UP"],
+                "function": {
+                    "id": "gid://shopify/ShopifyFunction/upstream-fulfillment-constraint",
+                    "handle": "upstream-fulfillment-constraint",
+                    "apiType": "FULFILLMENT_CONSTRAINT_RULE",
+                    "appKey": "upstream-fulfillment-key",
+                    "app": {
+                        "id": "gid://shopify/App/upstream-fulfillment-app",
+                        "apiKey": "upstream-fulfillment-key"
+                    }
+                },
+                "metafields": {
+                    "nodes": [{
+                        "id": "gid://shopify/Metafield/upstream-fulfillment-config",
+                        "namespace": "custom",
+                        "key": "config",
+                        "type": "json",
+                        "value": "{\"mode\":\"upstream\"}",
+                        "ownerType": "FULFILLMENT_CONSTRAINT_RULE",
+                        "createdAt": "2026-01-01T00:00:00Z",
+                        "updatedAt": "2026-01-01T00:00:00Z"
+                    }]
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let recorded_hydrate_requests = hydrate_requests.lock().unwrap();
+    assert_eq!(recorded_hydrate_requests.len(), 1);
+    assert_eq!(
+        recorded_hydrate_requests[0]["operationName"],
+        json!("FunctionFulfillmentConstraintRuleHydrateById")
+    );
+    assert_eq!(
+        recorded_hydrate_requests[0]["variables"],
+        json!({ "id": "gid://shopify/FulfillmentConstraintRule/upstream-rule" })
+    );
+    assert!(
+        recorded_hydrate_requests[0]["query"]
+            .as_str()
+            .unwrap_or_default()
+            .trim_start()
+            .starts_with("query "),
+        "the mutation prerequisite must be a read-only upstream request"
+    );
+    drop(recorded_hydrate_requests);
+
+    let mut foreign_update_request = json_graphql_request(
+        r#"
+        mutation RejectForeignFulfillmentConstraintRuleUpdate {
+          fulfillmentConstraintRuleUpdate(
+            id: "gid://shopify/FulfillmentConstraintRule/upstream-rule"
+            deliveryMethodTypes: [SHIPPING]
+          ) {
+            fulfillmentConstraintRule { id }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    foreign_update_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "foreign-app-key".to_string(),
+    );
+    let foreign_update = proxy.process_request(foreign_update_request);
+    assert_eq!(
+        foreign_update.body["data"]["fulfillmentConstraintRuleUpdate"],
+        json!({
+            "fulfillmentConstraintRule": null,
+            "userErrors": [{
+                "code": "NOT_FOUND",
+                "field": ["id"],
+                "message": "Could not find FulfillmentConstraintRule with id: gid://shopify/FulfillmentConstraintRule/upstream-rule"
+            }]
+        })
+    );
+    assert_eq!(
+        hydrate_requests.lock().unwrap().len(),
+        1,
+        "a foreign caller should be rejected from captured owner metadata without another hydrate"
+    );
+
+    let unknown = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateMissingFulfillmentConstraintRule {
+          fulfillmentConstraintRuleUpdate(
+            id: "gid://shopify/FulfillmentConstraintRule/definitely-missing"
+            deliveryMethodTypes: [SHIPPING]
+          ) {
+            fulfillmentConstraintRule { id }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        unknown.body["data"]["fulfillmentConstraintRuleUpdate"],
+        json!({
+            "fulfillmentConstraintRule": null,
+            "userErrors": [{
+                "code": "NOT_FOUND",
+                "field": ["id"],
+                "message": "Could not find FulfillmentConstraintRule with id: gid://shopify/FulfillmentConstraintRule/definitely-missing"
+            }]
+        })
+    );
+    assert_eq!(
+        hydrate_requests.lock().unwrap().len(),
+        2,
+        "an unresolved ID should receive its own exact read-only hydrate"
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadColdFulfillmentConstraintRuleAfterUpdate {
+          fulfillmentConstraintRules {
+            id
+            deliveryMethodTypes
+            function { handle }
+            metafield(namespace: "custom", key: "config") { value }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["fulfillmentConstraintRules"],
+        json!([{
+            "id": "gid://shopify/FulfillmentConstraintRule/upstream-rule",
+            "deliveryMethodTypes": ["LOCAL", "PICK_UP"],
+            "function": { "handle": "upstream-fulfillment-constraint" },
+            "metafield": { "value": "{\"mode\":\"upstream\"}" }
+        }])
+    );
+    assert_eq!(
+        hydrate_requests.lock().unwrap().len(),
+        3,
+        "the downstream caller read should be forwarded once before applying the staged overlay"
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        1,
+        "only the successful hydrated update should enter commit replay"
+    );
+}
+
+#[test]
+fn functions_fulfillment_constraint_rule_tombstone_hydrates_omitted_identity_once() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let hit_log = Arc::clone(&upstream_hits);
+    let rule = json!({
+        "id": "gid://shopify/FulfillmentConstraintRule/omitted-identity",
+        "deliveryMethodTypes": ["SHIPPING"],
+        "function": {
+            "id": "gid://shopify/ShopifyFunction/fulfillment-omitted-identity",
+            "title": "Fulfillment omitted identity",
+            "handle": "fulfillment-omitted-identity",
+            "apiType": "FULFILLMENT_CONSTRAINT_RULE"
+        }
+    });
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body)
+            .expect("fulfillment omitted identity request should parse");
+        hit_log.lock().unwrap().push(body.clone());
+        let value = if body["operationName"] == json!("FunctionListWindowHydrate")
+            || body["query"].as_str().unwrap_or_default().contains(" id ")
+        {
+            rule.clone()
+        } else {
+            json!({ "deliveryMethodTypes": ["SHIPPING"] })
+        };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": { "fulfillmentConstraintRules": [value] } }),
+        }
+    });
+
+    let observe = proxy.process_request(json_graphql_request(
+        r#"query ObserveFulfillmentRuleIdentity { fulfillmentConstraintRules { id deliveryMethodTypes } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        observe.body["data"]["fulfillmentConstraintRules"][0]["id"],
+        json!("gid://shopify/FulfillmentConstraintRule/omitted-identity")
+    );
+    let delete = proxy.process_request(json_graphql_request(
+        r#"mutation DeleteFulfillmentRuleIdentity { fulfillmentConstraintRuleDelete(id: "gid://shopify/FulfillmentConstraintRule/omitted-identity") { success userErrors { code field message } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        delete.body["data"]["fulfillmentConstraintRuleDelete"],
+        json!({ "success": true, "userErrors": [] })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query ReadFulfillmentRuleWithoutIdentity { fulfillmentConstraintRules { deliveryMethodTypes } }"#,
+        json!({}),
+    ));
+    assert_eq!(read.body["data"]["fulfillmentConstraintRules"], json!([]));
+    let hits = upstream_hits.lock().unwrap();
+    assert_eq!(hits.len(), 3);
+    let hydration_query = hits[2]["query"].as_str().unwrap_or_default();
+    assert!(hydration_query.contains("deliveryMethodTypes id"));
+    assert!(!hydration_query.contains("first: 100"));
+}
+
+#[test]
 fn functions_fulfillment_constraint_rule_reads_reject_fabricated_output_fields() {
     let mut proxy = function_metadata_proxy();
 
@@ -8264,7 +11211,7 @@ fn functions_fulfillment_constraint_rule_reads_reject_fabricated_output_fields()
         "function": {
             "id": "gid://shopify/ShopifyFunction/fulfillment-constraint-local",
             "handle": "fulfillment-constraint-local",
-            "apiType": "FULFILLMENT_CONSTRAINT_RULE"
+            "apiType": "fulfillment_constraints"
         }
     });
     assert_eq!(valid.body["data"]["direct"][0], expected_rule);
@@ -8416,6 +11363,716 @@ fn functions_fulfillment_constraint_rules_return_shopify_like_user_errors() {
         json!([]),
         "failed fulfillment-constraint mutations must not enter commit replay"
     );
+}
+
+#[test]
+fn functions_fulfillment_constraint_rule_update_and_delete_hydrate_unobserved_targets() {
+    let update_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut update_proxy =
+        function_fulfillment_constraint_rule_proxy_with_hits(Arc::clone(&update_hits));
+    let update_query = r#"
+        mutation UpdateUnobservedFulfillmentConstraintRule {
+          fulfillmentConstraintRuleUpdate(
+            id: "gid://shopify/FulfillmentConstraintRule/upstream-rule"
+            deliveryMethodTypes: [LOCAL]
+          ) {
+            fulfillmentConstraintRule {
+              id
+              deliveryMethodTypes
+              function { id handle apiType }
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let update = update_proxy.process_request(json_graphql_request(update_query, json!({})));
+    assert_eq!(
+        update.body["data"]["fulfillmentConstraintRuleUpdate"],
+        json!({
+            "fulfillmentConstraintRule": {
+                "id": "gid://shopify/FulfillmentConstraintRule/upstream-rule",
+                "deliveryMethodTypes": ["LOCAL"],
+                "function": {
+                    "id": "gid://shopify/ShopifyFunction/upstream-fulfillment-constraint",
+                    "handle": "upstream-fulfillment-constraint",
+                    "apiType": "FULFILLMENT_CONSTRAINT_RULE"
+                }
+            },
+            "userErrors": []
+        })
+    );
+    let update_hits = update_hits.lock().unwrap();
+    assert_eq!(update_hits.len(), 1);
+    assert_eq!(
+        update_hits[0]["operationName"],
+        json!("FunctionFulfillmentConstraintRuleHydrateById")
+    );
+    assert!(update_hits[0]["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("node(id: $id)"));
+    drop(update_hits);
+    let update_log = log_snapshot(&update_proxy);
+    assert_eq!(update_log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        update_log["entries"][0]["rawBody"],
+        json!(serde_json::to_string(&json!({ "query": update_query, "variables": {} })).unwrap())
+    );
+
+    let delete_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut delete_proxy =
+        function_fulfillment_constraint_rule_proxy_with_hits(Arc::clone(&delete_hits));
+    let delete_query = r#"
+        mutation DeleteUnobservedFulfillmentConstraintRule {
+          fulfillmentConstraintRuleDelete(
+            id: "gid://shopify/FulfillmentConstraintRule/upstream-rule"
+          ) {
+            success
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let delete = delete_proxy.process_request(json_graphql_request(delete_query, json!({})));
+    assert_eq!(
+        delete.body["data"]["fulfillmentConstraintRuleDelete"],
+        json!({ "success": true, "userErrors": [] })
+    );
+    let delete_hits = delete_hits.lock().unwrap();
+    assert_eq!(delete_hits.len(), 1);
+    assert_eq!(
+        delete_hits[0]["operationName"],
+        json!("FunctionFulfillmentConstraintRuleHydrateById")
+    );
+    assert!(delete_hits[0]["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("node(id: $id)"));
+    drop(delete_hits);
+    let delete_log = log_snapshot(&delete_proxy);
+    assert_eq!(delete_log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        delete_log["entries"][0]["rawBody"],
+        json!(serde_json::to_string(&json!({ "query": delete_query, "variables": {} })).unwrap())
+    );
+}
+
+#[test]
+fn functions_fulfillment_constraint_rule_not_found_uses_targeted_hydration() {
+    let missing_id = "gid://shopify/FulfillmentConstraintRule/999999999999";
+
+    let update_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut update_proxy =
+        function_fulfillment_constraint_rule_proxy_with_hits(Arc::clone(&update_hits));
+    let update_query = r#"
+        mutation UpdateUnknownFulfillmentConstraintRule($id: ID!) {
+          fulfillmentConstraintRuleUpdate(id: $id, deliveryMethodTypes: [LOCAL]) {
+            fulfillmentConstraintRule { id }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let update = update_proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "id": missing_id }),
+    ));
+    assert_eq!(
+        update.body["data"]["fulfillmentConstraintRuleUpdate"],
+        json!({
+            "fulfillmentConstraintRule": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": format!("Could not find FulfillmentConstraintRule with id: {missing_id}"),
+                "code": "NOT_FOUND"
+            }]
+        })
+    );
+    let update_hits_guard = update_hits.lock().unwrap();
+    assert_eq!(update_hits_guard.len(), 1);
+    assert_eq!(
+        update_hits_guard[0]["operationName"],
+        json!("FunctionFulfillmentConstraintRuleHydrateById")
+    );
+    assert_eq!(
+        update_hits_guard[0]["variables"],
+        json!({ "id": missing_id })
+    );
+    assert!(update_hits_guard[0]["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("node(id: $id)"));
+    assert!(!update_hits_guard[0]["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("fulfillmentConstraintRules"));
+    drop(update_hits_guard);
+    let update_log = log_snapshot(&update_proxy);
+    assert_eq!(update_log["entries"], json!([]));
+
+    let cached_delete = update_proxy.process_request(json_graphql_request(
+        r#"mutation DeletePreviouslyMissingFulfillmentConstraintRule($id: ID!) {
+          fulfillmentConstraintRuleDelete(id: $id) {
+            success
+            userErrors { field message code }
+          }
+        }"#,
+        json!({ "id": missing_id }),
+    ));
+    assert_eq!(
+        cached_delete.body["data"]["fulfillmentConstraintRuleDelete"],
+        json!({
+            "success": false,
+            "userErrors": [{
+                "field": ["id"],
+                "message": format!("Could not find FulfillmentConstraintRule with id: {missing_id}"),
+                "code": "NOT_FOUND"
+            }]
+        })
+    );
+    assert_eq!(
+        update_hits.lock().unwrap().len(),
+        1,
+        "an authoritative null target lookup should be reused by later roots"
+    );
+    let dump = update_proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(
+        dump.body["state"]["baseState"]["functionFulfillmentConstraintRuleKnownMissingIds"],
+        json!([missing_id])
+    );
+    let restored_hits = Arc::new(Mutex::new(0usize));
+    let restored_hits_counter = Arc::clone(&restored_hits);
+    let mut restored_proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |_| {
+        *restored_hits_counter.lock().unwrap() += 1;
+        Response {
+            status: 500,
+            headers: Default::default(),
+            body: json!({ "errors": [{ "message": "known miss should not hydrate again" }] }),
+        }
+    });
+    let restore = restored_proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let restored_delete = restored_proxy.process_request(json_graphql_request(
+        r#"mutation DeleteRestoredMissingFulfillmentConstraintRule($id: ID!) {
+          fulfillmentConstraintRuleDelete(id: $id) {
+            success
+            userErrors { field message code }
+          }
+        }"#,
+        json!({ "id": missing_id }),
+    ));
+    assert_eq!(
+        restored_delete.body["data"]["fulfillmentConstraintRuleDelete"],
+        cached_delete.body["data"]["fulfillmentConstraintRuleDelete"]
+    );
+    assert_eq!(*restored_hits.lock().unwrap(), 0);
+
+    let delete_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut delete_proxy =
+        function_fulfillment_constraint_rule_proxy_with_hits(Arc::clone(&delete_hits));
+    let delete_query = r#"
+        mutation DeleteUnknownFulfillmentConstraintRule($id: ID!) {
+          fulfillmentConstraintRuleDelete(id: $id) {
+            success
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let delete = delete_proxy.process_request(json_graphql_request(
+        delete_query,
+        json!({ "id": missing_id }),
+    ));
+    assert_eq!(
+        delete.body["data"]["fulfillmentConstraintRuleDelete"],
+        json!({
+            "success": false,
+            "userErrors": [{
+                "field": ["id"],
+                "message": format!("Could not find FulfillmentConstraintRule with id: {missing_id}"),
+                "code": "NOT_FOUND"
+            }]
+        })
+    );
+    let delete_hits_guard = delete_hits.lock().unwrap();
+    assert_eq!(delete_hits_guard.len(), 1);
+    assert_eq!(
+        delete_hits_guard[0]["operationName"],
+        json!("FunctionFulfillmentConstraintRuleHydrateById")
+    );
+    assert_eq!(
+        delete_hits_guard[0]["variables"],
+        json!({ "id": missing_id })
+    );
+    assert!(delete_hits_guard[0]["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("node(id: $id)"));
+    assert!(!delete_hits_guard[0]["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("fulfillmentConstraintRules"));
+    drop(delete_hits_guard);
+    let delete_log = log_snapshot(&delete_proxy);
+    assert_eq!(delete_log["entries"], json!([]));
+}
+
+#[test]
+fn functions_fulfillment_constraint_rule_catalog_fallback_proves_absence() {
+    let hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let recorded_hits = Arc::clone(&hits);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body).unwrap();
+        recorded_hits.lock().unwrap().push(body.clone());
+        let (status, response_body) =
+            if body["operationName"] == json!("FunctionFulfillmentConstraintRuleHydrateById") {
+                (
+                    500,
+                    json!({ "errors": [{ "message": "targeted read temporarily unavailable" }] }),
+                )
+            } else {
+                (
+                    200,
+                    json!({
+                        "data": {
+                            "fulfillmentConstraintRules": [{
+                                "id": "gid://shopify/FulfillmentConstraintRule/known",
+                                "deliveryMethodTypes": ["SHIPPING"],
+                                "function": function_metadata_record(
+                                    "gid://shopify/ShopifyFunction/known",
+                                    "Known fulfillment constraint",
+                                    "known-fulfillment-constraint",
+                                    "FULFILLMENT_CONSTRAINT_RULE",
+                                    "known-key",
+                                    "known-app",
+                                ),
+                                "metafields": { "nodes": [] }
+                            }]
+                        }
+                    }),
+                )
+            };
+        Response {
+            status,
+            headers: Default::default(),
+            body: response_body,
+        }
+    });
+
+    let missing_id = "gid://shopify/FulfillmentConstraintRule/missing-after-fallback";
+    let update = proxy.process_request(json_graphql_request(
+        r#"mutation UpdateMissingRuleAfterTargetedReadFailure($id: ID!) {
+          fulfillmentConstraintRuleUpdate(id: $id, deliveryMethodTypes: [LOCAL]) {
+            fulfillmentConstraintRule { id }
+            userErrors { code field message }
+          }
+        }"#,
+        json!({ "id": missing_id }),
+    ));
+    assert_eq!(
+        update.body["data"]["fulfillmentConstraintRuleUpdate"]["userErrors"][0]["code"],
+        json!("NOT_FOUND")
+    );
+    assert_eq!(hits.lock().unwrap().len(), 2);
+    assert_eq!(
+        hits.lock().unwrap()[1]["operationName"],
+        json!("FunctionFulfillmentConstraintRulesHydrate")
+    );
+
+    let another_missing_id = "gid://shopify/FulfillmentConstraintRule/another-missing";
+    let delete = proxy.process_request(json_graphql_request(
+        r#"mutation DeleteMissingRuleFromCompleteCatalog($id: ID!) {
+          fulfillmentConstraintRuleDelete(id: $id) {
+            success
+            userErrors { code field message }
+          }
+        }"#,
+        json!({ "id": another_missing_id }),
+    ));
+    assert_eq!(
+        delete.body["data"]["fulfillmentConstraintRuleDelete"]["userErrors"][0]["code"],
+        json!("NOT_FOUND")
+    );
+    assert_eq!(
+        hits.lock().unwrap().len(),
+        2,
+        "the successful argument-free fallback proves the lifecycle catalog complete"
+    );
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(
+        dump.body["state"]["baseState"]["functionFulfillmentConstraintRuleCatalogComplete"],
+        json!(true)
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
+fn functions_complete_compatibility_windows_backfill_private_lifecycle_decisions() {
+    let validation_function = function_metadata_record(
+        "gid://shopify/ShopifyFunction/compat-validation",
+        "Compatibility Validation",
+        "compat-validation",
+        "VALIDATION",
+        "compat-validation-key",
+        "compat-validation-app",
+    );
+    let cart_function = function_metadata_record(
+        "gid://shopify/ShopifyFunction/compat-cart-transform",
+        "Compatibility Cart Transform",
+        "compat-cart-transform",
+        "CART_TRANSFORM",
+        "compat-cart-key",
+        "compat-cart-app",
+    );
+    let hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let recorded_hits = Arc::clone(&hits);
+    let validation_function_for_transport = validation_function.clone();
+    let cart_function_for_transport = cart_function.clone();
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body).unwrap();
+        recorded_hits.lock().unwrap().push(body.clone());
+        let query = body["query"].as_str().unwrap_or_default();
+        let (status, response_body) = match body["operationName"].as_str() {
+            Some("FunctionHydrateById") => {
+                let function = match body["variables"]["id"].as_str() {
+                    Some("gid://shopify/ShopifyFunction/compat-validation") => {
+                        validation_function_for_transport.clone()
+                    }
+                    Some("gid://shopify/ShopifyFunction/compat-cart-transform") => {
+                        cart_function_for_transport.clone()
+                    }
+                    _ => Value::Null,
+                };
+                (200, json!({ "data": { "shopifyFunction": function } }))
+            }
+            Some("FunctionValidationDecisionPreflight")
+            | Some("FunctionCartTransformDecisionPreflight") => (
+                500,
+                json!({ "errors": [{ "message": "minimal decision probe unavailable" }] }),
+            ),
+            Some("FunctionConnectionWindowHydrate") if query.contains("validations(first: 3") => (
+                200,
+                json!({
+                    "data": {
+                        "validations": {
+                            "edges": [
+                                {
+                                    "cursor": "compat-validation-2",
+                                    "node": {
+                                        "id": "gid://shopify/Validation/compat-2",
+                                        "title": "Compatibility two",
+                                        "enabled": false,
+                                        "blockOnFailure": false,
+                                        "shopifyFunction": {
+                                            "id": "gid://shopify/ShopifyFunction/other-2",
+                                            "apiType": "cart_checkout_validation"
+                                        }
+                                    }
+                                },
+                                {
+                                    "cursor": "compat-validation-1",
+                                    "node": {
+                                        "id": "gid://shopify/Validation/compat-1",
+                                        "title": "Compatibility one",
+                                        "enabled": true,
+                                        "blockOnFailure": true,
+                                        "shopifyFunction": {
+                                            "id": "gid://shopify/ShopifyFunction/other-1",
+                                            "apiType": "cart_checkout_validation"
+                                        }
+                                    }
+                                }
+                            ],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "compat-validation-2",
+                                "endCursor": "compat-validation-1"
+                            }
+                        }
+                    }
+                }),
+            ),
+            Some("FunctionConnectionWindowHydrate")
+                if query.contains("cartTransforms(first: 3") =>
+            {
+                (
+                    200,
+                    json!({
+                        "data": {
+                            "cartTransforms": {
+                                "edges": [],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": null,
+                                    "endCursor": null
+                                }
+                            }
+                        }
+                    }),
+                )
+            }
+            _ => panic!("unexpected compatibility decision request: {body}"),
+        };
+        Response {
+            status,
+            headers: Default::default(),
+            body: response_body,
+        }
+    });
+
+    let validation_query = r#"mutation CompatibilityValidationCreate {
+      validationCreate(validation: {
+        functionId: "gid://shopify/ShopifyFunction/compat-validation"
+        title: "Compatibility staged validation"
+        enable: true
+      }) {
+        validation { id title }
+        userErrors { field message code }
+      }
+    }"#;
+    let validation = proxy.process_request(json_graphql_request(validation_query, json!({})));
+    assert_eq!(
+        validation.body["data"]["validationCreate"]["userErrors"],
+        json!([])
+    );
+    let validation_id = validation.body["data"]["validationCreate"]["validation"]["id"]
+        .as_str()
+        .unwrap();
+    assert_synthetic_gid(validation_id, "Validation");
+
+    let cart_query = r#"mutation CompatibilityCartTransformCreate {
+      cartTransformCreate(
+        functionId: "gid://shopify/ShopifyFunction/compat-cart-transform"
+      ) {
+        cartTransform { id functionId }
+        userErrors { field message code }
+      }
+    }"#;
+    let cart_transform = proxy.process_request(json_graphql_request(cart_query, json!({})));
+    assert_eq!(
+        cart_transform.body["data"]["cartTransformCreate"]["userErrors"],
+        json!([])
+    );
+    let cart_transform_id = cart_transform.body["data"]["cartTransformCreate"]["cartTransform"]
+        ["id"]
+        .as_str()
+        .unwrap();
+    assert_synthetic_gid(cart_transform_id, "CartTransform");
+
+    let hits = hits.lock().unwrap();
+    assert_eq!(
+        hits.iter()
+            .filter(|body| body["operationName"] == "FunctionValidationDecisionPreflight")
+            .count(),
+        1
+    );
+    assert_eq!(
+        hits.iter()
+            .filter(|body| body["operationName"] == "FunctionCartTransformDecisionPreflight")
+            .count(),
+        1
+    );
+    let compatibility_windows = hits
+        .iter()
+        .filter(|body| body["operationName"] == "FunctionConnectionWindowHydrate")
+        .collect::<Vec<_>>();
+    assert_eq!(compatibility_windows.len(), 2);
+    assert!(compatibility_windows.iter().any(|body| body["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("validations(first: 3, reverse: true)")));
+    assert!(compatibility_windows.iter().any(|body| body["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("cartTransforms(first: 3)")));
+    drop(hits);
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(
+        dump.body["state"]["baseState"]["functionValidationDecisionCatalogComplete"],
+        json!(true)
+    );
+    assert_eq!(
+        dump.body["state"]["baseState"]["functionValidationDecisionRecords"]
+            .as_object()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert_eq!(
+        dump.body["state"]["baseState"]["functionCartTransformDecisionHydrated"],
+        json!(true)
+    );
+    assert!(dump.body["state"]["baseState"]
+        .get("functionValidations")
+        .is_none());
+    assert!(dump.body["state"]["baseState"]
+        .get("functionCartTransforms")
+        .is_none());
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 2);
+    assert!(log["entries"][0]["rawBody"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("CompatibilityValidationCreate"));
+    assert!(log["entries"][1]["rawBody"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("CompatibilityCartTransformCreate"));
+}
+
+#[test]
+fn functions_authoritative_preflight_failures_do_not_stage_or_claim_not_found() {
+    let cart_function = function_metadata_record(
+        "gid://shopify/ShopifyFunction/cart-transform-unavailable-preflight",
+        "Cart Transform Unavailable Preflight",
+        "cart-transform-unavailable-preflight",
+        "CART_TRANSFORM",
+        "cart-unavailable-key",
+        "cart-unavailable-app",
+    );
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body).unwrap();
+        let response_body = match body["operationName"].as_str() {
+            Some("FunctionHydrateById") => {
+                json!({ "data": { "shopifyFunction": cart_function.clone() } })
+            }
+            _ => json!({ "errors": [{ "message": "authoritative preflight unavailable" }] }),
+        };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: response_body,
+        }
+    });
+
+    let validation = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ValidationUnavailablePreflight {
+          validationCreate(validation: {
+            functionHandle: "validation-alpha"
+            enable: true
+          }) {
+            validation { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        validation.body["data"]["validationCreate"],
+        json!({
+            "validation": null,
+            "userErrors": [{
+                "field": null,
+                "message": "Unable to verify the authoritative Function lifecycle state.",
+                "code": null
+            }]
+        })
+    );
+
+    let cart_transform = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CartTransformUnavailablePreflight {
+          cartTransformCreate(
+            functionId: "gid://shopify/ShopifyFunction/cart-transform-unavailable-preflight"
+          ) {
+            cartTransform { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        cart_transform.body["data"]["cartTransformCreate"],
+        json!({
+            "cartTransform": null,
+            "userErrors": [{
+                "field": null,
+                "message": "Unable to verify the authoritative Function lifecycle state.",
+                "code": null
+            }]
+        })
+    );
+
+    let missing_id = "gid://shopify/FulfillmentConstraintRule/unavailable-preflight";
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentConstraintUpdateUnavailablePreflight($id: ID!) {
+          fulfillmentConstraintRuleUpdate(id: $id, deliveryMethodTypes: [LOCAL]) {
+            fulfillmentConstraintRule { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": missing_id }),
+    ));
+    assert_eq!(
+        update.body["data"]["fulfillmentConstraintRuleUpdate"],
+        json!({
+            "fulfillmentConstraintRule": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Unable to resolve the FulfillmentConstraintRule from Shopify.",
+                "code": null
+            }]
+        })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentConstraintDeleteUnavailablePreflight($id: ID!) {
+          fulfillmentConstraintRuleDelete(id: $id) {
+            success
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": missing_id }),
+    ));
+    assert_eq!(
+        delete.body["data"]["fulfillmentConstraintRuleDelete"],
+        json!({
+            "success": false,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Unable to resolve the FulfillmentConstraintRule from Shopify.",
+                "code": null
+            }]
+        })
+    );
+
+    let staged = state_snapshot(&proxy);
+    for key in [
+        "functionValidations",
+        "functionCartTransforms",
+        "functionFulfillmentConstraintRules",
+    ] {
+        let records = &staged["stagedState"][key];
+        assert!(records.is_null() || records.as_object().is_some_and(serde_json::Map::is_empty));
+    }
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -11174,6 +14831,587 @@ fn localization_digest_validation_skips_unobserved_source_content_without_prefix
         })
     );
     assert_eq!(*upstream_hits.lock().unwrap(), 1);
+}
+
+#[test]
+fn localization_source_observations_do_not_replace_canonical_product_or_collection_state() {
+    let product_id = "gid://shopify/Product/81001";
+    let collection_id = "gid://shopify/Collection/81002";
+    let media_id = "gid://shopify/MediaImage/81003";
+    let upstream_operations = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_operations = Arc::clone(&upstream_operations);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let product_id = product_id.to_string();
+        let collection_id = collection_id.to_string();
+        let media_id = media_id.to_string();
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            let query = body["query"].as_str().unwrap_or_default();
+            let operation_name = body["operationName"]
+                .as_str()
+                .or_else(|| {
+                    [
+                        "ObserveLocalizationSources",
+                        "ObserveDisjointParentSiblings",
+                        "HydrateCanonicalParents",
+                        "ProductMutationPreflightHydrate",
+                    ]
+                    .into_iter()
+                    .find(|name| query.contains(name))
+                })
+                .unwrap_or_default();
+            captured_operations
+                .lock()
+                .unwrap()
+                .push(operation_name.to_string());
+            let data = match operation_name {
+                "ObserveLocalizationSources" => json!({
+                    "productSource": {
+                        "resourceId": product_id,
+                        "translatableContent": [
+                            {
+                                "key": "title",
+                                "value": "Rich source product",
+                                "digest": "product-title-digest",
+                                "locale": "en",
+                                "type": "SINGLE_LINE_TEXT_FIELD"
+                            },
+                            {
+                                "key": "body_html",
+                                "value": "<p>Rich product body</p>",
+                                "digest": "product-body-digest",
+                                "locale": "en",
+                                "type": "HTML"
+                            },
+                            {
+                                "key": "handle",
+                                "value": "rich-source-product",
+                                "digest": "product-handle-digest",
+                                "locale": "en",
+                                "type": "URI"
+                            }
+                        ]
+                    },
+                    "collectionSource": {
+                        "resourceId": collection_id,
+                        "translatableContent": [
+                            {
+                                "key": "title",
+                                "value": "Rich source collection",
+                                "digest": "collection-title-digest",
+                                "locale": "en",
+                                "type": "SINGLE_LINE_TEXT_FIELD"
+                            },
+                            {
+                                "key": "body_html",
+                                "value": "<p>Rich collection body</p>",
+                                "digest": "collection-body-digest",
+                                "locale": "en",
+                                "type": "HTML"
+                            }
+                        ]
+                    }
+                }),
+                "ObserveDisjointParentSiblings" => json!({
+                    "product": {
+                        "id": product_id,
+                        "status": "ARCHIVED",
+                        "createdAt": "2025-02-03T04:05:06Z",
+                        "updatedAt": "2025-03-04T05:06:07Z",
+                        "vendor": "Rich Vendor",
+                        "tags": ["alpha", "beta"]
+                    },
+                    "collection": {
+                        "id": collection_id,
+                        "updatedAt": "2025-04-05T06:07:08Z",
+                        "templateSuffix": "rich-collection",
+                        "sortOrder": "MANUAL"
+                    }
+                }),
+                "HydrateCanonicalParents" => json!({
+                    "nodes": [
+                        {
+                            "__typename": "Collection",
+                            "id": collection_id,
+                            "title": "Rich source collection",
+                            "handle": "rich-source-collection",
+                            "descriptionHtml": "<p>Rich collection body</p>",
+                            "updatedAt": "2025-04-05T06:07:08Z",
+                            "templateSuffix": "rich-collection",
+                            "sortOrder": "MANUAL",
+                            "seo": {
+                                "title": "Rich collection SEO",
+                                "description": "Rich collection SEO description"
+                            },
+                            "products": {
+                                "nodes": [{
+                                    "id": product_id,
+                                    "title": "Rich source product"
+                                }]
+                            }
+                        },
+                        {
+                            "__typename": "Product",
+                            "id": product_id,
+                            "title": "Rich source product",
+                            "handle": "rich-source-product",
+                            "status": "ARCHIVED",
+                            "createdAt": "2025-02-03T04:05:06Z",
+                            "updatedAt": "2025-03-04T05:06:07Z",
+                            "descriptionHtml": "<p>Rich product body</p>",
+                            "vendor": "Rich Vendor",
+                            "productType": "Rich Type",
+                            "tags": ["alpha", "beta"],
+                            "templateSuffix": "rich-product",
+                            "seo": {
+                                "title": "Rich product SEO",
+                                "description": "Rich product SEO description"
+                            },
+                            "media": {
+                                "nodes": [{
+                                    "__typename": "MediaImage",
+                                    "id": media_id,
+                                    "mediaContentType": "IMAGE"
+                                }]
+                            },
+                            "collections": {
+                                "nodes": [{
+                                    "id": collection_id,
+                                    "title": "Rich source collection"
+                                }]
+                            }
+                        }
+                    ]
+                }),
+                "ProductMutationPreflightHydrate" => {
+                    let mut product = json!({
+                        "__typename": "Product",
+                        "id": product_id,
+                        "legacyResourceId": "81001",
+                        "createdAt": "2025-02-03T04:05:06Z",
+                        "updatedAt": "2025-03-04T05:06:07Z",
+                        "title": "Rich source product",
+                        "handle": "rich-source-product",
+                        "status": "ARCHIVED",
+                        "publishedAt": null,
+                        "descriptionHtml": "<p>Rich product body</p>",
+                        "vendor": "Rich Vendor",
+                        "productType": "Rich Type",
+                        "tags": ["alpha", "beta"],
+                        "templateSuffix": "rich-product",
+                        "totalInventory": 8,
+                        "tracksInventory": true,
+                        "onlineStorePreviewUrl": "https://example.test/products/rich-source-product",
+                        "requiresSellingPlan": false,
+                        "isGiftCard": false,
+                        "giftCardTemplateSuffix": null,
+                        "seo": {
+                            "title": "Rich product SEO",
+                            "description": "Rich product SEO description"
+                        },
+                        "category": null
+                    });
+                    product["options"] = json!([{
+                        "id": "gid://shopify/ProductOption/81005",
+                        "name": "Color",
+                        "position": 1,
+                        "values": ["Blue"],
+                        "optionValues": [{
+                            "id": "gid://shopify/ProductOptionValue/81006",
+                            "name": "Blue",
+                            "hasVariants": true
+                        }]
+                    }]);
+
+                    let mut variant = json!({
+                        "id": "gid://shopify/ProductVariant/81004",
+                        "title": "Blue",
+                        "sku": "RICH-81004",
+                        "barcode": "81004",
+                        "price": "8.00",
+                        "compareAtPrice": "10.00",
+                        "position": 1,
+                        "taxable": true,
+                        "taxCode": "P000000",
+                        "inventoryPolicy": "DENY",
+                        "inventoryQuantity": 8,
+                        "requiresComponents": false,
+                        "showUnitPrice": false,
+                        "unitPriceMeasurement": null
+                    });
+                    variant["selectedOptions"] = json!([{ "name": "Color", "value": "Blue" }]);
+                    variant["metafields"] = json!({ "nodes": [] });
+                    variant["inventoryItem"] = json!({
+                        "id": "gid://shopify/InventoryItem/81004",
+                        "tracked": true,
+                        "requiresShipping": true,
+                        "countryCodeOfOrigin": "CA",
+                        "provinceCodeOfOrigin": "ON",
+                        "harmonizedSystemCode": "810000",
+                        "measurement": {
+                            "weight": { "unit": "KILOGRAMS", "value": 0.5 }
+                        }
+                    });
+                    variant["media"] = json!({ "nodes": [{ "id": media_id }] });
+                    product["variants"] = json!({
+                        "nodes": [variant],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": "variant-81004",
+                            "endCursor": "variant-81004"
+                        }
+                    });
+
+                    product["media"] = json!({
+                        "nodes": [{
+                            "__typename": "MediaImage",
+                            "id": media_id,
+                            "alt": "Rich product media",
+                            "mediaContentType": "IMAGE",
+                            "status": "READY",
+                            "preview": {
+                                "image": {
+                                    "url": "https://cdn.example.test/rich-source-product.png",
+                                    "width": 800,
+                                    "height": 600
+                                }
+                            },
+                            "image": {
+                                "url": "https://cdn.example.test/rich-source-product.png",
+                                "width": 800,
+                                "height": 600
+                            }
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": "media-81003",
+                            "endCursor": "media-81003"
+                        }
+                    });
+                    product["collections"] = json!({
+                        "nodes": [{
+                            "id": collection_id,
+                            "title": "Rich source collection",
+                            "handle": "rich-source-collection"
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": "collection-81002",
+                            "endCursor": "collection-81002"
+                        }
+                    });
+                    json!({ "product": product })
+                },
+                unexpected => panic!("unexpected upstream operation: {unexpected}"),
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": data }),
+            }
+        }
+    });
+
+    let localization = proxy.process_request(json_graphql_request(
+        r#"query ObserveLocalizationSources($productId: ID!, $collectionId: ID!) {
+          productSource: translatableResource(resourceId: $productId) {
+            resourceId
+            translatableContent { key value digest locale type }
+          }
+          collectionSource: translatableResource(resourceId: $collectionId) {
+            resourceId
+            translatableContent { key value digest locale type }
+          }
+        }"#,
+        json!({ "productId": product_id, "collectionId": collection_id }),
+    ));
+    assert_eq!(localization.status, 200);
+    assert_eq!(
+        localization.body["data"]["productSource"]["translatableContent"][0]["value"],
+        json!("Rich source product")
+    );
+    let observed_state = state_snapshot(&proxy);
+    assert!(observed_state["stagedState"]["products"]
+        .get(product_id)
+        .is_none());
+    assert!(observed_state["stagedState"]["collections"]
+        .get(collection_id)
+        .is_none());
+    assert_eq!(
+        observed_state["baseState"]["localizationSourceResources"][product_id]
+            ["translatableContent"][0]["key"],
+        json!("title")
+    );
+
+    let disjoint_observation = proxy.process_request(json_graphql_request(
+        r#"query ObserveDisjointParentSiblings($productId: ID!, $collectionId: ID!) {
+          product(id: $productId) { id status createdAt updatedAt vendor tags }
+          collection(id: $collectionId) { id updatedAt templateSuffix sortOrder }
+        }"#,
+        json!({ "productId": product_id, "collectionId": collection_id }),
+    ));
+    assert_eq!(
+        disjoint_observation.body["data"]["product"]["status"],
+        json!("ARCHIVED")
+    );
+    assert_eq!(
+        disjoint_observation.body["data"]["collection"]["sortOrder"],
+        json!("MANUAL")
+    );
+    let source_after_disjoint = proxy.process_request(json_graphql_request(
+        r#"query SourceAfterDisjointObservation($productId: ID!, $collectionId: ID!) {
+          productSource: translatableResource(resourceId: $productId) {
+            translatableContent { key value }
+          }
+          collectionSource: translatableResource(resourceId: $collectionId) {
+            translatableContent { key value }
+          }
+        }"#,
+        json!({ "productId": product_id, "collectionId": collection_id }),
+    ));
+    assert_eq!(
+        source_after_disjoint.body["data"]["productSource"]["translatableContent"][0],
+        json!({ "key": "title", "value": "Rich source product" })
+    );
+    assert_eq!(
+        source_after_disjoint.body["data"]["collectionSource"]["translatableContent"][0],
+        json!({ "key": "title", "value": "Rich source collection" })
+    );
+
+    let canonical_nodes = proxy.process_request(json_graphql_request(
+        r#"query HydrateCanonicalParents($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            __typename
+            ... on Product {
+              id title handle status createdAt updatedAt descriptionHtml vendor productType tags
+              templateSuffix seo { title description }
+              media(first: 10) { nodes { id mediaContentType } }
+              collections(first: 10) { nodes { id title } }
+            }
+            ... on Collection {
+              id title handle descriptionHtml updatedAt templateSuffix sortOrder
+              seo { title description }
+              products(first: 10) { nodes { id title } }
+            }
+          }
+        }"#,
+        json!({ "ids": [collection_id, product_id] }),
+    ));
+    assert_eq!(canonical_nodes.status, 200);
+    assert_eq!(
+        canonical_nodes.body["data"]["nodes"][1]["status"],
+        json!("ARCHIVED")
+    );
+    assert_eq!(
+        canonical_nodes.body["data"]["nodes"][1]["vendor"],
+        json!("Rich Vendor")
+    );
+    assert_eq!(
+        canonical_nodes.body["data"]["nodes"][0]["updatedAt"],
+        json!("2025-04-05T06:07:08Z")
+    );
+
+    let disjoint_roots = proxy.process_request(json_graphql_request(
+        r#"query ReadCanonicalParents($productId: ID!, $collectionId: ID!) {
+          product(id: $productId) {
+            id status vendor tags createdAt updatedAt
+            media(first: 10) { nodes { id } }
+            collections(first: 10) { nodes { id } }
+          }
+          collection(id: $collectionId) {
+            id descriptionHtml updatedAt templateSuffix sortOrder
+            products(first: 10) { nodes { id } }
+          }
+        }"#,
+        json!({ "productId": product_id, "collectionId": collection_id }),
+    ));
+    assert_eq!(disjoint_roots.status, 200);
+    assert_eq!(
+        disjoint_roots.body["data"]["product"]["tags"],
+        json!(["alpha", "beta"])
+    );
+    assert_eq!(
+        disjoint_roots.body["data"]["collection"]["products"]["nodes"][0]["id"],
+        json!(product_id)
+    );
+
+    let product_update = proxy.process_request(json_graphql_request(
+        r#"mutation NarrowProductUpdate($product: ProductUpdateInput!) {
+          productUpdate(product: $product) {
+            product {
+              id title status vendor tags createdAt
+              media(first: 10) { nodes { id } }
+              collections(first: 10) { nodes { id } }
+            }
+            userErrors { field message }
+          }
+        }"#,
+        json!({ "product": { "id": product_id, "title": "Narrow product title" } }),
+    ));
+    assert_eq!(
+        product_update.body["data"]["productUpdate"]["product"]["vendor"],
+        json!("Rich Vendor")
+    );
+    assert_eq!(
+        product_update.body["data"]["productUpdate"]["product"]["media"]["nodes"][0]["id"],
+        json!(media_id)
+    );
+
+    let collection_update = proxy.process_request(json_graphql_request(
+        r#"mutation NarrowCollectionUpdate($input: CollectionInput!) {
+          collectionUpdate(input: $input) {
+            collection {
+              id title descriptionHtml updatedAt templateSuffix sortOrder
+              products(first: 10) { nodes { id } }
+            }
+            userErrors { field message }
+          }
+        }"#,
+        json!({ "input": { "id": collection_id, "title": "Narrow collection title" } }),
+    ));
+    assert_eq!(
+        collection_update.body["data"]["collectionUpdate"]["collection"]["descriptionHtml"],
+        json!("<p>Rich collection body</p>")
+    );
+    assert_eq!(
+        collection_update.body["data"]["collectionUpdate"]["collection"]["products"]["nodes"][0]
+            ["id"],
+        json!(product_id)
+    );
+
+    let source_after_updates = proxy.process_request(json_graphql_request(
+        r#"query SourceAfterNarrowUpdates($productId: ID!, $collectionId: ID!) {
+          productSource: translatableResource(resourceId: $productId) {
+            translatableContent { key value }
+          }
+          collectionSource: translatableResource(resourceId: $collectionId) {
+            translatableContent { key value }
+          }
+        }"#,
+        json!({ "productId": product_id, "collectionId": collection_id }),
+    ));
+    let product_content = source_after_updates.body["data"]["productSource"]["translatableContent"]
+        .as_array()
+        .unwrap();
+    assert!(product_content
+        .iter()
+        .any(|entry| entry == &json!({ "key": "title", "value": "Narrow product title" })));
+    assert!(product_content
+        .iter()
+        .any(|entry| entry == &json!({ "key": "body_html", "value": "<p>Rich product body</p>" })));
+    let collection_content = source_after_updates.body["data"]["collectionSource"]
+        ["translatableContent"]
+        .as_array()
+        .unwrap();
+    assert!(collection_content
+        .iter()
+        .any(|entry| entry == &json!({ "key": "title", "value": "Narrow collection title" })));
+
+    let updated_state = state_snapshot(&proxy);
+    assert_eq!(
+        updated_state["baseState"]["localizationSourceResources"][product_id]
+            ["translatableContent"][0]["value"],
+        json!("Rich source product")
+    );
+    assert_eq!(
+        updated_state["stagedState"]["localizationSourceResources"][product_id]
+            ["translatableContent"][0]["value"],
+        json!("Narrow product title")
+    );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    assert_eq!(dump.status, 200);
+    let mut restored = configured_proxy(ReadMode::LiveHybrid, None);
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let source_after_restore = restored.process_request(json_graphql_request(
+        r#"query SourceAfterRestore($productId: ID!, $collectionId: ID!) {
+          productSource: translatableResource(resourceId: $productId) {
+            translatableContent { key value }
+          }
+          collectionSource: translatableResource(resourceId: $collectionId) {
+            translatableContent { key value }
+          }
+        }"#,
+        json!({ "productId": product_id, "collectionId": collection_id }),
+    ));
+    assert!(
+        source_after_restore.body["data"]["productSource"]["translatableContent"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|entry| entry == &json!({ "key": "title", "value": "Narrow product title" }))
+    );
+
+    let reset = restored.process_request(request_with_body("POST", "/__meta/reset", "{}"));
+    assert_eq!(reset.status, 200);
+    let source_after_reset = restored.process_request(json_graphql_request(
+        r#"query SourceAfterReset($productId: ID!, $collectionId: ID!) {
+          productSource: translatableResource(resourceId: $productId) {
+            translatableContent { key value }
+          }
+          collectionSource: translatableResource(resourceId: $collectionId) {
+            translatableContent { key value }
+          }
+        }"#,
+        json!({ "productId": product_id, "collectionId": collection_id }),
+    ));
+    assert_eq!(
+        source_after_reset.body["data"]["productSource"]["translatableContent"][0],
+        json!({ "key": "title", "value": "Rich source product" })
+    );
+    assert_eq!(
+        source_after_reset.body["data"]["collectionSource"]["translatableContent"][0],
+        json!({ "key": "title", "value": "Rich source collection" })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"mutation DeleteCanonicalParents(
+          $productInput: ProductDeleteInput!
+          $collectionInput: CollectionDeleteInput!
+        ) {
+          productDelete(input: $productInput) { deletedProductId userErrors { field message } }
+          collectionDelete(input: $collectionInput) { deletedCollectionId userErrors { field message } }
+        }"#,
+        json!({
+            "productInput": { "id": product_id },
+            "collectionInput": { "id": collection_id }
+        }),
+    ));
+    assert_eq!(
+        delete.body["data"]["productDelete"]["deletedProductId"],
+        json!(product_id)
+    );
+    assert_eq!(
+        delete.body["data"]["collectionDelete"]["deletedCollectionId"],
+        json!(collection_id)
+    );
+    let after_delete = proxy.process_request(json_graphql_request(
+        r#"query SourcesAfterDelete($productId: ID!, $collectionId: ID!) {
+          productSource: translatableResource(resourceId: $productId) { resourceId }
+          collectionSource: translatableResource(resourceId: $collectionId) { resourceId }
+        }"#,
+        json!({ "productId": product_id, "collectionId": collection_id }),
+    ));
+    assert_eq!(after_delete.body["data"]["productSource"], Value::Null);
+    assert_eq!(after_delete.body["data"]["collectionSource"], Value::Null);
+
+    assert_eq!(
+        upstream_operations.lock().unwrap().as_slice(),
+        [
+            "ObserveLocalizationSources",
+            "ObserveDisjointParentSiblings",
+            "HydrateCanonicalParents",
+            "ProductMutationPreflightHydrate"
+        ]
+    );
 }
 
 #[test]
@@ -16181,6 +20419,8 @@ fn discount_redeem_code_bulk_add_validation_tracks_async_results_and_downstream_
 #[test]
 fn discount_update_edge_cases_reject_bulk_code_change_and_coerce_bxgy() {
     let mut proxy = snapshot_proxy();
+    let (product_one_id, _) = create_discount_ref_product(&mut proxy);
+    let (product_two_id, _) = create_discount_ref_product(&mut proxy);
     let create_basic = r#"mutation DiscountUpdateEdgeBasicCreate($input: DiscountCodeBasicInput!) { discountCodeBasicCreate(basicCodeDiscount: $input) { codeDiscountNode { id } userErrors { field message code extraInfo } } }"#;
     let created = proxy.process_request(json_graphql_request(create_basic, json!({ "input": { "title": "HAR-605 bulk rule 1778002393771", "code": "HAR605BULK1778002393771", "startsAt": "2026-04-25T00:00:00Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } } })));
     assert_eq!(
@@ -16216,7 +20456,7 @@ fn discount_update_edge_cases_reject_bulk_code_change_and_coerce_bxgy() {
     );
 
     let create_bxgy = r#"mutation DiscountUpdateEdgeBxgyCreate($input: DiscountCodeBxgyInput!) { discountCodeBxgyCreate(bxgyCodeDiscount: $input) { codeDiscountNode { id codeDiscount { __typename } } userErrors { field message code extraInfo } } }"#;
-    let bxgy = proxy.process_request(json_graphql_request(create_bxgy, json!({ "input": { "title": "HAR-605 BXGY 1778002393771", "code": "HAR605BXGY1778002393771", "startsAt": "2026-04-25T00:00:00Z", "context": { "all": "ALL" }, "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10177504608562"] } } }, "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 0.5 } } }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10177504641330"] } } } } })));
+    let bxgy = proxy.process_request(json_graphql_request(create_bxgy, json!({ "input": { "title": "HAR-605 BXGY 1778002393771", "code": "HAR605BXGY1778002393771", "startsAt": "2026-04-25T00:00:00Z", "context": { "all": "ALL" }, "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": [product_one_id] } } }, "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 0.5 } } }, "items": { "products": { "productsToAdd": [product_two_id] } } } } })));
     assert_eq!(
         bxgy.body["data"]["discountCodeBxgyCreate"]["codeDiscountNode"]["codeDiscount"]
             ["__typename"],
@@ -16254,6 +20494,7 @@ fn discount_update_edge_cases_reject_bulk_code_change_and_coerce_bxgy() {
 #[test]
 fn discount_subscription_fields_not_permitted_matches_local_runtime_gating() {
     let mut proxy = snapshot_proxy();
+    set_discount_shop_sells_subscriptions(&mut proxy, false);
     let primary = r#"
         mutation DiscountSubscriptionFieldsNotPermitted {
           basicSub: discountCodeBasicCreate(basicCodeDiscount: { title: "Sub gated", code: "SUB-GATED", startsAt: "2026-04-25T00:00:00Z", customerGets: { value: { percentage: 0.1 }, items: { all: true }, appliesOnSubscription: true } }) { codeDiscountNode { id } userErrors { field message code extraInfo } }
@@ -16586,6 +20827,9 @@ fn discount_free_shipping_lifecycle_stages_code_and_automatic_statuses() {
 #[test]
 fn discount_class_inference_stages_all_discount_classes_and_product_count() {
     let mut proxy = snapshot_proxy();
+    let (product_one_id, _) = create_discount_ref_product(&mut proxy);
+    let (product_two_id, _) = create_discount_ref_product(&mut proxy);
+    let collection_id = create_discount_ref_collection(&mut proxy);
     let create_query = r#"
         mutation DiscountClassInferenceCreate(
           $basicAll: DiscountCodeBasicInput!
@@ -16605,9 +20849,9 @@ fn discount_class_inference_stages_all_discount_classes_and_product_count() {
         create_query,
         json!({
             "basicAll": { "title": "HAR597CLASS1777950382203 basic order", "code": "HAR597ORDER1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } },
-            "basicProduct": { "title": "HAR597CLASS1777950382203 basic product", "code": "HAR597PRODUCT1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10177002799410"] } } } },
-            "basicCollection": { "title": "HAR597CLASS1777950382203 basic collection", "code": "HAR597COLL1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "collections": { "add": ["gid://shopify/Collection/512409665842"] } } } },
-            "bxgy": { "title": "HAR597CLASS1777950382203 bxgy product", "code": "HAR597BXGY1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10177002832178"] } } }, "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 0.5 } } }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10177002799410"] } } } },
+            "basicProduct": { "title": "HAR597CLASS1777950382203 basic product", "code": "HAR597PRODUCT1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "products": { "productsToAdd": [product_one_id.clone()] } } } },
+            "basicCollection": { "title": "HAR597CLASS1777950382203 basic collection", "code": "HAR597COLL1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "collections": { "add": [collection_id] } } } },
+            "bxgy": { "title": "HAR597CLASS1777950382203 bxgy product", "code": "HAR597BXGY1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": [product_two_id] } } }, "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 0.5 } } }, "items": { "products": { "productsToAdd": [product_one_id] } } } },
             "freeShipping": { "title": "HAR597CLASS1777950382203 free shipping", "code": "HAR597SHIP1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "destination": { "all": true } }
         }),
     ));
@@ -17925,6 +22169,8 @@ fn discount_basic_summary_supports_one_time_scope_when_shop_sells_subscriptions(
 fn discount_fixed_amount_applies_on_each_item_readback_matches_input() {
     let mut proxy = snapshot_proxy();
     restore_shop_currency(&mut proxy, "USD");
+    let (product_one_id, _) = create_discount_ref_product(&mut proxy);
+    let (product_two_id, _) = create_discount_ref_product(&mut proxy);
 
     let code_create_query = r#"
         mutation DiscountAmountEachCodeCreate($input: DiscountCodeBasicInput!) {
@@ -18184,7 +22430,7 @@ fn discount_fixed_amount_applies_on_each_item_readback_matches_input() {
             "context": { "all": "ALL" },
             "customerBuys": {
                 "value": { "quantity": "1" },
-                "items": { "products": { "productsToAdd": ["gid://shopify/Product/1001"] } }
+                "items": { "products": { "productsToAdd": [product_one_id] } }
             },
             "customerGets": {
                 "value": {
@@ -18193,7 +22439,7 @@ fn discount_fixed_amount_applies_on_each_item_readback_matches_input() {
                         "effect": { "amount": "3.00" }
                     }
                 },
-                "items": { "products": { "productsToAdd": ["gid://shopify/Product/1002"] } }
+                "items": { "products": { "productsToAdd": [product_two_id] } }
             }
         }}),
     ));
@@ -18500,6 +22746,7 @@ fn discount_basic_rejects_discount_on_quantity_for_non_bxgy_inputs() {
 #[test]
 fn discount_bxgy_numeric_validation_handles_bounds_and_variable_coercion() {
     let mut proxy = snapshot_proxy();
+    let (product_id, _) = create_discount_ref_product(&mut proxy);
 
     let code_query = r#"
         mutation DiscountBxgyNumericValidationCodeCreate($input: DiscountCodeBxgyInput!) {
@@ -18523,8 +22770,8 @@ fn discount_bxgy_numeric_validation_handles_bounds_and_variable_coercion() {
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false },
         "context": { "all": "ALL" },
-        "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10180236017970"] } } },
-        "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 0.5 } } }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10180236017970"] } } }
+        "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": [product_id.clone()] } } },
+        "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 0.5 } } }, "items": { "products": { "productsToAdd": [product_id] } } }
     });
 
     let setup = proxy.process_request(json_graphql_request(
@@ -18635,6 +22882,9 @@ fn discount_bxgy_numeric_validation_handles_bounds_and_variable_coercion() {
 #[test]
 fn discount_bxgy_lifecycle_stages_code_and_automatic_readback() {
     let mut proxy = snapshot_proxy();
+    let (product_one_id, variant_one_id) = create_discount_ref_product(&mut proxy);
+    let (product_two_id, _) = create_discount_ref_product(&mut proxy);
+    let collection_id = create_discount_ref_collection(&mut proxy);
 
     let create_query = r#"
         mutation DiscountBxgyLifecycleCreate($codeInput: DiscountCodeBxgyInput!, $automaticInput: DiscountAutomaticBxgyInput!) {
@@ -18675,8 +22925,8 @@ fn discount_bxgy_lifecycle_stages_code_and_automatic_readback() {
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false },
         "context": { "all": "ALL" },
-        "customerBuys": { "value": { "quantity": "2" }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10170555597106"], "productVariantsToAdd": ["gid://shopify/ProductVariant/51098643235122"] } } },
-        "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 1 } } }, "items": { "collections": { "add": ["gid://shopify/Collection/512147128626"] } } },
+        "customerBuys": { "value": { "quantity": "2" }, "items": { "products": { "productsToAdd": [product_one_id.clone()], "productVariantsToAdd": [variant_one_id.clone()] } } },
+        "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 1 } } }, "items": { "collections": { "add": [collection_id.clone()] } } },
         "usesPerOrderLimit": 1
     });
     let automatic_input = json!({
@@ -18684,8 +22934,8 @@ fn discount_bxgy_lifecycle_stages_code_and_automatic_readback() {
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false },
         "context": { "all": "ALL" },
-        "customerBuys": { "value": { "quantity": "1" }, "items": { "collections": { "add": ["gid://shopify/Collection/512147128626"] } } },
-        "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 0.5 } } }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10170555629874"] } } },
+        "customerBuys": { "value": { "quantity": "1" }, "items": { "collections": { "add": [collection_id.clone()] } } },
+        "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 0.5 } } }, "items": { "products": { "productsToAdd": [product_two_id.clone()] } } },
         "usesPerOrderLimit": "1"
     });
 
@@ -18710,7 +22960,7 @@ fn discount_bxgy_lifecycle_stages_code_and_automatic_readback() {
     assert_eq!(
         created.body["data"]["discountCodeBxgyCreate"]["codeDiscountNode"]["codeDiscount"]
             ["customerBuys"]["items"]["products"]["nodes"][0]["id"],
-        json!("gid://shopify/Product/10170555597106")
+        json!(product_one_id)
     );
     let automatic_id = json_string(
         &created.body["data"]["discountAutomaticBxgyCreate"]["automaticDiscountNode"]["id"],
@@ -18725,7 +22975,7 @@ fn discount_bxgy_lifecycle_stages_code_and_automatic_readback() {
     assert_eq!(
         created.body["data"]["discountAutomaticBxgyCreate"]["automaticDiscountNode"]
             ["automaticDiscount"]["customerGets"]["items"]["products"]["nodes"][0]["id"],
-        json!("gid://shopify/Product/10170555629874")
+        json!(product_two_id)
     );
 
     let code_update_query = r#"
@@ -18739,8 +22989,8 @@ fn discount_bxgy_lifecycle_stages_code_and_automatic_readback() {
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false },
         "context": { "all": "ALL" },
-        "customerBuys": { "value": { "quantity": "2" }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10170555597106"], "productVariantsToAdd": ["gid://shopify/ProductVariant/51098643235122"] } } },
-        "customerGets": { "value": { "discountOnQuantity": { "quantity": "2", "effect": { "percentage": 0.5 } } }, "items": { "collections": { "add": ["gid://shopify/Collection/512147128626"] } } },
+        "customerBuys": { "value": { "quantity": "2" }, "items": { "products": { "productsToAdd": [product_one_id], "productVariantsToAdd": [variant_one_id] } } },
+        "customerGets": { "value": { "discountOnQuantity": { "quantity": "2", "effect": { "percentage": 0.5 } } }, "items": { "collections": { "add": [collection_id] } } },
         "usesPerOrderLimit": 1
     });
     let updated_code = proxy.process_request(json_graphql_request(

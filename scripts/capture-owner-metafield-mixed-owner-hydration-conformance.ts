@@ -4,6 +4,7 @@ import 'dotenv/config';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { captureMetafieldsSetOwnerExistence, recordParityUpstreamCalls } from './conformance-capture-lib.js';
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
@@ -319,6 +320,11 @@ try {
     { id: articleId, resourceType: 'Article', ownerType: 'ARTICLE', value: `Article ${suffix}` },
     { id: marketId, resourceType: 'Market', ownerType: 'MARKET', value: `Market ${suffix}` },
   ];
+  const ownerExistence = await captureMetafieldsSetOwnerExistence(
+    runGraphqlRaw,
+    apiVersion,
+    owners.map((owner) => owner.id),
+  );
 
   const baselineSet = await capture(
     documents.set,
@@ -435,6 +441,7 @@ try {
     delete: deleteResult,
     readAfterDelete,
     upstreamCalls: [
+      ownerExistence,
       {
         operationName: 'OwnerMetafieldsHydrateNodes',
         variables: hydration.variables,
@@ -443,6 +450,11 @@ try {
       },
     ],
   };
+  await mkdir(outputDir, { recursive: true });
+  await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
+  fixture['upstreamCalls'] = recordParityUpstreamCalls(['owner-metafield-mixed-owner-hydration'], apiVersion, [
+    outputPath,
+  ])[outputPath];
 } finally {
   if (owners.length > 0) {
     await cleanupCapture(

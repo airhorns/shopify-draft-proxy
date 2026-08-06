@@ -487,6 +487,10 @@ struct BaseState {
     orders: OrderedRecords<Value>,
     return_precondition_hydrated_order_ids: BTreeSet<String>,
     order_count_baselines: BTreeMap<String, Value>,
+    returns: BTreeMap<String, Value>,
+    returns_by_order: BTreeMap<String, Vec<String>>,
+    return_missing_ids: BTreeSet<String>,
+    reverse_fulfillment_orders: BTreeMap<String, Value>,
     draft_orders: OrderedRecords<Value>,
     draft_order_count_baselines: BTreeMap<String, Value>,
     discounts: OrderedRecords<Value>,
@@ -494,6 +498,9 @@ struct BaseState {
     marketing_activities: OrderedRecords<Value>,
     marketing_events: OrderedRecords<Value>,
     segments: OrderedRecords<Value>,
+    product_operations: BTreeMap<String, Value>,
+    product_operation_observed_field_paths: BTreeMap<String, BTreeSet<Vec<String>>>,
+    missing_product_operation_ids: BTreeSet<String>,
     segment_name_ids: BTreeMap<String, BTreeSet<String>>,
     segment_complete_name_probes: BTreeSet<String>,
     segment_known_missing_ids: BTreeSet<String>,
@@ -515,6 +522,13 @@ struct BaseState {
     gift_cards: BTreeMap<String, Value>,
     gift_card_configuration: Option<Value>,
     gift_card_complete_queries: BTreeSet<String>,
+    apps: OrderedRecords<Value>,
+    app_installations: OrderedRecords<Value>,
+    app_installation_ids_by_app_id: BTreeMap<String, String>,
+    app_ids_by_handle: BTreeMap<String, String>,
+    app_ids_by_api_key: BTreeMap<String, String>,
+    current_app_ids_by_request_context: BTreeMap<String, String>,
+    backup_region_access_scopes_by_request_context: BTreeMap<String, Vec<String>>,
     shop: Value,
     storefront_shop: Value,
     storefront_localizations: BTreeMap<String, Value>,
@@ -536,22 +550,29 @@ struct BaseState {
     available_locales: BTreeMap<String, String>,
     shop_locales: BTreeMap<String, Value>,
     localization_product_ids: BTreeSet<String>,
+    localization_source_resources: BTreeMap<String, Value>,
     function_metadata: BTreeMap<String, Value>,
     function_metadata_order: Vec<String>,
-    function_metadata_catalog_hydrated: bool,
-    function_metadata_hydrated_api_types: BTreeSet<String>,
     function_validations: BTreeMap<String, Value>,
     function_validation_order: Vec<String>,
-    function_validations_catalog_hydrated: bool,
+    function_validation_decision_records: BTreeMap<String, Value>,
+    function_validation_decision_next_cursor: Option<String>,
+    function_validation_decision_catalog_complete: bool,
     function_cart_transforms: BTreeMap<String, Value>,
     function_cart_transform_order: Vec<String>,
-    function_cart_transforms_catalog_hydrated: bool,
+    function_cart_transform_decision: Option<Value>,
+    function_cart_transform_decision_hydrated: bool,
     function_fulfillment_constraint_rules: BTreeMap<String, Value>,
     function_fulfillment_constraint_rule_order: Vec<String>,
-    function_fulfillment_constraint_rules_catalog_hydrated: bool,
+    function_fulfillment_constraint_rule_catalog_complete: bool,
+    function_fulfillment_constraint_rule_known_missing_ids: BTreeSet<String>,
+    function_connection_observations: BTreeMap<String, Value>,
     metafield_definitions: BTreeMap<MetafieldDefinitionKey, Value>,
-    metafield_definition_owner_catalogs: BTreeSet<String>,
-    metafield_definition_namespaces: BTreeSet<(String, String)>,
+    metafield_definition_observed_identities: BTreeSet<MetafieldDefinitionKey>,
+    metafield_definition_observed_ids: BTreeSet<String>,
+    metafield_definition_resource_scopes: BTreeSet<String>,
+    metafield_definition_pinned_owner_scopes: BTreeSet<String>,
+    metafield_definition_windows: BTreeMap<String, Value>,
     inventory_transfers: OrderedRecords<InventoryTransferRecord>,
     inventory_shipments: OrderedRecords<InventoryShipmentRecord>,
     b2b_companies: OrderedRecords<Value>,
@@ -624,6 +645,8 @@ struct StagedState {
     delivery_promise_participants: StagedRecords<Value>,
     observed_shipping_locations: BTreeMap<String, Value>,
     observed_shipping_location_order: Vec<String>,
+    observed_shipping_locations_complete: bool,
+    observed_shipping_locations_next_cursor: Option<String>,
     locations: StagedRecords<Value>,
     location_limit_reached: bool,
     delivery_customizations: StagedRecords<Value>,
@@ -673,6 +696,9 @@ struct StagedState {
     resource_publications: BTreeMap<String, BTreeSet<String>>,
     shop_locales: BTreeMap<String, Value>,
     localization_translations: Vec<Value>,
+    // Mutation-derived source-content overlays stay staged separately from the
+    // upstream localization projection so meta reset restores the observed base.
+    localization_source_resources: BTreeMap<String, Value>,
     // Market-localizable resources observed from a cold upstream read or mutation
     // preflight: resourceId -> the resource's `marketLocalizableContent` array. The
     // presence of a key records that the resource exists (so register/remove resolve
@@ -734,13 +760,16 @@ struct StagedState {
     online_store_blog_order: Vec<String>,
     deleted_online_store_blog_ids: BTreeSet<String>,
     online_store_blogs_count_base: Option<usize>,
+    observed_online_store_blog_handle_owners: BTreeMap<String, String>,
     online_store_pages: BTreeMap<String, Value>,
     online_store_page_order: Vec<String>,
     deleted_online_store_page_ids: BTreeSet<String>,
     online_store_pages_count_base: Option<usize>,
+    observed_online_store_page_handle_owners: BTreeMap<String, String>,
     online_store_articles: BTreeMap<String, Value>,
     online_store_article_order: Vec<String>,
     deleted_online_store_article_ids: BTreeSet<String>,
+    observed_online_store_article_handle_owners: BTreeMap<String, BTreeMap<String, String>>,
     online_store_comments: BTreeMap<String, Value>,
     online_store_comment_order: Vec<String>,
     deleted_online_store_comment_ids: BTreeSet<String>,
@@ -749,6 +778,8 @@ struct StagedState {
     mandate_payment_keys: BTreeSet<String>,
     payment_terms: BTreeMap<String, Value>,
     payment_terms_owner_index: BTreeMap<String, String>,
+    deleted_payment_terms_ids: BTreeSet<String>,
+    deleted_payment_schedule_ids: BTreeSet<String>,
     payment_reminder_schedule_ids: BTreeSet<String>,
     payment_customizations: BTreeMap<String, Value>,
     deleted_payment_customization_ids: BTreeSet<String>,
@@ -762,6 +793,7 @@ struct StagedState {
     returns_by_order: BTreeMap<String, Vec<String>>,
     reverse_deliveries: BTreeMap<String, Value>,
     reverse_fulfillment_orders: BTreeMap<String, Value>,
+    reverse_fulfillment_order_line_items: BTreeMap<String, Value>,
     next_order_number: u64,
     draft_order_tags: BTreeMap<String, Vec<String>>,
     order_customer_orders: BTreeMap<String, Value>,
@@ -2057,9 +2089,24 @@ impl Store {
         self.products.staged.is_tombstoned(id)
     }
 
+    fn localization_source_resource(&self, id: &str) -> Option<&Value> {
+        self.staged
+            .localization_source_resources
+            .get(id)
+            .or_else(|| self.base.localization_source_resources.get(id))
+    }
+
     fn has_localization_product(&self, id: &str) -> bool {
         !self.products.staged.is_tombstoned(id)
-            && (self.has_product(id) || self.base.localization_product_ids.contains(id))
+            && (self.has_product(id)
+                || self.base.localization_product_ids.contains(id)
+                || self.localization_source_resource(id).is_some())
+    }
+
+    fn has_localization_collection(&self, id: &str) -> bool {
+        !self.collection_is_deleted(id)
+            && (self.collection_by_id(id).is_some()
+                || self.localization_source_resource(id).is_some())
     }
 
     fn stage_product(&mut self, product: ProductRecord) {
@@ -2096,7 +2143,12 @@ impl Store {
     }
 
     fn stage_observed_product_json(&mut self, value: &Value) {
-        if let Some(product) = product_state_from_json(value) {
+        let mut value = value.clone();
+        media_products_saved_searches::remove_media_ids_from_observed_product(
+            &mut value,
+            &self.staged.media_files.tombstones,
+        );
+        if let Some(product) = product_state_from_json(&value) {
             self.stage_observed_product(product);
         }
     }
@@ -2236,6 +2288,10 @@ impl Store {
 
     fn collection_by_id(&self, id: &str) -> Option<&Value> {
         self.staged.collections.get(id)
+    }
+
+    fn collections(&self) -> Vec<Value> {
+        self.staged.collections.values().cloned().collect()
     }
 
     fn collection_by_handle(&self, handle: &str) -> Option<&Value> {
@@ -2396,16 +2452,22 @@ impl Store {
         })
     }
 
-    fn stage_product_variant(&mut self, variant: ProductVariantRecord) {
+    fn stage_product_variant(&mut self, mut variant: ProductVariantRecord) {
+        variant
+            .media_ids
+            .retain(|id| !self.staged.media_files.is_tombstoned(id));
         self.product_variants
             .staged
             .stage(variant.id.clone(), variant);
     }
 
-    fn observe_base_product_variant(&mut self, variant: ProductVariantRecord) {
+    fn observe_base_product_variant(&mut self, mut variant: ProductVariantRecord) {
         if self.product_variants.staged.is_tombstoned(&variant.id) {
             return;
         }
+        variant
+            .media_ids
+            .retain(|id| !self.staged.media_files.is_tombstoned(id));
         self.product_variants
             .base
             .insert(variant.id.clone(), variant);
@@ -2808,28 +2870,12 @@ impl RequestEntityCacheKey {
 
 type RequestEntityCache = RefCell<BTreeMap<RequestEntityCacheKey, NodeLoadState<EntityRef>>>;
 
-#[derive(Clone)]
-struct RequestNodeHydration {
-    response: Response,
-    upstream_response_keys: BTreeSet<String>,
-}
-
 #[derive(Clone, Default)]
 struct ExecutionSession {
     api_surface: Option<ApiSurface>,
     api_version: Option<String>,
     mutation_log_start: Option<usize>,
-    discount_refs_preflighted: bool,
-    owner_metafield_hydrated_ids: BTreeSet<String>,
-    owner_metafield_resolved_keys: BTreeSet<(String, String, String)>,
-    upstream_query_response: Option<Response>,
-    upstream_query_data: Option<Value>,
-    upstream_query_selections: BTreeMap<String, Vec<SelectedField>>,
-    localization_context_preflighted: bool,
-    markets_query_preflighted: bool,
-    node_hydration: Option<RequestNodeHydration>,
-    owner_metafield_read_ids: BTreeSet<String>,
-    owner_metafield_missing_ids: BTreeSet<String>,
+    request_cache: request_context::RequestCache,
     entity_cache: RequestEntityCache,
 }
 
@@ -2872,9 +2918,10 @@ pub struct DraftProxy {
     log_entries: Vec<Value>,
     registry: ResolverRegistry,
     store: Store,
-    /// Per-scenario cache of the upstream shop's `shop.features.sellsSubscriptions`
-    /// capability. Populated lazily by forwarding a `DraftProxyShopSubscriptionCapability`
-    /// probe the first time a discount mutation touches subscription/recurring fields.
+    /// Per-scenario cache of an explicitly observed
+    /// `shop.features.sellsSubscriptions` boolean. Unresolved probes are never cached.
+    /// Populated lazily by forwarding a `DraftProxyShopSubscriptionCapability` probe
+    /// the first time a discount mutation touches subscription/recurring fields.
     /// Intentionally NOT part of the dump/restore snapshot so it survives
     /// `restoreState` between a scenario's targets; it is reset on `/__meta/reset`,
     /// which the parity runner issues at the start of every scenario.
@@ -2925,6 +2972,7 @@ mod privacy;
 mod product_helpers;
 mod product_operations;
 mod product_options;
+mod request_context;
 mod resolved_values;
 mod resource_ids;
 mod routing;

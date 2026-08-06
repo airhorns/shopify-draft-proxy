@@ -291,6 +291,9 @@ const returnRequestMutation = await readRequest('return-request-recorded.graphql
 const returnApproveRequestMutation = await readRequest('return-approve-request-recorded.graphql');
 const disposeValidationMutation = await readRequest('reverse-fulfillment-order-dispose-validation.graphql');
 const downstreamReadQuery = await readRequest('return-reverse-logistics-dispose-validation-read.graphql');
+const reverseLogisticsDisposeMutationHydrateQuery = await readRequest(
+  'reverse-logistics-dispose-mutation-hydrate.graphql',
+);
 // The exact document the proxy forwards to hydrate a return's order on a cold
 // miss; recording its live response is what replaces the seeded order.
 const returnOrderHydrateQuery = await readRequest('return-order-hydrate.graphql');
@@ -349,6 +352,20 @@ const fulfillmentOrderId = requireString(fulfillmentOrder['id'], 'created fulfil
 const assignedLocation = readRecord(readRecord(fulfillmentOrder['assignedLocation'])?.['location']);
 const locationId =
   typeof assignedLocation?.['id'] === 'string' ? (assignedLocation['id'] as string) : fallbackLocationId;
+const disposeLocationHydrates: ConformanceGraphqlResult[] = [];
+for (let index = 0; index < 3; index += 1) {
+  const result = await runGraphqlRequest(reverseLogisticsDisposeMutationHydrateQuery, { ids: [locationId] });
+  if (result.payload['errors']) {
+    throw new Error(`reverse-logistics disposal location hydrate returned errors: ${JSON.stringify(result.payload)}`);
+  }
+  const location = readArray(readRecord(result.payload['data'])?.['nodes'])
+    .map(readRecord)
+    .find((node) => node?.['id'] === locationId);
+  if (location?.['__typename'] !== 'Location') {
+    throw new Error(`reverse-logistics disposal location hydrate did not return ${locationId}`);
+  }
+  disposeLocationHydrates.push(result);
+}
 const fulfillmentOrderLineItems = readNodes(fulfillmentOrder['lineItems']);
 
 const fulfillmentCreate = await capture(fulfillmentCreateMutation, {
@@ -540,6 +557,15 @@ await writeJson(fixturePath, {
         body: returnOrderHydrate.payload,
       },
     },
+    ...disposeLocationHydrates.map((result) => ({
+      operationName: 'ReverseLogisticsDisposeMutationHydrate',
+      variables: { ids: [locationId] },
+      query: reverseLogisticsDisposeMutationHydrateQuery,
+      response: {
+        status: result.status,
+        body: result.payload,
+      },
+    })),
   ],
 });
 

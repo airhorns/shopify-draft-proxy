@@ -7,9 +7,11 @@ mod owner_metafields;
 pub(in crate::proxy) use self::bulk_operations::bulk_operation_field_resolver_type_policies;
 pub(in crate::proxy) use self::media::{
     media_field_resolver_registrations, media_field_resolver_type_policies,
+    remove_media_ids_from_observed_product,
 };
 pub(in crate::proxy) use self::owner_metafields::{
     list_reference_ids, owner_metafield_field_resolver_registrations, scalar_reference_id,
+    OWNER_METAFIELD_EVIDENCE_SCOPE,
 };
 
 const TAGGABLE_ORDER_HYDRATE_QUERY: &str =
@@ -687,6 +689,7 @@ impl DraftProxy {
         }
         mark_product_staged_fields(&mut product, &staged_fields);
         self.store.stage_product(product.clone());
+        self.sync_localization_product_source_after_update(&product, &input);
         let mut response_product = product.clone();
         response_product.media = response_media;
 

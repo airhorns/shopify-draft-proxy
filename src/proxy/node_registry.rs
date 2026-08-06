@@ -65,21 +65,23 @@ impl DraftProxy {
             "DeliveryCustomization",
         );
 
-        if let Some(hydration) =
-            self.execution_session
-                .node_hydration
-                .as_ref()
-                .filter(|hydration| {
-                    hydration
-                        .upstream_response_keys
-                        .contains(invocation.response_key)
-                })
+        if let Some(response) = self
+            .execution_session
+            .request_cache
+            .is_complete(&node_query_response_key(invocation.response_key))
+            .then(|| {
+                self.execution_session
+                    .request_cache
+                    .caller_response()
+                    .cloned()
+            })
+            .flatten()
         {
-            let mut outcome = resolver_outcome_from_upstream_response(
-                hydration.response.clone(),
-                invocation.response_key,
-            );
+            let hydration_response = response.clone();
+            let mut outcome =
+                resolver_outcome_from_upstream_response(response, invocation.response_key);
             if outcome.errors.is_empty() {
+                self.observe_nodes_response(&hydration_response);
                 self.observe_delivery_promise_node_root_value(
                     invocation.root_name,
                     &arguments,
@@ -441,16 +443,16 @@ impl DraftProxy {
         for node in &nodes {
             self.observe_node_response_value(node);
         }
-        for node in nodes {
-            let id = node.get("id").and_then(Value::as_str).unwrap_or_default();
-            if is_shopify_gid_of_type(id, "Collection") {
-                self.stage_collection_from_observed_json(&node);
-            }
-        }
     }
 
     fn observe_node_response_value(&mut self, node: &Value) {
         let id = node.get("id").and_then(Value::as_str).unwrap_or_default();
+        if shopify_gid_resource_type(id).is_some() {
+            self.store
+                .staged
+                .metafield_reference_ids
+                .insert(id.to_string());
+        }
         if is_shopify_gid_of_type(id, "Product") {
             self.store.stage_observed_product_json(node);
             if let Some(product_id) = node.get("id").and_then(Value::as_str) {
@@ -506,30 +508,28 @@ impl DraftProxy {
         id: &str,
         request: Option<&Request>,
     ) -> Option<Value> {
-        for (app_id, installation) in &self.store.staged.installed_apps {
-            if app_installation_id(installation).as_deref() == Some(id) {
-                if self.store.staged.uninstalled_app_ids.contains(app_id) {
-                    return Some(Value::Null);
-                }
-                let revoked_access_scopes = self
-                    .store
-                    .staged
-                    .revoked_app_access_scopes
-                    .get(app_id)
-                    .cloned()
-                    .unwrap_or_default();
-                return Some(current_app_installation_node_value(
-                    installation,
-                    &self.store.staged.app_subscriptions,
-                    &self.store.staged.app_one_time_purchases,
-                    &revoked_access_scopes,
-                ));
+        if is_shopify_gid_of_type(id, "App") {
+            if let Some(app) = self.effective_app_value_by_id(id) {
+                return Some(app);
             }
-            if installation.pointer("/app/id").and_then(Value::as_str) == Some(id) {
-                return installation.get("app").cloned();
+        } else if is_shopify_gid_of_type(id, "AppInstallation") {
+            if let Some(installation) = self.effective_app_installation_value_by_id(id) {
+                return Some(installation);
+            }
+            if self
+                .store
+                .staged
+                .installed_apps
+                .iter()
+                .any(|(app_id, installation)| {
+                    self.store.staged.uninstalled_app_ids.contains(app_id)
+                        && app_installation_id(installation).as_deref() == Some(id)
+                })
+            {
+                return Some(Value::Null);
             }
         }
-        if let Some(request) = request {
+        if let Some(request) = request.filter(|request| request_has_explicit_app_context(request)) {
             let app_id = request_app_gid(request);
             let installation = current_app_installation_from_request(request);
             if app_installation_id(&installation).as_deref() == Some(id) {
@@ -551,7 +551,9 @@ impl DraftProxy {
                 ));
             }
             if installation.pointer("/app/id").and_then(Value::as_str) == Some(id) {
-                return installation.get("app").cloned();
+                let mut app = installation.get("app").cloned().unwrap_or(Value::Null);
+                app["installation"] = installation;
+                return Some(app);
             }
         }
         self.store
@@ -759,6 +761,11 @@ simple_loader!(
     ]
 );
 simple_loader!(load_gift_card, gift_card_node_value_by_id, ["GiftCard"]);
+simple_loader!(
+    load_payment_terms,
+    payment_terms_node_value_by_id,
+    ["PaymentSchedule", "PaymentTerms"]
+);
 simple_loader!(
     load_gift_card_transaction,
     gift_card_transaction_node_value_by_id,
@@ -1215,6 +1222,20 @@ pub(crate) fn load_fulfillment_constraint_rule(
         .staged
         .deleted_function_fulfillment_constraint_rule_ids
         .contains(id)
+        || proxy
+            .store
+            .base
+            .function_fulfillment_constraint_rule_known_missing_ids
+            .contains(id)
+        || (proxy
+            .store
+            .base
+            .function_fulfillment_constraint_rule_catalog_complete
+            && !proxy
+                .store
+                .base
+                .function_fulfillment_constraint_rules
+                .contains_key(id))
     {
         return NodeLoadState::KnownMissing;
     }

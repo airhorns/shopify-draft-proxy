@@ -41,6 +41,7 @@ mutation ReverseDeliveryCreateWithShippingRecorded(
       }
     }
     userErrors {
+      code
       field
       message
     }

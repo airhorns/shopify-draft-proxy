@@ -4,6 +4,7 @@ import 'dotenv/config';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { captureMetafieldsSetOwnerExistence, recordParityUpstreamCalls } from './conformance-capture-lib.js';
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
@@ -194,6 +195,7 @@ try {
   });
   assertNoUserErrors(productCreate.response, ['data', 'productCreate', 'userErrors'], 'productCreate setup');
   productId = readStringPath(productCreate.response, ['data', 'productCreate', 'product', 'id'], 'productCreate setup');
+  const ownerExistence = await captureMetafieldsSetOwnerExistence(runGraphqlRaw, apiVersion, [productId]);
 
   const identifier = {
     ownerId: productId,
@@ -235,37 +237,34 @@ try {
   assertNoUserErrors(neverCreatedDelete.response, ['data', 'metafieldsDelete', 'userErrors'], 'never-created delete');
   assertDeletedMetafieldNull(neverCreatedDelete.response, 'never-created delete');
 
-  await cleanupProduct();
-
+  const fixture = {
+    capturedAt: new Date().toISOString(),
+    storeDomain,
+    apiVersion,
+    summary:
+      'metafieldsSet plus metafieldsDelete not-found behavior for product-owned metafields: existing identifier deletes, repeat deletes return ordered nulls, and never-created identifiers return ordered nulls.',
+    seed: {
+      runId,
+      productId: identifier.ownerId,
+      namespace,
+      key,
+      neverCreatedKey,
+    },
+    productCreate,
+    setup,
+    deleteExisting,
+    repeatDelete,
+    neverCreatedDelete,
+    cleanup,
+    upstreamCalls: [ownerExistence],
+  };
   await mkdir(outputDir, { recursive: true });
-  await writeFile(
-    outputPath,
-    `${JSON.stringify(
-      {
-        capturedAt: new Date().toISOString(),
-        storeDomain,
-        apiVersion,
-        summary:
-          'metafieldsSet plus metafieldsDelete not-found behavior for product-owned metafields: existing identifier deletes, repeat deletes return ordered nulls, and never-created identifiers return ordered nulls.',
-        seed: {
-          runId,
-          productId: identifier.ownerId,
-          namespace,
-          key,
-          neverCreatedKey,
-        },
-        productCreate,
-        setup,
-        deleteExisting,
-        repeatDelete,
-        neverCreatedDelete,
-        cleanup,
-        upstreamCalls: [],
-      },
-      null,
-      2,
-    )}\n`,
-  );
+  await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`);
+  fixture.upstreamCalls = recordParityUpstreamCalls(['metafield-delete-not-found'], apiVersion, [outputPath])[
+    outputPath
+  ];
+  await cleanupProduct();
+  await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`);
   console.log(JSON.stringify({ ok: true, outputPath, productId: identifier.ownerId, runId }, null, 2));
 } catch (error) {
   try {

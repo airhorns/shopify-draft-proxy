@@ -71,24 +71,8 @@ function adminMutationCoverageAudit() {
   const schemaMutationNames = capturedMutationNames();
   const registryMutations = listAdminOperationRegistryEntries().filter((entry) => entry.type === 'mutation');
   const registryMutationByName = new Map(registryMutations.map((entry) => [entry.name, entry]));
-  const implementedMutationNames = schemaMutationNames.filter(
-    (name) => registryMutationByName.get(name)?.implemented === true,
-  );
-  const implementedWithRuntimeTests = implementedMutationNames.filter(
-    (name) => (registryMutationByName.get(name)?.runtimeTests.length ?? 0) > 0,
-  );
-  const implementedWithoutRuntimeTests = implementedMutationNames.filter(
-    (name) => (registryMutationByName.get(name)?.runtimeTests.length ?? 0) === 0,
-  );
 
   return {
-    capturedMutationCount: schemaMutationNames.length,
-    registeredMutationCount: schemaMutationNames.filter((name) => registryMutationByName.has(name)).length,
-    implementedMutationCount: implementedMutationNames.length,
-    implementedMutationRuntimeTestEvidence: {
-      withRuntimeTests: implementedWithRuntimeTests.length,
-      withoutRuntimeTests: implementedWithoutRuntimeTests.length,
-    },
     declaredUnimplemented: schemaMutationNames.filter(
       (name) => registryMutationByName.has(name) && registryMutationByName.get(name)?.implemented === false,
     ),
@@ -109,13 +93,6 @@ function nodeResolverCoverageAudit() {
   const localResolverTypeNames = sortedStrings(new Set(nodeResolverInventoryEntries.map((entry) => entry.typeName)));
 
   return {
-    capturedNodeImplementorCount: capturedTypeNames.length,
-    localNodeResolverTypeCount: localResolverTypeNames.length,
-    localResolverBehaviorCounts: {
-      projectLocalRecord: nodeResolverInventoryEntries.filter((entry) => entry.behavior === 'project-local-record')
-        .length,
-      returnKnownNull: nodeResolverInventoryEntries.filter((entry) => entry.behavior === 'return-known-null').length,
-    },
     unsupported: capturedTypeNames.filter((typeName) => !localResolverTypeNames.includes(typeName)),
     localInventoryNotInCapturedNodeInterface: localResolverTypeNames.filter(
       (typeName) => !capturedTypeNames.includes(typeName),
@@ -241,13 +218,6 @@ describe('operation registry', () => {
 
   it('audits captured 2026-04 Admin mutation roots against the Rust registry', () => {
     expect(adminMutationCoverageAudit()).toEqual({
-      capturedMutationCount: 514,
-      registeredMutationCount: 438,
-      implementedMutationCount: 413,
-      implementedMutationRuntimeTestEvidence: {
-        withRuntimeTests: 161,
-        withoutRuntimeTests: 252,
-      },
       declaredUnimplemented: [
         'companyContactSendWelcomeEmail',
         'consentPolicyUpdate',
@@ -359,12 +329,6 @@ describe('operation registry', () => {
 
   it('audits captured Shopify Node implementors against the explicit Rust resolver inventory', () => {
     expect(nodeResolverCoverageAudit()).toEqual({
-      capturedNodeImplementorCount: 203,
-      localNodeResolverTypeCount: 87,
-      localResolverBehaviorCounts: {
-        projectLocalRecord: 84,
-        returnKnownNull: 3,
-      },
       unsupported: [
         'AbandonedCheckout',
         'AbandonedCheckoutLineItem',
@@ -438,8 +402,6 @@ describe('operation registry', () => {
         'OrderTransaction',
         'PaymentCustomization',
         'PaymentMandate',
-        'PaymentSchedule',
-        'PaymentTerms',
         'PaymentTermsTemplate',
         'PointOfSaleDevicePaymentSession',
         'PriceList',

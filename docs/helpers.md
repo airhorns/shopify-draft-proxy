@@ -64,6 +64,23 @@ receiving a nested selection tree. It also exposes
 that only to plan hydration breadth or batching; do not use it to shape JSON
 output or recreate selection projectors.
 
+Keep whole-operation policy in `src/proxy/request_context.rs`, not in resolver
+registrations or `graphql_runtime.rs`. A domain that can make the complete
+caller document authoritative should expose a small
+`*_is_upstream_authoritative(&AdminOperationContext)` predicate and add it to
+`admin_request_disposition(...)`. Add work to `prepare_admin_operation(...)`
+only when it genuinely needs the complete selected root tree before any root
+runs. Domain-only prerequisites should remain lazy in the owning root resolver,
+where `operation_roots` can still batch shallow sibling arguments.
+
+Use the request-scoped `RequestCache` in `src/proxy/request_context.rs` before
+adding another `ExecutionSession` cache or `*_preflighted` boolean. It separates
+the caller's raw transport response from canonical observation data, stores
+keyed supplemental responses and completion facts, and tracks generic
+per-entity requested/observed/missing evidence. Supplemental GraphQL reads that
+siblings may repeat should go through `request_hydration_post_once(...)` with a
+stable, structured, domain-owned `RequestCacheKey`.
+
 For generic IDs, update `src/node_resolver_inventory.rs` and its matching loader in `src/proxy/node_registry.rs` rather than adding another `node`/`nodes` switch. The inventory is exported for coverage audits; the executable loader reads the owning domain's effective store state.
 
 Node loaders return store evidence through `NodeLoadState`: `Found`, `KnownMissing`, `NeedsHydration`, or `UnsupportedType`. Return `Some(Value::Null)` from an inventory loader when a tombstone or modeled safe-null makes absence authoritative; return `None` only when live-hybrid may need hydration. Do not add a parallel loader-name enum or per-call domain switch.

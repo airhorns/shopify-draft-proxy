@@ -5,6 +5,7 @@ import 'dotenv/config';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { captureMetafieldsSetOwnerExistence, recordParityUpstreamCalls } from './conformance-capture-lib.js';
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
@@ -634,6 +635,7 @@ async function writeMetafieldsSetScenario(
   response,
   downstreamRead,
   preconditionRead = null,
+  upstreamCalls = [],
 ) {
   const downstreamProductId = downstreamRead?.data?.product?.id ?? null;
   await writeFile(
@@ -647,6 +649,7 @@ async function writeMetafieldsSetScenario(
         },
         ...(typeof downstreamProductId === 'string' ? { downstreamReadVariables: { id: downstreamProductId } } : {}),
         downstreamRead,
+        upstreamCalls,
       },
       null,
       2,
@@ -717,6 +720,14 @@ try {
   if (!createdCollectionId) {
     throw new Error('Product metafield capture did not return a collection id.');
   }
+
+  const productOwnerExistence = await captureMetafieldsSetOwnerExistence(runGraphqlRequest, apiVersion, [
+    createdProductId,
+  ]);
+  const expandedOwnerExistence = await captureMetafieldsSetOwnerExistence(runGraphqlRequest, apiVersion, [
+    createdVariantId,
+    createdCollectionId,
+  ]);
 
   const metafieldsSetVariables = buildMetafieldsSetVariables(createdProductId);
   const metafieldsSetResponse = await runGraphql(metafieldsSetMutation, metafieldsSetVariables);
@@ -805,6 +816,8 @@ try {
     metafieldsSetVariables,
     metafieldsSetResponse,
     postSetRead,
+    null,
+    [productOwnerExistence],
   );
 
   const casSuccessCaptureFile = 'metafields-set-cas-success-parity.json';
@@ -855,6 +868,7 @@ try {
     duplicateResponse,
     postDuplicateRead,
     duplicatePreconditionRead,
+    [productOwnerExistence],
   );
 
   const missingNamespaceCaptureFile = 'metafields-set-missing-namespace-parity.json';
@@ -865,6 +879,7 @@ try {
     missingNamespaceResponse,
     postMissingNamespaceRead,
     missingNamespacePreconditionRead,
+    [productOwnerExistence],
   );
 
   const missingTypeCaptureFile = 'metafields-set-missing-type-parity.json';
@@ -875,6 +890,7 @@ try {
     missingTypeResponse,
     postMissingTypeRead,
     missingTypePreconditionRead,
+    [productOwnerExistence],
   );
 
   const overLimitCaptureFile = 'metafields-set-over-limit-parity.json';
@@ -885,6 +901,7 @@ try {
     overLimitResponse,
     postOverLimitRead,
     overLimitPreconditionRead,
+    [productOwnerExistence],
   );
 
   for (const missingRequiredResponse of missingRequiredResponses) {
@@ -956,11 +973,32 @@ try {
         },
         downstreamReadVariables: ownerExpansionDownstreamReadVariables,
         downstreamRead: ownerExpansionDownstreamRead,
+        upstreamCalls: [expandedOwnerExistence],
       },
       null,
       2,
     )}\n`,
     'utf8',
+  );
+
+  recordParityUpstreamCalls(
+    [
+      'metafields-set-live-parity',
+      'metafields-set-duplicate-input',
+      'metafields-set-missing-namespace',
+      'metafields-set-missing-type',
+      'metafields-set-over-limit',
+      'metafields-set-owner-expansion',
+    ],
+    apiVersion,
+    [
+      setCaptureFile,
+      duplicateCaptureFile,
+      missingNamespaceCaptureFile,
+      missingTypeCaptureFile,
+      overLimitCaptureFile,
+      ownerExpansionCaptureFile,
+    ].map((file) => path.join(outputDir, file)),
   );
 
   console.log(

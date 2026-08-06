@@ -72,6 +72,7 @@ When a task asks for **parity**, **conformance**, **captured evidence**, or a sc
 - Do not add planned-only, blocked-only, or capture-only parity scenarios as a shortcut for implementation. Checked-in parity specs must be backed by captured interactions and executable evidence.
 - Do not hand-author or synthetically generate checked-in conformance fixture data, parity fixtures, or expected payloads as Shopify fidelity evidence.
 - Do not prove parity by loading or patching internal proxy state directly. Parity setup must run through the same public request surface an agent would use: GraphQL mutations/queries, uploads, or documented meta APIs only when the scenario is specifically about those meta APIs. Internal state dumps/restores, setup-state JSON, hidden runner hooks, or fixtures that seed `baseState`/`stagedState` are test shortcuts, not Shopify fidelity evidence. When the proxy needs Shopify context to answer a parity request, implement the production handler path that makes the upstream request, record that request in the scenario's `upstreamCalls` cassette, and let the parity runner replay it.
+- When a production handler adds a query-only prerequisite to an existing parity scenario, update its registered live capture script to issue that exact GraphQL document and variables and write the live response to `upstreamCalls`, then re-record the fixture. This is expected conformance work; manually copying, synthesizing, or editing a response into the cassette is not.
 - Protected parity evidence must not drift without explicit user approval:
   - `config/parity-specs/**`
   - `config/parity-requests/**`
@@ -85,6 +86,7 @@ When a task asks for **parity**, **conformance**, **captured evidence**, or a sc
 - Do not add files to linter/formatter ignore lists just because formatting changes fixtures or parity requests. Format the files, then fix affected tests, captures, specs, or code.
 - In unattended or CI-like workspaces, prefer `corepack pnpm ...` for package scripts.
 - Before adding a resource-local parser, serializer, scalar reader, projection helper, or metafield/search/connection utility, read `docs/helpers.md` and search for an existing shared helper.
+- Before adding an upstream hydrate for a point existence, uniqueness, or limit decision, use the narrowest authoritative read available: prefer singular/`node(id:)` lookups, native counts, or field-minimal threshold scans that stop as soon as the answer is proven. Do not paginate and materialize a complete resource catalog merely to answer one mutation precondition. Cache partial decision facts separately from public resource records, and never let them mark a lifecycle catalog complete.
 - Do not hardcode captured Shopify resource IDs in runtime implementation to make one fixture pass. Fixture/shop IDs may appear in tests, docs, parity requests, and recorded evidence, but production handlers must derive IDs from request arguments, staged/base store state, observed upstream responses, or synthetic ID allocators.
 
 ## Verification loop

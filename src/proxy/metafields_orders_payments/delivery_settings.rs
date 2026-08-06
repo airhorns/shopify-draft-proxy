@@ -1,6 +1,22 @@
 use super::*;
+use crate::proxy::request_context::AdminOperationContext;
 
 impl DraftProxy {
+    pub(in crate::proxy) fn delivery_settings_query_is_upstream_authoritative(
+        &self,
+        context: &AdminOperationContext<'_>,
+    ) -> bool {
+        self.config.read_mode == ReadMode::LiveHybrid
+            && context.operation_type == OperationType::Query
+            && !context.roots.is_empty()
+            && context.roots.iter().all(|root| {
+                matches!(
+                    root.name.as_str(),
+                    "deliverySettings" | "deliveryPromiseSettings"
+                )
+            })
+    }
+
     pub(crate) fn delivery_settings_query_root(
         &mut self,
         invocation: RootInvocation<'_>,

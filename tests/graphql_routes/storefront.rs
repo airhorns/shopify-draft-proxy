@@ -13,6 +13,32 @@ fn storefront_graphql_request(query: &str, variables: Value) -> Request {
     )
 }
 
+fn empty_online_store_handle_reservation_response(request: &Request) -> Option<Response> {
+    let body: Value = serde_json::from_str(&request.body).ok()?;
+    let query = body.get("query")?.as_str()?;
+    let data = if query.contains("OnlineStorePageHandleReservationHydrate") {
+        json!({"pages": empty_online_store_handle_connection()})
+    } else if query.contains("OnlineStoreBlogHandleReservationHydrate") {
+        json!({"blogs": empty_online_store_handle_connection()})
+    } else if query.contains("OnlineStoreArticleHandleReservationHydrate") {
+        json!({"articles": empty_online_store_handle_connection()})
+    } else {
+        return None;
+    };
+    Some(Response {
+        status: 200,
+        headers: Default::default(),
+        body: json!({"data": data}),
+    })
+}
+
+fn empty_online_store_handle_connection() -> Value {
+    json!({
+        "nodes": [],
+        "pageInfo": { "hasNextPage": false, "endCursor": null }
+    })
+}
+
 fn storefront_product_fixture(
     id: &str,
     title: &str,
@@ -6007,11 +6033,52 @@ fn storefront_shop_metafields_require_storefront_definition_access() {
 }
 
 #[test]
-fn storefront_shop_metafields_use_staged_shop_owner_without_hydration() {
+fn storefront_shop_metafields_use_known_shop_owner_without_hydration() {
+    let shop_id = "gid://shopify/Shop/storefront-metafields-no-hydrate";
     let mut proxy = configured_proxy(
         ReadMode::LiveHybrid,
         Some(UnsupportedMutationMode::Passthrough),
-    );
+    )
+    .with_upstream_transport(|request| {
+        let body: Value = serde_json::from_str(&request.body).expect("upstream JSON body");
+        match body["operationName"].as_str().unwrap_or_default() {
+            "MetafieldDefinitionHydrateByIdentifier" => Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "metafieldDefinition": null } }),
+            },
+            "MetafieldDefinitionsHydrateResourceScope" => Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "metafieldDefinitions": {
+                            "nodes": [],
+                            "pageInfo": { "hasNextPage": false, "endCursor": null }
+                        }
+                    }
+                }),
+            },
+            _ => Response {
+                status: 502,
+                headers: Default::default(),
+                body: json!({ "errors": [{ "message": "No setup hydration configured" }] }),
+            },
+        }
+    });
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["shop"] = json!({
+            "id": shop_id,
+            "name": "Known Storefront metafields shop",
+            "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                }
+            }
+        });
+    });
 
     stage_metafield_definition(
         &mut proxy,
@@ -6031,7 +6098,7 @@ fn storefront_shop_metafields_use_staged_shop_owner_without_hydration() {
     );
     stage_metafields_set(
         &mut proxy,
-        "gid://shopify/Shop/storefront-metafields-no-hydrate?shopify-draft-proxy=synthetic",
+        shop_id,
         json!([
             {
                 "namespace": "custom",
@@ -6176,6 +6243,9 @@ fn storefront_content_roots_project_staged_admin_content() {
     .with_upstream_transport(|request| {
         if request.path.starts_with("/api/") {
             panic!("staged Storefront content should not call Storefront upstream");
+        }
+        if let Some(response) = empty_online_store_handle_reservation_response(&request) {
+            return response;
         }
         Response {
             status: 599,
@@ -7745,6 +7815,9 @@ fn storefront_node_hydrates_an_unrelated_id_after_local_product_discovery() {
         Some(UnsupportedMutationMode::Passthrough),
     )
     .with_upstream_transport(move |request| {
+        if let Some(response) = empty_online_store_handle_reservation_response(&request) {
+            return response;
+        }
         observed_for_proxy.lock().unwrap().push(request);
         Response {
             status: 200,
@@ -8070,6 +8143,9 @@ fn storefront_discovery_parity_document_hydrates_only_unresolved_nodes() {
         Some(UnsupportedMutationMode::Passthrough),
     )
     .with_upstream_transport(move |request| {
+        if let Some(response) = empty_online_store_handle_reservation_response(&request) {
+            return response;
+        }
         observed_for_proxy.lock().unwrap().push(request);
         Response {
             status: 200,
@@ -8130,7 +8206,10 @@ fn storefront_search_and_predictive_search_use_effective_visible_state() {
         ReadMode::LiveHybrid,
         Some(UnsupportedMutationMode::Passthrough),
     )
-    .with_upstream_transport(|_| panic!("staged Storefront discovery must stay local"));
+    .with_upstream_transport(|request| {
+        empty_online_store_handle_reservation_response(&request)
+            .unwrap_or_else(|| panic!("staged Storefront discovery must stay local"))
+    });
     restore_storefront_current_publication(&mut proxy, publication_id);
     let fixture = stage_storefront_discovery_fixture(&mut proxy);
 

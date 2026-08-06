@@ -68,6 +68,8 @@ const storefrontRedactedHeaders = Object.fromEntries(
     '<redacted:storefront-access-token>',
   ]),
 );
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'storefront');
+const outputPath = path.join(outputDir, 'storefront-discovery.json');
 
 const documents = {
   setup: 'config/parity-requests/storefront/storefront-discovery-setup-admin.graphql',
@@ -79,6 +81,8 @@ const documents = {
   nodeOverlayRead: 'config/parity-requests/storefront/storefront-node-overlay-read.graphql',
   menuHydrate: 'config/parity-requests/storefront/storefront-content-menu-hydrate.graphql',
   pageTwoSetup: 'config/parity-requests/storefront/storefront-discovery-page-two-setup-admin.graphql',
+  pageHandleReservationHydrate: 'src/runtime_graphql/online-store/online-store-page-handle-reservation-hydrate.graphql',
+  blogHandleReservationHydrate: 'src/runtime_graphql/online-store/online-store-blog-handle-reservation-hydrate.graphql',
   pagination: 'config/parity-requests/storefront/storefront-discovery-pagination.graphql',
   invalidId: 'config/parity-requests/storefront/storefront-discovery-invalid-id.graphql',
   invalidLimit: 'config/parity-requests/storefront/storefront-discovery-invalid-limit.graphql',
@@ -142,6 +146,9 @@ const adminCaptures: Capture[] = [];
 const cleanupCaptures: Capture[] = [];
 let setupCapture: Capture | null = null;
 let articleSetupCapture: Capture | null = null;
+let blogHandleReservationCapture: GraphqlUpstreamCapture | null = null;
+let pageHandleReservationCapture: GraphqlUpstreamCapture | null = null;
+let pageTwoHandleReservationCapture: GraphqlUpstreamCapture | null = null;
 let publicationHydrateCapture: GraphqlUpstreamCapture | null = null;
 let publishCapture: Capture | null = null;
 let discoveryCapture: GraphqlUpstreamCapture | null = null;
@@ -247,6 +254,73 @@ function assertNoUserErrors(payload: unknown, segments: string[], label: string)
   const errors = readPath(payload, segments);
   if (Array.isArray(errors) && errors.length === 0) return;
   throw new Error(`${label} returned userErrors: ${JSON.stringify(errors, null, 2)}`);
+}
+
+function assertEmptyHandleReservation(payload: unknown, root: 'blogs' | 'pages', label: string): void {
+  assertNoTopLevelErrors(payload, label);
+  const nodes = readPath(payload, ['data', root, 'nodes']);
+  const hasNextPage = readPath(payload, ['data', root, 'pageInfo', 'hasNextPage']);
+  if (!Array.isArray(nodes) || nodes.length !== 0 || hasNextPage !== false) {
+    throw new Error(`${label} did not prove an unreserved handle: ${JSON.stringify(payload, null, 2)}`);
+  }
+}
+
+async function refreshExistingHandleReservationCassettes(): Promise<void> {
+  const fixture = JSON.parse(await readFile(outputPath, 'utf8')) as Record<string, unknown>;
+  const blogHandle = requiredString(
+    fixture,
+    ['adminSetup', 'request', 'variables', 'blog', 'handle'],
+    'captured Blog handle',
+  );
+  const pageHandle = requiredString(
+    fixture,
+    ['adminSetup', 'request', 'variables', 'page', 'handle'],
+    'captured Page handle',
+  );
+  const pageTwoHandle = requiredString(
+    fixture,
+    ['adminPageTwoSetup', 'request', 'variables', 'page', 'handle'],
+    'captured second Page handle',
+  );
+
+  const blogReservation = await captureAdmin(
+    'blog-handle-reservation-hydrate',
+    documentText.blogHandleReservationHydrate,
+    { query: `handle:${blogHandle}`, after: null },
+  );
+  assertEmptyHandleReservation(blogReservation.response, 'blogs', 'blog handle reservation');
+  const pageReservation = await captureAdmin(
+    'page-handle-reservation-hydrate',
+    documentText.pageHandleReservationHydrate,
+    { query: `handle:${pageHandle}`, after: null },
+  );
+  assertEmptyHandleReservation(pageReservation.response, 'pages', 'page handle reservation');
+  const pageTwoReservation = await captureAdmin(
+    'second-page-handle-reservation-hydrate',
+    documentText.pageHandleReservationHydrate,
+    { query: `handle:${pageTwoHandle}`, after: null },
+  );
+  assertEmptyHandleReservation(pageTwoReservation.response, 'pages', 'second page handle reservation');
+
+  const existingCalls = readPath(fixture, ['upstreamCalls']);
+  if (!Array.isArray(existingCalls)) throw new Error('Existing Storefront discovery fixture has no upstreamCalls.');
+  const refreshedOperationNames = new Set([
+    'OnlineStoreBlogHandleReservationHydrate',
+    'OnlineStorePageHandleReservationHydrate',
+  ]);
+  fixture['handleReservationHydrationCapturedAt'] = new Date().toISOString();
+  fixture['upstreamCalls'] = [
+    adminUpstreamCapture(blogReservation, 'OnlineStoreBlogHandleReservationHydrate'),
+    adminUpstreamCapture(pageReservation, 'OnlineStorePageHandleReservationHydrate'),
+    adminUpstreamCapture(pageTwoReservation, 'OnlineStorePageHandleReservationHydrate'),
+    ...existingCalls.filter(
+      (call) =>
+        typeof call !== 'object' ||
+        call === null ||
+        !refreshedOperationNames.has((call as Record<string, unknown>)['operationName'] as string),
+    ),
+  ];
+  await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
 }
 
 function discoveryReady(payload: unknown, expectedIds: string[]): boolean {
@@ -401,7 +475,29 @@ const blogDeleteMutation = `#graphql
   }
 `;
 
+if (process.argv.includes('--refresh-handle-reservations')) {
+  await refreshExistingHandleReservationCassettes();
+  console.log(`Refreshed live handle-reservation cassettes in ${outputPath}`);
+  process.exit(0);
+}
+
 try {
+  const blogHandleReservation = await captureAdmin(
+    'blog-handle-reservation-hydrate',
+    documentText.blogHandleReservationHydrate,
+    { query: `handle:${setupVariables.blog.handle}`, after: null },
+  );
+  assertEmptyHandleReservation(blogHandleReservation.response, 'blogs', 'blog handle reservation');
+  blogHandleReservationCapture = adminUpstreamCapture(blogHandleReservation, 'OnlineStoreBlogHandleReservationHydrate');
+
+  const pageHandleReservation = await captureAdmin(
+    'page-handle-reservation-hydrate',
+    documentText.pageHandleReservationHydrate,
+    { query: `handle:${setupVariables.page.handle}`, after: null },
+  );
+  assertEmptyHandleReservation(pageHandleReservation.response, 'pages', 'page handle reservation');
+  pageHandleReservationCapture = adminUpstreamCapture(pageHandleReservation, 'OnlineStorePageHandleReservationHydrate');
+
   setupCapture = await captureAdmin('admin-setup', documentText.setup, setupVariables);
   assertNoTopLevelErrors(setupCapture.response, 'discovery setup');
   for (const root of ['productCreate', 'collectionCreate', 'blogCreate', 'pageCreate']) {
@@ -465,13 +561,24 @@ try {
   } satisfies Record<string, unknown>;
   discoveryCapture = await waitForDiscovery(discoveryVariables, [productId, collectionId, articleId, pageId]);
 
+  const pageTwoInput = {
+    title: `${phrase} Aardvark Page`,
+    handle: `aurora-discovery-beta-page-${suffix}`,
+    body: `<p>${phrase} beta page body</p>`,
+    isPublished: true,
+  };
+  const pageTwoHandleReservation = await captureAdmin(
+    'second-page-handle-reservation-hydrate',
+    documentText.pageHandleReservationHydrate,
+    { query: `handle:${pageTwoInput.handle}`, after: null },
+  );
+  assertEmptyHandleReservation(pageTwoHandleReservation.response, 'pages', 'second page handle reservation');
+  pageTwoHandleReservationCapture = adminUpstreamCapture(
+    pageTwoHandleReservation,
+    'OnlineStorePageHandleReservationHydrate',
+  );
   pageTwoSetupCapture = await captureAdmin('admin-second-page-setup', documentText.pageTwoSetup, {
-    page: {
-      title: `${phrase} Aardvark Page`,
-      handle: `aurora-discovery-beta-page-${suffix}`,
-      body: `<p>${phrase} beta page body</p>`,
-      isPublished: true,
-    },
+    page: pageTwoInput,
   });
   assertNoTopLevelErrors(pageTwoSetupCapture.response, 'second page setup');
   assertNoUserErrors(pageTwoSetupCapture.response, ['data', 'pageCreate', 'userErrors'], 'second page create');
@@ -653,6 +760,9 @@ try {
 if (
   setupCapture === null ||
   articleSetupCapture === null ||
+  blogHandleReservationCapture === null ||
+  pageHandleReservationCapture === null ||
+  pageTwoHandleReservationCapture === null ||
   publicationHydrateCapture === null ||
   publishCapture === null ||
   discoveryCapture === null ||
@@ -670,9 +780,7 @@ if (
   throw new Error('Storefront discovery capture did not complete.');
 }
 
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'storefront');
 await mkdir(outputDir, { recursive: true });
-const outputPath = path.join(outputDir, 'storefront-discovery.json');
 await writeFile(
   outputPath,
   `${JSON.stringify(
@@ -706,7 +814,13 @@ await writeFile(
       storefrontInvalidId: invalidIdCapture,
       storefrontInvalidLimit: invalidLimitCapture,
       cleanup: cleanupCaptures,
-      upstreamCalls: [publicationHydrateCapture, nodeOverlayUpstreamCapture],
+      upstreamCalls: [
+        blogHandleReservationCapture,
+        pageHandleReservationCapture,
+        pageTwoHandleReservationCapture,
+        publicationHydrateCapture,
+        nodeOverlayUpstreamCapture,
+      ],
     },
     null,
     2,

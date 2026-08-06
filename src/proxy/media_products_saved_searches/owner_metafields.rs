@@ -1,5 +1,20 @@
 use super::media::media_file_record_from_node;
 use super::*;
+use crate::proxy::request_context::{AdminOperationContext, EntityEvidenceState, RequestCacheKey};
+
+pub(in crate::proxy) const OWNER_METAFIELD_EVIDENCE_SCOPE: &str = "owner-metafields";
+const OWNER_METAFIELD_FIELD_EVIDENCE_SCOPE: &str = "owner-metafield-field";
+
+fn owner_metafield_field_evidence_key(
+    owner_id: &str,
+    namespace: &str,
+    key: &str,
+) -> RequestCacheKey {
+    RequestCacheKey::composite(
+        OWNER_METAFIELD_FIELD_EVIDENCE_SCOPE,
+        &[owner_id, namespace, key],
+    )
+}
 
 pub(in crate::proxy) fn owner_metafield_field_resolver_registrations(
 ) -> Vec<FieldResolverRegistration> {
@@ -65,6 +80,19 @@ fn owner_metafields_field(
 }
 
 impl DraftProxy {
+    pub(in crate::proxy) fn prepare_owner_metafield_read(
+        &mut self,
+        context: &AdminOperationContext<'_>,
+    ) {
+        if context.operation_type != OperationType::Query
+            || !context.has_local_root()
+            || !self.should_route_owner_metafields_read(context.roots, context.variables)
+        {
+            return;
+        }
+        self.hydrate_owner_metafield_read_fields(context.request, context.roots, context.variables);
+    }
+
     pub(in crate::proxy) fn should_route_owner_metafields_read(
         &self,
         fields: &[RootFieldSelection],
@@ -98,6 +126,8 @@ const OWNER_METAFIELD_PAGE_INFO_FIELDS: &str =
 const OWNER_PRODUCT_BASE_FIELDS: &str =
     "id title handle status totalInventory tracksInventory createdAt updatedAt";
 const OWNER_PRODUCT_VARIANT_BASE_FIELDS: &str = "id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping }";
+const OWNER_METAFIELDS_EXISTENCE_HYDRATE_QUERY: &str =
+    "query OwnerMetafieldsExistenceHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n  }\n}\n";
 
 const LOCAL_OWNER_METAFIELD_RESOURCE_TYPES: &[&str] = &[
     "Article",
@@ -422,6 +452,17 @@ impl DraftProxy {
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         let inputs = resolved_object_list_field(&arguments, "metafields");
         let api_client_id = request_app_namespace_api_client_id(request);
+        let owner_errors = if inputs.len() <= METAFIELDS_SET_INPUT_LIMIT {
+            self.metafields_set_owner_existence_errors(request, &inputs)
+        } else {
+            Vec::new()
+        };
+        if !owner_errors.is_empty() {
+            return ResolverOutcome::value(json!({
+                "metafields": [],
+                "userErrors": owner_errors,
+            }));
+        }
         let fallback_reference_ids = if inputs.len() <= METAFIELDS_SET_INPUT_LIMIT {
             self.hydrate_metafield_reference_ids(
                 request,
@@ -806,9 +847,13 @@ impl DraftProxy {
             .map(|field| self.owner_field_id(field, variables))
             .filter(|owner_id| !owner_id.is_empty())
             .collect::<Vec<_>>();
-        self.execution_session
-            .owner_metafield_read_ids
-            .extend(requested_owner_ids);
+        for owner_id in requested_owner_ids {
+            self.execution_session.request_cache.mark_entity(
+                OWNER_METAFIELD_EVIDENCE_SCOPE,
+                owner_id,
+                EntityEvidenceState::Requested,
+            );
+        }
         let needs_hydration = fields.iter().any(|field| {
             if !Self::owner_field_selects_metafields_at_root(&field.name, &field.selection) {
                 return false;
@@ -847,15 +892,19 @@ impl DraftProxy {
                 .collect::<Vec<_>>();
             for (owner_id, node) in observed {
                 if !owner_id.is_empty() {
-                    self.execution_session
-                        .owner_metafield_hydrated_ids
-                        .insert(owner_id.clone());
                     if node.is_null() {
-                        self.execution_session
-                            .owner_metafield_missing_ids
-                            .insert(owner_id);
+                        self.execution_session.request_cache.mark_entity(
+                            OWNER_METAFIELD_EVIDENCE_SCOPE,
+                            owner_id,
+                            EntityEvidenceState::Missing,
+                        );
                         continue;
                     }
+                    self.execution_session.request_cache.mark_entity(
+                        OWNER_METAFIELD_EVIDENCE_SCOPE,
+                        owner_id,
+                        EntityEvidenceState::Observed,
+                    );
                 }
                 if node.is_object() {
                     self.stage_observed_owner_metafield_node(&node);
@@ -887,6 +936,156 @@ impl DraftProxy {
             })
             .collect::<Vec<_>>();
         self.hydrate_owner_metafield_ids(request, ids, shape);
+    }
+
+    fn metafields_set_owner_existence_errors(
+        &mut self,
+        request: &Request,
+        inputs: &[BTreeMap<String, ResolvedValue>],
+    ) -> Vec<Value> {
+        let mut missing_ids = BTreeSet::new();
+        let mut unresolved_ids = inputs
+            .iter()
+            .filter_map(|input| resolved_string_field(input, "ownerId"))
+            .filter(|id| self.owner_metafield_owner_supported(request, id))
+            .filter(
+                |id| match self.local_owner_metafield_existence(id, Some(request)) {
+                    Some(true) => false,
+                    Some(false) => {
+                        missing_ids.insert(id.clone());
+                        false
+                    }
+                    None if is_synthetic_gid(id) => {
+                        missing_ids.insert(id.clone());
+                        false
+                    }
+                    None => true,
+                },
+            )
+            .collect::<Vec<_>>();
+        unresolved_ids.sort();
+        unresolved_ids.dedup();
+
+        if self.config.read_mode == ReadMode::LiveHybrid && !unresolved_ids.is_empty() {
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": OWNER_METAFIELDS_EXISTENCE_HYDRATE_QUERY,
+                    "operationName": "OwnerMetafieldsExistenceHydrate",
+                    "variables": { "ids": unresolved_ids },
+                }),
+            );
+            let nodes = (200..300)
+                .contains(&response.status)
+                .then(|| {
+                    response
+                        .body
+                        .pointer("/data/nodes")
+                        .and_then(Value::as_array)
+                })
+                .flatten();
+            for (index, id) in unresolved_ids.iter().enumerate() {
+                let exists = nodes
+                    .and_then(|nodes| nodes.get(index))
+                    .and_then(|node| node.get("id"))
+                    .and_then(Value::as_str)
+                    == Some(id.as_str());
+                if !exists {
+                    missing_ids.insert(id.clone());
+                }
+            }
+        } else {
+            missing_ids.extend(unresolved_ids);
+        }
+
+        inputs
+            .iter()
+            .enumerate()
+            .filter_map(|(index, input)| {
+                let owner_id = resolved_string_field(input, "ownerId")?;
+                missing_ids.contains(&owner_id).then(|| {
+                    user_error_with_element_index(
+                        vec!["metafields", &index.to_string(), "ownerId"],
+                        "Owner does not exist.",
+                        Some("INVALID_VALUE"),
+                        Value::Null,
+                    )
+                })
+            })
+            .collect()
+    }
+
+    fn local_owner_metafield_existence(
+        &self,
+        owner_id: &str,
+        request: Option<&Request>,
+    ) -> Option<bool> {
+        if self
+            .execution_session
+            .request_cache
+            .entity_is_missing(OWNER_METAFIELD_EVIDENCE_SCOPE, owner_id)
+        {
+            return Some(false);
+        }
+        if self.store.staged.metafield_reference_ids.contains(owner_id) {
+            return Some(true);
+        }
+        match self.request_entity_load_state(ApiSurface::Admin, owner_id, request) {
+            crate::node_resolver_inventory::NodeLoadState::Found(_) => return Some(true),
+            crate::node_resolver_inventory::NodeLoadState::KnownMissing => return Some(false),
+            crate::node_resolver_inventory::NodeLoadState::NeedsHydration
+            | crate::node_resolver_inventory::NodeLoadState::UnsupportedType => {}
+        }
+
+        match shopify_gid_resource_type(owner_id) {
+            Some("Market") => {
+                if self.store.staged.deleted_market_ids.contains(owner_id) {
+                    Some(false)
+                } else {
+                    self.store
+                        .staged
+                        .markets
+                        .contains_key(owner_id)
+                        .then_some(true)
+                }
+            }
+            Some("PaymentCustomization") => {
+                if self
+                    .store
+                    .staged
+                    .deleted_payment_customization_ids
+                    .contains(owner_id)
+                {
+                    Some(false)
+                } else {
+                    self.store
+                        .staged
+                        .payment_customizations
+                        .contains_key(owner_id)
+                        .then_some(true)
+                }
+            }
+            Some("DraftOrder") => {
+                if self.store.staged.draft_orders.is_tombstoned(owner_id) {
+                    Some(false)
+                } else {
+                    self.store
+                        .observed_draft_order_by_id(owner_id)
+                        .is_some()
+                        .then_some(true)
+                }
+            }
+            Some("SellingPlan") => self
+                .store
+                .selling_plan_groups()
+                .iter()
+                .any(|group| group.selling_plans.iter().any(|plan| plan.id == owner_id))
+                .then_some(true),
+            Some("Shop") => (self.store.base.shop.get("id").and_then(Value::as_str)
+                == Some(owner_id))
+            .then_some(true),
+            _ => None,
+        }
     }
 
     fn hydrate_owner_metafield_inputs(
@@ -962,14 +1161,13 @@ impl DraftProxy {
             .into_iter()
             .filter(|id| {
                 shape.metafields.iter().any(|field| {
-                    !self
-                        .execution_session
-                        .owner_metafield_resolved_keys
-                        .contains(&(id.clone(), field.namespace.clone(), field.key.clone()))
+                    !self.execution_session.request_cache.is_complete(
+                        &owner_metafield_field_evidence_key(id, &field.namespace, &field.key),
+                    )
                 }) || !self
                     .execution_session
-                    .owner_metafield_hydrated_ids
-                    .contains(id)
+                    .request_cache
+                    .entity_was_hydrated(OWNER_METAFIELD_EVIDENCE_SCOPE, id)
             })
             .collect::<Vec<_>>();
         if ids.is_empty() {
@@ -978,7 +1176,19 @@ impl DraftProxy {
         let Some((query, variables)) = owner_metafield_hydrate_request(ids.clone(), &shape) else {
             return;
         };
-        let response = self.upstream_post(
+        for id in &ids {
+            self.execution_session.request_cache.mark_entity(
+                OWNER_METAFIELD_EVIDENCE_SCOPE,
+                id,
+                EntityEvidenceState::Requested,
+            );
+        }
+        let hydration_key = RequestCacheKey::new(
+            OWNER_METAFIELD_EVIDENCE_SCOPE,
+            format!("{}:{query}", ids.join(",")),
+        );
+        let response = self.request_hydration_post_once(
+            hydration_key,
             request,
             json!({
                 "query": query,
@@ -995,17 +1205,20 @@ impl DraftProxy {
                     continue;
                 };
                 if node.is_null() {
-                    self.execution_session
-                        .owner_metafield_missing_ids
-                        .insert(owner_id.clone());
                     for field in &shape.metafields {
-                        self.execution_session
-                            .owner_metafield_resolved_keys
-                            .insert((owner_id.clone(), field.namespace.clone(), field.key.clone()));
+                        self.execution_session.request_cache.mark_complete(
+                            owner_metafield_field_evidence_key(
+                                owner_id,
+                                &field.namespace,
+                                &field.key,
+                            ),
+                        );
                     }
-                    self.execution_session
-                        .owner_metafield_hydrated_ids
-                        .insert(owner_id.clone());
+                    self.execution_session.request_cache.mark_entity(
+                        OWNER_METAFIELD_EVIDENCE_SCOPE,
+                        owner_id,
+                        EntityEvidenceState::Missing,
+                    );
                     continue;
                 }
                 for (field_index, field) in shape.metafields.iter().enumerate() {
@@ -1015,9 +1228,13 @@ impl DraftProxy {
                         &field.namespace,
                         &field.key,
                     ) {
-                        self.execution_session
-                            .owner_metafield_resolved_keys
-                            .insert((owner_id.clone(), field.namespace.clone(), field.key.clone()));
+                        self.execution_session.request_cache.mark_complete(
+                            owner_metafield_field_evidence_key(
+                                owner_id,
+                                &field.namespace,
+                                &field.key,
+                            ),
+                        );
                     }
                 }
                 let resolved_connections =
@@ -1029,14 +1246,16 @@ impl DraftProxy {
                             node.get(format!("metafields{connection_index}")).is_some()
                         });
                 let resolved_fields = shape.metafields.iter().all(|field| {
-                    self.execution_session
-                        .owner_metafield_resolved_keys
-                        .contains(&(owner_id.clone(), field.namespace.clone(), field.key.clone()))
+                    self.execution_session.request_cache.is_complete(
+                        &owner_metafield_field_evidence_key(owner_id, &field.namespace, &field.key),
+                    )
                 });
                 if resolved_fields && resolved_connections {
-                    self.execution_session
-                        .owner_metafield_hydrated_ids
-                        .insert(owner_id.clone());
+                    self.execution_session.request_cache.mark_entity(
+                        OWNER_METAFIELD_EVIDENCE_SCOPE,
+                        owner_id,
+                        EntityEvidenceState::Observed,
+                    );
                 }
                 self.stage_observed_owner_metafield_node(node);
             }
@@ -1198,8 +1417,8 @@ impl DraftProxy {
     fn owner_needs_metafield_hydration(&self, root_field: &str, owner_id: &str) -> bool {
         if self
             .execution_session
-            .owner_metafield_hydrated_ids
-            .contains(owner_id)
+            .request_cache
+            .entity_was_hydrated(OWNER_METAFIELD_EVIDENCE_SCOPE, owner_id)
         {
             return false;
         }
@@ -1644,10 +1863,9 @@ impl DraftProxy {
             || self.observed_owner_metafields_connection_is_complete(owner_id)
             || self.config.read_mode != ReadMode::LiveHybrid
             || is_synthetic_gid(owner_id)
-            || self
-                .execution_session
-                .owner_metafield_resolved_keys
-                .contains(&(owner_id.to_string(), namespace.to_string(), key.to_string()))
+            || self.execution_session.request_cache.is_complete(
+                &owner_metafield_field_evidence_key(owner_id, namespace, key),
+            )
         {
             OwnerMetafieldResolution::Absent
         } else {
@@ -2976,17 +3194,28 @@ mod tests {
         let calls = calls.lock().unwrap();
         assert_eq!(
             calls.len(),
-            1,
+            2,
             "read-after-write unexpectedly hydrated: {calls:#?}"
         );
         assert_eq!(
-            calls[0]["operationName"], "OwnerMetafieldsHydrateNodes",
-            "the supported write itself must never be forwarded upstream"
+            calls.iter()
+                .map(|call| call["operationName"].as_str().unwrap())
+                .collect::<Vec<_>>(),
+            vec![
+                "OwnerMetafieldsExistenceHydrate",
+                "OwnerMetafieldsHydrateNodes"
+            ],
+            "the supported write may issue query-only hydration but must never be forwarded upstream"
         );
-        assert!(calls[0]["query"]
+        assert!(calls[1]["query"]
             .as_str()
             .unwrap()
             .contains("... on HasMetafields"));
+        assert!(calls.iter().all(|call| {
+            call["query"]
+                .as_str()
+                .is_some_and(|query| query.trim_start().starts_with("query "))
+        }));
     }
 
     #[test]
@@ -3229,7 +3458,23 @@ mod tests {
             "custom".to_string(),
             "owner_state".to_string(),
         )));
-        assert_eq!(calls.lock().unwrap().len(), 2);
+        let calls = calls.lock().unwrap();
+        assert_eq!(
+            calls
+                .iter()
+                .map(|call| call["operationName"].as_str().unwrap())
+                .collect::<Vec<_>>(),
+            vec![
+                "OwnerMetafieldsExistenceHydrate",
+                "OwnerMetafieldsHydrateNodes",
+                "OwnerMetafieldsHydrateNodes"
+            ]
+        );
+        assert!(calls.iter().all(|call| {
+            call["query"]
+                .as_str()
+                .is_some_and(|query| query.trim_start().starts_with("query "))
+        }));
     }
 
     #[test]

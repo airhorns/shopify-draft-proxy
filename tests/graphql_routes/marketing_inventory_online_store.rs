@@ -2594,6 +2594,14 @@ fn marketing_external_activity_app_title_uses_installed_app_model() {
         "x-shopify-draft-proxy-api-client-id".to_string(),
         "347082227713".to_string(),
     );
+    create.headers.insert(
+        "x-shopify-draft-proxy-app-title".to_string(),
+        "Hermes Marketing".to_string(),
+    );
+    create.headers.insert(
+        "x-shopify-draft-proxy-app-handle".to_string(),
+        "hermes-marketing".to_string(),
+    );
     let create = proxy.process_request(create);
     assert_eq!(
         create.body["data"]["createExternal"]["userErrors"],
@@ -20529,6 +20537,503 @@ fn media_staged_uploads_create_missing_required_filename_or_mime_type_coerces_be
 }
 
 #[test]
+fn media_file_delete_uses_authoritative_tombstones_beyond_former_reference_caps() {
+    let media_id = "gid://shopify/MediaImage/9100";
+    let first_product_id = "gid://shopify/Product/9100";
+    let last_product_id = "gid://shopify/Product/9150";
+    let first_variant_id = "gid://shopify/ProductVariant/9300";
+    let last_variant_id = "gid://shopify/ProductVariant/9350";
+    let cold_variant_id = "gid://shopify/ProductVariant/9999";
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body.clone());
+            let operation_name = body["operationName"].as_str().unwrap_or_default();
+            let media_node = |id: String| {
+                json!({
+                    "id": id,
+                    "__typename": "MediaImage",
+                    "alt": "Preserved media",
+                    "fileStatus": "READY",
+                    "mediaContentType": "IMAGE",
+                    "status": "READY",
+                    "preview": {"image": {"url": "https://cdn.example.com/preserved.jpg", "width": 10, "height": 10}},
+                    "image": {"url": "https://cdn.example.com/preserved.jpg", "width": 10, "height": 10}
+                })
+            };
+            let complete_page_info = || {
+                json!({
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": null,
+                    "endCursor": null
+                })
+            };
+
+            let data = match operation_name {
+                "MediaFileTargetHydrate" => {
+                    assert_eq!(body["variables"], json!({"fileIds": [media_id]}));
+                    json!({"nodes": [{
+                        "id": media_id,
+                        "__typename": "MediaImage",
+                        "alt": "Delete target",
+                        "createdAt": "2026-07-20T00:00:00Z",
+                        "fileStatus": "READY",
+                        "image": {"url": "https://cdn.example.com/delete-target.jpg", "width": 10, "height": 10},
+                        "preview": {"image": {"url": "https://cdn.example.com/delete-target.jpg", "width": 10, "height": 10}}
+                    }]})
+                }
+                "MediaProductOwnersHydrate" => {
+                    let ids = body["variables"]["ids"]
+                        .as_array()
+                        .expect("owner hydrate ids");
+                    assert_eq!(ids.len(), 1, "cold owner reads hydrate only the requested product");
+                    let nodes = ids
+                        .iter()
+                        .map(|id| {
+                            let id = id.as_str().unwrap();
+                            let index = id.rsplit('/').next().unwrap().parse::<usize>().unwrap()
+                                - 9100;
+                            let (media, media_page_info) = if index == 0 {
+                                (
+                                    (0..50)
+                                        .map(|media_index| {
+                                            media_node(format!(
+                                                "gid://shopify/MediaImage/{}",
+                                                9200 + media_index
+                                            ))
+                                        })
+                                        .collect::<Vec<_>>(),
+                                    json!({
+                                        "hasNextPage": true,
+                                        "hasPreviousPage": false,
+                                        "startCursor": "product-media-1",
+                                        "endCursor": "product-media-50"
+                                    }),
+                                )
+                            } else {
+                                (
+                                    vec![
+                                        media_node(media_id.to_string()),
+                                        media_node(format!(
+                                            "gid://shopify/MediaImage/{}",
+                                            9400 + index
+                                        )),
+                                    ],
+                                    complete_page_info(),
+                                )
+                            };
+                            let (variants, variants_page_info) = if index == 0 {
+                                (
+                                    (0..50)
+                                        .map(|variant_index| {
+                                            let variant_media = if variant_index == 0 {
+                                                (0..10)
+                                                    .map(|media_index| {
+                                                        media_node(format!(
+                                                            "gid://shopify/MediaImage/{}",
+                                                            9200 + media_index
+                                                        ))
+                                                    })
+                                                    .collect::<Vec<_>>()
+                                            } else {
+                                                vec![media_node(media_id.to_string())]
+                                            };
+                                            json!({
+                                                "id": format!(
+                                                    "gid://shopify/ProductVariant/{}",
+                                                    9300 + variant_index
+                                                ),
+                                                "title": format!("Variant {variant_index}"),
+                                                "media": {
+                                                    "nodes": variant_media,
+                                                    "pageInfo": if variant_index == 0 {
+                                                        json!({
+                                                            "hasNextPage": true,
+                                                            "hasPreviousPage": false,
+                                                            "startCursor": "variant-media-1",
+                                                            "endCursor": "variant-media-10"
+                                                        })
+                                                    } else {
+                                                        complete_page_info()
+                                                    }
+                                                }
+                                            })
+                                        })
+                                        .collect::<Vec<_>>(),
+                                    json!({
+                                        "hasNextPage": true,
+                                        "hasPreviousPage": false,
+                                        "startCursor": "variant-1",
+                                        "endCursor": "variant-50"
+                                    }),
+                                )
+                            } else {
+                                (Vec::new(), complete_page_info())
+                            };
+                            json!({
+                                "id": id,
+                                "title": format!("Referenced product {index}"),
+                                "handle": format!("referenced-product-{index}"),
+                                "status": "ACTIVE",
+                                "media": {"nodes": media, "pageInfo": media_page_info},
+                                "variants": {"nodes": variants, "pageInfo": variants_page_info}
+                            })
+                        })
+                        .collect::<Vec<_>>();
+                    json!({"nodes": nodes})
+                }
+                "MediaProductMediaHydrate" => {
+                    assert_eq!(body["variables"]["id"], json!(first_product_id));
+                    assert_eq!(
+                        body["variables"]["after"],
+                        json!("product-media-50")
+                    );
+                    json!({"product": {
+                        "id": first_product_id,
+                        "media": {
+                            "nodes": [
+                                media_node(media_id.to_string()),
+                                media_node("gid://shopify/MediaImage/9250".to_string())
+                            ],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": true,
+                                "startCursor": "product-media-51",
+                                "endCursor": "product-media-52"
+                            }
+                        }
+                    }})
+                }
+                "MediaProductVariantsHydrate" => {
+                    assert_eq!(body["variables"]["id"], json!(first_product_id));
+                    assert_eq!(body["variables"]["after"], json!("variant-50"));
+                    json!({"product": {
+                        "id": first_product_id,
+                        "variants": {
+                            "nodes": [{
+                                "id": last_variant_id,
+                                "title": "Variant 50",
+                                "media": {
+                                    "nodes": [
+                                        media_node(media_id.to_string()),
+                                        media_node("gid://shopify/MediaImage/9201".to_string())
+                                    ],
+                                    "pageInfo": complete_page_info()
+                                }
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": true,
+                                "startCursor": "variant-51",
+                                "endCursor": "variant-51"
+                            }
+                        }
+                    }})
+                }
+                "MediaVariantMediaHydrate" => {
+                    let variant_id = body["variables"]["id"].as_str().unwrap();
+                    let after = body["variables"]["after"].as_str().unwrap();
+                    let (target_id, preserved_id, start_cursor, end_cursor) =
+                        if variant_id == first_variant_id {
+                            assert_eq!(after, "variant-media-10");
+                            (
+                                media_id,
+                                "gid://shopify/MediaImage/9249",
+                                "variant-media-11",
+                                "variant-media-12",
+                            )
+                        } else {
+                            assert_eq!(variant_id, cold_variant_id);
+                            assert_eq!(after, "cold-variant-media-10");
+                            (
+                                media_id,
+                                "gid://shopify/MediaImage/9999",
+                                "cold-variant-media-11",
+                                "cold-variant-media-12",
+                            )
+                        };
+                    json!({"node": {
+                        "id": variant_id,
+                        "__typename": "ProductVariant",
+                        "media": {
+                            "nodes": [
+                                media_node(target_id.to_string()),
+                                media_node(preserved_id.to_string())
+                            ],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": true,
+                                "startCursor": start_cursor,
+                                "endCursor": end_cursor
+                            }
+                        }
+                    }})
+                }
+                "MediaVariantOwnerHydrate" => {
+                    assert_eq!(body["variables"]["id"], json!(cold_variant_id));
+                    let nodes = (0..10)
+                        .map(|index| {
+                            media_node(format!("gid://shopify/MediaImage/{}", 9989 + index))
+                        })
+                        .collect::<Vec<_>>();
+                    json!({"node": {
+                        "id": cold_variant_id,
+                        "__typename": "ProductVariant",
+                        "title": "Cold direct variant",
+                        "product": {"id": "gid://shopify/Product/9999"},
+                        "media": {
+                            "nodes": nodes,
+                            "pageInfo": {
+                                "hasNextPage": true,
+                                "hasPreviousPage": false,
+                                "startCursor": "cold-variant-media-1",
+                                "endCursor": "cold-variant-media-10"
+                            }
+                        }
+                    }})
+                }
+                operation => panic!("unexpected upstream operation {operation}: {body}"),
+            };
+            assert!(body["query"]
+                .as_str()
+                .is_some_and(|query| query.trim_start().starts_with("query")));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({"data": data}),
+            }
+        });
+    let mutation = r#"
+        mutation DeleteColdReferencedFile($fileIds: [ID!]!) {
+          fileDelete(fileIds: $fileIds) {
+            deletedFileIds
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let deleted = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"fileIds": [media_id]}),
+    ));
+    assert_eq!(
+        deleted.body["data"]["fileDelete"],
+        json!({"deletedFileIds": [media_id], "userErrors": []})
+    );
+
+    let first_product = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadFullyHydratedMediaOwner($id: ID!) {
+          product(id: $id) {
+            id
+            media(first: 100) { nodes { id } }
+            variants(first: 100) {
+              nodes { id media(first: 100) { nodes { id } } }
+            }
+          }
+        }
+        "#,
+        json!({"id": first_product_id}),
+    ));
+    let first_product = &first_product.body["data"]["product"];
+    assert_eq!(
+        first_product["media"]["nodes"].as_array().unwrap().len(),
+        51
+    );
+    assert_eq!(
+        first_product["variants"]["nodes"].as_array().unwrap().len(),
+        51
+    );
+    assert!(first_product.to_string().find(media_id).is_none());
+    let variant_zero = first_product["variants"]["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|variant| variant["id"] == first_variant_id)
+        .unwrap();
+    assert_eq!(variant_zero["media"]["nodes"].as_array().unwrap().len(), 11);
+    let variant_fifty = first_product["variants"]["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|variant| variant["id"] == last_variant_id)
+        .unwrap();
+    assert_eq!(
+        variant_fifty["media"]["nodes"],
+        json!([{"id": "gid://shopify/MediaImage/9201"}])
+    );
+
+    // This product models an owner that would have appeared after the former
+    // references(first: 50) page. The authoritative file tombstone applies
+    // when that previously unobserved owner is hydrated later.
+    let last_product = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadReferenceBeyondFirstPage($id: ID!) {
+          product(id: $id) { id media(first: 10) { nodes { id } } }
+        }
+        "#,
+        json!({"id": last_product_id}),
+    ));
+    assert_eq!(
+        last_product.body["data"]["product"]["media"]["nodes"],
+        json!([{"id": "gid://shopify/MediaImage/9450"}])
+    );
+
+    // Direct variant reads are also local overlays after a file tombstone.
+    // The target appears beyond the former per-variant media cap and must be
+    // removed without hiding unrelated attachments.
+    let cold_variant = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadColdVariantAfterFileDelete($id: ID!) {
+          productVariant(id: $id) {
+            id
+            media(first: 100) { nodes { id } }
+          }
+        }
+        "#,
+        json!({"id": cold_variant_id}),
+    ));
+    let cold_variant_media = cold_variant.body["data"]["productVariant"]["media"]["nodes"]
+        .as_array()
+        .unwrap();
+    assert_eq!(cold_variant_media.len(), 11);
+    assert!(cold_variant_media.iter().all(|node| node["id"] != media_id));
+    assert!(cold_variant_media
+        .iter()
+        .any(|node| node["id"] == "gid://shopify/MediaImage/9999"));
+
+    let bodies = upstream_bodies.lock().unwrap();
+    assert_eq!(
+        bodies
+            .iter()
+            .filter(|body| body["operationName"] == "MediaFileReferencesHydrate")
+            .count(),
+        0,
+        "delete should not depend on the version-unstable bounded references field"
+    );
+    for operation in [
+        "MediaFileTargetHydrate",
+        "MediaProductOwnersHydrate",
+        "MediaProductMediaHydrate",
+        "MediaProductVariantsHydrate",
+        "MediaVariantOwnerHydrate",
+        "MediaVariantMediaHydrate",
+    ] {
+        assert!(
+            bodies.iter().any(|body| body["operationName"] == operation),
+            "missing {operation} request: {bodies:?}"
+        );
+    }
+    drop(bodies);
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        log["entries"][0]["interpreted"]["primaryRootField"],
+        json!("fileDelete")
+    );
+    assert_eq!(log["entries"][0]["query"], json!(mutation));
+    assert_eq!(
+        log["entries"][0]["variables"],
+        json!({"fileIds": [media_id]})
+    );
+}
+
+#[test]
+fn media_file_acknowledge_update_failed_hydrates_an_unobserved_ready_file() {
+    let media_id = "gid://shopify/MediaImage/9001";
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body.clone());
+            assert_eq!(body["operationName"], json!("MediaFileTargetHydrate"));
+            assert_eq!(body["variables"], json!({"fileIds": [media_id]}));
+            assert!(body["query"]
+                .as_str()
+                .is_some_and(|query| query.trim_start().starts_with("query")));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "nodes": [{
+                            "id": media_id,
+                            "__typename": "MediaImage",
+                            "alt": "Cold ready file",
+                            "createdAt": "2026-07-20T00:00:00Z",
+                            "fileStatus": "READY",
+                            "image": {
+                                "url": "https://cdn.example.com/cold-ready.jpg",
+                                "width": 640,
+                                "height": 480
+                            },
+                            "preview": {
+                                "image": {
+                                    "url": "https://cdn.example.com/cold-ready-preview.jpg",
+                                    "width": 320,
+                                    "height": 240
+                                }
+                            }
+                        }]
+                    }
+                }),
+            }
+        });
+    let mutation = r#"
+        mutation AcknowledgeColdReadyFile($fileIds: [ID!]!) {
+          fileAcknowledgeUpdateFailed(fileIds: $fileIds) {
+            files {
+              id
+              alt
+              fileStatus
+              ... on MediaImage { image { url width height } }
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let acknowledge = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"fileIds": [media_id]}),
+    ));
+
+    assert_eq!(
+        acknowledge.body["data"]["fileAcknowledgeUpdateFailed"],
+        json!({
+            "files": [{
+                "id": media_id,
+                "alt": "Cold ready file",
+                "fileStatus": "READY",
+                "image": {
+                    "url": "https://cdn.example.com/cold-ready.jpg",
+                    "width": 640,
+                    "height": 480
+                }
+            }],
+            "userErrors": []
+        })
+    );
+    assert_eq!(upstream_bodies.lock().unwrap().len(), 1);
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        log["entries"][0]["interpreted"]["primaryRootField"],
+        json!("fileAcknowledgeUpdateFailed")
+    );
+    assert_eq!(log["entries"][0]["query"], json!(mutation));
+    assert_eq!(
+        log["entries"][0]["variables"],
+        json!({"fileIds": [media_id]})
+    );
+}
+
+#[test]
 fn media_file_acknowledge_update_failed_validates_missing_and_non_ready_ids() {
     let mut proxy = snapshot_proxy();
     let create = proxy.process_request(json_graphql_request(
@@ -20731,8 +21236,39 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
     let upstream_calls = Arc::new(Mutex::new(0_usize));
     let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
         let upstream_calls = upstream_calls.clone();
-        move |_request| {
+        move |request| {
             *upstream_calls.lock().unwrap() += 1;
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("OnlineStoreBlogHandleReservationHydrate") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "blogs": {
+                                "nodes": [],
+                                "pageInfo": { "hasNextPage": false, "endCursor": null }
+                            }
+                        }
+                    }),
+                };
+            }
+            if query.contains("OnlineStorePageHandleReservationHydrate") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "pages": {
+                                "nodes": [],
+                                "pageInfo": { "hasNextPage": false, "endCursor": null }
+                            }
+                        }
+                    }),
+                };
+            }
             Response {
                 status: 599,
                 headers: Default::default(),
@@ -21045,13 +21581,13 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
         read_after_delete.body["data"]["articles"]["nodes"],
         json!([])
     );
-    assert_eq!(*upstream_calls.lock().unwrap(), 2);
+    assert_eq!(*upstream_calls.lock().unwrap(), 4);
 }
 
 #[test]
 fn online_store_article_create_and_move_hydrate_unobserved_blogs_with_queries_only() {
-    let first_blog_id = "gid://shopify/Blog/authoritative-create-target";
-    let second_blog_id = "gid://shopify/Blog/authoritative-move-target";
+    let first_blog_id = "gid://shopify/Blog/81001";
+    let second_blog_id = "gid://shopify/Blog/81002";
     let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
     let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
         let upstream_requests = Arc::clone(&upstream_requests);
@@ -21060,6 +21596,20 @@ fn online_store_article_create_and_move_hydrate_unobserved_blogs_with_queries_on
                 serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
             upstream_requests.lock().unwrap().push(body.clone());
             let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("OnlineStoreArticleHandleReservationHydrate") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "articles": {
+                                "nodes": [],
+                                "pageInfo": { "hasNextPage": false, "endCursor": null }
+                            }
+                        }
+                    }),
+                };
+            }
             assert!(
                 query.contains("OnlineStoreBlogMutationHydrate"),
                 "unexpected upstream document: {query}"
@@ -21158,7 +21708,7 @@ fn online_store_article_create_and_move_hydrate_unobserved_blogs_with_queries_on
     );
 
     let upstream_requests = upstream_requests.lock().unwrap();
-    assert_eq!(upstream_requests.len(), 2);
+    assert_eq!(upstream_requests.len(), 3);
     assert!(upstream_requests.iter().all(|body| body["query"]
         .as_str()
         .is_some_and(|query| query.trim_start().starts_with("query"))));
@@ -21611,6 +22161,20 @@ fn online_store_content_back_references_project_full_parent_records() {
             let body: Value =
                 serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
             let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("OnlineStoreBlogHandleReservationHydrate") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "blogs": {
+                                "nodes": [],
+                                "pageInfo": { "hasNextPage": false, "endCursor": null }
+                            }
+                        }
+                    }),
+                };
+            }
             assert!(
                 query.contains("OnlineStoreCommentHydrate"),
                 "unexpected online-store hydrate query: {query}"
@@ -21828,7 +22392,7 @@ fn online_store_content_back_references_project_full_parent_records() {
         comment_read.body["data"]["comment"]["article"]["blog"],
         json!({"id": blog_id, "commentPolicy": "CLOSED"})
     );
-    assert_eq!(*upstream_calls.lock().unwrap(), 1);
+    assert_eq!(*upstream_calls.lock().unwrap(), 2);
 }
 
 #[test]
@@ -23164,6 +23728,651 @@ fn online_store_content_validation_branches_do_not_stage() {
     assert_eq!(
         comment_policy_read.body["data"]["blog"]["commentPolicy"],
         json!("MODERATED")
+    );
+}
+
+#[test]
+fn online_store_content_handles_reserve_staged_state_with_captured_resource_semantics() {
+    let mut proxy = snapshot_proxy();
+
+    let pages = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReservePageHandles {
+          first: pageCreate(page: { title: "Reserved Page", isPublished: true }) {
+            page { id handle }
+            userErrors { field message code }
+          }
+          second: pageCreate(page: { title: "Reserved Page", isPublished: true }) {
+            page { id handle }
+            userErrors { field message code }
+          }
+          explicit: pageCreate(page: { title: "Explicit Page", handle: "reserved-page" }) {
+            page { id handle }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let first_page_id = pages.body["data"]["first"]["page"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let second_page_id = pages.body["data"]["second"]["page"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        pages.body["data"]["first"]["page"]["handle"],
+        json!("reserved-page")
+    );
+    assert_eq!(
+        pages.body["data"]["second"]["page"]["handle"],
+        json!("reserved-page-1")
+    );
+    assert_eq!(
+        pages.body["data"]["explicit"],
+        json!({"page": null, "userErrors": [{"field": ["page", "handle"], "message": "Handle has already been taken", "code": "TAKEN"}]})
+    );
+
+    let blogs = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReserveBlogHandles {
+          first: blogCreate(blog: { title: "Reserved Blog" }) {
+            blog { id handle }
+            userErrors { field message code }
+          }
+          second: blogCreate(blog: { title: "Reserved Blog" }) {
+            blog { id handle }
+            userErrors { field message code }
+          }
+          explicit: blogCreate(blog: { title: "Explicit Blog", handle: "reserved-blog" }) {
+            blog { id handle }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let first_blog_id = blogs.body["data"]["first"]["blog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let second_blog_id = blogs.body["data"]["second"]["blog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        blogs.body["data"]["first"]["blog"]["handle"],
+        json!("reserved-blog")
+    );
+    assert_eq!(
+        blogs.body["data"]["second"]["blog"]["handle"],
+        json!("reserved-blog-1")
+    );
+    assert_eq!(
+        blogs.body["data"]["explicit"]["blog"]["handle"],
+        json!("reserved-blog-2")
+    );
+    assert_eq!(blogs.body["data"]["explicit"]["userErrors"], json!([]));
+
+    let articles = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReserveArticleHandles($firstBlogId: ID!, $secondBlogId: ID!) {
+          first: articleCreate(article: { title: "Reserved Article", blogId: $firstBlogId, author: { name: "Handle Author" }, isPublished: true }) {
+            article { id handle blog { id } }
+            userErrors { field message code }
+          }
+          second: articleCreate(article: { title: "Reserved Article", blogId: $firstBlogId, author: { name: "Handle Author" }, isPublished: true }) {
+            article { id handle blog { id } }
+            userErrors { field message code }
+          }
+          explicit: articleCreate(article: { title: "Explicit Article", handle: "reserved-article", blogId: $firstBlogId, author: { name: "Handle Author" } }) {
+            article { id handle blog { id } }
+            userErrors { field message code }
+          }
+          crossBlog: articleCreate(article: { title: "Cross-blog Article", handle: "reserved-article", blogId: $secondBlogId, author: { name: "Handle Author" } }) {
+            article { id handle blog { id } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"firstBlogId": first_blog_id, "secondBlogId": second_blog_id}),
+    ));
+    let first_article_id = articles.body["data"]["first"]["article"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let second_article_id = articles.body["data"]["second"]["article"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let cross_blog_article_id = articles.body["data"]["crossBlog"]["article"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        articles.body["data"]["first"]["article"]["handle"],
+        json!("reserved-article")
+    );
+    assert_eq!(
+        articles.body["data"]["second"]["article"]["handle"],
+        json!("reserved-article-1")
+    );
+    assert_eq!(
+        articles.body["data"]["explicit"],
+        json!({"article": null, "userErrors": [{"field": ["article", "handle"], "message": "Handle has already been taken", "code": "TAKEN"}]})
+    );
+    assert_eq!(
+        articles.body["data"]["crossBlog"]["article"]["handle"],
+        json!("reserved-article")
+    );
+
+    let log_len_before_updates = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+    let updates = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReserveHandleUpdates(
+          $firstPageId: ID!
+          $secondPageId: ID!
+          $firstBlogId: ID!
+          $secondBlogId: ID!
+          $firstArticleId: ID!
+          $secondArticleId: ID!
+        ) {
+          pageSelf: pageUpdate(id: $firstPageId, page: { handle: "reserved-page" }) {
+            page { id handle }
+            userErrors { field message code }
+          }
+          pageCollision: pageUpdate(id: $secondPageId, page: { handle: "reserved-page" }) {
+            page { id handle }
+            userErrors { field message code }
+          }
+          blogSelf: blogUpdate(id: $firstBlogId, blog: { handle: "reserved-blog" }) {
+            blog { id handle }
+            userErrors { field message code }
+          }
+          blogCollision: blogUpdate(id: $secondBlogId, blog: { handle: "reserved-blog" }) {
+            blog { id handle }
+            userErrors { field message code }
+          }
+          articleSelf: articleUpdate(id: $firstArticleId, article: { handle: "reserved-article" }) {
+            article { id handle }
+            userErrors { field message code }
+          }
+          articleCollision: articleUpdate(id: $secondArticleId, article: { handle: "reserved-article" }) {
+            article { id handle }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "firstPageId": first_page_id,
+            "secondPageId": second_page_id,
+            "firstBlogId": first_blog_id,
+            "secondBlogId": second_blog_id,
+            "firstArticleId": first_article_id,
+            "secondArticleId": second_article_id
+        }),
+    ));
+    assert_eq!(
+        updates.body["data"]["pageSelf"]["page"]["handle"],
+        json!("reserved-page")
+    );
+    assert_eq!(
+        updates.body["data"]["pageCollision"],
+        json!({"page": null, "userErrors": [{"field": ["page", "handle"], "message": "Handle has already been taken", "code": "TAKEN"}]})
+    );
+    assert_eq!(
+        updates.body["data"]["blogSelf"]["blog"]["handle"],
+        json!("reserved-blog")
+    );
+    assert_eq!(
+        updates.body["data"]["blogCollision"],
+        json!({"blog": {"id": second_blog_id, "handle": "reserved-blog-1"}, "userErrors": []})
+    );
+    assert_eq!(
+        updates.body["data"]["articleSelf"]["article"]["handle"],
+        json!("reserved-article")
+    );
+    assert_eq!(
+        updates.body["data"]["articleCollision"],
+        json!({"article": null, "userErrors": [{"field": ["article", "handle"], "message": "Handle has already been taken", "code": "TAKEN"}]})
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        log_len_before_updates + 1,
+        "accepted roots should retain the original multi-root mutation once; rejected Page/Article collisions must not create extra replay entries"
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query ReservedHandleReadback($pageId: ID!, $blogId: ID!, $articleId: ID!) {
+          page(id: $pageId) { id handle }
+          blog(id: $blogId) { id handle }
+          article(id: $articleId) { id handle }
+          pageNode: node(id: $pageId) { ... on Page { id handle } }
+          blogNode: node(id: $blogId) { ... on Blog { id handle } }
+          articleNode: node(id: $articleId) { ... on Article { id handle } }
+          pages(first: 10, query: "handle:reserved-page-1") { nodes { id handle } }
+          blogs(first: 10, query: "handle:reserved-blog-1") { nodes { id handle } }
+          articles(first: 10, query: "handle:reserved-article") { nodes { id handle } }
+        }
+        "#,
+        json!({
+            "pageId": second_page_id,
+            "blogId": second_blog_id,
+            "articleId": second_article_id
+        }),
+    ));
+    assert_eq!(
+        downstream.body["data"]["page"]["handle"],
+        json!("reserved-page-1"),
+        "{}",
+        downstream.body
+    );
+    assert_eq!(
+        downstream.body["data"]["blog"]["handle"],
+        json!("reserved-blog-1")
+    );
+    assert_eq!(
+        downstream.body["data"]["article"]["handle"],
+        json!("reserved-article-1")
+    );
+    assert_eq!(
+        downstream.body["data"]["pageNode"],
+        downstream.body["data"]["page"]
+    );
+    assert_eq!(
+        downstream.body["data"]["blogNode"],
+        downstream.body["data"]["blog"]
+    );
+    assert_eq!(
+        downstream.body["data"]["articleNode"],
+        downstream.body["data"]["article"]
+    );
+    assert_eq!(
+        downstream.body["data"]["pages"]["nodes"],
+        json!([{"id": second_page_id, "handle": "reserved-page-1"}])
+    );
+    assert_eq!(
+        downstream.body["data"]["blogs"]["nodes"],
+        json!([{"id": second_blog_id, "handle": "reserved-blog-1"}])
+    );
+    let article_nodes = downstream.body["data"]["articles"]["nodes"]
+        .as_array()
+        .unwrap();
+    assert!(article_nodes
+        .iter()
+        .any(|node| node["id"] == json!(first_article_id)));
+    assert!(article_nodes
+        .iter()
+        .any(|node| node["id"] == json!(cross_blog_article_id)));
+
+    let storefront_handles = proxy.process_request(request_with_body(
+        "POST",
+        "/api/2026-04/graphql.json",
+        &json!({
+            "query": r#"
+                query ReservedStorefrontHandles(
+                  $pageHandle: String!
+                  $blogHandle: String!
+                  $articleHandle: String!
+                ) {
+                  pageByHandle(handle: $pageHandle) { id handle }
+                  blogByHandle(handle: $blogHandle) {
+                    id
+                    handle
+                    articleByHandle(handle: $articleHandle) { id handle }
+                  }
+                }
+            "#,
+            "variables": {
+                "pageHandle": "reserved-page-1",
+                "blogHandle": "reserved-blog",
+                "articleHandle": "reserved-article-1"
+            }
+        })
+        .to_string(),
+    ));
+    assert_eq!(storefront_handles.status, 200);
+    assert_eq!(
+        storefront_handles.body["data"]["pageByHandle"],
+        json!({"id": second_page_id, "handle": "reserved-page-1"})
+    );
+    assert_eq!(
+        storefront_handles.body["data"]["blogByHandle"],
+        json!({
+            "id": first_blog_id,
+            "handle": "reserved-blog",
+            "articleByHandle": {"id": second_article_id, "handle": "reserved-article-1"}
+        })
+    );
+}
+
+#[test]
+fn online_store_content_mutations_hydrate_authoritative_handle_owners_without_forwarding_writes() {
+    let page_owner_id = "gid://shopify/Page/100";
+    let page_target_id = "gid://shopify/Page/200";
+    let blog_owner_id = "gid://shopify/Blog/300";
+    let blog_target_id = "gid://shopify/Blog/400";
+    let article_owner_id = "gid://shopify/Article/500";
+    let article_target_id = "gid://shopify/Article/600";
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_requests = Arc::clone(&upstream_requests);
+        move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            upstream_requests.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                query.trim_start().starts_with("query"),
+                "supported writes must only issue query hydration: {query}"
+            );
+            let variables = &body["variables"];
+            let data = if query.contains("OnlineStorePageHandleReservationHydrate") {
+                let nodes = if variables["query"] == json!("handle:real-page") {
+                    json!([{"__typename": "Page", "id": page_owner_id, "handle": "real-page"}])
+                } else {
+                    json!([])
+                };
+                json!({"pages": {"nodes": nodes, "pageInfo": {"hasNextPage": false, "endCursor": null}}})
+            } else if query.contains("OnlineStorePageHydrate") {
+                assert_eq!(variables["id"], json!(page_target_id));
+                json!({
+                    "page": {
+                        "__typename": "Page",
+                        "id": page_target_id,
+                        "title": "Target Page",
+                        "handle": "target-page",
+                        "body": "",
+                        "bodySummary": "",
+                        "isPublished": true,
+                        "publishedAt": "2026-07-01T00:00:00Z",
+                        "createdAt": "2026-07-01T00:00:00Z",
+                        "updatedAt": "2026-07-01T00:00:00Z",
+                        "templateSuffix": null
+                    }
+                })
+            } else if query.contains("OnlineStoreBlogHandleReservationHydrate") {
+                let nodes = if variables["query"] == json!("handle:real-blog") {
+                    json!([{"__typename": "Blog", "id": blog_owner_id, "handle": "real-blog"}])
+                } else {
+                    json!([])
+                };
+                json!({"blogs": {"nodes": nodes, "pageInfo": {"hasNextPage": false, "endCursor": null}}})
+            } else if query.contains("OnlineStoreBlogMutationHydrate") {
+                let id = variables["id"].as_str().unwrap_or_default();
+                let (title, handle) = match id {
+                    value if value == blog_owner_id => ("Real Blog", "real-blog"),
+                    value if value == blog_target_id => ("Target Blog", "target-blog"),
+                    value => panic!("unexpected blog hydrate ID: {value}"),
+                };
+                json!({
+                    "blog": {
+                        "__typename": "Blog",
+                        "id": id,
+                        "title": title,
+                        "handle": handle,
+                        "commentPolicy": "CLOSED",
+                        "tags": [],
+                        "templateSuffix": null,
+                        "createdAt": "2026-07-01T00:00:00Z",
+                        "updatedAt": "2026-07-01T00:00:00Z",
+                        "articlesCount": {"count": 1, "precision": "EXACT"},
+                        "metafields": {
+                            "nodes": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        }
+                    }
+                })
+            } else if query.contains("OnlineStoreArticleHandleReservationHydrate") {
+                let nodes = if variables["query"] == json!("handle:real-article blog_id:300") {
+                    json!([{
+                        "__typename": "Article",
+                        "id": article_owner_id,
+                        "handle": "real-article",
+                        "blog": {"id": blog_owner_id}
+                    }])
+                } else {
+                    json!([])
+                };
+                json!({"articles": {"nodes": nodes, "pageInfo": {"hasNextPage": false, "endCursor": null}}})
+            } else if query.contains("OnlineStoreArticleMutationHydrate") {
+                assert_eq!(variables["id"], json!(article_target_id));
+                json!({
+                    "article": {
+                        "__typename": "Article",
+                        "id": article_target_id,
+                        "title": "Target Article",
+                        "handle": "target-article",
+                        "body": "",
+                        "summary": null,
+                        "tags": [],
+                        "isPublished": true,
+                        "publishedAt": "2026-07-01T00:00:00Z",
+                        "createdAt": "2026-07-01T00:00:00Z",
+                        "updatedAt": "2026-07-01T00:00:00Z",
+                        "templateSuffix": null,
+                        "author": {"name": "Handle Author"},
+                        "image": null,
+                        "blog": {
+                            "__typename": "Blog",
+                            "id": blog_owner_id,
+                            "title": "Real Blog",
+                            "handle": "real-blog",
+                            "commentPolicy": "CLOSED",
+                            "tags": [],
+                            "templateSuffix": null,
+                            "createdAt": "2026-07-01T00:00:00Z",
+                            "updatedAt": "2026-07-01T00:00:00Z",
+                            "articlesCount": {"count": 2, "precision": "EXACT"}
+                        },
+                        "metafields": {
+                            "nodes": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        }
+                    }
+                })
+            } else {
+                panic!("unexpected upstream document: {query}");
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({"data": data}),
+            }
+        }
+    });
+
+    let pages = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MutationFirstPageHandles($targetId: ID!) {
+          generated: pageCreate(page: { title: "Real Page" }) {
+            page { id handle }
+            userErrors { field message code }
+          }
+          explicit: pageCreate(page: { title: "Explicit Page", handle: "real-page" }) {
+            page { id handle }
+            userErrors { field message code }
+          }
+          updateCollision: pageUpdate(id: $targetId, page: { handle: "real-page" }) {
+            page { id handle }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"targetId": page_target_id}),
+    ));
+    assert_eq!(
+        pages.body["data"]["generated"]["page"]["handle"],
+        json!("real-page-1")
+    );
+    assert_eq!(
+        pages.body["data"]["explicit"],
+        json!({"page": null, "userErrors": [{"field": ["page", "handle"], "message": "Handle has already been taken", "code": "TAKEN"}]})
+    );
+    assert_eq!(
+        pages.body["data"]["updateCollision"],
+        json!({"page": null, "userErrors": [{"field": ["page", "handle"], "message": "Handle has already been taken", "code": "TAKEN"}]})
+    );
+
+    let blogs = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MutationFirstBlogHandles($targetId: ID!) {
+          generated: blogCreate(blog: { title: "Real Blog" }) {
+            blog { id handle }
+            userErrors { field message code }
+          }
+          explicit: blogCreate(blog: { title: "Explicit Blog", handle: "real-blog" }) {
+            blog { id handle }
+            userErrors { field message code }
+          }
+          updateCollision: blogUpdate(id: $targetId, blog: { handle: "real-blog" }) {
+            blog { id handle }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"targetId": blog_target_id}),
+    ));
+    assert_eq!(
+        blogs.body["data"]["generated"]["blog"]["handle"],
+        json!("real-blog-1")
+    );
+    assert_eq!(
+        blogs.body["data"]["explicit"]["blog"]["handle"],
+        json!("real-blog-2")
+    );
+    assert_eq!(
+        blogs.body["data"]["updateCollision"],
+        json!({"blog": {"id": blog_target_id, "handle": "target-blog"}, "userErrors": []})
+    );
+
+    let articles = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MutationFirstArticleHandles($blogId: ID!, $targetId: ID!) {
+          generated: articleCreate(article: { title: "Real Article", blogId: $blogId, author: { name: "Handle Author" } }) {
+            article { id handle }
+            userErrors { field message code }
+          }
+          explicit: articleCreate(article: { title: "Explicit Article", handle: "real-article", blogId: $blogId, author: { name: "Handle Author" } }) {
+            article { id handle }
+            userErrors { field message code }
+          }
+          updateCollision: articleUpdate(id: $targetId, article: { handle: "real-article" }) {
+            article { id handle }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"blogId": blog_owner_id, "targetId": article_target_id}),
+    ));
+    assert_eq!(
+        articles.body["data"]["generated"]["article"]["handle"],
+        json!("real-article-1")
+    );
+    assert_eq!(
+        articles.body["data"]["explicit"],
+        json!({"article": null, "userErrors": [{"field": ["article", "handle"], "message": "Handle has already been taken", "code": "TAKEN"}]})
+    );
+    assert_eq!(
+        articles.body["data"]["updateCollision"],
+        json!({"article": null, "userErrors": [{"field": ["article", "handle"], "message": "Handle has already been taken", "code": "TAKEN"}]})
+    );
+
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        3,
+        "each mutation document with at least one accepted local root should be retained once"
+    );
+    let upstream_requests = upstream_requests.lock().unwrap();
+    assert_eq!(
+        upstream_requests.len(),
+        11,
+        "mutation-first collision handling should use only exact owner and target hydration queries"
+    );
+    assert!(upstream_requests.iter().all(|body| body["query"]
+        .as_str()
+        .is_some_and(|query| query.trim_start().starts_with("query"))));
+    assert!(upstream_requests.iter().any(|body| body["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("OnlineStorePageHandleReservationHydrate"))));
+    assert!(upstream_requests.iter().any(|body| body["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("OnlineStoreBlogHandleReservationHydrate"))));
+    assert!(upstream_requests.iter().any(|body| body["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("OnlineStoreArticleHandleReservationHydrate"))));
+    drop(upstream_requests);
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    assert_eq!(
+        dump.body["state"]["stagedState"]["observedOnlineStorePageHandleOwners"]["real-page"],
+        json!(page_owner_id)
+    );
+    assert_eq!(
+        dump.body["state"]["stagedState"]["observedOnlineStoreBlogHandleOwners"]["real-blog"],
+        json!(blog_owner_id)
+    );
+    assert_eq!(
+        dump.body["state"]["stagedState"]["observedOnlineStoreArticleHandleOwners"][blog_owner_id]
+            ["real-article"],
+        json!(article_owner_id)
+    );
+
+    let mut restored = snapshot_proxy();
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let restored_collisions = restored.process_request(json_graphql_request(
+        r#"
+        mutation RestoredAuthoritativeHandleOwners($blogId: ID!) {
+          page: pageCreate(page: { title: "Restored Page", handle: "real-page" }) {
+            page { id handle }
+            userErrors { field message code }
+          }
+          article: articleCreate(article: { title: "Restored Article", handle: "real-article", blogId: $blogId, author: { name: "Handle Author" } }) {
+            article { id handle }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"blogId": blog_owner_id}),
+    ));
+    let taken = json!([{
+        "field": ["page", "handle"],
+        "message": "Handle has already been taken",
+        "code": "TAKEN"
+    }]);
+    assert_eq!(
+        restored_collisions.body["data"]["page"],
+        json!({"page": null, "userErrors": taken})
+    );
+    assert_eq!(
+        restored_collisions.body["data"]["article"],
+        json!({
+            "article": null,
+            "userErrors": [{
+                "field": ["article", "handle"],
+                "message": "Handle has already been taken",
+                "code": "TAKEN"
+            }]
+        })
     );
 }
 

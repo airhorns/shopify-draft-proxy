@@ -1,0 +1,1042 @@
+{
+  "scenarioId": "localization-parent-observation-preservation",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-07-20T07:38:27.560Z",
+  "setup": {
+    "productCreate": {
+      "variables": {
+        "product": {
+          "title": "Localization parent product 1784533103117-6a38nj",
+          "handle": "localization-parent-product-1784533103117-6a38nj",
+          "descriptionHtml": "<p>Localization parent product body 1784533103117-6a38nj</p>",
+          "vendor": "Localization Vendor 1784533103117-6a38nj",
+          "productType": "Localization Type 1784533103117-6a38nj",
+          "tags": ["localization-parent", "capture-1784533103117-6a38nj"],
+          "templateSuffix": "localization-parent-product",
+          "seo": {
+            "title": "Localization product SEO 1784533103117-6a38nj",
+            "description": "Localization product SEO description 1784533103117-6a38nj"
+          },
+          "status": "ARCHIVED"
+        },
+        "media": [
+          {
+            "mediaContentType": "EXTERNAL_VIDEO",
+            "originalSource": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "alt": "Localization parent media 1784533103117-6a38nj"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10244133683506"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "mediaReadyRead": {
+      "variables": {
+        "productId": null
+      },
+      "response": {
+        "data": {
+          "product": {
+            "media": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ExternalVideo/44072967635250",
+                  "mediaContentType": "EXTERNAL_VIDEO",
+                  "status": "READY"
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 7,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "collectionCreate": {
+      "variables": {
+        "input": {
+          "title": "Localization parent collection 1784533103117-6a38nj",
+          "handle": "localization-parent-collection-1784533103117-6a38nj",
+          "descriptionHtml": "<p>Localization parent collection body 1784533103117-6a38nj</p>",
+          "templateSuffix": "localization-parent-collection",
+          "sortOrder": "MANUAL",
+          "seo": {
+            "title": "Localization collection SEO 1784533103117-6a38nj",
+            "description": "Localization collection SEO description 1784533103117-6a38nj"
+          },
+          "products": ["gid://shopify/Product/10244133683506"]
+        }
+      },
+      "response": {
+        "data": {
+          "collectionCreate": {
+            "collection": {
+              "id": "gid://shopify/Collection/514594963762"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "sourceRead": {
+    "request": {
+      "variables": {
+        "productId": "gid://shopify/Product/10244133683506",
+        "collectionId": "gid://shopify/Collection/514594963762"
+      }
+    },
+    "response": {
+      "data": {
+        "productSource": {
+          "resourceId": "gid://shopify/Product/10244133683506",
+          "translatableContent": [
+            {
+              "key": "title",
+              "value": "Localization parent product 1784533103117-6a38nj",
+              "digest": "7c26eadeb8341000b0bb952b27362d80d1038a6c6a7ec88eb4e3bb332fe95230",
+              "locale": "en",
+              "type": "SINGLE_LINE_TEXT_FIELD"
+            },
+            {
+              "key": "body_html",
+              "value": "<p>Localization parent product body 1784533103117-6a38nj</p>",
+              "digest": "0191df06c335256a4bb5348e4ff9db983ae356b662046544e91f9f341e0d430b",
+              "locale": "en",
+              "type": "HTML"
+            },
+            {
+              "key": "handle",
+              "value": "localization-parent-product-1784533103117-6a38nj",
+              "digest": "c01b114e4e5188d716bbae5000b0218394f4cf9523c3f80375c3f6ca37c72772",
+              "locale": "en",
+              "type": "URI"
+            },
+            {
+              "key": "product_type",
+              "value": "Localization Type 1784533103117-6a38nj",
+              "digest": "55b6d8e74571494b08ad47deb15b15c07af4e2a87657f4f8b284bd6aa54be70e",
+              "locale": "en",
+              "type": "SINGLE_LINE_TEXT_FIELD"
+            },
+            {
+              "key": "meta_title",
+              "value": "Localization product SEO 1784533103117-6a38nj",
+              "digest": "2f0772c2ae5d3dd47166f8fa6702f5248ee28219746385861f2f629becc292f6",
+              "locale": "en",
+              "type": "MULTI_LINE_TEXT_FIELD"
+            },
+            {
+              "key": "meta_description",
+              "value": "Localization product SEO description 1784533103117-6a38nj",
+              "digest": "f3193abc93dbd59eb33ea3919e707e9d467a92e067ac1fb2a2fce151c2c8be93",
+              "locale": "en",
+              "type": "MULTI_LINE_TEXT_FIELD"
+            }
+          ]
+        },
+        "collectionSource": {
+          "resourceId": "gid://shopify/Collection/514594963762",
+          "translatableContent": [
+            {
+              "key": "title",
+              "value": "Localization parent collection 1784533103117-6a38nj",
+              "digest": "59af675ac310629fbffcecf3607598b98236bb620995514d9a15d400eb06023c",
+              "locale": "en",
+              "type": "SINGLE_LINE_TEXT_FIELD"
+            },
+            {
+              "key": "body_html",
+              "value": "<p>Localization parent collection body 1784533103117-6a38nj</p>",
+              "digest": "0449d285663bee99869bc31a85ff42d23d27450b3944454914ba9abe5fc76a06",
+              "locale": "en",
+              "type": "HTML"
+            },
+            {
+              "key": "handle",
+              "value": "localization-parent-collection-1784533103117-6a38nj",
+              "digest": "51bca7afdf276fc7410fa0f9919a9109e609b2e812c5f7702a90e0139dfc3003",
+              "locale": "en",
+              "type": "URI"
+            },
+            {
+              "key": "meta_title",
+              "value": "Localization collection SEO 1784533103117-6a38nj",
+              "digest": "5ad41bc595d224f0086186110b71bc4161f2af311652179e4e25e3a16235d1a9",
+              "locale": "en",
+              "type": "MULTI_LINE_TEXT_FIELD"
+            },
+            {
+              "key": "meta_description",
+              "value": "Localization collection SEO description 1784533103117-6a38nj",
+              "digest": "87936dbe5b03581cd0bf38a4675cf27b360cf6e3cdf1e39b239510f675faf073",
+              "locale": "en",
+              "type": "MULTI_LINE_TEXT_FIELD"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 4,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "sourceAfterDisjoint": {
+    "request": {
+      "variables": {
+        "productId": "gid://shopify/Product/10244133683506",
+        "collectionId": "gid://shopify/Collection/514594963762"
+      }
+    },
+    "response": {
+      "data": {
+        "productSource": {
+          "resourceId": "gid://shopify/Product/10244133683506",
+          "translatableContent": [
+            {
+              "key": "title",
+              "value": "Localization parent product 1784533103117-6a38nj",
+              "digest": "7c26eadeb8341000b0bb952b27362d80d1038a6c6a7ec88eb4e3bb332fe95230",
+              "locale": "en",
+              "type": "SINGLE_LINE_TEXT_FIELD"
+            },
+            {
+              "key": "body_html",
+              "value": "<p>Localization parent product body 1784533103117-6a38nj</p>",
+              "digest": "0191df06c335256a4bb5348e4ff9db983ae356b662046544e91f9f341e0d430b",
+              "locale": "en",
+              "type": "HTML"
+            },
+            {
+              "key": "handle",
+              "value": "localization-parent-product-1784533103117-6a38nj",
+              "digest": "c01b114e4e5188d716bbae5000b0218394f4cf9523c3f80375c3f6ca37c72772",
+              "locale": "en",
+              "type": "URI"
+            },
+            {
+              "key": "product_type",
+              "value": "Localization Type 1784533103117-6a38nj",
+              "digest": "55b6d8e74571494b08ad47deb15b15c07af4e2a87657f4f8b284bd6aa54be70e",
+              "locale": "en",
+              "type": "SINGLE_LINE_TEXT_FIELD"
+            },
+            {
+              "key": "meta_title",
+              "value": "Localization product SEO 1784533103117-6a38nj",
+              "digest": "2f0772c2ae5d3dd47166f8fa6702f5248ee28219746385861f2f629becc292f6",
+              "locale": "en",
+              "type": "MULTI_LINE_TEXT_FIELD"
+            },
+            {
+              "key": "meta_description",
+              "value": "Localization product SEO description 1784533103117-6a38nj",
+              "digest": "f3193abc93dbd59eb33ea3919e707e9d467a92e067ac1fb2a2fce151c2c8be93",
+              "locale": "en",
+              "type": "MULTI_LINE_TEXT_FIELD"
+            }
+          ]
+        },
+        "collectionSource": {
+          "resourceId": "gid://shopify/Collection/514594963762",
+          "translatableContent": [
+            {
+              "key": "title",
+              "value": "Localization parent collection 1784533103117-6a38nj",
+              "digest": "59af675ac310629fbffcecf3607598b98236bb620995514d9a15d400eb06023c",
+              "locale": "en",
+              "type": "SINGLE_LINE_TEXT_FIELD"
+            },
+            {
+              "key": "body_html",
+              "value": "<p>Localization parent collection body 1784533103117-6a38nj</p>",
+              "digest": "0449d285663bee99869bc31a85ff42d23d27450b3944454914ba9abe5fc76a06",
+              "locale": "en",
+              "type": "HTML"
+            },
+            {
+              "key": "handle",
+              "value": "localization-parent-collection-1784533103117-6a38nj",
+              "digest": "51bca7afdf276fc7410fa0f9919a9109e609b2e812c5f7702a90e0139dfc3003",
+              "locale": "en",
+              "type": "URI"
+            },
+            {
+              "key": "meta_title",
+              "value": "Localization collection SEO 1784533103117-6a38nj",
+              "digest": "5ad41bc595d224f0086186110b71bc4161f2af311652179e4e25e3a16235d1a9",
+              "locale": "en",
+              "type": "MULTI_LINE_TEXT_FIELD"
+            },
+            {
+              "key": "meta_description",
+              "value": "Localization collection SEO description 1784533103117-6a38nj",
+              "digest": "87936dbe5b03581cd0bf38a4675cf27b360cf6e3cdf1e39b239510f675faf073",
+              "locale": "en",
+              "type": "MULTI_LINE_TEXT_FIELD"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 4,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "canonicalNodes": {
+    "request": {
+      "variables": {
+        "ids": ["gid://shopify/Collection/514594963762", "gid://shopify/Product/10244133683506"]
+      }
+    },
+    "response": {
+      "data": {
+        "nodes": [
+          {
+            "__typename": "Collection",
+            "id": "gid://shopify/Collection/514594963762",
+            "title": "Localization parent collection 1784533103117-6a38nj",
+            "handle": "localization-parent-collection-1784533103117-6a38nj",
+            "descriptionHtml": "<p>Localization parent collection body 1784533103117-6a38nj</p>",
+            "updatedAt": "2026-07-20T07:38:26Z",
+            "templateSuffix": "localization-parent-collection",
+            "sortOrder": "MANUAL",
+            "seo": {
+              "title": "Localization collection SEO 1784533103117-6a38nj",
+              "description": "Localization collection SEO description 1784533103117-6a38nj"
+            },
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/10244133683506",
+                  "title": "Localization parent product 1784533103117-6a38nj",
+                  "handle": "localization-parent-product-1784533103117-6a38nj"
+                }
+              ]
+            }
+          },
+          {
+            "__typename": "Product",
+            "id": "gid://shopify/Product/10244133683506",
+            "title": "Localization parent product 1784533103117-6a38nj",
+            "handle": "localization-parent-product-1784533103117-6a38nj",
+            "status": "ARCHIVED",
+            "createdAt": "2026-07-20T07:38:23Z",
+            "updatedAt": "2026-07-20T07:38:24Z",
+            "descriptionHtml": "<p>Localization parent product body 1784533103117-6a38nj</p>",
+            "vendor": "Localization Vendor 1784533103117-6a38nj",
+            "productType": "Localization Type 1784533103117-6a38nj",
+            "tags": ["capture-1784533103117-6a38nj", "localization-parent"],
+            "templateSuffix": "localization-parent-product",
+            "seo": {
+              "title": "Localization product SEO 1784533103117-6a38nj",
+              "description": "Localization product SEO description 1784533103117-6a38nj"
+            },
+            "media": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ExternalVideo/44072967635250",
+                  "mediaContentType": "EXTERNAL_VIDEO",
+                  "status": "READY"
+                }
+              ]
+            },
+            "collections": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Collection/514594963762",
+                  "title": "Localization parent collection 1784533103117-6a38nj",
+                  "handle": "localization-parent-collection-1784533103117-6a38nj"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 14,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "disjointRead": {
+    "request": {
+      "variables": {
+        "productId": "gid://shopify/Product/10244133683506",
+        "collectionId": "gid://shopify/Collection/514594963762"
+      }
+    },
+    "response": {
+      "data": {
+        "product": {
+          "id": "gid://shopify/Product/10244133683506",
+          "status": "ARCHIVED",
+          "createdAt": "2026-07-20T07:38:23Z",
+          "updatedAt": "2026-07-20T07:38:24Z",
+          "vendor": "Localization Vendor 1784533103117-6a38nj",
+          "tags": ["capture-1784533103117-6a38nj", "localization-parent"]
+        },
+        "collection": {
+          "id": "gid://shopify/Collection/514594963762",
+          "updatedAt": "2026-07-20T07:38:26Z",
+          "templateSuffix": "localization-parent-collection",
+          "sortOrder": "MANUAL"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 2,
+          "actualQueryCost": 2,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1998,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "productUpdate": {
+    "request": {
+      "variables": {
+        "product": {
+          "id": "gid://shopify/Product/10244133683506",
+          "title": "Localization parent product updated 1784533103117-6a38nj"
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "productUpdate": {
+          "product": {
+            "id": "gid://shopify/Product/10244133683506",
+            "title": "Localization parent product updated 1784533103117-6a38nj",
+            "handle": "localization-parent-product-1784533103117-6a38nj",
+            "status": "ARCHIVED",
+            "createdAt": "2026-07-20T07:38:23Z",
+            "updatedAt": "2026-07-20T07:38:26Z",
+            "descriptionHtml": "<p>Localization parent product body 1784533103117-6a38nj</p>",
+            "vendor": "Localization Vendor 1784533103117-6a38nj",
+            "productType": "Localization Type 1784533103117-6a38nj",
+            "tags": ["capture-1784533103117-6a38nj", "localization-parent"],
+            "templateSuffix": "localization-parent-product",
+            "seo": {
+              "title": "Localization product SEO 1784533103117-6a38nj",
+              "description": "Localization product SEO description 1784533103117-6a38nj"
+            },
+            "media": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ExternalVideo/44072967635250",
+                  "mediaContentType": "EXTERNAL_VIDEO",
+                  "status": "READY"
+                }
+              ]
+            },
+            "collections": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Collection/514594963762",
+                  "title": "Localization parent collection 1784533103117-6a38nj",
+                  "handle": "localization-parent-collection-1784533103117-6a38nj"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 23,
+          "actualQueryCost": 17,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1981,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "collectionUpdate": {
+    "request": {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Collection/514594963762",
+          "title": "Localization parent collection updated 1784533103117-6a38nj"
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "collectionUpdate": {
+          "collection": {
+            "id": "gid://shopify/Collection/514594963762",
+            "title": "Localization parent collection updated 1784533103117-6a38nj",
+            "handle": "localization-parent-collection-1784533103117-6a38nj",
+            "descriptionHtml": "<p>Localization parent collection body 1784533103117-6a38nj</p>",
+            "updatedAt": "2026-07-20T07:38:26Z",
+            "templateSuffix": "localization-parent-collection",
+            "sortOrder": "MANUAL",
+            "seo": {
+              "title": "Localization collection SEO 1784533103117-6a38nj",
+              "description": "Localization collection SEO description 1784533103117-6a38nj"
+            },
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/10244133683506",
+                  "title": "Localization parent product updated 1784533103117-6a38nj",
+                  "handle": "localization-parent-product-1784533103117-6a38nj"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 17,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "finalRead": {
+    "request": {
+      "variables": {
+        "productId": "gid://shopify/Product/10244133683506",
+        "collectionId": "gid://shopify/Collection/514594963762",
+        "ids": ["gid://shopify/Collection/514594963762", "gid://shopify/Product/10244133683506"]
+      }
+    },
+    "response": {
+      "data": {
+        "product": {
+          "id": "gid://shopify/Product/10244133683506",
+          "title": "Localization parent product updated 1784533103117-6a38nj",
+          "handle": "localization-parent-product-1784533103117-6a38nj",
+          "status": "ARCHIVED",
+          "createdAt": "2026-07-20T07:38:23Z",
+          "updatedAt": "2026-07-20T07:38:26Z",
+          "descriptionHtml": "<p>Localization parent product body 1784533103117-6a38nj</p>",
+          "vendor": "Localization Vendor 1784533103117-6a38nj",
+          "productType": "Localization Type 1784533103117-6a38nj",
+          "tags": ["capture-1784533103117-6a38nj", "localization-parent"],
+          "templateSuffix": "localization-parent-product",
+          "seo": {
+            "title": "Localization product SEO 1784533103117-6a38nj",
+            "description": "Localization product SEO description 1784533103117-6a38nj"
+          },
+          "media": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ExternalVideo/44072967635250",
+                "mediaContentType": "EXTERNAL_VIDEO",
+                "status": "READY"
+              }
+            ]
+          },
+          "collections": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Collection/514594963762",
+                "title": "Localization parent collection updated 1784533103117-6a38nj",
+                "handle": "localization-parent-collection-1784533103117-6a38nj"
+              }
+            ]
+          }
+        },
+        "collection": {
+          "id": "gid://shopify/Collection/514594963762",
+          "title": "Localization parent collection updated 1784533103117-6a38nj",
+          "handle": "localization-parent-collection-1784533103117-6a38nj",
+          "descriptionHtml": "<p>Localization parent collection body 1784533103117-6a38nj</p>",
+          "updatedAt": "2026-07-20T07:38:26Z",
+          "templateSuffix": "localization-parent-collection",
+          "sortOrder": "MANUAL",
+          "seo": {
+            "title": "Localization collection SEO 1784533103117-6a38nj",
+            "description": "Localization collection SEO description 1784533103117-6a38nj"
+          },
+          "products": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10244133683506",
+                "title": "Localization parent product updated 1784533103117-6a38nj",
+                "handle": "localization-parent-product-1784533103117-6a38nj"
+              }
+            ]
+          }
+        },
+        "nodes": [
+          {
+            "__typename": "Collection",
+            "id": "gid://shopify/Collection/514594963762",
+            "title": "Localization parent collection updated 1784533103117-6a38nj",
+            "descriptionHtml": "<p>Localization parent collection body 1784533103117-6a38nj</p>",
+            "updatedAt": "2026-07-20T07:38:26Z"
+          },
+          {
+            "__typename": "Product",
+            "id": "gid://shopify/Product/10244133683506",
+            "title": "Localization parent product updated 1784533103117-6a38nj",
+            "status": "ARCHIVED",
+            "vendor": "Localization Vendor 1784533103117-6a38nj",
+            "tags": ["capture-1784533103117-6a38nj", "localization-parent"],
+            "updatedAt": "2026-07-20T07:38:26Z"
+          }
+        ],
+        "productSource": {
+          "resourceId": "gid://shopify/Product/10244133683506",
+          "translatableContent": [
+            {
+              "key": "title",
+              "value": "Localization parent product updated 1784533103117-6a38nj",
+              "digest": "5c217d9da93965ad641d55164fbb3e4b04f5fe5146d46503d4de20bab9ac63db",
+              "locale": "en",
+              "type": "SINGLE_LINE_TEXT_FIELD"
+            },
+            {
+              "key": "body_html",
+              "value": "<p>Localization parent product body 1784533103117-6a38nj</p>",
+              "digest": "0191df06c335256a4bb5348e4ff9db983ae356b662046544e91f9f341e0d430b",
+              "locale": "en",
+              "type": "HTML"
+            },
+            {
+              "key": "handle",
+              "value": "localization-parent-product-1784533103117-6a38nj",
+              "digest": "c01b114e4e5188d716bbae5000b0218394f4cf9523c3f80375c3f6ca37c72772",
+              "locale": "en",
+              "type": "URI"
+            },
+            {
+              "key": "product_type",
+              "value": "Localization Type 1784533103117-6a38nj",
+              "digest": "55b6d8e74571494b08ad47deb15b15c07af4e2a87657f4f8b284bd6aa54be70e",
+              "locale": "en",
+              "type": "SINGLE_LINE_TEXT_FIELD"
+            },
+            {
+              "key": "meta_title",
+              "value": "Localization product SEO 1784533103117-6a38nj",
+              "digest": "2f0772c2ae5d3dd47166f8fa6702f5248ee28219746385861f2f629becc292f6",
+              "locale": "en",
+              "type": "MULTI_LINE_TEXT_FIELD"
+            },
+            {
+              "key": "meta_description",
+              "value": "Localization product SEO description 1784533103117-6a38nj",
+              "digest": "f3193abc93dbd59eb33ea3919e707e9d467a92e067ac1fb2a2fce151c2c8be93",
+              "locale": "en",
+              "type": "MULTI_LINE_TEXT_FIELD"
+            }
+          ]
+        },
+        "collectionSource": {
+          "resourceId": "gid://shopify/Collection/514594963762",
+          "translatableContent": [
+            {
+              "key": "title",
+              "value": "Localization parent collection updated 1784533103117-6a38nj",
+              "digest": "23f8c5cf6ec9665a5756eda4a6d040badfb882a55b2e6ddfe8e24a8dc3f12835",
+              "locale": "en",
+              "type": "SINGLE_LINE_TEXT_FIELD"
+            },
+            {
+              "key": "body_html",
+              "value": "<p>Localization parent collection body 1784533103117-6a38nj</p>",
+              "digest": "0449d285663bee99869bc31a85ff42d23d27450b3944454914ba9abe5fc76a06",
+              "locale": "en",
+              "type": "HTML"
+            },
+            {
+              "key": "handle",
+              "value": "localization-parent-collection-1784533103117-6a38nj",
+              "digest": "51bca7afdf276fc7410fa0f9919a9109e609b2e812c5f7702a90e0139dfc3003",
+              "locale": "en",
+              "type": "URI"
+            },
+            {
+              "key": "meta_title",
+              "value": "Localization collection SEO 1784533103117-6a38nj",
+              "digest": "5ad41bc595d224f0086186110b71bc4161f2af311652179e4e25e3a16235d1a9",
+              "locale": "en",
+              "type": "MULTI_LINE_TEXT_FIELD"
+            },
+            {
+              "key": "meta_description",
+              "value": "Localization collection SEO description 1784533103117-6a38nj",
+              "digest": "87936dbe5b03581cd0bf38a4675cf27b360cf6e3cdf1e39b239510f675faf073",
+              "locale": "en",
+              "type": "MULTI_LINE_TEXT_FIELD"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 27,
+          "actualQueryCost": 19,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1981,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "collectionDelete": {
+      "data": {
+        "collectionDelete": {
+          "deletedCollectionId": "gid://shopify/Collection/514594963762",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1982,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "productDelete": {
+      "data": {
+        "productDelete": {
+          "deletedProductId": "gid://shopify/Product/10244133683506",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "LocalizationParentObservationSourceRead",
+      "variables": {
+        "productId": "gid://shopify/Product/10244133683506",
+        "collectionId": "gid://shopify/Collection/514594963762"
+      },
+      "query": "query LocalizationParentObservationSourceRead($productId: ID!, $collectionId: ID!) {\n  productSource: translatableResource(resourceId: $productId) {\n    resourceId\n    translatableContent {\n      key\n      value\n      digest\n      locale\n      type\n    }\n  }\n  collectionSource: translatableResource(resourceId: $collectionId) {\n    resourceId\n    translatableContent {\n      key\n      value\n      digest\n      locale\n      type\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "productSource": {
+              "resourceId": "gid://shopify/Product/10244133683506",
+              "translatableContent": [
+                {
+                  "key": "title",
+                  "value": "Localization parent product 1784533103117-6a38nj",
+                  "digest": "7c26eadeb8341000b0bb952b27362d80d1038a6c6a7ec88eb4e3bb332fe95230",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                },
+                {
+                  "key": "body_html",
+                  "value": "<p>Localization parent product body 1784533103117-6a38nj</p>",
+                  "digest": "0191df06c335256a4bb5348e4ff9db983ae356b662046544e91f9f341e0d430b",
+                  "locale": "en",
+                  "type": "HTML"
+                },
+                {
+                  "key": "handle",
+                  "value": "localization-parent-product-1784533103117-6a38nj",
+                  "digest": "c01b114e4e5188d716bbae5000b0218394f4cf9523c3f80375c3f6ca37c72772",
+                  "locale": "en",
+                  "type": "URI"
+                },
+                {
+                  "key": "product_type",
+                  "value": "Localization Type 1784533103117-6a38nj",
+                  "digest": "55b6d8e74571494b08ad47deb15b15c07af4e2a87657f4f8b284bd6aa54be70e",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                },
+                {
+                  "key": "meta_title",
+                  "value": "Localization product SEO 1784533103117-6a38nj",
+                  "digest": "2f0772c2ae5d3dd47166f8fa6702f5248ee28219746385861f2f629becc292f6",
+                  "locale": "en",
+                  "type": "MULTI_LINE_TEXT_FIELD"
+                },
+                {
+                  "key": "meta_description",
+                  "value": "Localization product SEO description 1784533103117-6a38nj",
+                  "digest": "f3193abc93dbd59eb33ea3919e707e9d467a92e067ac1fb2a2fce151c2c8be93",
+                  "locale": "en",
+                  "type": "MULTI_LINE_TEXT_FIELD"
+                }
+              ]
+            },
+            "collectionSource": {
+              "resourceId": "gid://shopify/Collection/514594963762",
+              "translatableContent": [
+                {
+                  "key": "title",
+                  "value": "Localization parent collection 1784533103117-6a38nj",
+                  "digest": "59af675ac310629fbffcecf3607598b98236bb620995514d9a15d400eb06023c",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                },
+                {
+                  "key": "body_html",
+                  "value": "<p>Localization parent collection body 1784533103117-6a38nj</p>",
+                  "digest": "0449d285663bee99869bc31a85ff42d23d27450b3944454914ba9abe5fc76a06",
+                  "locale": "en",
+                  "type": "HTML"
+                },
+                {
+                  "key": "handle",
+                  "value": "localization-parent-collection-1784533103117-6a38nj",
+                  "digest": "51bca7afdf276fc7410fa0f9919a9109e609b2e812c5f7702a90e0139dfc3003",
+                  "locale": "en",
+                  "type": "URI"
+                },
+                {
+                  "key": "meta_title",
+                  "value": "Localization collection SEO 1784533103117-6a38nj",
+                  "digest": "5ad41bc595d224f0086186110b71bc4161f2af311652179e4e25e3a16235d1a9",
+                  "locale": "en",
+                  "type": "MULTI_LINE_TEXT_FIELD"
+                },
+                {
+                  "key": "meta_description",
+                  "value": "Localization collection SEO description 1784533103117-6a38nj",
+                  "digest": "87936dbe5b03581cd0bf38a4675cf27b360cf6e3cdf1e39b239510f675faf073",
+                  "locale": "en",
+                  "type": "MULTI_LINE_TEXT_FIELD"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "LocalizationParentObservationDisjointRead",
+      "variables": {
+        "productId": "gid://shopify/Product/10244133683506",
+        "collectionId": "gid://shopify/Collection/514594963762"
+      },
+      "query": "query LocalizationParentObservationDisjointRead($productId: ID!, $collectionId: ID!) {\n  product(id: $productId) {\n    id\n    status\n    createdAt\n    updatedAt\n    vendor\n    tags\n  }\n  collection(id: $collectionId) {\n    id\n    updatedAt\n    templateSuffix\n    sortOrder\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/10244133683506",
+              "status": "ARCHIVED",
+              "createdAt": "2026-07-20T07:38:23Z",
+              "updatedAt": "2026-07-20T07:38:24Z",
+              "vendor": "Localization Vendor 1784533103117-6a38nj",
+              "tags": ["capture-1784533103117-6a38nj", "localization-parent"]
+            },
+            "collection": {
+              "id": "gid://shopify/Collection/514594963762",
+              "updatedAt": "2026-07-20T07:38:26Z",
+              "templateSuffix": "localization-parent-collection",
+              "sortOrder": "MANUAL"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "LocalizationParentObservationCanonicalNodes",
+      "variables": {
+        "ids": ["gid://shopify/Collection/514594963762", "gid://shopify/Product/10244133683506"]
+      },
+      "query": "query LocalizationParentObservationCanonicalNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    ... on Product {\n      id\n      title\n      handle\n      status\n      createdAt\n      updatedAt\n      descriptionHtml\n      vendor\n      productType\n      tags\n      templateSuffix\n      seo {\n        title\n        description\n      }\n      media(first: 10) {\n        nodes {\n          id\n          mediaContentType\n          status\n        }\n      }\n      collections(first: 10) {\n        nodes {\n          id\n          title\n          handle\n        }\n      }\n    }\n    ... on Collection {\n      id\n      title\n      handle\n      descriptionHtml\n      updatedAt\n      templateSuffix\n      sortOrder\n      seo {\n        title\n        description\n      }\n      products(first: 10) {\n        nodes {\n          id\n          title\n          handle\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Collection",
+                "id": "gid://shopify/Collection/514594963762",
+                "title": "Localization parent collection 1784533103117-6a38nj",
+                "handle": "localization-parent-collection-1784533103117-6a38nj",
+                "descriptionHtml": "<p>Localization parent collection body 1784533103117-6a38nj</p>",
+                "updatedAt": "2026-07-20T07:38:26Z",
+                "templateSuffix": "localization-parent-collection",
+                "sortOrder": "MANUAL",
+                "seo": {
+                  "title": "Localization collection SEO 1784533103117-6a38nj",
+                  "description": "Localization collection SEO description 1784533103117-6a38nj"
+                },
+                "products": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Product/10244133683506",
+                      "title": "Localization parent product 1784533103117-6a38nj",
+                      "handle": "localization-parent-product-1784533103117-6a38nj"
+                    }
+                  ]
+                }
+              },
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10244133683506",
+                "title": "Localization parent product 1784533103117-6a38nj",
+                "handle": "localization-parent-product-1784533103117-6a38nj",
+                "status": "ARCHIVED",
+                "createdAt": "2026-07-20T07:38:23Z",
+                "updatedAt": "2026-07-20T07:38:24Z",
+                "descriptionHtml": "<p>Localization parent product body 1784533103117-6a38nj</p>",
+                "vendor": "Localization Vendor 1784533103117-6a38nj",
+                "productType": "Localization Type 1784533103117-6a38nj",
+                "tags": ["capture-1784533103117-6a38nj", "localization-parent"],
+                "templateSuffix": "localization-parent-product",
+                "seo": {
+                  "title": "Localization product SEO 1784533103117-6a38nj",
+                  "description": "Localization product SEO description 1784533103117-6a38nj"
+                },
+                "media": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ExternalVideo/44072967635250",
+                      "mediaContentType": "EXTERNAL_VIDEO",
+                      "status": "READY"
+                    }
+                  ]
+                },
+                "collections": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Collection/514594963762",
+                      "title": "Localization parent collection 1784533103117-6a38nj",
+                      "handle": "localization-parent-collection-1784533103117-6a38nj"
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

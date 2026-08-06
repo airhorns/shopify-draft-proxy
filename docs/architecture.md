@@ -42,7 +42,7 @@ mutation before commit. Supported handlers may still issue query-only hydration
 requests in LiveHybrid mode, but the caller's original write document is held
 for local staging and explicit commit replay.
 
-`POST /__meta/commit` is the explicit write-through boundary. It replays pending staged mutations upstream in original log order using the original raw GraphQL input and the commit request's auth headers. The response keeps the compatibility summary fields (`ok`, `committed`, and `failed`) and also includes per-attempt replay details plus `stopIndex` when replay stops on a transport or GraphQL error.
+`POST /__meta/commit` is the explicit write-through boundary. It replays pending staged mutations upstream in original log order using the original raw GraphQL input and path. Each staged operation retains its request headers as part of the replayable operation. A non-empty commit request header set overrides those stored headers for every replay, preserving the HTTP API's commit-wide credential behavior. In-process bindings may instead resolve a final header set for each operation before replay. The response keeps the compatibility summary fields (`ok`, `committed`, and `failed`) and also includes per-attempt replay details plus `stopIndex` when replay stops on a transport or GraphQL error.
 
 ## High-level request flow
 
@@ -76,15 +76,16 @@ variable/default coercion, selection projection, abstract-type checks, and null
 propagation. Root resolvers are request-scoped and execute serially against the
 same instance-owned proxy. Each invocation receives the engine-coerced root
 arguments, raw argument-source metadata, root/operation source locations, and
-variable-definition metadata for compatibility validation. It also receives a
-set of engine-selected output paths for hydration planning plus shallow,
-selection-free inventories of the operation's root names, response keys, and
-resolved arguments and the active root's direct child names, response keys,
-and resolved arguments. The direct-child inventory lets a domain associate
-aliased connection windows with their scopes without receiving a nested
-selection tree or reparsing the document. The current root's arguments are
+variable-definition metadata for compatibility validation. It also receives
+engine-selected output paths and the current root's selected field tree for
+bounded hydration planning, plus shallow, selection-free inventories of the
+operation's root names, response keys, and resolved arguments and the active
+root's direct child names, response keys, and resolved arguments. The
+direct-child inventory lets a domain associate aliased connection windows with
+their scopes without reparsing the document. The current root's arguments are
 engine-coerced; sibling and direct-child arguments in compatibility planning
-come from the parsed operation. Those values may choose a narrow or broad hydration but never shape the returned JSON;
+come from the parsed operation. Those values may choose a narrow or broad
+hydration but never shape the returned JSON;
 output projection remains engine-owned. A local resolver receives `RootInvocation`,
 whose `LocalResolverMode` can only be `OverlayRead` or `StageLocally`;
 passthrough is decided before domain code is entered. Domain roots route from
@@ -99,19 +100,26 @@ write upstream. A fully passthrough document is forwarded once, not once per
 selected root. Live-hybrid queries that need upstream evidence execute the
 caller's complete document through one request-scoped cache, so mixed
 local/passthrough roots and sibling overlays consume the same Shopify response.
-The runtime keeps the raw, alias-shaped transport value separate from a
-canonicalized observation copy: untouched upstream values bypass local
+The cache keeps the raw, alias-shaped transport value separate from a
+canonicalized observation copy, keys supplemental reads and completion facts,
+and records per-entity requested/observed/missing evidence without adding new
+domain fields to `ExecutionSession`. Untouched upstream values bypass local
 child-field resolution, while a value replaced by a store overlay or derived
 fallback is explicitly marked local and continues through the field-resolver
-registry. Request setup retains explicit preflight planning for discounts,
-owner metafields, localization/markets, and generic nodes, but those reads reuse
-the cached complete response when the caller selected the required evidence.
-Narrow secondary hydration documents remain only for data that the caller's
-operation cannot supply, especially mutation prerequisites and relationship
-lookups. When registered read-through roots all consume the same non-2xx
-upstream response, the runtime returns that transport response verbatim before
-schema projection so the backend status, headers, and error body are not
-replaced by local non-null execution errors.
+registry. `request_context.rs` holds the small operation-wide boundary: it
+classifies whole-document passthrough through domain-owned predicates and calls
+the few preparations that genuinely need every selected root (owner
+metafields, localization/markets, and multi-root `node(s)`). Ordinary and
+domain-only hydration stays lazy in the owning resolver; discount prerequisite
+hydration, for example, begins at the first discount mutation root and batches
+the operation's shallow root arguments there. There is no second planner
+registry, boxed callback scheduler, or trigger lifecycle. Narrow secondary
+hydration documents remain only for data that the caller's operation cannot
+supply, especially mutation prerequisites and relationship lookups. When
+registered read-through roots all consume the same non-2xx upstream response,
+the runtime returns that transport response verbatim before schema projection
+so the backend status, headers, and error body are not replaced by local
+non-null execution errors.
 
 ## GraphQL schema and resolver boundaries
 
@@ -121,7 +129,7 @@ replaced by local non-null execution errors.
 - The shared schema builder registers objects, interfaces, unions, enums, scalars, input objects, arguments, defaults, descriptions, and deprecations dynamically. This avoids maintaining thousands of handwritten Rust GraphQL wrapper types while still using a real GraphQL executor. Storefront's captured introspection JSON is deterministically rendered to SDL once before entering the same builder.
 - Captured custom scalars have explicit codecs. URL, RFC 3339 DateTime, decimal/money, integer, JSON, and string-like scalar families are validated deliberately, and schema construction fails when a new capture introduces an unknown scalar instead of silently treating it as arbitrary JSON.
 - Root fields share one generic resolver bridge. Domain code continues to model Shopify behavior and store effects directly; it does not need a second resolver-shaped copy of every function. Complex lifecycle behavior can remain in rich domain methods, while ordinary output fields are read from the returned typed JSON object by the generic schema resolver.
-- Native root callbacks consume engine-coerced `RootInvocation` data and return one canonical, alias-free value. Domain-specific input structs contain only the arguments and source metadata that behavior actually needs; they are not reduced copies of a GraphQL selection tree.
+- Native root callbacks consume engine-coerced `RootInvocation` data and return one canonical, alias-free value. Domain-specific input structs retain only the arguments, source metadata, and selected fields that behavior actually needs. Selected fields may plan a bounded upstream refill with the caller's exact nested arguments, but the executable engine still owns output projection.
 - Canonical parent values may carry unprojected relationship source data when mutation payload semantics differ from a later ordinary read. The explicit child-field resolver still owns arguments, sorting, windowing, and canonical child lookup; embedding relationship source data is not permission for the domain to pre-project the requested selection.
 - Returning a JSON object is not permission to return arbitrary shape. For every selected nested field, the executable schema validates its type and the generic object resolver reports an explicit `Local resolver did not implement Type.field` execution error when the domain result omits that field. The engine then applies GraphQL null propagation.
 - `ResolverRegistry` is owned by each `DraftProxy` and derives executable callbacks from implemented operation-registry entries. Admin registrations keep their public root names (`shop`, `products`); Storefront registrations receive globally unique internal names (`storefrontShop`, `storefrontProducts`). Surface-aware lookup performs that translation and also verifies the operation type and public root before returning a callback. Duplicate internal names fail registry construction, so same-named API roots cannot collide. There is no second checked-in local-routing inventory to synchronize. Every implemented capability domain has one distinct domain-owned callback, and structural tests prevent domains from collapsing back into a shared compatibility handler or crossing API surfaces.
@@ -138,7 +146,7 @@ replaced by local non-null execution errors.
 - owns `DraftProxy`, `Config`, `ReadMode`, the normalized Store, synthetic identity allocation, registry metadata, runtime clock, and injectable transports
 - declares the runtime's domain submodules while keeping proxy state instance-owned instead of global
 
-### `src/proxy/core.rs`, `src/proxy/routing.rs`, `src/proxy/graphql_runtime.rs`, `src/proxy/storefront_graphql_runtime.rs`, `src/proxy/graphql_error_compat.rs`
+### `src/proxy/core.rs`, `src/proxy/routing.rs`, `src/proxy/graphql_runtime.rs`, `src/proxy/request_context.rs`, `src/proxy/storefront_graphql_runtime.rs`, `src/proxy/graphql_error_compat.rs`
 
 - expose `process_request(...)` as the central route boundary
 - implement meta routes: health, config, log, state, reset, dump, and restore
@@ -149,6 +157,8 @@ replaced by local non-null execution errors.
 - preserve original multi-root mutation documents in the replay log while preventing mixed local/passthrough writes
 - preserve each locally executed `bulkOperationRunMutation` JSONL row as its own ordered replay entry instead of collapsing those entries into the outer job-submission document
 - wrap upstream transports with the stage-locally mutation guard while leaving query hydration and commit replay on their explicit transport paths
+- keep whole-operation routing and the small explicit set of cross-root preparations in `request_context.rs`, while domain-only hydration remains resolver-owned
+- coalesce caller-document responses, keyed supplemental responses, completion facts, and entity evidence in one request-scoped cache
 - preserve `with_clock(...)`, `with_upstream_transport(...)`, and `with_commit_transport(...)` test seams so behavior stays deterministic
 
 ### `src/admin_graphql.rs`
@@ -179,8 +189,8 @@ replaced by local non-null execution errors.
 ### `src/proxy/commit.rs`
 
 - owns `POST /__meta/commit` replay behavior
-- replays staged mutations in original log order using each entry's preserved raw GraphQL body and path
-- forwards the commit request's auth headers through the commit transport
+- replays staged mutations in original log order using each entry's preserved raw GraphQL body, path, and headers
+- uses a non-empty commit request header set as a commit-wide override while allowing in-process bindings to resolve final headers immediately before each replay
 - maps synthetic Shopify GIDs only through operation-registry response paths, translating caller aliases while preserving declared input order; unrelated same-type IDs elsewhere in a payload are never candidates
 - reports missing or ambiguous authoritative IDs in each attempt's `unresolvedIds` instead of guessing a mapping, while preserving the committed/failed log status contract
 - stops on the first transport or GraphQL error, records the stopped index, and updates staged log statuses to committed/failed while leaving later staged entries untouched
@@ -289,8 +299,11 @@ Inventory lifecycle preflights use the caller's Admin API path and headers for q
 Core state categories:
 
 - base state learned from snapshots, fixtures, or upstream reads
+- field-presence-aware localization source projections kept separately from
+  canonical Product and Collection records, so narrow translation reads cannot
+  claim parent completeness or suppress later canonical hydration
 - staged Store state for local inserts/updates/deletes and other local domain effects not yet committed
-- ordered mutation log entries containing original request path, raw query, variables, capability metadata, resource IDs, and status
+- ordered mutation log entries containing original request path, headers, raw query, variables, capability metadata, resource IDs, and status
 - one store-owned synthetic identity sequence scoped to a `DraftProxy` instance, with allocation checking canonical aliases across persisted state and mutation logs
 
 Effective reads merge base state and staged state through shared Store helpers, respecting staged deletes and Shopify-like null/empty behavior. Commit drains staged log entries only after successful upstream replay.
