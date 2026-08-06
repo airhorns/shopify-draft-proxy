@@ -1770,6 +1770,11 @@ impl DraftProxy {
     /// The canonical record is returned without GraphQL projection. The engine's
     /// surface-qualified field resolvers own relationship expansion and selection.
     pub(in crate::proxy) fn b2b_node_value_by_id(&self, id: &str) -> Option<Value> {
+        if shopify_gid_resource_type(id) == Some("Company")
+            && self.store.staged.deleted_b2b_company_ids.contains(id)
+        {
+            return Some(Value::Null);
+        }
         if let Some(assignment) = self.b2b_effective_role_assignment(id) {
             return Some(assignment);
         }
@@ -1795,7 +1800,15 @@ impl DraftProxy {
         operation_type: OperationType,
         response_key: &str,
     ) -> Option<ResolverOutcome<Value>> {
-        if operation_type == OperationType::Query && !self.b2b_root_has_staged_match(field) {
+        let partial_company_needs_hydration = operation_type == OperationType::Query
+            && field.name == "company"
+            && resolved_string_field(&field.arguments, "id").is_some_and(|id| {
+                self.owner_parent_is_partial(&id)
+                    && !self.owner_parent_shape_is_complete(&id, &field.requested_field_paths)
+            });
+        if operation_type == OperationType::Query
+            && (!self.b2b_root_has_staged_match(field) || partial_company_needs_hydration)
+        {
             let singular_root = matches!(
                 field.name.as_str(),
                 "company" | "companyContact" | "companyLocation"
@@ -1803,6 +1816,11 @@ impl DraftProxy {
             if self.config.read_mode == ReadMode::LiveHybrid && singular_root {
                 let result = self.cached_or_forward_upstream_graphql_result(request, response_key);
                 if !result.transport_succeeded {
+                    return Some(result.outcome);
+                }
+                if partial_company_needs_hydration
+                    && (!result.outcome.errors.is_empty() || result.outcome.value.is_null())
+                {
                     return Some(result.outcome);
                 }
                 self.hydrate_b2b_base_from_root_data(field, &result.data);
@@ -4349,6 +4367,22 @@ impl DraftProxy {
                 }
             }
             "company" => {
+                let partial_company_id = value
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .filter(|id| self.owner_parent_is_partial(id))
+                    .map(str::to_string);
+                if value.is_object()
+                    && value
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .is_some_and(|id| self.owner_parent_is_partial(id))
+                {
+                    self.stage_observed_owner_metafield_node(value);
+                }
+                if let Some(id) = partial_company_id {
+                    self.record_owner_parent_observed_shape(&id, &field.requested_field_paths);
+                }
                 self.observe_b2b_company_record(value);
             }
             "companyLocations" => self.observe_b2b_location_connection(value, None),

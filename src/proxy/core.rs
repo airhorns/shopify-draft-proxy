@@ -659,6 +659,7 @@ impl DraftProxy {
                 "discountRedeemCodeBulkCreations": self.store.staged.discount_redeem_code_bulk_creations.clone(),
                 "ownerMetafields": self.store.staged.owner_metafields.clone(),
                 "deletedOwnerMetafields": deleted_owner_metafields,
+                "ownerParentObservedFieldPaths": self.store.staged.owner_parent_observed_field_paths.clone(),
                 "paymentTerms": self.store.staged.payment_terms.clone(),
                 "paymentTermsOwnerIndex": self.store.staged.payment_terms_owner_index.clone(),
                 "deletedPaymentTermsIds": self.store.staged.deleted_payment_terms_ids.iter().cloned().collect::<Vec<_>>(),
@@ -3081,6 +3082,10 @@ impl DraftProxy {
                     })
                     .collect()
             })
+            .unwrap_or_default();
+        self.store.staged.owner_parent_observed_field_paths = state["stagedState"]
+            .get("ownerParentObservedFieldPaths")
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
             .unwrap_or_default();
         self.store.staged.product_operations = state["stagedState"]
             .get("productOperations")

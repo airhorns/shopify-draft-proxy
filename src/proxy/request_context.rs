@@ -154,10 +154,6 @@ impl RequestCache {
         self.entities.get(key).copied()
     }
 
-    pub(in crate::proxy) fn entity_was_requested(&self, scope: &'static str, id: &str) -> bool {
-        self.entity_state(scope, id).is_some()
-    }
-
     pub(in crate::proxy) fn entity_was_hydrated(&self, scope: &'static str, id: &str) -> bool {
         matches!(
             self.entity_state(scope, id),

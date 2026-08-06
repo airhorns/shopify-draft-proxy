@@ -32,6 +32,64 @@ fn node_load_value(state: NodeLoadState<EntityRef>, allow_unknown_null: bool) ->
     }
 }
 
+fn selected_node_field_paths(
+    selections: &[SelectedField],
+    id: &str,
+    request: Option<&Request>,
+) -> BTreeSet<Vec<String>> {
+    fn collect(
+        selections: &[SelectedField],
+        version: crate::admin_graphql::AdminApiVersion,
+        parent_type: &str,
+        prefix: &mut Vec<String>,
+        paths: &mut BTreeSet<Vec<String>>,
+    ) {
+        for selection in selections {
+            if selection
+                .type_condition
+                .as_deref()
+                .is_some_and(|condition| {
+                    !crate::admin_graphql::output_type_condition_applies(
+                        version,
+                        parent_type,
+                        condition,
+                    )
+                })
+            {
+                continue;
+            }
+            prefix.push(selection.name.clone());
+            paths.insert(prefix.clone());
+            if let Some(field_type) = crate::admin_graphql::output_field_named_type(
+                version.as_str(),
+                parent_type,
+                &selection.name,
+            ) {
+                collect(&selection.selection, version, &field_type, prefix, paths);
+            }
+            prefix.pop();
+        }
+    }
+
+    let Some(concrete_type) = registered_node_type_name(id) else {
+        return selected_field_paths(selections);
+    };
+    let Some(version) = request
+        .and_then(|request| crate::admin_graphql::AdminApiVersion::from_route(&request.path))
+    else {
+        return selected_field_paths(selections);
+    };
+    let mut paths = BTreeSet::new();
+    collect(
+        selections,
+        version,
+        concrete_type,
+        &mut Vec::new(),
+        &mut paths,
+    );
+    paths
+}
+
 fn node_arguments_only_target_type(
     root_name: &str,
     arguments: &BTreeMap<String, ResolvedValue>,
@@ -82,6 +140,13 @@ impl DraftProxy {
                 resolver_outcome_from_upstream_response(response, invocation.response_key);
             if outcome.errors.is_empty() {
                 self.observe_nodes_response(&hydration_response);
+                self.record_node_parent_observed_shape(
+                    invocation.root_name,
+                    &arguments,
+                    &outcome.value,
+                    &invocation.field_selection,
+                    Some(invocation.request),
+                );
                 self.observe_delivery_promise_node_root_value(
                     invocation.root_name,
                     &arguments,
@@ -94,6 +159,7 @@ impl DraftProxy {
                 &arguments,
                 &outcome.value,
                 invocation.request,
+                &invocation.field_selection,
             );
             // The node loader has overlaid canonical local entities onto the
             // transport result. Keep those entities on the local resolver path
@@ -108,6 +174,7 @@ impl DraftProxy {
             &arguments,
             allow_unknown_null,
             Some(invocation.request),
+            &invocation.field_selection,
         ) {
             return ResolverOutcome::value(value);
         }
@@ -139,11 +206,19 @@ impl DraftProxy {
                         "data": { invocation.root_name: value }
                     }));
                 }
+                self.record_node_parent_observed_shape(
+                    invocation.root_name,
+                    &arguments,
+                    &result.outcome.value,
+                    &invocation.field_selection,
+                    Some(invocation.request),
+                );
                 result.outcome.value = self.node_value_with_upstream_fallback(
                     invocation.root_name,
                     &arguments,
                     &result.outcome.value,
                     invocation.request,
+                    &invocation.field_selection,
                 );
                 result.outcome.value_source = crate::admin_graphql::ResolverValueSource::Local;
             }
@@ -156,6 +231,7 @@ impl DraftProxy {
                 &arguments,
                 true,
                 Some(invocation.request),
+                &invocation.field_selection,
             )
             .unwrap_or(Value::Null),
         )
@@ -173,24 +249,87 @@ impl DraftProxy {
         }
     }
 
+    fn record_node_parent_observed_shape(
+        &mut self,
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        value: &Value,
+        selections: &[SelectedField],
+        request: Option<&Request>,
+    ) {
+        let ids = match root_name {
+            "node" => vec![resolved_string_field(arguments, "id").unwrap_or_default()],
+            "nodes" => arguments
+                .get("ids")
+                .map(resolved_string_list)
+                .unwrap_or_default(),
+            _ => return,
+        };
+        let values = match root_name {
+            "node" => vec![value],
+            "nodes" => value.as_array().into_iter().flatten().collect(),
+            _ => Vec::new(),
+        };
+        for (id, value) in ids.iter().zip(values) {
+            if value.is_null() || !self.owner_parent_is_partial(id) {
+                continue;
+            }
+            let requested_field_paths = selected_node_field_paths(selections, id, request);
+            self.record_owner_parent_observed_shape(id, &requested_field_paths);
+        }
+    }
+
+    pub(in crate::proxy) fn record_node_parent_observed_shapes(
+        &mut self,
+        fields: &[RootFieldSelection],
+        data: &Value,
+        request: Option<&Request>,
+    ) {
+        for field in fields {
+            let value = data.get(&field.response_key).unwrap_or(&Value::Null);
+            self.record_node_parent_observed_shape(
+                &field.name,
+                &field.arguments,
+                value,
+                &field.selection,
+                request,
+            );
+        }
+    }
+
     fn local_node_root_value(
         &self,
         root_name: &str,
         arguments: &BTreeMap<String, ResolvedValue>,
         allow_unknown_null: bool,
         request: Option<&Request>,
+        selections: &[SelectedField],
     ) -> Option<Value> {
         match root_name {
             "node" => {
                 let id = resolved_string_field(arguments, "id").unwrap_or_default();
-                node_load_value(self.node_load_state(&id, request), allow_unknown_null)
+                let requested_field_paths = selected_node_field_paths(selections, &id, request);
+                node_load_value(
+                    self.node_load_state_for_requested_shape(&id, &requested_field_paths, request),
+                    allow_unknown_null,
+                )
             }
             "nodes" => arguments
                 .get("ids")
                 .map(resolved_string_list)
                 .unwrap_or_default()
                 .into_iter()
-                .map(|id| node_load_value(self.node_load_state(&id, request), allow_unknown_null))
+                .map(|id| {
+                    let requested_field_paths = selected_node_field_paths(selections, &id, request);
+                    node_load_value(
+                        self.node_load_state_for_requested_shape(
+                            &id,
+                            &requested_field_paths,
+                            request,
+                        ),
+                        allow_unknown_null,
+                    )
+                })
                 .collect::<Option<Vec<_>>>()
                 .map(Value::Array),
             _ => Some(Value::Null),
@@ -203,11 +342,18 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
         upstream: &Value,
         request: &Request,
+        selections: &[SelectedField],
     ) -> Value {
         match root_name {
             "node" => {
                 let id = resolved_string_field(arguments, "id").unwrap_or_default();
-                let value = match self.node_load_state(&id, Some(request)) {
+                let requested_field_paths =
+                    selected_node_field_paths(selections, &id, Some(request));
+                let value = match self.node_load_state_for_requested_shape(
+                    &id,
+                    &requested_field_paths,
+                    Some(request),
+                ) {
                     NodeLoadState::Found(entity) => entity.value,
                     NodeLoadState::KnownMissing => Value::Null,
                     NodeLoadState::NeedsHydration | NodeLoadState::UnsupportedType => {
@@ -226,8 +372,14 @@ impl DraftProxy {
                 let values = ids
                     .iter()
                     .enumerate()
-                    .map(
-                        |(index, id)| match self.node_load_state(id, Some(request)) {
+                    .map(|(index, id)| {
+                        let requested_field_paths =
+                            selected_node_field_paths(selections, id, Some(request));
+                        match self.node_load_state_for_requested_shape(
+                            id,
+                            &requested_field_paths,
+                            Some(request),
+                        ) {
                             NodeLoadState::Found(entity) => entity.value,
                             NodeLoadState::KnownMissing => Value::Null,
                             NodeLoadState::NeedsHydration | NodeLoadState::UnsupportedType => {
@@ -236,8 +388,8 @@ impl DraftProxy {
                                     .cloned()
                                     .unwrap_or(Value::Null)
                             }
-                        },
-                    )
+                        }
+                    })
                     .collect::<Vec<_>>();
                 for (id, value) in ids.iter().zip(&values) {
                     self.cache_admin_entity_value(id, value);
@@ -260,7 +412,13 @@ impl DraftProxy {
             let value = match field.name.as_str() {
                 "node" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    match self.node_load_state(&id, request) {
+                    let requested_field_paths =
+                        selected_node_field_paths(&field.selection, &id, request);
+                    match self.node_load_state_for_requested_shape(
+                        &id,
+                        &requested_field_paths,
+                        request,
+                    ) {
                         NodeLoadState::Found(entity) => entity.value,
                         NodeLoadState::KnownMissing => Value::Null,
                         NodeLoadState::NeedsHydration | NodeLoadState::UnsupportedType
@@ -281,15 +439,25 @@ impl DraftProxy {
                         .map(resolved_string_list)
                         .unwrap_or_default()
                         .into_iter()
-                        .map(|id| match self.node_load_state(&id, request) {
-                            NodeLoadState::Found(entity) => Some(entity.value),
-                            NodeLoadState::KnownMissing => Some(Value::Null),
-                            NodeLoadState::NeedsHydration | NodeLoadState::UnsupportedType
-                                if allow_unknown_null =>
-                            {
-                                Some(Value::Null)
+                        .map(|id| {
+                            let requested_field_paths =
+                                selected_node_field_paths(&field.selection, &id, request);
+                            match self.node_load_state_for_requested_shape(
+                                &id,
+                                &requested_field_paths,
+                                request,
+                            ) {
+                                NodeLoadState::Found(entity) => Some(entity.value),
+                                NodeLoadState::KnownMissing => Some(Value::Null),
+                                NodeLoadState::NeedsHydration | NodeLoadState::UnsupportedType
+                                    if allow_unknown_null =>
+                                {
+                                    Some(Value::Null)
+                                }
+                                NodeLoadState::NeedsHydration | NodeLoadState::UnsupportedType => {
+                                    None
+                                }
                             }
-                            NodeLoadState::NeedsHydration | NodeLoadState::UnsupportedType => None,
                         })
                         .collect::<Option<Vec<_>>>()
                         .unwrap_or_else(|| {
@@ -319,7 +487,13 @@ impl DraftProxy {
             let value = match field.name.as_str() {
                 "node" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    let value = match self.node_load_state(&id, request) {
+                    let requested_field_paths =
+                        selected_node_field_paths(&field.selection, &id, request);
+                    let value = match self.node_load_state_for_requested_shape(
+                        &id,
+                        &requested_field_paths,
+                        request,
+                    ) {
                         NodeLoadState::Found(entity) => entity.value,
                         NodeLoadState::KnownMissing => Value::Null,
                         NodeLoadState::NeedsHydration | NodeLoadState::UnsupportedType => {
@@ -336,20 +510,27 @@ impl DraftProxy {
                         .get("ids")
                         .map(resolved_string_list)
                         .unwrap_or_default();
-                    let values = ids
-                        .iter()
-                        .enumerate()
-                        .map(|(index, id)| match self.node_load_state(id, request) {
-                            NodeLoadState::Found(entity) => entity.value,
-                            NodeLoadState::KnownMissing => Value::Null,
-                            NodeLoadState::NeedsHydration | NodeLoadState::UnsupportedType => {
-                                upstream_nodes
-                                    .and_then(|nodes| nodes.get(index))
-                                    .cloned()
-                                    .unwrap_or(Value::Null)
-                            }
-                        })
-                        .collect::<Vec<_>>();
+                    let values =
+                        ids.iter()
+                            .enumerate()
+                            .map(|(index, id)| {
+                                let requested_field_paths =
+                                    selected_node_field_paths(&field.selection, id, request);
+                                match self.node_load_state_for_requested_shape(
+                                    id,
+                                    &requested_field_paths,
+                                    request,
+                                ) {
+                                    NodeLoadState::Found(entity) => entity.value,
+                                    NodeLoadState::KnownMissing => Value::Null,
+                                    NodeLoadState::NeedsHydration
+                                    | NodeLoadState::UnsupportedType => upstream_nodes
+                                        .and_then(|nodes| nodes.get(index))
+                                        .cloned()
+                                        .unwrap_or(Value::Null),
+                                }
+                            })
+                            .collect::<Vec<_>>();
                     for (id, value) in ids.iter().zip(&values) {
                         self.cache_admin_entity_value(id, value);
                     }
@@ -407,6 +588,23 @@ impl DraftProxy {
         self.request_entity_load_state(ApiSurface::Admin, id, request)
     }
 
+    fn node_load_state_for_requested_shape(
+        &self,
+        id: &str,
+        requested_field_paths: &BTreeSet<Vec<String>>,
+        request: Option<&Request>,
+    ) -> NodeLoadState<EntityRef> {
+        let state = self.node_load_state(id, request);
+        if matches!(state, NodeLoadState::Found(_))
+            && self.owner_parent_is_partial(id)
+            && !self.owner_parent_shape_is_complete(id, requested_field_paths)
+        {
+            NodeLoadState::NeedsHydration
+        } else {
+            state
+        }
+    }
+
     fn cache_admin_entity_value(&self, id: &str, value: &Value) {
         let state = if value.is_null() {
             NodeLoadState::KnownMissing
@@ -434,6 +632,10 @@ impl DraftProxy {
 
     fn observe_node_response_value(&mut self, node: &Value) {
         let id = node.get("id").and_then(Value::as_str).unwrap_or_default();
+        let partial_owner_parent = self.owner_parent_is_partial(id);
+        if partial_owner_parent {
+            self.stage_observed_owner_metafield_node(node);
+        }
         if shopify_gid_resource_type(id).is_some() {
             self.store
                 .staged
@@ -441,7 +643,9 @@ impl DraftProxy {
                 .insert(id.to_string());
         }
         if is_shopify_gid_of_type(id, "Product") {
-            self.store.stage_observed_product_json(node);
+            if !partial_owner_parent {
+                self.store.stage_observed_product_json(node);
+            }
             if let Some(product_id) = node.get("id").and_then(Value::as_str) {
                 for variant in node
                     .get("variants")
@@ -462,14 +666,18 @@ impl DraftProxy {
                     }
                 }
             }
-        } else if is_shopify_gid_of_type(id, "Collection") {
+        } else if is_shopify_gid_of_type(id, "Collection") && !partial_owner_parent {
             self.stage_collection_from_observed_json(node);
         } else if is_shopify_gid_of_type(id, "ProductVariant") {
-            if let Some(variant) = product_variant_state_from_observed_json(node) {
-                self.store.stage_product_variant(variant);
+            if !partial_owner_parent {
+                if let Some(variant) = product_variant_state_from_observed_json(node) {
+                    self.store.stage_product_variant(variant);
+                }
             }
-            if let Some(product) = node.get("product").and_then(product_state_from_json) {
-                self.store.stage_observed_product(product);
+            if !partial_owner_parent {
+                if let Some(product) = node.get("product").and_then(product_state_from_json) {
+                    self.store.stage_observed_product(product);
+                }
             }
         } else if is_shopify_gid_of_type(id, "InventoryItem") {
             self.observe_inventory_item_node(node);
@@ -849,12 +1057,7 @@ pub(crate) fn load_product_variant(
     let value = proxy
         .store
         .product_variant_by_id(id)
-        .map(|variant| proxy.product_variant_canonical_value(variant))
-        .or_else(|| {
-            proxy
-                .owner_has_metafield_local_effects(id)
-                .then(|| json!({ "__typename": "ProductVariant", "id": id }))
-        });
+        .map(|variant| proxy.product_variant_canonical_value(variant));
     value.map_or(NodeLoadState::NeedsHydration, |value| {
         NodeLoadState::Found(EntityRef::new("ProductVariant", id, value))
     })

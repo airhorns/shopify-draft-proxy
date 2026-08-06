@@ -297,6 +297,10 @@ Core state categories:
 - field-presence-aware localization source projections kept separately from
   canonical Product and Collection records, so narrow translation reads cannot
   claim parent completeness or suppress later canonical hydration
+- path-level completeness for Product, ProductVariant, Collection, Customer,
+  Order, and Company records first observed through owner-metafield hydration;
+  record presence and child effects remain separate from evidence that a parent
+  selection is authoritative, and this metadata survives dump/restore
 - staged Store state for local inserts/updates/deletes and other local domain effects not yet committed
 - ordered mutation log entries containing original request path, headers, raw query, variables, capability metadata, resource IDs, and status
 - one store-owned synthetic identity sequence scoped to a `DraftProxy` instance, with allocation checking canonical aliases across persisted state and mutation logs

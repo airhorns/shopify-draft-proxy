@@ -426,6 +426,220 @@ fn push_optional_graphql_arg(
     }
 }
 
+fn observed_value_field_paths(value: &Value) -> BTreeSet<Vec<String>> {
+    fn collect(value: &Value, prefix: &mut Vec<String>, paths: &mut BTreeSet<Vec<String>>) {
+        match value {
+            Value::Object(object) => {
+                for (field, value) in object {
+                    prefix.push(field.clone());
+                    paths.insert(prefix.clone());
+                    collect(value, prefix, paths);
+                    prefix.pop();
+                }
+            }
+            Value::Array(values) => {
+                for value in values {
+                    collect(value, prefix, paths);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut paths = BTreeSet::new();
+    collect(value, &mut Vec::new(), &mut paths);
+    paths
+}
+
+fn owner_metafield_child_path(path: &[String]) -> bool {
+    path.iter()
+        .any(|field| matches!(field.as_str(), "metafield" | "metafields"))
+}
+
+impl DraftProxy {
+    pub(in crate::proxy) fn owner_parent_is_partial(&self, id: &str) -> bool {
+        self.store
+            .staged
+            .owner_parent_observed_field_paths
+            .contains_key(id)
+            && !self.owner_parent_is_tombstoned(id)
+    }
+
+    pub(in crate::proxy) fn owner_parent_shape_is_complete(
+        &self,
+        id: &str,
+        requested_field_paths: &BTreeSet<Vec<String>>,
+    ) -> bool {
+        let Some(observed) = self.store.staged.owner_parent_observed_field_paths.get(id) else {
+            return true;
+        };
+        requested_field_paths.iter().all(|path| {
+            owner_metafield_child_path(path)
+                || !self.owner_parent_field_path_applies(id, path)
+                || observed.contains(path)
+        })
+    }
+
+    pub(in crate::proxy) fn record_owner_parent_observed_shape(
+        &mut self,
+        id: &str,
+        requested_field_paths: &BTreeSet<Vec<String>>,
+    ) {
+        if !self.owner_parent_is_partial(id) {
+            return;
+        }
+        let observed_paths = requested_field_paths
+            .iter()
+            .filter(|path| !owner_metafield_child_path(path))
+            .filter(|path| self.owner_parent_field_path_applies(id, path))
+            .cloned()
+            .collect::<Vec<_>>();
+        self.store
+            .staged
+            .owner_parent_observed_field_paths
+            .entry(id.to_string())
+            .or_default()
+            .extend(observed_paths);
+    }
+
+    fn owner_parent_field_path_applies(&self, id: &str, path: &[String]) -> bool {
+        let Some(mut parent_type) = shopify_gid_resource_type(id).map(str::to_string) else {
+            return true;
+        };
+        let Some(version) = self.execution_session.api_version.as_deref() else {
+            return true;
+        };
+        for field in path {
+            if field == "__typename" {
+                continue;
+            }
+            let Some(field_type) =
+                crate::admin_graphql::output_field_named_type(version, &parent_type, field)
+            else {
+                return false;
+            };
+            parent_type = field_type;
+        }
+        true
+    }
+
+    fn owner_parent_record_exists(&self, id: &str) -> bool {
+        match shopify_gid_resource_type(id) {
+            Some("Product") => self.store.product_by_id(id).is_some(),
+            Some("ProductVariant") => self.store.product_variant_by_id(id).is_some(),
+            Some("Collection") => self.store.collection_by_id(id).is_some(),
+            Some("Customer") => self.b2b_effective_customer(id).is_some(),
+            Some("Order") => self.store.observed_order_by_id(id).is_some(),
+            Some("Company") => {
+                self.store.staged.b2b_companies.contains_key(id)
+                    || self.store.base.b2b_companies.get(id).is_some()
+            }
+            _ => false,
+        }
+    }
+
+    pub(in crate::proxy) fn owner_parent_is_tombstoned(&self, id: &str) -> bool {
+        match shopify_gid_resource_type(id) {
+            Some("Product") => self.store.product_is_tombstoned(id),
+            Some("ProductVariant") => self.store.product_variants.staged.is_tombstoned(id),
+            Some("Collection") => self.store.collection_is_deleted(id),
+            Some("Customer") => self.store.staged.customers.is_tombstoned(id),
+            Some("Order") => self.store.staged.orders.is_tombstoned(id),
+            Some("Company") => self.store.staged.deleted_b2b_company_ids.contains(id),
+            _ => false,
+        }
+    }
+
+    fn stage_observed_owner_parent_record(&mut self, node: &Value) {
+        let Some(id) = node.get("id").and_then(Value::as_str).map(str::to_string) else {
+            return;
+        };
+        if self.owner_parent_is_tombstoned(&id) {
+            return;
+        }
+        let already_partial = self.owner_parent_is_partial(&id);
+        if self.owner_parent_record_exists(&id) && !already_partial {
+            return;
+        }
+        if self.execution_session.api_surface == Some(ApiSurface::Admin) {
+            if let Some(version) = self.execution_session.api_version.as_deref() {
+                self.execution_session
+                    .entity_cache
+                    .borrow_mut()
+                    .remove(&RequestEntityCacheKey::admin(version, &id));
+            }
+        }
+        self.store
+            .staged
+            .owner_parent_observed_field_paths
+            .entry(id.clone())
+            .or_default()
+            .extend(observed_value_field_paths(node));
+        match shopify_gid_resource_type(&id) {
+            Some("Product") => {
+                let mut merged = self
+                    .store
+                    .product_by_id(&id)
+                    .map(product_state_json)
+                    .unwrap_or_else(|| json!({}));
+                merge_json_values(&mut merged, node);
+                if let Some(product) = product_state_from_json(&merged) {
+                    self.store.stage_product(product);
+                }
+            }
+            Some("ProductVariant") => {
+                let mut merged = self
+                    .store
+                    .product_variant_by_id(&id)
+                    .map(product_variant_state_json)
+                    .unwrap_or_else(|| json!({}));
+                merge_json_values(&mut merged, node);
+                if let Some(variant) = product_variant_state_from_observed_json(&merged) {
+                    self.store.stage_product_variant(variant);
+                }
+            }
+            Some("Collection") => {
+                let mut merged = self
+                    .store
+                    .collection_by_id(&id)
+                    .cloned()
+                    .unwrap_or_else(|| json!({}));
+                merge_json_values(&mut merged, node);
+                self.stage_collection_from_observed_json(&merged);
+            }
+            Some("Customer") => {
+                let mut merged = self
+                    .b2b_effective_customer(&id)
+                    .unwrap_or_else(|| json!({}));
+                merge_json_values(&mut merged, node);
+                self.store.staged.customers.insert(id, merged);
+            }
+            Some("Order") => {
+                let mut merged = self
+                    .store
+                    .observed_order_by_id(&id)
+                    .cloned()
+                    .unwrap_or_else(|| json!({}));
+                merge_json_values(&mut merged, node);
+                self.store.staged.orders.insert(id, merged);
+            }
+            Some("Company") => {
+                let mut merged = self
+                    .store
+                    .staged
+                    .b2b_companies
+                    .get(&id)
+                    .or_else(|| self.store.base.b2b_companies.get(&id))
+                    .cloned()
+                    .unwrap_or_else(|| json!({}));
+                merge_json_values(&mut merged, node);
+                self.store.staged.b2b_companies.insert(id, merged);
+            }
+            _ => {}
+        }
+    }
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn owner_metafield_owner_supported(
         &self,
@@ -781,14 +995,25 @@ impl DraftProxy {
             if !Self::owner_field_selects_metafields_at_root(&field.name, &field.selection) {
                 continue;
             }
+            let mut incomplete_local_parent = false;
             if self.config.read_mode == ReadMode::LiveHybrid {
                 let owner_id = self.owner_field_id(field, variables);
                 let cold = self.owner_needs_metafield_hydration(&field.name, &owner_id);
+                let has_local_effect = self.owner_has_metafield_local_effects(&owner_id);
+                let requested_field_paths = selected_field_paths(&field.selection);
+                incomplete_local_parent = has_local_effect
+                    && (!self.owner_parent_record_exists(&owner_id)
+                        || (self.owner_parent_is_partial(&owner_id)
+                            && !self.owner_parent_shape_is_complete(
+                                &owner_id,
+                                &requested_field_paths,
+                            )));
                 // A cold (unstaged) owner that also selects sub-resources the
                 // metafields overlay cannot synthesize (addresses, orders, events, ...)
                 // must forward the whole read upstream as a passthrough rather than be
                 // answered with a metafields-only projection that silently drops them.
                 if cold
+                    && !incomplete_local_parent
                     && !Self::owner_metafields_read_selection_is_metafields_only(&field.selection)
                 {
                     continue;
@@ -807,7 +1032,9 @@ impl DraftProxy {
                 }
                 "product" | "productVariant" if self.config.read_mode == ReadMode::LiveHybrid => {
                     let owner_id = self.owner_field_id(field, variables);
-                    if self.owner_needs_metafield_hydration(&field.name, &owner_id) {
+                    if self.owner_needs_metafield_hydration(&field.name, &owner_id)
+                        || incomplete_local_parent
+                    {
                         needs_live_product_hydration = true;
                     }
                 }
@@ -1454,43 +1681,18 @@ impl DraftProxy {
         }
     }
 
-    fn stage_observed_owner_metafield_node(&mut self, node: &Value) {
+    pub(in crate::proxy) fn stage_observed_owner_metafield_node(&mut self, node: &Value) {
         let Some(owner_id) = node.get("id").and_then(Value::as_str).map(str::to_string) else {
             return;
         };
+        self.stage_observed_owner_parent_record(node);
         match shopify_gid_resource_type(&owner_id) {
-            Some("Product") => self.store.stage_observed_product_json(node),
+            Some("Product") | Some("Collection") | Some("Customer") | Some("Order")
+            | Some("Company") => {}
             Some("ProductVariant") => {
-                if let Some(variant) = product_variant_state_from_observed_json(node) {
-                    self.store.stage_product_variant(variant);
-                }
                 if let Some(product) = node.get("product") {
-                    self.store.stage_observed_product_json(product);
+                    self.stage_observed_owner_parent_record(product);
                 }
-            }
-            Some("Collection") => {
-                self.store
-                    .staged
-                    .collections
-                    .insert(owner_id.clone(), node.clone());
-            }
-            Some("Customer") => {
-                self.store
-                    .staged
-                    .customers
-                    .insert(owner_id.clone(), node.clone());
-            }
-            Some("Order") => {
-                self.store
-                    .staged
-                    .orders
-                    .insert(owner_id.clone(), node.clone());
-            }
-            Some("Company") => {
-                self.store
-                    .staged
-                    .b2b_companies
-                    .insert(owner_id.clone(), node.clone());
             }
             Some("Shop") => {
                 self.store.base.shop =
@@ -1565,7 +1767,12 @@ impl DraftProxy {
                 .iter()
             {
                 if let Some(variant_id) = variant.get("id").and_then(Value::as_str) {
-                    self.stage_observed_owner_metafields(variant_id, variant);
+                    let mut variant = variant.clone();
+                    if let Some(object) = variant.as_object_mut() {
+                        object.insert("productId".to_string(), json!(owner_id));
+                    }
+                    self.stage_observed_owner_parent_record(&variant);
+                    self.stage_observed_owner_metafields(variant_id, &variant);
                 }
             }
         }
@@ -2846,6 +3053,203 @@ mod tests {
         }
     }
 
+    const COMPLETENESS_PRODUCT_ID: &str = "gid://shopify/Product/100";
+    const COMPLETENESS_VARIANT_ID: &str = "gid://shopify/ProductVariant/200";
+    const COMPLETENESS_COLLECTION_ID: &str = "gid://shopify/Collection/300";
+    const COMPLETENESS_CUSTOMER_ID: &str = "gid://shopify/Customer/400";
+    const COMPLETENESS_ORDER_ID: &str = "gid://shopify/Order/500";
+    const COMPLETENESS_COMPANY_ID: &str = "gid://shopify/Company/600";
+
+    fn completeness_metafield_inputs() -> Value {
+        json!([
+            { "ownerId": COMPLETENESS_PRODUCT_ID, "namespace": "custom", "key": "completeness", "type": "single_line_text_field", "value": "product-local" },
+            { "ownerId": COMPLETENESS_VARIANT_ID, "namespace": "custom", "key": "completeness", "type": "single_line_text_field", "value": "variant-local" },
+            { "ownerId": COMPLETENESS_COLLECTION_ID, "namespace": "custom", "key": "completeness", "type": "single_line_text_field", "value": "collection-local" },
+            { "ownerId": COMPLETENESS_CUSTOMER_ID, "namespace": "custom", "key": "completeness", "type": "single_line_text_field", "value": "customer-local" },
+            { "ownerId": COMPLETENESS_ORDER_ID, "namespace": "custom", "key": "completeness", "type": "single_line_text_field", "value": "order-local" },
+            { "ownerId": COMPLETENESS_COMPANY_ID, "namespace": "custom", "key": "completeness", "type": "single_line_text_field", "value": "company-local" }
+        ])
+    }
+
+    fn completeness_owner_hydration_node(id: &str) -> Value {
+        match shopify_gid_resource_type(id) {
+            Some("Product") => json!({
+                "__typename": "Product",
+                "id": id,
+                "title": "Observed product title",
+                "handle": "observed-product",
+                "status": "ACTIVE",
+                "totalInventory": 5,
+                "tracksInventory": true,
+                "createdAt": "2026-07-01T00:00:00Z",
+                "updatedAt": "2026-07-02T00:00:00Z",
+                "metafield0": Value::Null
+            }),
+            Some("ProductVariant") => json!({
+                "__typename": "ProductVariant",
+                "id": id,
+                "title": "Observed variant title",
+                "sku": "OBSERVED-SKU",
+                "barcode": Value::Null,
+                "price": "12.00",
+                "compareAtPrice": Value::Null,
+                "taxable": true,
+                "inventoryPolicy": "DENY",
+                "inventoryQuantity": 5,
+                "selectedOptions": [{ "name": "Title", "value": "Default Title" }],
+                "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/201",
+                    "tracked": true,
+                    "requiresShipping": true
+                },
+                "product": {
+                    "id": COMPLETENESS_PRODUCT_ID,
+                    "title": "Observed product title",
+                    "handle": "observed-product",
+                    "status": "ACTIVE",
+                    "totalInventory": 5,
+                    "tracksInventory": true,
+                    "createdAt": "2026-07-01T00:00:00Z",
+                    "updatedAt": "2026-07-02T00:00:00Z"
+                },
+                "metafield0": Value::Null
+            }),
+            Some("Collection") => json!({
+                "__typename": "Collection",
+                "id": id,
+                "title": "Observed collection title",
+                "handle": "observed-collection",
+                "metafield0": Value::Null
+            }),
+            Some("Customer") => json!({
+                "__typename": "Customer",
+                "id": id,
+                "displayName": "Observed Customer",
+                "email": "observed@example.com",
+                "metafield0": Value::Null
+            }),
+            Some("Order") => json!({
+                "__typename": "Order",
+                "id": id,
+                "name": "#500",
+                "metafield0": Value::Null
+            }),
+            Some("Company") => json!({
+                "__typename": "Company",
+                "id": id,
+                "name": "Observed Company",
+                "metafield0": Value::Null
+            }),
+            _ => Value::Null,
+        }
+    }
+
+    fn completeness_parent_data(include_metafields: bool) -> Value {
+        let mut data = json!({
+            "product": { "id": COMPLETENESS_PRODUCT_ID, "descriptionHtml": "<p>Authoritative product description</p>" },
+            "productVariant": { "id": COMPLETENESS_VARIANT_ID, "position": 7 },
+            "collection": { "id": COMPLETENESS_COLLECTION_ID, "updatedAt": "2026-07-04T00:00:00Z" },
+            "customer": { "id": COMPLETENESS_CUSTOMER_ID, "firstName": "Authoritative" },
+            "order": { "id": COMPLETENESS_ORDER_ID, "email": "authoritative-order@example.com" },
+            "company": { "id": COMPLETENESS_COMPANY_ID, "externalId": "authoritative-company" }
+        });
+        if include_metafields {
+            for root in [
+                "product",
+                "productVariant",
+                "collection",
+                "customer",
+                "order",
+                "company",
+            ] {
+                data[root]["metafield"] = Value::Null;
+            }
+        }
+        data
+    }
+
+    fn completeness_metafield_read_data() -> Value {
+        json!({
+            "product": { "id": COMPLETENESS_PRODUCT_ID, "metafield": Value::Null },
+            "productVariant": { "id": COMPLETENESS_VARIANT_ID, "metafield": Value::Null },
+            "collection": { "id": COMPLETENESS_COLLECTION_ID, "metafield": Value::Null },
+            "customer": { "id": COMPLETENESS_CUSTOMER_ID, "metafield": Value::Null },
+            "order": { "id": COMPLETENESS_ORDER_ID, "metafield": Value::Null },
+            "company": { "id": COMPLETENESS_COMPANY_ID, "metafield": Value::Null }
+        })
+    }
+
+    fn completeness_node_data(include_metafields: bool) -> Value {
+        let mut nodes = vec![
+            json!({ "__typename": "Product", "id": COMPLETENESS_PRODUCT_ID, "descriptionHtml": "<p>Authoritative product description</p>" }),
+            json!({ "__typename": "ProductVariant", "id": COMPLETENESS_VARIANT_ID, "position": 7 }),
+            json!({ "__typename": "Collection", "id": COMPLETENESS_COLLECTION_ID, "updatedAt": "2026-07-04T00:00:00Z" }),
+            json!({ "__typename": "Customer", "id": COMPLETENESS_CUSTOMER_ID, "firstName": "Authoritative" }),
+            json!({ "__typename": "Order", "id": COMPLETENESS_ORDER_ID, "email": "authoritative-order@example.com" }),
+            json!({ "__typename": "Company", "id": COMPLETENESS_COMPANY_ID, "externalId": "authoritative-company" }),
+        ];
+        if include_metafields {
+            for node in &mut nodes {
+                node["metafield"] = Value::Null;
+            }
+        }
+        Value::Array(nodes)
+    }
+
+    fn completeness_proxy(calls: Arc<Mutex<Vec<Value>>>) -> DraftProxy {
+        DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+        })
+        .with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            let query = body["query"].as_str().unwrap_or_default();
+            let data = if query.contains("OwnerMetafieldsExistenceHydrate") {
+                json!({
+                    "nodes": body["variables"]["ids"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|id| {
+                            let id = id.as_str().unwrap();
+                            json!({
+                                "__typename": shopify_gid_resource_type(id).unwrap(),
+                                "id": id
+                            })
+                        })
+                        .collect::<Vec<_>>()
+                })
+            } else if query.contains("OwnerMetafieldsHydrateNodes") {
+                json!({
+                    "nodes": body["variables"]["ids"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|id| completeness_owner_hydration_node(id.as_str().unwrap()))
+                        .collect::<Vec<_>>()
+                })
+            } else if query.contains("ReadOwnerNodesAfterMetafieldSet") {
+                json!({ "nodes": completeness_node_data(true) })
+            } else if query.contains("ReadOnlyOwnerMetafields") {
+                completeness_metafield_read_data()
+            } else if query.contains("ReadOwnerParentsAfterMetafieldSet") {
+                completeness_parent_data(true)
+            } else {
+                completeness_parent_data(false)
+            };
+            calls.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: BTreeMap::new(),
+                body: json!({ "data": data }),
+            }
+        })
+    }
+
     fn owner_hydration_proxy(
         calls: Arc<Mutex<Vec<Value>>>,
         include_targeted_metafield: bool,
@@ -3546,5 +3950,439 @@ mod tests {
         assert!(query.contains("metafields(first: 2, namespace: \"custom\")"));
         assert!(query.contains("metafield(namespace: \"custom\", key: \"color\")"));
         assert!(query.contains("metafield(namespace: \"custom\", key: \"featured\")"));
+    }
+
+    #[test]
+    fn owner_metafield_set_hydrates_six_disjoint_parent_shapes_with_local_overlays() {
+        let calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+        let mut proxy = completeness_proxy(calls.clone());
+
+        let mutation = proxy.process_request(graphql_request(
+            r#"
+            mutation SetOwnerMetafields($metafields: [MetafieldsSetInput!]!) {
+              metafieldsSet(metafields: $metafields) {
+                metafields { ownerType value }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "metafields": completeness_metafield_inputs() }),
+        ));
+        assert_eq!(mutation.status, 200);
+        assert_eq!(
+            mutation.body["data"]["metafieldsSet"]["userErrors"],
+            json!([])
+        );
+        let calls_after_mutation = calls.lock().unwrap().len();
+        assert!(calls.lock().unwrap().iter().all(|call| {
+            call["query"]
+                .as_str()
+                .is_some_and(|query| query.trim_start().starts_with("query "))
+        }));
+
+        let read = proxy.process_request(graphql_request(
+            r#"
+            query ReadOwnerParentsAfterMetafieldSet {
+              product(id: "gid://shopify/Product/100") {
+                id descriptionHtml
+                metafield(namespace: "custom", key: "completeness") { value }
+              }
+              productVariant(id: "gid://shopify/ProductVariant/200") {
+                id position
+                metafield(namespace: "custom", key: "completeness") { value }
+              }
+              collection(id: "gid://shopify/Collection/300") {
+                id updatedAt
+                metafield(namespace: "custom", key: "completeness") { value }
+              }
+              customer(id: "gid://shopify/Customer/400") {
+                id firstName
+                metafield(namespace: "custom", key: "completeness") { value }
+              }
+              order(id: "gid://shopify/Order/500") {
+                id email
+                metafield(namespace: "custom", key: "completeness") { value }
+              }
+              company(id: "gid://shopify/Company/600") {
+                id externalId
+                metafield(namespace: "custom", key: "completeness") { value }
+              }
+            }
+            "#,
+            json!({}),
+        ));
+        assert_eq!(read.status, 200);
+        assert_eq!(
+            read.body["data"]["product"]["descriptionHtml"],
+            "<p>Authoritative product description</p>"
+        );
+        assert_eq!(read.body["data"]["productVariant"]["position"], 7);
+        assert_eq!(
+            read.body["data"]["collection"]["updatedAt"],
+            "2026-07-04T00:00:00Z"
+        );
+        assert_eq!(read.body["data"]["customer"]["firstName"], "Authoritative");
+        assert_eq!(
+            read.body["data"]["order"]["email"],
+            "authoritative-order@example.com"
+        );
+        assert_eq!(
+            read.body["data"]["company"]["externalId"],
+            "authoritative-company"
+        );
+        for (root, expected) in [
+            ("product", "product-local"),
+            ("productVariant", "variant-local"),
+            ("collection", "collection-local"),
+            ("customer", "customer-local"),
+            ("order", "order-local"),
+            ("company", "company-local"),
+        ] {
+            assert_eq!(read.body["data"][root]["metafield"]["value"], expected);
+        }
+        assert_eq!(
+            calls.lock().unwrap().len(),
+            calls_after_mutation + 1,
+            "the six-owner sibling read should reuse one caller response"
+        );
+    }
+
+    #[test]
+    fn owner_metafield_read_does_not_complete_six_parent_shapes() {
+        let calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+        let mut proxy = completeness_proxy(calls.clone());
+
+        let metafields = proxy.process_request(graphql_request(
+            r#"
+            query ReadOnlyOwnerMetafields {
+              product(id: "gid://shopify/Product/100") { id metafield(namespace: "custom", key: "completeness") { value } }
+              productVariant(id: "gid://shopify/ProductVariant/200") { id metafield(namespace: "custom", key: "completeness") { value } }
+              collection(id: "gid://shopify/Collection/300") { id metafield(namespace: "custom", key: "completeness") { value } }
+              customer(id: "gid://shopify/Customer/400") { id metafield(namespace: "custom", key: "completeness") { value } }
+              order(id: "gid://shopify/Order/500") { id metafield(namespace: "custom", key: "completeness") { value } }
+              company(id: "gid://shopify/Company/600") { id metafield(namespace: "custom", key: "completeness") { value } }
+            }
+            "#,
+            json!({}),
+        ));
+        assert_eq!(metafields.status, 200);
+
+        let siblings = proxy.process_request(graphql_request(
+            r#"
+            query ReadDisjointOwnerSiblingsAfterMetafieldRead {
+              product(id: "gid://shopify/Product/100") { id descriptionHtml }
+              productVariant(id: "gid://shopify/ProductVariant/200") { id position }
+              collection(id: "gid://shopify/Collection/300") { id updatedAt }
+              customer(id: "gid://shopify/Customer/400") { id firstName }
+              order(id: "gid://shopify/Order/500") { id email }
+              company(id: "gid://shopify/Company/600") { id externalId }
+            }
+            "#,
+            json!({}),
+        ));
+        assert_eq!(siblings.status, 200);
+        assert_eq!(siblings.body["data"], completeness_parent_data(false));
+        assert_eq!(
+            calls.lock().unwrap().len(),
+            2,
+            "each public read should issue one bounded caller request"
+        );
+    }
+
+    #[test]
+    fn owner_parent_completeness_applies_to_generic_node_loaders() {
+        let calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+        let mut proxy = completeness_proxy(calls.clone());
+        let mutation = proxy.process_request(graphql_request(
+            r#"
+            mutation SetOwnerMetafields($metafields: [MetafieldsSetInput!]!) {
+              metafieldsSet(metafields: $metafields) { userErrors { message } }
+            }
+            "#,
+            json!({ "metafields": completeness_metafield_inputs() }),
+        ));
+        assert_eq!(
+            mutation.body["data"]["metafieldsSet"]["userErrors"],
+            json!([])
+        );
+        let calls_after_mutation = calls.lock().unwrap().len();
+
+        let response = proxy.process_request(graphql_request(
+            r#"
+            query ReadOwnerNodesAfterMetafieldSet {
+              nodes(ids: [
+                "gid://shopify/Product/100",
+                "gid://shopify/ProductVariant/200",
+                "gid://shopify/Collection/300",
+                "gid://shopify/Customer/400",
+                "gid://shopify/Order/500",
+                "gid://shopify/Company/600"
+              ]) {
+                __typename
+                ... on Product { id descriptionHtml metafield(namespace: "custom", key: "completeness") { value } }
+                ... on ProductVariant { id position metafield(namespace: "custom", key: "completeness") { value } }
+                ... on Collection { id updatedAt metafield(namespace: "custom", key: "completeness") { value } }
+                ... on Customer { id firstName metafield(namespace: "custom", key: "completeness") { value } }
+                ... on Order { id email metafield(namespace: "custom", key: "completeness") { value } }
+                ... on Company { id externalId metafield(namespace: "custom", key: "completeness") { value } }
+              }
+            }
+            "#,
+            json!({}),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["nodes"][0]["descriptionHtml"],
+            "<p>Authoritative product description</p>"
+        );
+        assert_eq!(response.body["data"]["nodes"][1]["position"], 7);
+        assert_eq!(
+            response.body["data"]["nodes"][5]["externalId"],
+            "authoritative-company"
+        );
+        for (index, expected) in [
+            "product-local",
+            "variant-local",
+            "collection-local",
+            "customer-local",
+            "order-local",
+            "company-local",
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            assert_eq!(
+                response.body["data"]["nodes"][index]["metafield"]["value"],
+                expected
+            );
+        }
+        assert_eq!(calls.lock().unwrap().len(), calls_after_mutation + 1);
+    }
+
+    #[test]
+    fn owner_parent_completeness_survives_dump_restore() {
+        let mut proxy = completeness_proxy(Arc::new(Mutex::new(Vec::<Value>::new())));
+        let mutation = proxy.process_request(graphql_request(
+            r#"
+            mutation SetOwnerMetafields($metafields: [MetafieldsSetInput!]!) {
+              metafieldsSet(metafields: $metafields) { userErrors { message } }
+            }
+            "#,
+            json!({ "metafields": completeness_metafield_inputs() }),
+        ));
+        assert_eq!(
+            mutation.body["data"]["metafieldsSet"]["userErrors"],
+            json!([])
+        );
+
+        let dump = proxy.process_request(Request {
+            method: "POST".to_string(),
+            path: "/__meta/dump".to_string(),
+            headers: BTreeMap::new(),
+            body: "{}".to_string(),
+        });
+        assert_eq!(dump.status, 200);
+        assert!(
+            dump.body["state"]["stagedState"]["ownerParentObservedFieldPaths"]
+                .get(COMPLETENESS_PRODUCT_ID)
+                .is_some()
+        );
+
+        let restored_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+        let mut restored = completeness_proxy(restored_calls.clone());
+        let restore = restored.process_request(Request {
+            method: "POST".to_string(),
+            path: "/__meta/restore".to_string(),
+            headers: BTreeMap::new(),
+            body: dump.body.to_string(),
+        });
+        assert_eq!(restore.status, 200);
+
+        let response = restored.process_request(graphql_request(
+            r#"
+            query ReadRestoredOwnerSibling {
+              product(id: "gid://shopify/Product/100") { id descriptionHtml }
+            }
+            "#,
+            json!({}),
+        ));
+        assert_eq!(
+            response.body["data"]["product"],
+            completeness_parent_data(false)["product"]
+        );
+        assert_eq!(restored_calls.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn narrow_owner_observation_does_not_downgrade_richer_parent() {
+        let calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+        let mut proxy = completeness_proxy(calls.clone());
+        proxy.store.stage_observed_product_json(&json!({
+            "id": COMPLETENESS_PRODUCT_ID,
+            "title": "Already authoritative",
+            "handle": "already-authoritative",
+            "descriptionHtml": "<p>Preserved description</p>",
+            "status": "ACTIVE"
+        }));
+
+        let metafield_read = proxy.process_request(graphql_request(
+            r#"
+            query ReadOnlyOwnerMetafields {
+              product(id: "gid://shopify/Product/100") {
+                id
+                metafield(namespace: "custom", key: "completeness") { value }
+              }
+            }
+            "#,
+            json!({}),
+        ));
+        assert_eq!(metafield_read.status, 200);
+
+        let sibling_read = proxy.process_request(graphql_request(
+            r#"
+            query ReadPreservedProductSibling {
+              product(id: "gid://shopify/Product/100") { id title descriptionHtml }
+            }
+            "#,
+            json!({}),
+        ));
+        assert_eq!(
+            sibling_read.body["data"]["product"],
+            json!({
+                "id": COMPLETENESS_PRODUCT_ID,
+                "title": "Already authoritative",
+                "descriptionHtml": "<p>Preserved description</p>"
+            })
+        );
+        assert!(!proxy.owner_parent_is_partial(COMPLETENESS_PRODUCT_ID));
+        assert_eq!(calls.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn owner_parent_completeness_never_overrides_exact_tombstones() {
+        let calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+        let mut proxy = completeness_proxy(calls.clone());
+        let mutation = proxy.process_request(graphql_request(
+            r#"
+            mutation SetOwnerMetafields($metafields: [MetafieldsSetInput!]!) {
+              metafieldsSet(metafields: $metafields) { userErrors { message } }
+            }
+            "#,
+            json!({ "metafields": completeness_metafield_inputs() }),
+        ));
+        assert_eq!(
+            mutation.body["data"]["metafieldsSet"]["userErrors"],
+            json!([])
+        );
+        let calls_after_mutation = calls.lock().unwrap().len();
+
+        proxy.store.delete_product(COMPLETENESS_PRODUCT_ID);
+        assert!(proxy.store.delete_product_variant(COMPLETENESS_VARIANT_ID));
+        proxy
+            .store
+            .staged
+            .collections
+            .tombstone(COMPLETENESS_COLLECTION_ID.to_string());
+        proxy
+            .store
+            .staged
+            .customers
+            .tombstone(COMPLETENESS_CUSTOMER_ID.to_string());
+        proxy
+            .store
+            .staged
+            .orders
+            .tombstone(COMPLETENESS_ORDER_ID.to_string());
+        proxy
+            .store
+            .staged
+            .deleted_b2b_company_ids
+            .insert(COMPLETENESS_COMPANY_ID.to_string());
+
+        let response = proxy.process_request(graphql_request(
+            r#"
+            query ReadTombstonedOwners {
+              product(id: "gid://shopify/Product/100") { id descriptionHtml }
+              productVariant(id: "gid://shopify/ProductVariant/200") { id position }
+              collection(id: "gid://shopify/Collection/300") { id updatedAt }
+              customer(id: "gid://shopify/Customer/400") { id firstName }
+              order(id: "gid://shopify/Order/500") { id email }
+              company(id: "gid://shopify/Company/600") { id externalId }
+              nodes(ids: [
+                "gid://shopify/Product/100",
+                "gid://shopify/ProductVariant/200",
+                "gid://shopify/Collection/300",
+                "gid://shopify/Customer/400",
+                "gid://shopify/Order/500",
+                "gid://shopify/Company/600"
+              ]) { __typename }
+            }
+            "#,
+            json!({}),
+        ));
+        assert_eq!(response.status, 200);
+        for root in [
+            "product",
+            "productVariant",
+            "collection",
+            "customer",
+            "order",
+            "company",
+        ] {
+            assert!(response.body["data"][root].is_null(), "{root} resurfaced");
+        }
+        assert_eq!(
+            response.body["data"]["nodes"],
+            Value::Array(vec![Value::Null; 6])
+        );
+        assert_eq!(calls.lock().unwrap().len(), calls_after_mutation);
+    }
+
+    #[test]
+    fn child_only_metafield_effects_do_not_fabricate_unresolved_parents() {
+        let mut proxy = DraftProxy::new(Config {
+            read_mode: ReadMode::Snapshot,
+            unsupported_mutation_mode: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+            port: 0,
+            shopify_admin_origin: String::new(),
+            snapshot_path: None,
+        });
+        for input in completeness_metafield_inputs().as_array().unwrap() {
+            let owner_id = input["ownerId"].as_str().unwrap().to_string();
+            proxy
+                .store
+                .staged
+                .owner_metafields
+                .insert(owner_id, vec![input.clone()]);
+        }
+
+        let response = proxy.process_request(graphql_request(
+            r#"
+            query ReadUnresolvedOwners {
+              product(id: "gid://shopify/Product/100") { id metafield(namespace: "custom", key: "completeness") { value } }
+              productVariant(id: "gid://shopify/ProductVariant/200") { id metafield(namespace: "custom", key: "completeness") { value } }
+              collection(id: "gid://shopify/Collection/300") { id metafield(namespace: "custom", key: "completeness") { value } }
+              customer(id: "gid://shopify/Customer/400") { id metafield(namespace: "custom", key: "completeness") { value } }
+              order(id: "gid://shopify/Order/500") { id metafield(namespace: "custom", key: "completeness") { value } }
+              company(id: "gid://shopify/Company/600") { id metafield(namespace: "custom", key: "completeness") { value } }
+            }
+            "#,
+            json!({}),
+        ));
+        assert_eq!(response.status, 200);
+        for root in [
+            "product",
+            "productVariant",
+            "collection",
+            "customer",
+            "order",
+            "company",
+        ] {
+            assert!(
+                response.body["data"][root].is_null(),
+                "{root} was fabricated"
+            );
+        }
     }
 }
