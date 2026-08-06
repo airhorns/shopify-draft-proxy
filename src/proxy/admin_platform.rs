@@ -172,7 +172,11 @@ impl DraftProxy {
         let result = self
             .cached_or_forward_upstream_graphql_result(invocation.request, invocation.response_key);
         if result.transport_succeeded {
-            let response = self.execution_session.upstream_query_response.clone();
+            let response = self
+                .execution_session
+                .request_cache
+                .caller_response()
+                .cloned();
             if let Some(response) = response {
                 self.observe_taxonomy_root_response(
                     invocation.response_key,
